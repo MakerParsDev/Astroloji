@@ -1,0 +1,83 @@
+name: android-metadata
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - Astroloji/play/**
+      - scripts/validate-play-metadata.mjs
+      - scripts/publish-play-metadata.mjs
+      - .github/workflows/android-metadata.yml
+  workflow_dispatch:
+    inputs:
+      track:
+        description: Optional track name to also update release notes for
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-metadata-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Validate Play metadata
+        run: node scripts/validate-play-metadata.mjs
+
+  publish-metadata:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'MakerParsDev/Astroloji' && vars.ENABLE_METADATA_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    needs: validate-metadata
+    env:
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install Doppler CLI
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+      - name: Download Doppler secrets
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          if [ -n "$DOPPLER_TOKEN" ]; then
+            doppler secrets download \
+              --project "${DOPPLER_PROJECT:-mobil-apps}" \
+              --config "${DOPPLER_CONFIG:-astrology}" \
+              --format json \
+              --no-file \
+              > "$RUNNER_TEMP/doppler-secrets.json"
+          else
+            echo "DOPPLER_TOKEN is not set; relying on GitHub environment secrets."
+          fi
+      - name: Write Play service account credentials
+        env:
+          DOPPLER_SECRETS_JSON_PATH: ${{ runner.temp }}/doppler-secrets.json
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          node -e "const fs=require('fs'); const p=process.env.DOPPLER_SECRETS_JSON_PATH; let s=''; if (p && fs.existsSync(p)) { const parsed=JSON.parse(fs.readFileSync(p,'utf8')); const pick=(key)=> typeof parsed[key]==='string' ? parsed[key] : parsed[key]?.computed || ''; s = pick('PLAY_SERVICE_ACCOUNT_JSON') || pick('GOOGLE_SERVICE_ACCOUNT_JSON'); } s = process.env.PLAY_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON || s; if (!s) { console.error('Missing Play service account JSON from GitHub secrets or Doppler.'); process.exit(1); } fs.writeFileSync(process.env.RUNNER_TEMP + '/play-service-account.json', s);"
+      - name: Publish Play metadata edit
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+          PLAY_PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
+          PLAY_METADATA_ROOT: Astroloji/play
+          PLAY_METADATA_TRACK: ${{ inputs.track }}
+        run: node scripts/publish-play-metadata.mjs

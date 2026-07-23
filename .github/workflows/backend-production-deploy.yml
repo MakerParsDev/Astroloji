@@ -1,0 +1,152 @@
+name: backend-production-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY to publish the current main commit to Cloudflare production."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    defaults:
+      run:
+        working-directory: backend
+        shell: bash
+    env:
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Validate deployment configuration
+        run: |
+          missing=0
+          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG ADMIN_SECRET CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required production setting: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Runtime smoke tests
+        run: npm run test:runtime
+
+      - name: Install Doppler CLI
+        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+
+      - name: Validate required Doppler secrets
+        run: |
+          doppler secrets download \
+            --no-file \
+            --format json \
+            --project "$DOPPLER_PROJECT" \
+            --config "$DOPPLER_CONFIG" |
+          node -e '
+            const fs = require("node:fs");
+            const secrets = JSON.parse(fs.readFileSync(0, "utf8"));
+            const required = [
+              "JWT_SECRET",
+              "GOOGLE_SERVICE_ACCOUNT_JSON",
+              "FIREBASE_SERVICE_ACCOUNT_JSON",
+              "PLAY_WEBHOOK_SECRET",
+            ];
+            const missing = required.filter((name) => !secrets[name]);
+            if (missing.length) {
+              console.error("Missing required Doppler secrets: " + missing.join(", "));
+              process.exit(1);
+            }
+            console.log("Validated " + required.length + " required Doppler secrets and the GitHub ADMIN_SECRET override.");
+          '
+
+      - name: Sync Worker secrets and deploy
+        run: npm run deploy:doppler
+
+      - name: Verify live endpoints
+        run: |
+          health_url="${BACKEND_BASE_URL%/}/api/v1/health"
+          privacy_url="${BACKEND_BASE_URL%/}/privacy?deploy=${GITHUB_SHA}"
+          terms_url="${BACKEND_BASE_URL%/}/terms?deploy=${GITHUB_SHA}"
+          deletion_page_url="${BACKEND_BASE_URL%/}/delete-account?deploy=${GITHUB_SHA}"
+          delete_api_url="${BACKEND_BASE_URL%/}/api/v1/users/me"
+          admin_url="${BACKEND_BASE_URL%/}/api/v1/admin/content/backfill"
+
+          for attempt in 1 2 3 4 5 6 7 8; do
+            health_status="$(curl --silent --show-error --output "$RUNNER_TEMP/health.json" --write-out '%{http_code}' "$health_url" || true)"
+            privacy_status="$(curl --silent --show-error --output "$RUNNER_TEMP/privacy.html" --write-out '%{http_code}' "$privacy_url" || true)"
+            terms_status="$(curl --silent --show-error --output "$RUNNER_TEMP/terms.html" --write-out '%{http_code}' "$terms_url" || true)"
+            deletion_page_status="$(curl --silent --show-error --output "$RUNNER_TEMP/delete-account.html" --write-out '%{http_code}' "$deletion_page_url" || true)"
+            delete_api_status="$(curl --silent --show-error --output "$RUNNER_TEMP/delete-api.json" --write-out '%{http_code}' --request DELETE "$delete_api_url" || true)"
+            admin_status="$(curl --silent --show-error --output "$RUNNER_TEMP/admin.json" --write-out '%{http_code}' --request POST "$admin_url" || true)"
+
+            if [ "$health_status" = "200" ] \
+              && [ "$privacy_status" = "200" ] \
+              && [ "$terms_status" = "200" ] \
+              && [ "$deletion_page_status" = "200" ] \
+              && [ "$delete_api_status" = "401" ] \
+              && [ "$admin_status" = "403" ] \
+              && grep -q 'Gizlilik Politikası' "$RUNNER_TEMP/privacy.html" \
+              && grep -q 'Kullanım Koşulları' "$RUNNER_TEMP/terms.html" \
+              && grep -q 'Hesap ve Veri Silme' "$RUNNER_TEMP/delete-account.html" \
+              && grep -q 'info@parsfilo.com' "$RUNNER_TEMP/delete-account.html"; then
+              echo "Live verification passed on attempt $attempt."
+              exit 0
+            fi
+
+            echo "Attempt $attempt failed: health=$health_status privacy=$privacy_status terms=$terms_status deletion_page=$deletion_page_status delete_api=$delete_api_status admin=$admin_status"
+            sleep 5
+          done
+
+          echo "Live verification failed after all retries."
+          for file in health.json privacy.html terms.html delete-account.html delete-api.json admin.json; do
+            echo "--- $file"
+            head -c 500 "$RUNNER_TEMP/$file" || true
+            echo
+          done
+          exit 1
+
+      - name: Publish deployment summary
+        run: |
+          {
+            echo '## Backend production deployment'
+            echo
+            echo "- Worker: astrology-backend"
+            echo "- Git SHA: $GITHUB_SHA"
+            echo "- Health: ${BACKEND_BASE_URL%/}/api/v1/health"
+            echo "- Privacy: ${BACKEND_BASE_URL%/}/privacy"
+            echo "- Terms: ${BACKEND_BASE_URL%/}/terms"
+            echo "- Account deletion: ${BACKEND_BASE_URL%/}/delete-account"
+          } >> "$GITHUB_STEP_SUMMARY"

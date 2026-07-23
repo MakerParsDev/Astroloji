@@ -1,0 +1,91 @@
+name: backend-play-webhook-smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-play-webhook-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.repository == 'MakerParsDev/Astroloji'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+    steps:
+      - name: Validate production configuration
+        shell: bash
+        run: |
+          missing=0
+          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG BACKEND_BASE_URL; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required production setting: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install Doppler CLI
+        shell: bash
+        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+
+      - name: Verify Play RTDN secret boundary
+        shell: bash
+        run: |
+          play_secret="$(
+            doppler secrets get PLAY_WEBHOOK_SECRET \
+              --project "$DOPPLER_PROJECT" \
+              --config "$DOPPLER_CONFIG" \
+              --plain
+          )"
+
+          if [ -z "$play_secret" ]; then
+            echo "PLAY_WEBHOOK_SECRET could not be loaded from Doppler."
+            exit 1
+          fi
+          echo "::add-mask::$play_secret"
+
+          webhook_url="${BACKEND_BASE_URL%/}/api/v1/webhooks/play-rtdn"
+          unauthorized_status="$(
+            curl --silent --show-error \
+              --output "$RUNNER_TEMP/play-webhook-unauthorized.json" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header 'content-type: application/json' \
+              --data '{}' \
+              "$webhook_url"
+          )"
+          authorized_status="$(
+            curl --silent --show-error \
+              --output "$RUNNER_TEMP/play-webhook-authorized.json" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header 'content-type: application/json' \
+              --header "x-play-secret: $play_secret" \
+              --data '{}' \
+              "$webhook_url"
+          )"
+
+          test "$unauthorized_status" = "403"
+          test "$authorized_status" = "400"
+          echo "Play RTDN boundary verified: unauthorized=403 authorized-invalid-payload=400."
+
+      - name: Publish smoke summary
+        shell: bash
+        run: |
+          {
+            echo '## Play RTDN production smoke'
+            echo
+            echo '- Missing secret: 403'
+            echo '- Valid secret with invalid payload: 400'
+            echo '- Secret source: Doppler production config (masked)'
+          } >> "$GITHUB_STEP_SUMMARY"

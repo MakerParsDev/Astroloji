@@ -1,0 +1,87 @@
+name: content-backfill
+
+on:
+  schedule:
+    - cron: "15 1 * * *"
+  workflow_dispatch:
+    inputs:
+      seed_date:
+        description: "Optional base date in YYYY-MM-DD format. Leave empty to start from today."
+        required: false
+        type: string
+      daily_days:
+        description: "Number of future daily documents to upload."
+        required: false
+        default: "14"
+        type: string
+      skip_static_content:
+        description: "Skip personality and compatibility uploads."
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: content-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_CONTENT_BACKFILL == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    permissions:
+      contents: read
+    env:
+      ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+      SEED_DATE: ${{ github.event.inputs.seed_date || '' }}
+      SEED_DAILY_DAYS: ${{ github.event.inputs.daily_days || '14' }}
+      SEED_SKIP_STATIC_CONTENT: ${{ github.event.inputs.skip_static_content || 'true' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Doppler CLI
+        if: ${{ env.DOPPLER_TOKEN != '' && env.ADMIN_SECRET == '' }}
+        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+
+      - name: Load admin secret from Doppler
+        if: ${{ env.DOPPLER_TOKEN != '' && env.ADMIN_SECRET == '' }}
+        run: |
+          admin_secret="$(
+            doppler secrets get ADMIN_SECRET \
+              --project "${DOPPLER_PROJECT:-mobil-apps}" \
+              --config "${DOPPLER_CONFIG:-astrology}" \
+              --plain
+          )"
+
+          if [ -z "$admin_secret" ]; then
+            echo "ADMIN_SECRET could not be loaded from Doppler."
+            exit 1
+          fi
+
+          echo "::add-mask::$admin_secret"
+          echo "ADMIN_SECRET=$admin_secret" >> "$GITHUB_ENV"
+
+      - name: Validate admin secret
+        run: |
+          if [ -z "$ADMIN_SECRET" ]; then
+            echo "ADMIN_SECRET is required for content backfill."
+            exit 1
+          fi
+
+      - name: Trigger content backfill
+        run: |
+          payload="$(
+            python -c "import json, os; payload = {'daily_days': int(os.environ['SEED_DAILY_DAYS']), 'skip_static_content': os.environ['SEED_SKIP_STATIC_CONTENT'].strip().lower() in {'1', 'true'}}; seed_date = os.environ.get('SEED_DATE', '').strip(); payload.update({'seed_date': seed_date} if seed_date else {}); print(json.dumps(payload))"
+          )"
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "${BACKEND_BASE_URL%/}/api/v1/admin/content/backfill" \
+            --header "content-type: application/json" \
+            --header "x-admin-secret: $ADMIN_SECRET" \
+            --data "$payload"

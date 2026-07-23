@@ -1,0 +1,37 @@
+{
+  "name": "astrology-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "dev:doppler": "npm run doppler:devvars && wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:doppler": "npm run doppler:cf-secrets && wrangler deploy",
+    "types:generate": "wrangler types worker-configuration.d.ts --env-interface CloudflareEnv --strict-vars=false",
+    "types:check": "wrangler types worker-configuration.d.ts --env-interface CloudflareEnv --strict-vars=false --check",
+    "build": "npm run types:check && tsc --noEmit",
+    "test": "vitest run",
+    "test:runtime": "vitest run --config vitest.runtime.config.ts",
+    "test:watch": "vitest",
+    "doppler:devvars": "tsx scripts/render-dev-vars.ts",
+    "doppler:cf-secrets": "tsx scripts/sync-cloudflare-secrets.ts",
+    "seed": "tsx scripts/seed-content.ts",
+    "schema:apply": "tsx scripts/generate-schema.ts"
+  },
+  "dependencies": {
+    "hono": "4.12.31",
+    "jose": "6.1.0",
+    "zod": "4.1.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.5.2",
+    "tsx": "4.20.5",
+    "typescript": "5.9.2",
+    "vitest": "3.2.7",
+    "wrangler": "4.112.0"
+  },
+  "overrides": {
+    "picomatch": "4.0.4"
+  }
+}

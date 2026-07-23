@@ -1,0 +1,16 @@
+{
+  "name": "projects/000000000000/config",
+  "signIn": {
+    "email": {
+      "enabled": true,
+      "passwordRequired": true
+    }
+  },
+  "authorizedDomains": [
+    "localhost"
+  ],
+  "client": {
+    "apiKey": "REPLACE_WITH_FIREBASE_WEB_API_KEY",
+    "firebaseSubdomain": "replace-with-your-firebase-project-id"
+  }
+}

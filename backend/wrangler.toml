@@ -1,0 +1,34 @@
+name = "astrology-backend"
+main = "src/index.ts"
+compatibility_date = "2026-04-05"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[[routes]]
+pattern = "astrology.parsfilo.com"
+custom_domain = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "astrology-db"
+database_id = "ccbbb9fa-56f6-4601-85d7-447288a11056"
+
+[[r2_buckets]]
+binding = "CONTENT"
+bucket_name = "astrology-content"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "12c50600e61447c29ed0bcb122f5cc85"
+
+[vars]
+ENVIRONMENT = "production"
+PACKAGE_NAME = "com.parsfilo.astrology"
+PREMIUM_MONTHLY_PRODUCT_ID = "premium_monthly"
+PREMIUM_YEARLY_PRODUCT_ID = "premium_yearly"
+ALLOWED_ORIGINS = "https://astrology.parsfilo.com"
+
+[triggers]
+crons = ["0 * * * *"]

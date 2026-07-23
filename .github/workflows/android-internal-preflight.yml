@@ -1,0 +1,255 @@
+name: android-internal-preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type PREFLIGHT to validate Android internal-release credentials without publishing."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-internal-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.repository == 'MakerParsDev/Astroloji' && inputs.confirm == 'PREFLIGHT'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: internal
+    defaults:
+      run:
+        working-directory: Astroloji
+        shell: bash
+    env:
+      PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
+      JAVA_VERSION: ${{ vars.JAVA_VERSION }}
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Validate preflight configuration
+        run: |
+          missing=0
+          for name in PACKAGE_NAME JAVA_VERSION DOPPLER_PROJECT DOPPLER_CONFIG DOPPLER_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required internal setting: $name"
+              missing=1
+            fi
+          done
+          test "$PACKAGE_NAME" = 'com.parsfilo.astrology' || {
+            echo "Unexpected PACKAGE_NAME: $PACKAGE_NAME"
+            missing=1
+          }
+          exit "$missing"
+
+      - name: Install Doppler CLI
+        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+
+      - name: Download Doppler secrets
+        run: |
+          umask 077
+          doppler secrets download \
+            --project "$DOPPLER_PROJECT" \
+            --config "$DOPPLER_CONFIG" \
+            --format json \
+            --no-file \
+            > "$RUNNER_TEMP/doppler-secrets.json"
+
+      - name: Validate Android release secrets
+        env:
+          DOPPLER_SECRETS_JSON_PATH: ${{ runner.temp }}/doppler-secrets.json
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const secrets = JSON.parse(fs.readFileSync(process.env.DOPPLER_SECRETS_JSON_PATH, 'utf8'));
+          const value = (name, aliases = []) => {
+            for (const key of [name, ...aliases]) {
+              const raw = secrets[key];
+              const resolved = typeof raw === 'string' ? raw : raw?.computed;
+              if (typeof resolved === 'string' && resolved.trim()) return resolved.trim();
+            }
+            return '';
+          };
+          const required = [
+            'GOOGLE_SERVICES_JSON',
+            'ANDROID_KEYSTORE_BASE64',
+            'ANDROID_KEYSTORE_PASSWORD',
+            'ANDROID_KEY_ALIAS',
+            'ANDROID_KEY_PASSWORD',
+            'ADMOB_APP_ID',
+            'ADMOB_BANNER_ID',
+            'ADMOB_INTERSTITIAL_ID',
+            'ADMOB_REWARDED_ID',
+            'ADMOB_REWARDED_INTERSTITIAL_ID',
+            'ADMOB_APP_OPEN_ID',
+          ];
+          const missing = required.filter((key) => !value(key));
+          if (!value('PLAY_SERVICE_ACCOUNT_JSON', ['GOOGLE_SERVICE_ACCOUNT_JSON'])) {
+            missing.push('PLAY_SERVICE_ACCOUNT_JSON');
+          }
+          if (!value('ADMOB_NATIVE_ADVANCED_ID', ['ADMOB_NATIVE_ID'])) {
+            missing.push('ADMOB_NATIVE_ADVANCED_ID');
+          }
+          if (missing.length) throw new Error(`Missing required Doppler secrets: ${missing.join(', ')}`);
+
+          const googleServices = JSON.parse(value('GOOGLE_SERVICES_JSON'));
+          const packages = (googleServices.client ?? [])
+            .map((client) => client?.client_info?.android_client_info?.package_name)
+            .filter(Boolean);
+          if (!packages.includes(process.env.PACKAGE_NAME)) {
+            throw new Error(`GOOGLE_SERVICES_JSON does not contain ${process.env.PACKAGE_NAME}.`);
+          }
+
+          const playAccount = JSON.parse(value('PLAY_SERVICE_ACCOUNT_JSON', ['GOOGLE_SERVICE_ACCOUNT_JSON']));
+          if (playAccount.type !== 'service_account' || !playAccount.client_email || !playAccount.private_key) {
+            throw new Error('Play service account JSON is not a complete service-account credential.');
+          }
+
+          const keystore = Buffer.from(value('ANDROID_KEYSTORE_BASE64'), 'base64');
+          if (keystore.length < 1024) throw new Error('Decoded Android keystore is unexpectedly small.');
+
+          const appId = value('ADMOB_APP_ID');
+          const unitKeys = [
+            'ADMOB_BANNER_ID',
+            'ADMOB_INTERSTITIAL_ID',
+            'ADMOB_REWARDED_ID',
+            'ADMOB_REWARDED_INTERSTITIAL_ID',
+            'ADMOB_APP_OPEN_ID',
+          ];
+          const nativeId = value('ADMOB_NATIVE_ADVANCED_ID', ['ADMOB_NATIVE_ID']);
+          if (!/^ca-app-pub-\d+~\d+$/.test(appId)) throw new Error('ADMOB_APP_ID format is invalid.');
+          for (const key of unitKeys) {
+            if (!/^ca-app-pub-\d+\/\d+$/.test(value(key))) throw new Error(`${key} format is invalid.`);
+          }
+          if (!/^ca-app-pub-\d+\/\d+$/.test(nativeId)) throw new Error('ADMOB_NATIVE_ADVANCED_ID format is invalid.');
+          const allAdMob = [appId, ...unitKeys.map((key) => value(key)), nativeId];
+          if (allAdMob.some((id) => id.includes('3940256099942544'))) {
+            throw new Error('Google sample AdMob IDs are not allowed for an internal release bundle.');
+          }
+
+          console.log('Android release secret structure validation passed.');
+          NODE
+
+      - name: Prepare signed release assets
+        env:
+          DOPPLER_SECRETS_JSON_PATH: ${{ runner.temp }}/doppler-secrets.json
+          PLAY_TRACK: internal
+          PLAY_RELEASE_STATUS: COMPLETED
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}-preflight
+          CRASHLYTICS_MAPPING_UPLOAD_ENABLED: false
+          REQUIRE_ANDROID_SIGNING: true
+          REQUIRE_GOOGLE_SERVICES_JSON: true
+          REQUIRE_PLAY_SERVICE_ACCOUNT_JSON: true
+        run: node ../scripts/prepare-android-release-assets.mjs
+
+      - name: Verify Google Play package access and version codes
+        id: play_access
+        env:
+          PLAY_PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: node ../scripts/check-play-release-access.mjs
+
+      - name: Verify keystore alias and passwords
+        env:
+          DOPPLER_SECRETS_JSON_PATH: ${{ runner.temp }}/doppler-secrets.json
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { spawnSync } = require('node:child_process');
+          const secrets = JSON.parse(fs.readFileSync(process.env.DOPPLER_SECRETS_JSON_PATH, 'utf8'));
+          const get = (key) => typeof secrets[key] === 'string' ? secrets[key] : secrets[key]?.computed;
+          const run = (command, args) => {
+            const result = spawnSync(command, args, { encoding: 'utf8' });
+            if (result.status !== 0) {
+              console.error(`${command} verification failed.`);
+              process.exit(result.status || 1);
+            }
+            return result.stdout + result.stderr;
+          };
+          const keystorePath = process.env.RUNNER_TEMP + '/upload-keystore.jks';
+          const storePassword = get('ANDROID_KEYSTORE_PASSWORD');
+          const keyPassword = get('ANDROID_KEY_PASSWORD');
+          const alias = get('ANDROID_KEY_ALIAS');
+          const keytoolOutput = run('keytool', [
+            '-list', '-v',
+            '-keystore', keystorePath,
+            '-storepass', storePassword,
+            '-alias', alias,
+          ]);
+          if (!/PrivateKeyEntry/i.test(keytoolOutput)) {
+            throw new Error('Configured Android key alias is not a PrivateKeyEntry.');
+          }
+          const checkText = process.env.RUNNER_TEMP + '/signing-check.txt';
+          const checkJar = process.env.RUNNER_TEMP + '/signing-check.jar';
+          fs.writeFileSync(checkText, 'android signing preflight\n');
+          run('jar', ['--create', '--file', checkJar, '-C', process.env.RUNNER_TEMP, 'signing-check.txt']);
+          run('jarsigner', [
+            '-keystore', keystorePath,
+            '-storepass', storePassword,
+            '-keypass', keyPassword,
+            checkJar,
+            alias,
+          ]);
+          run('jarsigner', ['-verify', checkJar]);
+          fs.rmSync(checkText, { force: true });
+          fs.rmSync(checkJar, { force: true });
+          console.log('Keystore alias and passwords verified.');
+          NODE
+
+      - name: Ensure Gradle wrapper is executable
+        run: chmod +x ./gradlew
+
+      - name: Build signed release bundle without publishing
+        run: ./gradlew :app:bundleRelease
+
+      - name: Verify bundle signature
+        run: |
+          bundle="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
+          test -n "$bundle"
+          jarsigner -verify "$bundle"
+          echo "Signed AAB verified: $(basename "$bundle")"
+
+      - name: Publish preflight summary
+        run: |
+          {
+            echo '## Android internal release preflight'
+            echo
+            echo '- Doppler credential access: passed'
+            echo '- Firebase package validation: passed'
+            echo '- Play service-account structure: passed'
+            echo '- Google Play package access: passed'
+            echo "- Current maximum version code: ${{ steps.play_access.outputs.max_version_code }}"
+            echo "- Recommended next version code: ${{ steps.play_access.outputs.recommended_version_code }}"
+            echo '- Production AdMob IDs: passed'
+            echo '- Keystore alias/password verification: passed'
+            echo '- Signed release AAB build: passed'
+            echo '- Google Play upload: not performed'
+            echo "- Git SHA: ${{ github.sha }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove sensitive release files
+        if: always()
+        run: |
+          rm -f \
+            app/google-services.json \
+            gradle.properties \
+            "$RUNNER_TEMP/doppler-secrets.json" \
+            "$RUNNER_TEMP/play-service-account.json" \
+            "$RUNNER_TEMP/upload-keystore.jks"

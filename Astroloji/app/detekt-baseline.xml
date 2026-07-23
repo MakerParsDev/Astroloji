@@ -1,0 +1,304 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>ComplexCondition:AppOpenAdManager.kt$AppOpenAdManager$activity.isFinishing || activity.isDestroyed || !activity.hasWindowFocus() || !consentManager.canRequestAds</ID>
+    <ID>CyclomaticComplexMethod:CompatibilityScreen.kt$@Composable fun CompatibilityScreen( onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: CompatibilityViewModel = hiltViewModel(), )</ID>
+    <ID>CyclomaticComplexMethod:DailyScreen.kt$@Composable fun DailyScreen( sign: String, onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: DailyViewModel = hiltViewModel(), )</ID>
+    <ID>CyclomaticComplexMethod:HomeScreen.kt$@Composable fun HomeScreen( onOpenDaily: (String) -&gt; Unit, onOpenWeekly: (String) -&gt; Unit, onOpenMonthly: (String) -&gt; Unit, onOpenPersonality: (String) -&gt; Unit, onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltViewModel(), )</ID>
+    <ID>CyclomaticComplexMethod:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$fun renderDailyCard( context: Context, horoscope: DailyHoroscope, )</ID>
+    <ID>CyclomaticComplexMethod:MonthlyScreen.kt$@Composable fun MonthlyScreen( sign: String, onOpenPremium: () -&gt; Unit, onNavigateBack: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: MonthlyViewModel = hiltViewModel(), )</ID>
+    <ID>CyclomaticComplexMethod:PremiumScreen.kt$@Composable fun PremiumScreen( modifier: Modifier = Modifier, viewModel: PremiumViewModel = hiltViewModel(), )</ID>
+    <ID>CyclomaticComplexMethod:UserPreferencesRepository.kt$UserPreferencesRepository$private fun mapPreferences(preferences: Preferences): UserPreferences</ID>
+    <ID>CyclomaticComplexMethod:WeeklyScreen.kt$@Composable fun WeeklyScreen( sign: String, onOpenPremium: () -&gt; Unit, onNavigateBack: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: WeeklyViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:AstrologyAppRoot.kt$@Composable fun AstrologyAppRoot( deepLink: AppDeepLink? = null, onDeepLinkConsumed: () -&gt; Unit = {}, viewModel: RootViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:BannerAd.kt$@Composable fun AdaptiveBannerAd(modifier: Modifier = Modifier)</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun AstroSectionTitle( title: String, eyebrow: String? = null, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun AstrologyCard( modifier: Modifier = Modifier, content: @Composable ColumnScope.() -&gt; Unit, )</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun BlurredPremiumBlock(content: @Composable () -&gt; Unit)</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun CosmicBackground( modifier: Modifier = Modifier, content: @Composable BoxScope.() -&gt; Unit, )</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun DetailChip( text: String, modifier: Modifier = Modifier, leadingContent: (@Composable RowScope.() -&gt; Unit)? = null, )</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun ErrorState( message: String, onRetry: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun LoadingState(modifier: Modifier = Modifier)</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun PremiumLockedOverlay( visible: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun StreakBadge( count: Int, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:CommonComponents.kt$@Composable fun ZodiacChip( sign: ZodiacSign, language: String, selected: Boolean, onClick: () -&gt; Unit, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:CompatibilityScreen.kt$@Composable fun CompatibilityScreen( onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: CompatibilityViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:CompatibilityScreen.kt$@Composable private fun CompatibilitySignBubble( title: String, sign: ZodiacSign, language: String, active: Boolean, )</ID>
+    <ID>FunctionNaming:DailyHoroscopeWidget.kt$DailyHoroscopeWidget$@Composable private fun WidgetContent( title: String, body: String, energy: String, )</ID>
+    <ID>FunctionNaming:DailyScreen.kt$@Composable fun DailyScreen( sign: String, onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: DailyViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:DailyScreen.kt$@Composable private fun DailyInsightBar( label: String, value: Int, language: String, )</ID>
+    <ID>FunctionNaming:DailyScreen.kt$@Composable private fun DailySectionCard( title: String, body: String, locked: Boolean, onOpenPremium: () -&gt; Unit, rewardAction: (() -&gt; Unit)? = null, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable fun HomeScreen( onOpenDaily: (String) -&gt; Unit, onOpenWeekly: (String) -&gt; Unit, onOpenMonthly: (String) -&gt; Unit, onOpenPersonality: (String) -&gt; Unit, onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable private fun HomeMiniInfoCard( title: String, value: String, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable private fun MilestoneCelebrationCard(milestone: Int)</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable private fun MoonPhaseBar( phase: MoonPhase, illuminationPercent: Int, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable private fun SubscriptionWarningCard( subscriptionState: String, onManageSubscription: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:MonthlyScreen.kt$@Composable fun MonthlyScreen( sign: String, onOpenPremium: () -&gt; Unit, onNavigateBack: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: MonthlyViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:MonthlyScreen.kt$@Composable private fun MonthlySectionCard( title: String, body: String, locked: Boolean, onOpenPremium: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:OnboardingScreen.kt$@Composable private fun OnboardingIntroPage()</ID>
+    <ID>FunctionNaming:OnboardingScreen.kt$@Composable private fun OnboardingNotificationPage( notificationHour: Int, onNotificationHourChange: (Int) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:OnboardingScreen.kt$@Composable private fun OnboardingSignPage( birthDateMillis: Long?, selected: ZodiacSign?, manualSelectionEnabled: Boolean, language: String, onBirthDateSelected: (Long) -&gt; Unit, onManualSelectionChange: (Boolean) -&gt; Unit, onLanguageChange: (String) -&gt; Unit, onSelectSign: (ZodiacSign) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:OnboardingScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable fun OnboardingScreen( onComplete: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: OnboardingViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:PersonalityScreen.kt$@Composable fun PersonalityScreen( sign: String, onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: PersonalityViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:PremiumScreen.kt$@Composable fun PremiumScreen( modifier: Modifier = Modifier, viewModel: PremiumViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable fun SettingsScreen( onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: SettingsViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun SettingsAboutRow( label: String, trailing: String, )</ID>
+    <ID>FunctionNaming:SettingsScreen.kt$@Composable private fun SettingsSegmentRow( title: String, options: List&lt;Pair&lt;String, String&gt;&gt;, selected: String, onSelect: (String) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:Theme.kt$@Composable fun AstrolojiTheme( darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:WeeklyScreen.kt$@Composable fun WeeklyScreen( sign: String, onOpenPremium: () -&gt; Unit, onNavigateBack: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: WeeklyViewModel = hiltViewModel(), )</ID>
+    <ID>FunctionNaming:WeeklyScreen.kt$@Composable private fun WeeklySectionCard( title: String, body: String, locked: Boolean, onOpenPremium: () -&gt; Unit, rewardAction: (() -&gt; Unit)? = null, )</ID>
+    <ID>ImplicitDefaultLocale:SettingsScreen.kt$String.format("%02d:00", hour)</ID>
+    <ID>LongMethod:AstrologyAppRoot.kt$@Composable fun AstrologyAppRoot( deepLink: AppDeepLink? = null, onDeepLinkConsumed: () -&gt; Unit = {}, viewModel: RootViewModel = hiltViewModel(), )</ID>
+    <ID>LongMethod:CommonComponents.kt$@Composable fun CosmicBackground( modifier: Modifier = Modifier, content: @Composable BoxScope.() -&gt; Unit, )</ID>
+    <ID>LongMethod:CompatibilityScreen.kt$@Composable fun CompatibilityScreen( onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: CompatibilityViewModel = hiltViewModel(), )</ID>
+    <ID>LongMethod:DailyScreen.kt$@Composable fun DailyScreen( sign: String, onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: DailyViewModel = hiltViewModel(), )</ID>
+    <ID>LongMethod:DailyViewModelTest.kt$DailyViewModelTest$@Test fun `refresh event bypasses cache`()</ID>
+    <ID>LongMethod:HomeScreen.kt$@Composable fun HomeScreen( onOpenDaily: (String) -&gt; Unit, onOpenWeekly: (String) -&gt; Unit, onOpenMonthly: (String) -&gt; Unit, onOpenPersonality: (String) -&gt; Unit, onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltViewModel(), )</ID>
+    <ID>LongMethod:HomeViewModel.kt$HomeViewModel$private fun refresh(force: Boolean)</ID>
+    <ID>LongMethod:HomeViewModelTest.kt$HomeViewModelTest$@Test fun `refresh event forces content refresh`()</ID>
+    <ID>LongMethod:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$fun renderDailyCard( context: Context, horoscope: DailyHoroscope, )</ID>
+    <ID>LongMethod:MonthlyScreen.kt$@Composable fun MonthlyScreen( sign: String, onOpenPremium: () -&gt; Unit, onNavigateBack: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: MonthlyViewModel = hiltViewModel(), )</ID>
+    <ID>LongMethod:OnboardingScreen.kt$@Composable private fun OnboardingSignPage( birthDateMillis: Long?, selected: ZodiacSign?, manualSelectionEnabled: Boolean, language: String, onBirthDateSelected: (Long) -&gt; Unit, onManualSelectionChange: (Boolean) -&gt; Unit, onLanguageChange: (String) -&gt; Unit, onSelectSign: (ZodiacSign) -&gt; Unit, )</ID>
+    <ID>LongMethod:OnboardingScreen.kt$@OptIn(ExperimentalFoundationApi::class) @Composable fun OnboardingScreen( onComplete: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: OnboardingViewModel = hiltViewModel(), )</ID>
+    <ID>LongMethod:PersonalityScreen.kt$@Composable fun PersonalityScreen( sign: String, onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: PersonalityViewModel = hiltViewModel(), )</ID>
+    <ID>LongMethod:PremiumScreen.kt$@Composable fun PremiumScreen( modifier: Modifier = Modifier, viewModel: PremiumViewModel = hiltViewModel(), )</ID>
+    <ID>LongMethod:SessionRepository.kt$SessionRepository$private suspend fun refreshAppJwt( preferences: UserPreferences, forceRefreshFirebaseToken: Boolean, ): AppResult&lt;String&gt;</ID>
+    <ID>LongMethod:SettingsScreen.kt$@Composable fun SettingsScreen( onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: SettingsViewModel = hiltViewModel(), )</ID>
+    <ID>LongMethod:SettingsViewModel.kt$SettingsViewModel$override fun onEvent(event: SettingsUiEvent)</ID>
+    <ID>LongMethod:WeeklyScreen.kt$@Composable fun WeeklyScreen( sign: String, onOpenPremium: () -&gt; Unit, onNavigateBack: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: WeeklyViewModel = hiltViewModel(), )</ID>
+    <ID>LongParameterList:CacheCleanupWorker.kt$CacheCleanupWorker$( @Assisted appContext: Context, @Assisted workerParams: WorkerParameters, private val dailyDao: DailyDao, private val weeklyDao: WeeklyDao, private val monthlyDao: MonthlyDao, private val compatibilityDao: CompatibilityDao, private val personalityDao: PersonalityDao, )</ID>
+    <ID>LongParameterList:ContentRepository.kt$ContentRepository$( private val api: AstrologyApi, private val dailyDao: DailyDao, private val weeklyDao: WeeklyDao, private val monthlyDao: MonthlyDao, private val compatibilityDao: CompatibilityDao, private val personalityDao: PersonalityDao, private val sessionRepository: SessionRepository, private val dispatchers: DispatchersProvider, private val json: Json, private val stringsProvider: StringsProvider, )</ID>
+    <ID>LongParameterList:HomeScreen.kt$( onOpenDaily: (String) -&gt; Unit, onOpenWeekly: (String) -&gt; Unit, onOpenMonthly: (String) -&gt; Unit, onOpenPersonality: (String) -&gt; Unit, onOpenPremium: () -&gt; Unit, modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltViewModel(), )</ID>
+    <ID>LongParameterList:HomeViewModel.kt$HomeViewModel$( private val sessionRepository: SessionRepository, private val contentRepository: ContentRepository, private val favoritesRepository: FavoritesRepository, private val preferencesRepository: UserPreferencesRepository, private val analyticsRepository: AnalyticsRepository, private val remoteConfigRepository: RemoteConfigRepository, private val consentManager: GoogleMobileAdsConsentManager, )</ID>
+    <ID>LongParameterList:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$( canvas: Canvas, labelPaint: Paint, valuePaint: Paint, x: Float, y: Float, label: String, value: Int, )</ID>
+    <ID>LongParameterList:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$( canvas: Canvas, text: String, paint: Paint, startX: Float, startY: Float, maxWidth: Float, lineHeight: Float, maxLines: Int, )</ID>
+    <ID>LongParameterList:OnboardingScreen.kt$( birthDateMillis: Long?, selected: ZodiacSign?, manualSelectionEnabled: Boolean, language: String, onBirthDateSelected: (Long) -&gt; Unit, onManualSelectionChange: (Boolean) -&gt; Unit, onLanguageChange: (String) -&gt; Unit, onSelectSign: (ZodiacSign) -&gt; Unit, )</ID>
+    <ID>LongParameterList:UserPreferencesRepository.kt$UserPreferencesRepository$( userId: String, jwt: String, isPremium: Boolean, premiumExpiresAt: Long?, sign: String, language: String, utcOffset: Int, notificationEnabled: Boolean, notificationHour: Int, subscriptionState: String = "none", )</ID>
+    <ID>MagicNumber:AdFrequencyManager.kt$AdFrequencyManager$1000L</ID>
+    <ID>MagicNumber:AdFrequencyManager.kt$AdFrequencyManager$60</ID>
+    <ID>MagicNumber:AstrologyAppRoot.kt$200</ID>
+    <ID>MagicNumber:AstrologyAppRoot.kt$300</ID>
+    <ID>MagicNumber:AstrologyAppRoot.kt$RootViewModel$5_000</ID>
+    <ID>MagicNumber:AstrologyFirebaseMessagingService.kt$AstrologyFirebaseMessagingService$1001</ID>
+    <ID>MagicNumber:BannerAd.kt$320</ID>
+    <ID>MagicNumber:BillingManager.kt$100</ID>
+    <ID>MagicNumber:BillingManager.kt$12</ID>
+    <ID>MagicNumber:BillingManager.kt$7</ID>
+    <ID>MagicNumber:CacheCleanupWorker.kt$CacheCleanupWorker$1000L</ID>
+    <ID>MagicNumber:CacheCleanupWorker.kt$CacheCleanupWorker$24L</ID>
+    <ID>MagicNumber:CacheCleanupWorker.kt$CacheCleanupWorker$30L</ID>
+    <ID>MagicNumber:CacheCleanupWorker.kt$CacheCleanupWorker$60L</ID>
+    <ID>MagicNumber:Color.kt$0xFF0D0D1A</ID>
+    <ID>MagicNumber:Color.kt$0xFF16162A</ID>
+    <ID>MagicNumber:Color.kt$0xFF1E1E35</ID>
+    <ID>MagicNumber:Color.kt$0xFF4F7CCF</ID>
+    <ID>MagicNumber:Color.kt$0xFF6B4DB8</ID>
+    <ID>MagicNumber:Color.kt$0xFF7B5FC8</ID>
+    <ID>MagicNumber:Color.kt$0xFF7FC8E8</ID>
+    <ID>MagicNumber:Color.kt$0xFF9B7FE8</ID>
+    <ID>MagicNumber:Color.kt$0xFFB87A30</ID>
+    <ID>MagicNumber:Color.kt$0xFFE8B97F</ID>
+    <ID>MagicNumber:Color.kt$0xFFF5F3FF</ID>
+    <ID>MagicNumber:Color.kt$0xFFFFFFFF</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.08f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.09f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.12f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.14f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.18f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.19f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.22f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.26f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.28f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.31f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.34f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.44f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.48f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.58f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.67f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.79f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.82f</ID>
+    <ID>MagicNumber:CommonComponents.kt$0.86f</ID>
+    <ID>MagicNumber:CommonComponents.kt$1.1f</ID>
+    <ID>MagicNumber:CommonComponents.kt$1.2f</ID>
+    <ID>MagicNumber:CommonComponents.kt$1.3f</ID>
+    <ID>MagicNumber:CommonComponents.kt$1.4f</ID>
+    <ID>MagicNumber:CommonComponents.kt$1.5f</ID>
+    <ID>MagicNumber:CommonComponents.kt$1.6f</ID>
+    <ID>MagicNumber:CommonComponents.kt$1.8f</ID>
+    <ID>MagicNumber:CommonComponents.kt$1.9f</ID>
+    <ID>MagicNumber:CompatibilityScreen.kt$100</ID>
+    <ID>MagicNumber:CompatibilityScreen.kt$100f</ID>
+    <ID>MagicNumber:ContentRepository.kt$ContentRepository$23</ID>
+    <ID>MagicNumber:ContentRepository.kt$ContentRepository$27</ID>
+    <ID>MagicNumber:ContentRepository.kt$ContentRepository$30</ID>
+    <ID>MagicNumber:ContentRepository.kt$ContentRepository$401</ID>
+    <ID>MagicNumber:ContentRepository.kt$ContentRepository$403</ID>
+    <ID>MagicNumber:ContentRepository.kt$ContentRepository$404</ID>
+    <ID>MagicNumber:ContentRepository.kt$ContentRepository$409</ID>
+    <ID>MagicNumber:ContentRepository.kt$ContentRepository$6</ID>
+    <ID>MagicNumber:DailyScreen.kt$100</ID>
+    <ID>MagicNumber:DailyScreen.kt$100f</ID>
+    <ID>MagicNumber:HomeScreen.kt$0.48f</ID>
+    <ID>MagicNumber:HomeScreen.kt$0.95f</ID>
+    <ID>MagicNumber:HomeScreen.kt$1.25f</ID>
+    <ID>MagicNumber:HomeScreen.kt$100</ID>
+    <ID>MagicNumber:HomeScreen.kt$100f</ID>
+    <ID>MagicNumber:HomeScreen.kt$14</ID>
+    <ID>MagicNumber:HomeScreen.kt$3</ID>
+    <ID>MagicNumber:HomeScreen.kt$30</ID>
+    <ID>MagicNumber:HomeScreen.kt$60</ID>
+    <ID>MagicNumber:HomeScreen.kt$7</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0.16f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0.18f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0.22f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0.28f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0.78f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0.82f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0xFF081B24</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0xFF101A26</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0xFF131812</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$0xFF1B0F19</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$100</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$1080</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$110f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$120f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$154f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$184f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$190f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$1920</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$210f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$240f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$246f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$32f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$360f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$40f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$480f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$54f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$56f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$58f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$64f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$72f</ID>
+    <ID>MagicNumber:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$980f</ID>
+    <ID>MagicNumber:MainActivity.kt$MainActivity$15_000L</ID>
+    <ID>MagicNumber:Migrations.kt$&lt;no name provided&gt;$3</ID>
+    <ID>MagicNumber:Migrations.kt$&lt;no name provided&gt;$4</ID>
+    <ID>MagicNumber:MonthlyScreen.kt$30</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$0.0625</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$0.1875</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$0.3125</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$0.4375</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$0.5625</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$0.6875</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$0.8125</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$0.9375</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$100</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$2000</ID>
+    <ID>MagicNumber:MoonPhaseCalculator.kt$MoonPhaseCalculator$6</ID>
+    <ID>MagicNumber:OnboardingViewModel.kt$OnboardingViewModel$23</ID>
+    <ID>MagicNumber:RemoteConfigRepository.kt$RemoteConfigRepository$15_000L</ID>
+    <ID>MagicNumber:RemoteConfigRepository.kt$RemoteConfigRepository$3600</ID>
+    <ID>MagicNumber:RemoteConfigRepository.kt$RemoteConfigRepository$3L</ID>
+    <ID>MagicNumber:RemoteConfigRepository.kt$RemoteConfigRepository$5L</ID>
+    <ID>MagicNumber:SessionRepository.kt$SessionRepository$12</ID>
+    <ID>MagicNumber:SessionRepository.kt$SessionRepository$401</ID>
+    <ID>MagicNumber:SessionRepository.kt$SessionRepository$8</ID>
+    <ID>MagicNumber:SettingsScreen.kt$20</ID>
+    <ID>MagicNumber:SettingsScreen.kt$21</ID>
+    <ID>MagicNumber:SettingsScreen.kt$7</ID>
+    <ID>MagicNumber:SettingsScreen.kt$8</ID>
+    <ID>MagicNumber:SettingsScreen.kt$9</ID>
+    <ID>MagicNumber:StreakTracker.kt$StreakTracker$100</ID>
+    <ID>MagicNumber:StreakTracker.kt$StreakTracker$14</ID>
+    <ID>MagicNumber:StreakTracker.kt$StreakTracker$3</ID>
+    <ID>MagicNumber:StreakTracker.kt$StreakTracker$30</ID>
+    <ID>MagicNumber:StreakTracker.kt$StreakTracker$60</ID>
+    <ID>MagicNumber:StreakTracker.kt$StreakTracker$7</ID>
+    <ID>MagicNumber:Theme.kt$0xFF201A2E</ID>
+    <ID>MagicNumber:Theme.kt$0xFF2B2640</ID>
+    <ID>MagicNumber:Theme.kt$0xFF4D4665</ID>
+    <ID>MagicNumber:Theme.kt$0xFF554E68</ID>
+    <ID>MagicNumber:Theme.kt$0xFFB9B0CC</ID>
+    <ID>MagicNumber:Theme.kt$0xFFC8C1E1</ID>
+    <ID>MagicNumber:Theme.kt$0xFFD7CFE7</ID>
+    <ID>MagicNumber:Theme.kt$0xFFEAE3F8</ID>
+    <ID>MagicNumber:Theme.kt$0xFFF6F1FF</ID>
+    <ID>MagicNumber:TimeUtils.kt$TimeUtils$11</ID>
+    <ID>MagicNumber:TimeUtils.kt$TimeUtils$12</ID>
+    <ID>MagicNumber:TimeUtils.kt$TimeUtils$17</ID>
+    <ID>MagicNumber:TimeUtils.kt$TimeUtils$3600</ID>
+    <ID>MagicNumber:TimeUtils.kt$TimeUtils$5</ID>
+    <ID>MagicNumber:WorkScheduler.kt$WorkScheduler$24</ID>
+    <ID>MagicNumber:WorkScheduler.kt$WorkScheduler$7</ID>
+    <ID>MagicNumber:Zodiac.kt$ZodiacElement.AIR$0xFF5B9BD5</ID>
+    <ID>MagicNumber:Zodiac.kt$ZodiacElement.EARTH$0xFF8B7355</ID>
+    <ID>MagicNumber:Zodiac.kt$ZodiacElement.FIRE$0xFFE8593C</ID>
+    <ID>MagicNumber:Zodiac.kt$ZodiacElement.WATER$0xFF4A90A4</ID>
+    <ID>MatchingDeclarationName:AdsEntryPoints.kt$AdsEntryPoint</ID>
+    <ID>MatchingDeclarationName:Mvi.kt$MviViewModel&lt;STATE : Any, EVENT : Any, EFFECT : Any&gt; : ViewModel</ID>
+    <ID>MaxLineLength:AppOpenAdManager.kt$AppOpenAdManager$if</ID>
+    <ID>MaxLineLength:AppOpenAdManager.kt$AppOpenAdManager$private fun isAdAvailable(): Boolean</ID>
+    <ID>MaxLineLength:AstrologyAppRoot.kt$BottomItem(HomeRoute, stringResource(com.parsfilo.astrology.R.string.nav_home), Icons.Outlined.Home)</ID>
+    <ID>MaxLineLength:AstrologyAppRoot.kt$BottomItem(PremiumRoute, stringResource(com.parsfilo.astrology.R.string.nav_premium), Icons.Outlined.Star)</ID>
+    <ID>MaxLineLength:AstrologyAppRoot.kt$BottomItem(SettingsRoute, stringResource(com.parsfilo.astrology.R.string.nav_profile), Icons.Outlined.Person)</ID>
+    <ID>MaxLineLength:BillingManager.kt$BillingManager$?:</ID>
+    <ID>MaxLineLength:BillingManager.kt$BillingManager$AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_plan_not_found)))</ID>
+    <ID>MaxLineLength:BillingManager.kt$BillingManager$AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_purchase_cancelled)))</ID>
+    <ID>MaxLineLength:BillingManager.kt$BillingManager$billingResult.debugMessage.ifBlank { stringsProvider.get(R.string.billing_purchase_failed) }</ID>
+    <ID>MaxLineLength:BillingManager.kt$BillingManager$return</ID>
+    <ID>MaxLineLength:BillingManager.kt$BillingManager$return AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_acknowledge_failed)))</ID>
+    <ID>MaxLineLength:BillingManager.kt$BillingManager$return AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_payment_pending)))</ID>
+    <ID>MaxLineLength:BillingManager.kt$val selectedOffer = offers.getOrNull(selectedOfferIndex).takeIf { selectedOfferIndex &gt;= 0 } ?: offers.first()</ID>
+    <ID>MaxLineLength:BillingManagerTest.kt$BillingManagerTest$PricingPhaseSummary(priceAmountMicros = 89_000_000L, formattedPrice = "TRY 89.00", billingPeriod = "P1M")</ID>
+    <ID>MaxLineLength:ContentRepository.kt$ContentRepository$response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_compatibility_empty))</ID>
+    <ID>MaxLineLength:ContentRepository.kt$ContentRepository$response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_personality_empty))</ID>
+    <ID>MaxLineLength:ContentRepository.kt$ContentRepository$val body = response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_daily_empty))</ID>
+    <ID>MaxLineLength:ContentRepository.kt$ContentRepository$val body = response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_monthly_empty))</ID>
+    <ID>MaxLineLength:ContentRepository.kt$ContentRepository$val body = response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_weekly_empty))</ID>
+    <ID>MaxLineLength:ContentRepository.kt$ContentRepository$val retry = api.claimReward(RewardClaimRequest(rewardType = rewardType, identifier = identifier))</ID>
+    <ID>MaxLineLength:DailyViewModel.kt$DailyViewModel$is AppResult.Success -&gt; load(signFromArgs ?: preferencesRepository.current().selectedSign, true)</ID>
+    <ID>MaxLineLength:EventSyncWorker.kt$EventSyncWorker$Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), event.payload)</ID>
+    <ID>MaxLineLength:HomeScreen.kt$uiState.profile?.subscriptionState?.takeIf { it == "grace_period" || it == "on_hold" }</ID>
+    <ID>MaxLineLength:HoroscopeCardRenderer.kt$HoroscopeCardRenderer$canvas.drawText("Astrology", width - 110f, height - 154f, watermarkPaint.apply { textAlign = Paint.Align.RIGHT })</ID>
+    <ID>MaxLineLength:MonthlyViewModel.kt$MonthlyViewModel$when</ID>
+    <ID>MaxLineLength:OnboardingScreen.kt$Text(text = stringResource(R.string.onboarding_intro_feature_content), style = MaterialTheme.typography.titleMedium)</ID>
+    <ID>MaxLineLength:OnboardingScreen.kt$Text(text = stringResource(R.string.onboarding_intro_feature_premium), style = MaterialTheme.typography.titleMedium)</ID>
+    <ID>MaxLineLength:OnboardingScreen.kt$Text(text = stringResource(R.string.onboarding_notifications_title), style = MaterialTheme.typography.displayLarge)</ID>
+    <ID>MaxLineLength:PremiumScreen.kt$disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)</ID>
+    <ID>MaxLineLength:PremiumScreen.kt$text = selected.price.takeIf { it.isNotBlank() } ?: stringResource(R.string.premium_price_loading)</ID>
+    <ID>MaxLineLength:PremiumViewModel.kt$PremiumViewModel$is AppResult.Error -&gt; setState { copy(purchaseSuccess = false, error = purchaseState.exception.message) }</ID>
+    <ID>MaxLineLength:RemoteConfigRepository.kt$RemoteConfigRepository$interstitialCooldownMinutes = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toInt()</ID>
+    <ID>MaxLineLength:RemoteConfigRepository.kt$RemoteConfigRepository$rewardedDailyUnlockLimit = remoteConfig.getLong(RemoteConfigKeys.REWARDED_DAILY_UNLOCK_LIMIT).toInt()</ID>
+    <ID>MaxLineLength:SessionRepository.kt$SessionRepository$AppException.BillingException(stringsProvider.get(R.string.session_error_subscription_empty))</ID>
+    <ID>MaxLineLength:SessionRepository.kt$SessionRepository$AppException.BillingException(stringsProvider.get(R.string.session_error_subscription_verify_failed))</ID>
+    <ID>MaxLineLength:SessionRepository.kt$SessionRepository$AppException.NetworkException(stringsProvider.get(R.string.session_error_profile_fetch_failed))</ID>
+    <ID>MaxLineLength:SessionRepository.kt$SessionRepository$AppException.NetworkException(stringsProvider.get(R.string.session_error_profile_update_failed))</ID>
+    <ID>MaxLineLength:SessionRepository.kt$SessionRepository$Timber.w(exception, "Anonymous auth is unavailable, falling back to a generated email/password Firebase session.")</ID>
+    <ID>MaxLineLength:SessionRepository.kt$SessionRepository$response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.session_error_register_empty))</ID>
+    <ID>MaxLineLength:WeeklyViewModel.kt$WeeklyViewModel$when</ID>
+    <ID>MaxLineLength:Zodiac.kt$ZodiacSign$AQUARIUS : ZodiacSign</ID>
+    <ID>MaxLineLength:Zodiac.kt$ZodiacSign$CAPRICORN : ZodiacSign</ID>
+    <ID>MaxLineLength:Zodiac.kt$ZodiacSign$SAGITTARIUS : ZodiacSign</ID>
+    <ID>MaxLineLength:Zodiac.kt$ZodiacSign$SCORPIO : ZodiacSign</ID>
+    <ID>MaxLineLength:Zodiac.kt$ZodiacSign$fun localizedName(language: String): String</ID>
+    <ID>ReturnCount:AdFrequencyManager.kt$AdFrequencyManager$suspend fun canShowInterstitial( flags: RemoteFlags, nowMs: Long = System.currentTimeMillis(), ): Boolean</ID>
+    <ID>ReturnCount:AppOpenAdManager.kt$AppOpenAdManager$fun showIfAvailable( activity: Activity, placement: String = "app_open", onDismissed: () -&gt; Unit = {}, ): Boolean</ID>
+    <ID>ReturnCount:BillingManager.kt$BillingManager$private suspend fun verifyPurchase( purchase: Purchase, restore: Boolean, ): AppResult&lt;SubscriptionStatus&gt;</ID>
+    <ID>ReturnCount:BillingManager.kt$BillingManager$suspend fun restorePurchases(): AppResult&lt;SubscriptionStatus&gt;</ID>
+    <ID>ReturnCount:BillingManager.kt$internal fun calculateYearlySavingsPercent( monthlyMicros: Long, yearlyMicros: Long, ): Int</ID>
+    <ID>ReturnCount:BillingManager.kt$private fun billingPeriodDays(value: String?): Int?</ID>
+    <ID>ReturnCount:MainActivity.kt$private fun Intent?.toAppDeepLink(): AppDeepLink?</ID>
+    <ID>ThrowsCount:SessionRepository.kt$SessionRepository$private suspend fun ensureFirebaseIdToken(forceRefresh: Boolean): String</ID>
+    <ID>TooGenericExceptionCaught:SessionRepository.kt$SessionRepository$exception: Exception</ID>
+    <ID>TooManyFunctions:AppModules.kt$AppModules</ID>
+    <ID>TooManyFunctions:AstrologyApi.kt$AstrologyApi</ID>
+    <ID>TooManyFunctions:BillingManager.kt$com.parsfilo.astrology.core.data.repository.BillingManager.kt</ID>
+    <ID>TooManyFunctions:ContentRepository.kt$ContentRepository</ID>
+    <ID>TooManyFunctions:SessionRepository.kt$SessionRepository</ID>
+    <ID>TooManyFunctions:TimeUtils.kt$TimeUtils</ID>
+    <ID>TooManyFunctions:UserPreferencesRepository.kt$UserPreferencesRepository</ID>
+    <ID>UnusedParameter:MonthlyScreen.kt$sign: String</ID>
+    <ID>UnusedParameter:WeeklyScreen.kt$sign: String</ID>
+    <ID>UnusedPrivateProperty:ContentRepository.kt$ContentRepository$private val json: Json</ID>
+  </CurrentIssues>
+</SmellBaseline>
