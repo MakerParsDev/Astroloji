@@ -2,8 +2,12 @@ package com.parsfilo.astrology.core.data.session
 
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,52 +16,80 @@ class SessionRefreshCoordinator
     @Inject
     constructor() {
         private val mutex = Mutex()
-        private var lastRejectedToken: String? = null
-        private var lastRefreshResult: AppResult<String>? = null
+        private var inFlight: CompletableDeferred<AppResult<String>>? = null
 
         suspend fun refresh(
             rejectedToken: String?,
             requireRefresh: Boolean,
             currentToken: () -> String?,
             refresh: suspend () -> AppResult<String>,
+        ): AppResult<String> {
+            val action =
+                mutex.withLock {
+                    val current = currentToken()?.takeIf { it.isNotBlank() }
+                    when {
+                        !requireRefresh && current != null ->
+                            RefreshAction.Immediate(AppResult.Success(current))
+                        hasNewerToken(rejectedToken, current) ->
+                            RefreshAction.Immediate(AppResult.Success(current))
+                        inFlight != null ->
+                            RefreshAction.Await(checkNotNull(inFlight))
+                        else -> {
+                            val deferred = CompletableDeferred<AppResult<String>>()
+                            inFlight = deferred
+                            RefreshAction.Execute(deferred)
+                        }
+                    }
+                }
+
+            return when (action) {
+                is RefreshAction.Immediate -> action.result
+                is RefreshAction.Await ->
+                    validateRefreshResult(
+                        rejectedToken = rejectedToken,
+                        requireRefresh = requireRefresh,
+                        result = action.deferred.await(),
+                    )
+                is RefreshAction.Execute ->
+                    executeRefresh(
+                        rejectedToken = rejectedToken,
+                        requireRefresh = requireRefresh,
+                        refresh = refresh,
+                        deferred = action.deferred,
+                    )
+            }
+        }
+
+        private suspend fun executeRefresh(
+            rejectedToken: String?,
+            requireRefresh: Boolean,
+            refresh: suspend () -> AppResult<String>,
+            deferred: CompletableDeferred<AppResult<String>>,
         ): AppResult<String> =
-            mutex.withLock {
-                val current = currentToken()?.takeIf { it.isNotBlank() }
-                if (!requireRefresh && current != null) {
-                    return@withLock AppResult.Success(current)
+            try {
+                val result = validateRefreshResult(rejectedToken, requireRefresh, refresh())
+                deferred.complete(result)
+                result
+            } catch (exception: CancellationException) {
+                deferred.cancel(exception)
+                throw exception
+            } catch (throwable: Throwable) {
+                deferred.completeExceptionally(throwable)
+                throw throwable
+            } finally {
+                withContext(NonCancellable) {
+                    mutex.withLock {
+                        if (inFlight === deferred) {
+                            inFlight = null
+                        }
+                    }
                 }
-                if (hasNewerToken(rejectedToken, current)) {
-                    return@withLock AppResult.Success(requireNotNull(current))
-                }
-                if (canReuseFailedRefresh(rejectedToken, current)) {
-                    return@withLock lastRefreshResult
-                        ?: performRefresh(rejectedToken, requireRefresh, refresh)
-                }
-                performRefresh(rejectedToken, requireRefresh, refresh)
             }
 
         private fun hasNewerToken(
             rejectedToken: String?,
             currentToken: String?,
         ): Boolean = rejectedToken != null && currentToken != null && currentToken != rejectedToken
-
-        private fun canReuseFailedRefresh(
-            rejectedToken: String?,
-            currentToken: String?,
-        ): Boolean = rejectedToken != null && currentToken == null && rejectedToken == lastRejectedToken
-
-        private suspend fun performRefresh(
-            rejectedToken: String?,
-            requireRefresh: Boolean,
-            refresh: suspend () -> AppResult<String>,
-        ): AppResult<String> {
-            val result = validateRefreshResult(rejectedToken, requireRefresh, refresh())
-            if (rejectedToken != null) {
-                lastRejectedToken = rejectedToken
-                lastRefreshResult = result
-            }
-            return result
-        }
 
         private fun validateRefreshResult(
             rejectedToken: String?,
@@ -80,4 +112,18 @@ class SessionRefreshCoordinator
             rejectedToken: String?,
             requireRefresh: Boolean,
         ): Boolean = requireRefresh && rejectedToken != null && refreshedToken == rejectedToken
+
+        private sealed interface RefreshAction {
+            data class Immediate(
+                val result: AppResult<String>,
+            ) : RefreshAction
+
+            data class Await(
+                val deferred: CompletableDeferred<AppResult<String>>,
+            ) : RefreshAction
+
+            data class Execute(
+                val deferred: CompletableDeferred<AppResult<String>>,
+            ) : RefreshAction
+        }
     }
