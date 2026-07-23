@@ -36,27 +36,16 @@ class AuthenticatedRequestExecutor
         }
 
         private fun Response<*>.rejectedBearerToken(): String? {
-            val authorization = raw().request.header(AUTHORIZATION_HEADER)
-            val separator = authorization?.indexOf(' ') ?: INVALID_SEPARATOR
-            val hasBearerScheme =
-                separator > 0 &&
-                    authorization
-                        ?.substring(0, separator)
-                        ?.equals(BEARER_SCHEME, ignoreCase = true) == true
-
-            return if (hasBearerScheme) {
-                authorization
-                    ?.substring(separator + 1)
-                    ?.trim()
-                    ?.takeIf { it.isNotEmpty() }
-            } else {
-                null
+            val authorization = raw().request.header(AUTHORIZATION_HEADER) ?: return null
+            val separator = authorization.indexOf(' ')
+            if (separator <= 0 || !authorization.substring(0, separator).equals(BEARER_SCHEME, ignoreCase = true)) {
+                return null
             }
+            return authorization.substring(separator + 1).trim().takeIf { it.isNotEmpty() }
         }
 
         private companion object {
             const val HTTP_UNAUTHORIZED = 401
-            const val INVALID_SEPARATOR = -1
             const val AUTHORIZATION_HEADER = "Authorization"
             const val BEARER_SCHEME = "Bearer"
         }

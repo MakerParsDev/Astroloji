@@ -2,7 +2,6 @@ package com.parsfilo.astrology.core.data.session
 
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -70,13 +69,10 @@ class SessionRefreshCoordinator
                 val result = validateRefreshResult(rejectedToken, requireRefresh, refresh())
                 deferred.complete(result)
                 result
-            } catch (exception: CancellationException) {
-                deferred.cancel(exception)
-                throw exception
-            } catch (throwable: Throwable) {
-                deferred.completeExceptionally(throwable)
-                throw throwable
             } finally {
+                if (!deferred.isCompleted) {
+                    deferred.cancel()
+                }
                 withContext(NonCancellable) {
                     mutex.withLock {
                         if (inFlight === deferred) {
