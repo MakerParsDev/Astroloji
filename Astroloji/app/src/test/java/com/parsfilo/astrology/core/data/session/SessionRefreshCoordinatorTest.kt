@@ -174,7 +174,7 @@ class SessionRefreshCoordinatorTest {
                 refreshCalls += 1
                 refreshStarted.complete(Unit)
                 allowFailure.await()
-                throw IllegalStateException("refresh failed")
+                error("refresh failed")
             }
 
             val first =

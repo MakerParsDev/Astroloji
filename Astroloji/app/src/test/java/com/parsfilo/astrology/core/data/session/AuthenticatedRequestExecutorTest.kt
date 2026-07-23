@@ -3,13 +3,13 @@ package com.parsfilo.astrology.core.data.session
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
+import io.mockk.mockk
+import io.mockk.verify
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
-import io.mockk.mockk
-import io.mockk.verify
 import org.junit.Test
 import retrofit2.Response
 

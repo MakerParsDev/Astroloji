@@ -52,6 +52,7 @@ export async function verifyAppJwt(env: Env, token: string): Promise<JwtClaims> 
     user_id: String(payload.user_id),
     is_premium: Boolean(payload.is_premium),
     firebase_uid: payload.firebase_uid ? String(payload.firebase_uid) : undefined,
+    jti: payload.jti ? String(payload.jti) : undefined,
     exp: Number(payload.exp),
     iat: Number(payload.iat)
   };

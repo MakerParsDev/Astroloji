@@ -99,6 +99,7 @@ export interface JwtClaims {
   user_id: string;
   is_premium: boolean;
   firebase_uid?: string;
+  jti?: string;
   exp: number;
   iat: number;
 }

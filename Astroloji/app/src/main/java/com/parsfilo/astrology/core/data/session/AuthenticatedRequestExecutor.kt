@@ -31,13 +31,16 @@ class AuthenticatedRequestExecutor
                 }
                 is AppResult.Error,
                 AppResult.Loading,
-                -> firstResponse
+                -> {
+                    firstResponse.errorBody()?.close()
+                    firstResponse
+                }
             }
         }
 
         private fun Response<*>.rejectedBearerToken(): String? {
             val authorization = raw().request.header(AUTHORIZATION_HEADER).orEmpty()
-            val separator = authorization.indexOf(' ')
+            val separator = authorization.indexOf(" ")
             val hasBearerScheme =
                 separator > 0 && authorization.substring(0, separator).equals(BEARER_SCHEME, ignoreCase = true)
             return if (hasBearerScheme) {

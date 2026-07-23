@@ -24,6 +24,7 @@ import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.DispatchersProvider
 import com.parsfilo.astrology.core.util.StringsProvider
 import com.parsfilo.astrology.core.util.TimeUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
@@ -327,7 +328,10 @@ class ContentRepository
         private suspend fun <T> safeContentCall(block: suspend () -> T): AppResult<T> =
             runCatching { block() }.fold(
                 onSuccess = { AppResult.Success(it) },
-                onFailure = { AppResult.Error(it.toAppException()) },
+                onFailure = {
+                    if (it is CancellationException) throw it
+                    AppResult.Error(it.toAppException())
+                },
             )
 
         private fun Throwable.toAppException(): AppException =

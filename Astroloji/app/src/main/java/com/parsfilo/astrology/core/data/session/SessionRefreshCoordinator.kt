@@ -2,6 +2,7 @@ package com.parsfilo.astrology.core.data.session
 
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -91,7 +92,21 @@ class SessionRefreshCoordinator
         ): AppResult<String> {
             var result: AppResult<String>? = null
             try {
-                val resolved = validateRefreshResult(rejectedToken, requireRefresh, refresh())
+                val refreshResult =
+                    runCatching { refresh() }.getOrElse { throwable ->
+                        when (throwable) {
+                            is CancellationException -> throw throwable
+                            is Exception ->
+                                AppResult.Error(
+                                    AppException.UnknownException(
+                                        message = "Session refresh failed.",
+                                        cause = throwable,
+                                    ),
+                                )
+                            else -> throw throwable
+                        }
+                    }
+                val resolved = validateRefreshResult(rejectedToken, requireRefresh, refreshResult)
                 result = resolved
                 return resolved
             } finally {

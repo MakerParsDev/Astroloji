@@ -1,5 +1,9 @@
 package com.parsfilo.astrology.core.data.session
 
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 import java.util.concurrent.atomic.AtomicReference
@@ -24,18 +28,19 @@ class SessionTokenStore
 
         private fun jwtExpiry(jwt: String): Long? =
             runCatching {
-                val parts = jwt.split('.')
+                val parts = jwt.split(".")
                 if (parts.size != JWT_PART_COUNT) return null
                 val payload =
                     String(
                         Base64.getUrlDecoder().decode(padBase64(parts[JWT_PAYLOAD_INDEX])),
                         StandardCharsets.UTF_8,
                     )
-                EXPIRY_PATTERN
-                    .find(payload)
-                    ?.groupValues
-                    ?.get(EXPIRY_GROUP_INDEX)
-                    ?.toLongOrNull()
+                Json
+                    .parseToJsonElement(payload)
+                    .jsonObject[EXPIRY_CLAIM]
+                    ?.jsonPrimitive
+                    ?.takeUnless { it.isString }
+                    ?.longOrNull
             }.getOrNull()
 
         private fun padBase64(value: String): String =
@@ -48,8 +53,7 @@ class SessionTokenStore
             const val MILLIS_PER_SECOND = 1_000L
             const val JWT_PART_COUNT = 3
             const val JWT_PAYLOAD_INDEX = 1
-            const val EXPIRY_GROUP_INDEX = 1
             const val BASE64_BLOCK_SIZE = 4
-            val EXPIRY_PATTERN = Regex("\\\"exp\\\"\\s*:\\s*(\\d+)")
+            const val EXPIRY_CLAIM = "exp"
         }
     }

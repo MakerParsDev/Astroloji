@@ -77,7 +77,7 @@
 - Modify: `backend/src/utils/jwt.ts`
 - Test: `backend/tests/utils/jwt.test.ts`
 
-- [x] Write a failing test proving identical claims signed in the same second produce the same token.
+- [x] Write a failing test proving identical claims signed in the same second produce distinct tokens.
 - [x] Add a cryptographically random JWT ID (`jti`) to every application token.
 - [x] Verify the focused JWT tests pass.
 - [x] Verify all backend tests and the TypeScript build pass.

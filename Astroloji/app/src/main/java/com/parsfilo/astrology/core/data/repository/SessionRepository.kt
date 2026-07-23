@@ -229,7 +229,10 @@ class SessionRepository
                     }
 
                     runCatching { FirebaseMessaging.getInstance().deleteToken().await() }
-                        .onFailure { Timber.w(it, "FCM token could not be removed during account deletion.") }
+                        .onFailure {
+                            if (it is CancellationException) throw it
+                            Timber.w(it, "FCM token could not be removed during account deletion.")
+                        }
                     firebaseAuth.signOut()
                     database.clearAllTables()
                     preferencesRepository.clearAll()
@@ -380,8 +383,11 @@ class SessionRepository
                 val firebaseToken = ensureFirebaseIdToken(forceRefreshFirebaseToken)
                 val fcmToken =
                     runCatching { FirebaseMessaging.getInstance().token.await() }
-                        .onFailure { Timber.w(it, "FCM token could not be retrieved, using a local fallback token.") }
-                        .getOrDefault("fcm-${UUID.randomUUID()}")
+                        .getOrElse {
+                            if (it is CancellationException) throw it
+                            Timber.w(it, "FCM token could not be retrieved, using a local fallback token.")
+                            "fcm-${UUID.randomUUID()}"
+                        }
                 val response =
                     api.registerUser(
                         authorization = "Bearer $firebaseToken",
@@ -435,6 +441,7 @@ class SessionRepository
             }.fold(
                 onSuccess = { AppResult.Success(it) },
                 onFailure = {
+                    if (it is CancellationException) throw it
                     AppResult.Error(
                         if (it is AppException) {
                             it
@@ -460,7 +467,10 @@ class SessionRepository
                         ::refreshAfterUnauthorized,
                         ::clearInvalidSession,
                     )
-                }.getOrNull()
+                }.getOrElse {
+                    if (it is CancellationException) throw it
+                    null
+                }
             if (refreshed?.isSuccessful == true) {
                 val body = refreshed.body()
                 if (body != null) {
