@@ -13,6 +13,7 @@ import com.parsfilo.astrology.core.data.local.WeeklyDao
 import com.parsfilo.astrology.core.data.local.WeeklyHoroscopeEntity
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.RewardClaimRequest
+import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.domain.model.CompatibilityReport
 import com.parsfilo.astrology.core.domain.model.DailyHoroscope
 import com.parsfilo.astrology.core.domain.model.MonthlyHoroscope
@@ -26,11 +27,13 @@ import com.parsfilo.astrology.core.util.TimeUtils
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
+import retrofit2.Response
 import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+@Suppress("LongParameterList")
 class ContentRepository
     @Inject
     constructor(
@@ -41,6 +44,7 @@ class ContentRepository
         private val compatibilityDao: CompatibilityDao,
         private val personalityDao: PersonalityDao,
         private val sessionRepository: SessionRepository,
+        private val requestExecutor: AuthenticatedRequestExecutor,
         private val dispatchers: DispatchersProvider,
         private val json: Json,
         private val stringsProvider: StringsProvider,
@@ -175,18 +179,11 @@ class ContentRepository
             identifier: String,
         ): AppResult<Unit> =
             withContext(dispatchers.io) {
-                val response = api.claimReward(RewardClaimRequest(rewardType = rewardType, identifier = identifier))
+                val request = RewardClaimRequest(rewardType = rewardType, identifier = identifier)
+                val response = authenticatedRequest { api.claimReward(request) }
                 when {
                     response.isSuccessful || response.code() == 409 -> AppResult.Success(Unit)
-                    response.code() == 401 -> {
-                        sessionRepository.refreshSessionIfNeeded()
-                        val retry = api.claimReward(RewardClaimRequest(rewardType = rewardType, identifier = identifier))
-                        if (retry.isSuccessful || retry.code() == 409) {
-                            AppResult.Success(Unit)
-                        } else {
-                            AppResult.Error(AppException.NetworkException(retry.message()))
-                        }
-                    }
+                    response.code() == 401 -> AppResult.Error(AppException.UnauthorizedException())
                     else -> AppResult.Error(AppException.NetworkException(response.message()))
                 }
             }
@@ -197,7 +194,7 @@ class ContentRepository
             date: String,
         ): AppResult<DailyHoroscope> =
             safeContentCall {
-                val response = api.getDaily(sign, language, date)
+                val response = authenticatedRequest { api.getDaily(sign, language, date) }
                 if (!response.isSuccessful) throw HttpException(response)
                 val body = response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_daily_empty))
                 DailyHoroscope(
@@ -227,7 +224,7 @@ class ContentRepository
             week: String,
         ): AppResult<WeeklyHoroscope> =
             safeContentCall {
-                val response = api.getWeekly(sign, language, week)
+                val response = authenticatedRequest { api.getWeekly(sign, language, week) }
                 if (!response.isSuccessful) throw HttpException(response)
                 val body = response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_weekly_empty))
                 WeeklyHoroscope(
@@ -251,7 +248,7 @@ class ContentRepository
             month: String,
         ): AppResult<MonthlyHoroscope> =
             safeContentCall {
-                val response = api.getMonthly(sign, language, month)
+                val response = authenticatedRequest { api.getMonthly(sign, language, month) }
                 if (!response.isSuccessful) throw HttpException(response)
                 val body = response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_monthly_empty))
                 MonthlyHoroscope(
@@ -275,7 +272,7 @@ class ContentRepository
             language: String,
         ): AppResult<CompatibilityReport> =
             safeContentCall {
-                val response = api.getCompatibility(sign1, sign2, language)
+                val response = authenticatedRequest { api.getCompatibility(sign1, sign2, language) }
                 if (!response.isSuccessful) throw HttpException(response)
                 val body =
                     response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_compatibility_empty))
@@ -300,7 +297,7 @@ class ContentRepository
             language: String,
         ): AppResult<PersonalityReport> =
             safeContentCall {
-                val response = api.getPersonality(sign, language)
+                val response = authenticatedRequest { api.getPersonality(sign, language) }
                 if (!response.isSuccessful) throw HttpException(response)
                 val body =
                     response.body() ?: throw AppException.NetworkException(stringsProvider.get(R.string.content_error_personality_empty))
@@ -320,20 +317,17 @@ class ContentRepository
                 )
             }
 
+        private suspend fun <T> authenticatedRequest(request: suspend () -> Response<T>): Response<T> =
+            requestExecutor.execute(
+                request,
+                sessionRepository::refreshAfterUnauthorized,
+                sessionRepository::invalidateSession,
+            )
+
         private suspend fun <T> safeContentCall(block: suspend () -> T): AppResult<T> =
             runCatching { block() }.fold(
                 onSuccess = { AppResult.Success(it) },
-                onFailure = { throwable ->
-                    if (throwable is retrofit2.HttpException && throwable.code() == 401) {
-                        sessionRepository.refreshSessionIfNeeded()
-                        runCatching { block() }.fold(
-                            onSuccess = { AppResult.Success(it) },
-                            onFailure = { AppResult.Error(it.toAppException()) },
-                        )
-                    } else {
-                        AppResult.Error(throwable.toAppException())
-                    }
-                },
+                onFailure = { AppResult.Error(it.toAppException()) },
             )
 
         private fun Throwable.toAppException(): AppException =

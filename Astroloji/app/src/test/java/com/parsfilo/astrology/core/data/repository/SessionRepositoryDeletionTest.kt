@@ -8,6 +8,9 @@ import com.parsfilo.astrology.core.data.local.UserProfileDao
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.DeleteUserResponse
+import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
+import com.parsfilo.astrology.core.data.session.SessionRefreshCoordinator
+import com.parsfilo.astrology.core.data.session.SessionTokenStore
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.DispatchersProvider
 import com.parsfilo.astrology.core.util.StringsProvider
@@ -112,6 +115,9 @@ class SessionRepositoryDeletionTest {
                     default = UnconfinedTestDispatcher(),
                 ),
             stringsProvider = stringsProvider,
+            tokenStore = SessionTokenStore(),
+            refreshCoordinator = SessionRefreshCoordinator(),
+            requestExecutor = AuthenticatedRequestExecutor(),
         )
     }
 }

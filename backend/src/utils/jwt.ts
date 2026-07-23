@@ -36,6 +36,7 @@ export async function signAppJwt(
     firebase_uid: payload.firebaseUid
   })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    .setJti(crypto.randomUUID())
     .setIssuedAt(now)
     .setExpirationTime(now + 60 * 60)
     .sign(secret);

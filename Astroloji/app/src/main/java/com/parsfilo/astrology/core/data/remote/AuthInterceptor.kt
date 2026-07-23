@@ -1,6 +1,7 @@
 package com.parsfilo.astrology.core.data.remote
 
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.session.SessionTokenStore
 import com.parsfilo.astrology.core.util.DispatchersProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -15,20 +16,19 @@ class AuthInterceptor
     @Inject
     constructor(
         private val userPreferencesRepository: UserPreferencesRepository,
+        private val tokenStore: SessionTokenStore,
         dispatchers: DispatchersProvider,
     ) : Interceptor {
-        @Volatile private var cachedJwt: String? = null
-
         init {
             CoroutineScope(SupervisorJob() + dispatchers.io).launch {
                 userPreferencesRepository.preferences.collect { prefs ->
-                    cachedJwt = prefs.jwt
+                    tokenStore.update(prefs.jwt)
                 }
             }
         }
 
         override fun intercept(chain: Interceptor.Chain): Response {
-            val jwt = cachedJwt
+            val jwt = tokenStore.currentUsable()
             val request =
                 chain
                     .request()
