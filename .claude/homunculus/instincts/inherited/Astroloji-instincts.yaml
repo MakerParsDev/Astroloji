@@ -1,0 +1,392 @@
+# Instincts generated from https://github.com/MakerParsDev/Astroloji
+# Generated: 2026-07-23T19:56:50.158Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: Astroloji-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/MakerParsDev/Astroloji
+---
+
+# Astroloji Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: fix, refactor
+
+## Evidence
+
+- 5 commits analyzed
+- Detected conventional commit pattern
+- Examples: fix(auth): make JWT refresh deterministic, refactor(auth): finalize refresh coordination cleanup
+
+---
+id: Astroloji-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/MakerParsDev/Astroloji
+---
+
+# Astroloji Commit Length
+
+## Action
+
+Keep commit messages concise (~46 characters)
+
+## Evidence
+
+- Average commit message length: 46 chars
+- Based on 5 commits
+
+---
+id: Astroloji-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/MakerParsDev/Astroloji
+---
+
+# Astroloji Naming Files
+
+## Action
+
+Use PascalCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: PascalCase
+
+---
+id: Astroloji-import-alias
+trigger: "when importing modules"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/MakerParsDev/Astroloji
+---
+
+# Astroloji Import Alias
+
+## Action
+
+Use path aliases (@/, ~/) instead of relative imports
+
+## Evidence
+
+- Import analysis shows alias pattern
+- Example: import { x } from '@/lib/x'
+
+---
+id: Astroloji-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/MakerParsDev/Astroloji
+---
+
+# Astroloji Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: Astroloji-arch-type-based
+trigger: "when adding new code"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/MakerParsDev/Astroloji
+---
+
+# Astroloji Arch Type Based
+
+## Action
+
+Place code in the appropriate type folder (components/, services/, utils/, etc.)
+
+## Evidence
+
+- Type-based module organization detected
+- Folders: 
+
+---
+id: Astroloji-test-framework
+trigger: "when writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/MakerParsDev/Astroloji
+---
+
+# Astroloji Test Framework
+
+## Action
+
+Use vitest as the test framework
+
+## Evidence
+
+- Test framework detected: vitest
+- File pattern: *.test.ts
+
+---
+id: Astroloji-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/MakerParsDev/Astroloji
+---
+
+# Astroloji Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: Astroloji-workflow-auth-session-refresh-logic-update
+trigger: "when doing auth session refresh logic update"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/MakerParsDev/Astroloji
+---
+
+# Astroloji Workflow Auth Session Refresh Logic Update
+
+## Action
+
+Follow the auth-session-refresh-logic-update workflow:
+1. Edit core session refresh coordination logic in SessionRefreshCoordinator.kt
+2. Optionally update related session or authentication executors (AuthenticatedRequestExecutor.kt)
+3. Optionally update related repositories or token stores
+4. Update or add tests for affected session/auth logic
+5. Optionally update backend JWT logic and tests
+6. Optionally add or update documentation for the change
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: Astroloji/app/src/main/java/com/parsfilo/astrology/core/data/session/SessionRefreshCoordinator.kt, Astroloji/app/src/main/java/com/parsfilo/astrology/core/data/session/AuthenticatedRequestExecutor.kt, Astroloji/app/src/main/java/com/parsfilo/astrology/core/data/session/SessionTokenStore.kt
+
+---
+id: astroloji-instinct-file-naming
+trigger: "When creating a new Kotlin file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct File Naming
+
+## Action
+
+Name the file using PascalCase (e.g., SessionRefreshCoordinator.kt)
+
+## Evidence
+
+- Pattern in Astroloji/app/src/main/java/com/parsfilo/astrology/core/data/session/SessionRefreshCoordinator.kt
+- Pattern in Astroloji/app/src/main/java/com/parsfilo/astrology/core/data/session/AuthenticatedRequestExecutor.kt
+
+---
+id: astroloji-instinct-function-naming
+trigger: "When defining a new function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct Function Naming
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in Kotlin codebase
+- Naming conventions specified in analysis
+
+---
+id: astroloji-instinct-class-naming
+trigger: "When defining a new class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Pattern in Astroloji/app/src/main/java/com/parsfilo/astrology/core/data/session/SessionRefreshCoordinator.kt
+- Naming conventions specified in analysis
+
+---
+id: astroloji-instinct-constant-naming
+trigger: "When declaring a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Naming conventions specified in analysis
+
+---
+id: astroloji-instinct-import-style
+trigger: "When importing modules or classes"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct Import Style
+
+## Action
+
+Use alias imports where appropriate
+
+## Evidence
+
+- ImportStyle: alias in codeStyle analysis
+
+---
+id: astroloji-instinct-export-style
+trigger: "When exporting modules or classes"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- ExportStyle: named in codeStyle analysis
+
+---
+id: astroloji-instinct-test-file-pattern
+trigger: "When creating a new test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct Test File Pattern
+
+## Action
+
+Name the file with the pattern *.test.ts
+
+## Evidence
+
+- Pattern in Astroloji/app/src/test/java/com/parsfilo/astrology/core/data/session/SessionRefreshCoordinatorTest.kt
+- Testing filePattern: *.test.ts
+
+---
+id: astroloji-instinct-test-type
+trigger: "When writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct Test Type
+
+## Action
+
+Write unit tests using the vitest framework
+
+## Evidence
+
+- Testing framework: vitest
+- TestTypes: unit
+
+---
+id: astroloji-instinct-commit-format
+trigger: "When making a git commit"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct Commit Format
+
+## Action
+
+Use conventional commit format with a prefix (fix or refactor), scope in parentheses, and a concise description (e.g., fix(auth): make JWT refresh deterministic)
+
+## Evidence
+
+- Seen in commit 'fix(auth): make JWT refresh deterministic'
+- Seen in commit 'refactor(auth): finalize refresh coordination cleanup'
+
+---
+id: astroloji-instinct-auth-session-refresh-workflow
+trigger: "When updating or fixing authentication session refresh coordination or token handling"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: MakerParsDev/Astroloji
+---
+
+# Astroloji Instinct Auth Session Refresh Workflow
+
+## Action
+
+Edit SessionRefreshCoordinator.kt, update related executors and token stores as needed, update/add relevant tests, and optionally update backend JWT logic and documentation
+
+## Evidence
+
+- Workflow: auth-session-refresh-logic-update
+- Files: SessionRefreshCoordinator.kt, AuthenticatedRequestExecutor.kt, SessionTokenStore.kt, SessionRefreshCoordinatorTest.kt, AuthenticatedRequestExecutorTest.kt
+- Commit sequence and examples in workflow analysis
+
