@@ -26,11 +26,12 @@ class SessionRefreshCoordinator
             val action =
                 mutex.withLock {
                     val current = currentToken()?.takeIf { it.isNotBlank() }
+                    val newerToken = current?.takeIf { rejectedToken != null && it != rejectedToken }
                     when {
                         !requireRefresh && current != null ->
                             RefreshAction.Immediate(AppResult.Success(current))
-                        hasNewerToken(rejectedToken, current) ->
-                            RefreshAction.Immediate(AppResult.Success(current))
+                        newerToken != null ->
+                            RefreshAction.Immediate(AppResult.Success(newerToken))
                         inFlight != null ->
                             RefreshAction.Await(checkNotNull(inFlight))
                         else -> {
@@ -81,11 +82,6 @@ class SessionRefreshCoordinator
                     }
                 }
             }
-
-        private fun hasNewerToken(
-            rejectedToken: String?,
-            currentToken: String?,
-        ): Boolean = rejectedToken != null && currentToken != null && currentToken != rejectedToken
 
         private fun validateRefreshResult(
             rejectedToken: String?,
