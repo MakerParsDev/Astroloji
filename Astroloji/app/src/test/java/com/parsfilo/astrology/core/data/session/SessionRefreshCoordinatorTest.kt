@@ -4,8 +4,11 @@ import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -203,6 +206,49 @@ class SessionRefreshCoordinatorTest {
                 .isInstanceOf(AppException.UnknownException::class.java)
             assertThat((second.await() as AppResult.Error).exception)
                 .isInstanceOf(AppException.UnknownException::class.java)
+            assertThat(refreshCalls).isEqualTo(1)
+        }
+
+    @Test
+    fun `cancelling initiating caller keeps shared refresh alive for another waiter`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val tokenStore = SessionTokenStore().apply { update("rejected-token") }
+            val coordinator = SessionRefreshCoordinator()
+            val refreshStarted = CompletableDeferred<Unit>()
+            val allowRefresh = CompletableDeferred<Unit>()
+            var refreshCalls = 0
+            val refresh: suspend () -> AppResult<String> = {
+                refreshCalls += 1
+                refreshStarted.complete(Unit)
+                allowRefresh.await()
+                tokenStore.update("fresh-token")
+                AppResult.Success("fresh-token")
+            }
+
+            val first =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    coordinator.refresh(
+                        rejectedToken = "rejected-token",
+                        requireRefresh = true,
+                        currentToken = tokenStore::current,
+                        refresh = refresh,
+                    )
+                }
+            refreshStarted.await()
+            val second =
+                async(start = CoroutineStart.UNDISPATCHED) {
+                    coordinator.refresh(
+                        rejectedToken = "rejected-token",
+                        requireRefresh = true,
+                        currentToken = tokenStore::current,
+                        refresh = refresh,
+                    )
+                }
+
+            first.cancelAndJoin()
+            allowRefresh.complete(Unit)
+
+            assertThat(second.await()).isEqualTo(AppResult.Success("fresh-token"))
             assertThat(refreshCalls).isEqualTo(1)
         }
 

@@ -4,7 +4,11 @@ import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -16,6 +20,7 @@ class SessionRefreshCoordinator
     @Inject
     constructor() {
         private val mutex = Mutex()
+        private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var inFlight: ActiveRefresh? = null
 
         suspend fun refresh(
@@ -46,13 +51,15 @@ class SessionRefreshCoordinator
                             action.deferred.await()
                             null
                         }
-                        is RefreshAction.Execute ->
-                            executeRefresh(
+                        is RefreshAction.Execute -> {
+                            startRefresh(
                                 rejectedToken = rejectedToken,
                                 requireRefresh = requireRefresh,
                                 refresh = refresh,
                                 deferred = action.deferred,
                             )
+                            action.deferred.await()
+                        }
                     }
             }
             return checkNotNull(resolved)
@@ -83,6 +90,22 @@ class SessionRefreshCoordinator
                         RefreshAction.AwaitThenRetry(active.deferred)
                 }
             }
+
+        private fun startRefresh(
+            rejectedToken: String?,
+            requireRefresh: Boolean,
+            refresh: suspend () -> AppResult<String>,
+            deferred: CompletableDeferred<AppResult<String>>,
+        ) {
+            refreshScope.launch {
+                executeRefresh(
+                    rejectedToken = rejectedToken,
+                    requireRefresh = requireRefresh,
+                    refresh = refresh,
+                    deferred = deferred,
+                )
+            }
+        }
 
         private suspend fun executeRefresh(
             rejectedToken: String?,
