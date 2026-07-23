@@ -11,6 +11,9 @@ import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.RegisterUserRequest
 import com.parsfilo.astrology.core.data.remote.UpdateUserRequest
 import com.parsfilo.astrology.core.data.remote.VerifySubscriptionRequest
+import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
+import com.parsfilo.astrology.core.data.session.SessionRefreshCoordinator
+import com.parsfilo.astrology.core.data.session.SessionTokenStore
 import com.parsfilo.astrology.core.domain.model.SubscriptionStatus
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.domain.model.UserProfile
@@ -20,8 +23,6 @@ import com.parsfilo.astrology.core.util.DispatchersProvider
 import com.parsfilo.astrology.core.util.StringsProvider
 import com.parsfilo.astrology.core.util.TimeUtils
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -30,6 +31,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
+@Suppress("LongParameterList")
 class SessionRepository
     @Inject
     constructor(
@@ -39,9 +41,11 @@ class SessionRepository
         private val database: AstrologyDatabase,
         private val dispatchers: DispatchersProvider,
         private val stringsProvider: StringsProvider,
+        private val tokenStore: SessionTokenStore,
+        private val refreshCoordinator: SessionRefreshCoordinator,
+        private val requestExecutor: AuthenticatedRequestExecutor,
     ) {
         private val userProfileDao = database.userProfileDao()
-        private val refreshMutex = Mutex()
 
         suspend fun registerFromPreferences(): AppResult<UserProfile> =
             withContext(dispatchers.io) {
@@ -55,27 +59,55 @@ class SessionRepository
         suspend fun refreshSessionToken(forceRefreshFirebaseToken: Boolean): AppResult<String> =
             withContext(dispatchers.io) {
                 val preferences = preferencesRepository.current()
-                refreshAppJwt(preferences, forceRefreshFirebaseToken = forceRefreshFirebaseToken)
+                if (tokenStore.current() == null) {
+                    tokenStore.update(preferences.jwt)
+                }
+                refreshCoordinator.refresh(
+                    rejectedToken = null,
+                    requireRefresh = forceRefreshFirebaseToken,
+                    currentToken = tokenStore::currentUsable,
+                ) {
+                    refreshAppJwt(preferences, forceRefreshFirebaseToken = forceRefreshFirebaseToken)
+                }
             }
 
         suspend fun refreshSessionIfNeeded(): String? =
+            when (val result = refreshSessionToken(forceRefreshFirebaseToken = false)) {
+                is AppResult.Success -> result.data
+                is AppResult.Error -> null
+                AppResult.Loading -> null
+            }
+
+        suspend fun refreshAfterUnauthorized(rejectedToken: String?): AppResult<String> =
             withContext(dispatchers.io) {
-                refreshMutex.withLock {
-                    val currentJwt = preferencesRepository.getJwt()
-                    if (!currentJwt.isNullOrBlank()) {
-                        return@withLock currentJwt
+                val preferences = preferencesRepository.current()
+                val result =
+                    refreshCoordinator.refresh(
+                        rejectedToken = rejectedToken,
+                        requireRefresh = true,
+                        currentToken = tokenStore::currentUsable,
+                    ) {
+                        refreshAppJwt(preferences, forceRefreshFirebaseToken = true)
                     }
-                    when (val result = refreshSessionToken(forceRefreshFirebaseToken = true)) {
-                        is AppResult.Success -> result.data
-                        is AppResult.Error -> null
-                        AppResult.Loading -> null
+                when (result) {
+                    is AppResult.Success -> result
+                    is AppResult.Error,
+                    AppResult.Loading,
+                    -> {
+                        clearInvalidSession()
+                        AppResult.Error(AppException.UnauthorizedException())
                     }
                 }
             }
 
         suspend fun loadProfile(): AppResult<UserProfile> =
             withContext(dispatchers.io) {
-                val response = api.getUserProfile()
+                val response =
+                    requestExecutor.execute(
+                        api::getUserProfile,
+                        ::refreshAfterUnauthorized,
+                        ::clearInvalidSession,
+                    )
                 if (!response.isSuccessful) {
                     return@withContext AppResult.Error(
                         if (response.code() == 401) {
@@ -124,10 +156,19 @@ class SessionRepository
 
         suspend fun updateProfile(request: UpdateUserRequest): AppResult<UserProfile> =
             withContext(dispatchers.io) {
-                val response = api.updateUser(request)
+                val response =
+                    requestExecutor.execute(
+                        { api.updateUser(request) },
+                        ::refreshAfterUnauthorized,
+                        ::clearInvalidSession,
+                    )
                 if (!response.isSuccessful) {
                     return@withContext AppResult.Error(
-                        AppException.NetworkException(stringsProvider.get(R.string.session_error_profile_update_failed)),
+                        if (response.code() == 401) {
+                            AppException.UnauthorizedException()
+                        } else {
+                            AppException.NetworkException(stringsProvider.get(R.string.session_error_profile_update_failed))
+                        },
                     )
                 }
                 val body =
@@ -169,20 +210,33 @@ class SessionRepository
         suspend fun deleteAccount(): AppResult<Unit> =
             withContext(dispatchers.io) {
                 try {
-                    val response = api.deleteUser()
+                    val response =
+                        requestExecutor.execute(
+                            api::deleteUser,
+                            ::refreshAfterUnauthorized,
+                            ::clearInvalidSession,
+                        )
                     if (!response.isSuccessful) {
                         return@withContext AppResult.Error(
-                            AppException.NetworkException(
-                                stringsProvider.get(R.string.session_error_account_delete_failed),
-                            ),
+                            if (response.code() == 401) {
+                                AppException.UnauthorizedException()
+                            } else {
+                                AppException.NetworkException(
+                                    stringsProvider.get(R.string.session_error_account_delete_failed),
+                                )
+                            },
                         )
                     }
 
                     runCatching { FirebaseMessaging.getInstance().deleteToken().await() }
-                        .onFailure { Timber.w(it, "FCM token could not be removed during account deletion.") }
+                        .onFailure {
+                            if (it is CancellationException) throw it
+                            Timber.w(it, "FCM token could not be removed during account deletion.")
+                        }
                     firebaseAuth.signOut()
                     database.clearAllTables()
                     preferencesRepository.clearAll()
+                    tokenStore.update(null)
                     AppResult.Success(Unit)
                 } catch (exception: CancellationException) {
                     throw exception
@@ -196,21 +250,34 @@ class SessionRepository
                 }
             }
 
-        suspend fun retryAfterUnauthorized(block: suspend () -> AppResult<UserProfile>): AppResult<UserProfile> {
-            preferencesRepository.clearJwt()
-            return when (refreshAppJwt(preferencesRepository.current(), forceRefreshFirebaseToken = true)) {
-                is AppResult.Success -> block()
-                is AppResult.Error -> AppResult.Error(AppException.UnauthorizedException())
-                AppResult.Loading -> AppResult.Error(AppException.UnauthorizedException())
+        suspend fun invalidateSession() =
+            withContext(dispatchers.io) {
+                clearInvalidSession()
             }
-        }
+
+        suspend fun retryAfterUnauthorized(block: suspend () -> AppResult<UserProfile>): AppResult<UserProfile> =
+            when (refreshAfterUnauthorized(tokenStore.current())) {
+                is AppResult.Success -> block()
+                is AppResult.Error,
+                AppResult.Loading,
+                -> AppResult.Error(AppException.UnauthorizedException())
+            }
 
         suspend fun apiVerify(request: VerifySubscriptionRequest): AppResult<SubscriptionStatus> =
             withContext(dispatchers.io) {
-                val response = api.verifySubscription(request)
+                val response =
+                    requestExecutor.execute(
+                        { api.verifySubscription(request) },
+                        ::refreshAfterUnauthorized,
+                        ::clearInvalidSession,
+                    )
                 if (!response.isSuccessful) {
                     return@withContext AppResult.Error(
-                        AppException.BillingException(stringsProvider.get(R.string.session_error_subscription_verify_failed)),
+                        if (response.code() == 401) {
+                            AppException.UnauthorizedException()
+                        } else {
+                            AppException.BillingException(stringsProvider.get(R.string.session_error_subscription_verify_failed))
+                        },
                     )
                 }
                 val body =
@@ -254,10 +321,19 @@ class SessionRepository
 
         suspend fun apiRestore(request: VerifySubscriptionRequest): AppResult<SubscriptionStatus> =
             withContext(dispatchers.io) {
-                val response = api.restoreSubscription(request)
+                val response =
+                    requestExecutor.execute(
+                        { api.restoreSubscription(request) },
+                        ::refreshAfterUnauthorized,
+                        ::clearInvalidSession,
+                    )
                 if (!response.isSuccessful) {
                     return@withContext AppResult.Error(
-                        AppException.BillingException(stringsProvider.get(R.string.session_error_restore_failed)),
+                        if (response.code() == 401) {
+                            AppException.UnauthorizedException()
+                        } else {
+                            AppException.BillingException(stringsProvider.get(R.string.session_error_restore_failed))
+                        },
                     )
                 }
                 val body =
@@ -307,8 +383,11 @@ class SessionRepository
                 val firebaseToken = ensureFirebaseIdToken(forceRefreshFirebaseToken)
                 val fcmToken =
                     runCatching { FirebaseMessaging.getInstance().token.await() }
-                        .onFailure { Timber.w(it, "FCM token could not be retrieved, using a local fallback token.") }
-                        .getOrDefault("fcm-${UUID.randomUUID()}")
+                        .getOrElse {
+                            if (it is CancellationException) throw it
+                            Timber.w(it, "FCM token could not be retrieved, using a local fallback token.")
+                            "fcm-${UUID.randomUUID()}"
+                        }
                 val response =
                     api.registerUser(
                         authorization = "Bearer $firebaseToken",
@@ -357,10 +436,12 @@ class SessionRepository
                         updatedAt = System.currentTimeMillis(),
                     ),
                 )
+                tokenStore.update(body.jwt)
                 body.jwt
             }.fold(
                 onSuccess = { AppResult.Success(it) },
                 onFailure = {
+                    if (it is CancellationException) throw it
                     AppResult.Error(
                         if (it is AppException) {
                             it
@@ -379,7 +460,17 @@ class SessionRepository
             isPremium: Boolean,
             premiumExpiresAt: Long?,
         ) {
-            val refreshed = runCatching { api.refreshUserToken() }.getOrNull()
+            val refreshed =
+                runCatching {
+                    requestExecutor.execute(
+                        api::refreshUserToken,
+                        ::refreshAfterUnauthorized,
+                        ::clearInvalidSession,
+                    )
+                }.getOrElse {
+                    if (it is CancellationException) throw it
+                    null
+                }
             if (refreshed?.isSuccessful == true) {
                 val body = refreshed.body()
                 if (body != null) {
@@ -406,11 +497,22 @@ class SessionRepository
                             ),
                         )
                     }
+                    tokenStore.update(body.jwt)
                     return
                 }
             }
 
             refreshSessionToken(forceRefreshFirebaseToken = true)
+        }
+
+        private suspend fun clearInvalidSession() {
+            tokenStore.update(null)
+            runCatching { preferencesRepository.clearSession() }
+                .onFailure { Timber.w(it, "Session preferences could not be cleared after refresh failure.") }
+            runCatching { userProfileDao.clear() }
+                .onFailure { Timber.w(it, "Cached user profile could not be cleared after refresh failure.") }
+            runCatching { firebaseAuth.signOut() }
+                .onFailure { Timber.w(it, "Firebase session could not be signed out after refresh failure.") }
         }
 
         private suspend fun ensureFirebaseIdToken(forceRefresh: Boolean): String {

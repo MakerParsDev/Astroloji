@@ -36,6 +36,7 @@ export async function signAppJwt(
     firebase_uid: payload.firebaseUid
   })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+    .setJti(crypto.randomUUID())
     .setIssuedAt(now)
     .setExpirationTime(now + 60 * 60)
     .sign(secret);
@@ -51,6 +52,7 @@ export async function verifyAppJwt(env: Env, token: string): Promise<JwtClaims> 
     user_id: String(payload.user_id),
     is_premium: Boolean(payload.is_premium),
     firebase_uid: payload.firebase_uid ? String(payload.firebase_uid) : undefined,
+    jti: payload.jti ? String(payload.jti) : undefined,
     exp: Number(payload.exp),
     iat: Number(payload.iat)
   };

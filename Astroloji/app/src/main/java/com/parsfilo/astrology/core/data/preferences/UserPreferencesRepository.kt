@@ -160,6 +160,16 @@ class UserPreferencesRepository
             dataStore.edit { it.remove(PreferencesKeys.JWT) }
         }
 
+        suspend fun clearSession() {
+            dataStore.edit {
+                it.remove(PreferencesKeys.JWT)
+                it.remove(PreferencesKeys.USER_ID)
+                it.remove(PreferencesKeys.IS_PREMIUM)
+                it.remove(PreferencesKeys.SUBSCRIPTION_STATE)
+                it.remove(PreferencesKeys.PREMIUM_EXPIRES_AT)
+            }
+        }
+
         suspend fun clearAll() {
             dataStore.edit { it.clear() }
         }
