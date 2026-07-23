@@ -163,6 +163,50 @@ class SessionRefreshCoordinatorTest {
         }
 
     @Test
+    fun `concurrent refresh callback exceptions are shared as an error result`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val tokenStore = SessionTokenStore().apply { update("rejected-token") }
+            val coordinator = SessionRefreshCoordinator()
+            val refreshStarted = CompletableDeferred<Unit>()
+            val allowFailure = CompletableDeferred<Unit>()
+            var refreshCalls = 0
+            val refresh: suspend () -> AppResult<String> = {
+                refreshCalls += 1
+                refreshStarted.complete(Unit)
+                allowFailure.await()
+                throw IllegalStateException("refresh failed")
+            }
+
+            val first =
+                async {
+                    coordinator.refresh(
+                        rejectedToken = "rejected-token",
+                        requireRefresh = true,
+                        currentToken = tokenStore::current,
+                        refresh = refresh,
+                    )
+                }
+            refreshStarted.await()
+            val second =
+                async {
+                    coordinator.refresh(
+                        rejectedToken = "rejected-token",
+                        requireRefresh = true,
+                        currentToken = tokenStore::current,
+                        refresh = refresh,
+                    )
+                }
+
+            allowFailure.complete(Unit)
+
+            assertThat((first.await() as AppResult.Error).exception)
+                .isInstanceOf(AppException.UnknownException::class.java)
+            assertThat((second.await() as AppResult.Error).exception)
+                .isInstanceOf(AppException.UnknownException::class.java)
+            assertThat(refreshCalls).isEqualTo(1)
+        }
+
+    @Test
     fun `failed refresh can be retried after the concurrent attempt completes`() =
         runTest {
             val tokenStore = SessionTokenStore().apply { update("rejected-token") }

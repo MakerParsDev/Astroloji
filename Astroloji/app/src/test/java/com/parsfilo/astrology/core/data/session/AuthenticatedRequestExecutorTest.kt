@@ -6,7 +6,10 @@ import com.parsfilo.astrology.core.util.AppResult
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
+import io.mockk.mockk
+import io.mockk.verify
 import org.junit.Test
 import retrofit2.Response
 
@@ -88,6 +91,20 @@ class AuthenticatedRequestExecutorTest {
         }
 
     @Test
+    fun `refresh failure closes the unauthorized response body`() =
+        kotlinx.coroutines.test.runTest {
+            val errorBody = mockk<ResponseBody>(relaxed = true)
+            val unauthorized = response(code = 401, bearer = "rejected-token", errorBody = errorBody)
+
+            executor.execute(
+                request = { unauthorized },
+                refreshAfterUnauthorized = { AppResult.Error(AppException.UnauthorizedException()) },
+            )
+
+            verify(exactly = 1) { errorBody.close() }
+        }
+
+    @Test
     fun `second unauthorized response invalidates the recovered session`() =
         kotlinx.coroutines.test.runTest {
             val first = response(code = 401, bearer = "rejected-token")
@@ -133,6 +150,7 @@ class AuthenticatedRequestExecutorTest {
     private fun response(
         code: Int,
         bearer: String? = null,
+        errorBody: ResponseBody = "{}".toResponseBody("application/json".toMediaType()),
     ): Response<String> {
         val request =
             Request
@@ -152,10 +170,7 @@ class AuthenticatedRequestExecutorTest {
         return if (code in 200..299) {
             Response.success("ok", raw)
         } else {
-            Response.error(
-                "{}".toResponseBody("application/json".toMediaType()),
-                raw,
-            )
+            Response.error(errorBody, raw)
         }
     }
 }

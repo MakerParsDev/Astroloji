@@ -37,6 +37,12 @@ describe('jwt utils', () => {
         firebaseUid: 'firebase-1'
       });
 
+      const firstClaims = await verifyAppJwt(env, first);
+      const secondClaims = await verifyAppJwt(env, second);
+
+      expect(firstClaims.jti).toBeDefined();
+      expect(secondClaims.jti).toBeDefined();
+      expect(secondClaims.jti).not.toBe(firstClaims.jti);
       expect(second).not.toBe(first);
     } finally {
       vi.useRealTimers();

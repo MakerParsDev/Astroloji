@@ -29,6 +29,7 @@ import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -131,6 +132,34 @@ class SessionRepositoryRefreshTest {
             coVerify(exactly = 1) { userProfileDao.clear() }
             verify(exactly = 1) { firebaseAuth.signOut() }
             coVerify(exactly = 0) { api.registerUser(any(), any()) }
+        }
+
+    @Test
+    fun `forced recovery propagates cancellation without clearing session state`() =
+        runTest {
+            val stale = jwt(exp = 4_000_000_000)
+            tokenStore.update(stale)
+            coEvery { preferencesRepository.current() } returns UserPreferences(jwt = stale)
+            coJustRun { preferencesRepository.clearSession() }
+            coJustRun { userProfileDao.clear() }
+            every { firebaseAuth.currentUser } returns firebaseUser
+            every { firebaseUser.getIdToken(true) } returns
+                Tasks.forException(CancellationException("cancelled"))
+            every { firebaseAuth.signOut() } just runs
+            val repository = createRepository()
+            var cancellation: CancellationException? = null
+
+            try {
+                repository.refreshAfterUnauthorized(stale)
+            } catch (exception: CancellationException) {
+                cancellation = exception
+            }
+
+            assertThat(cancellation).isNotNull()
+            assertThat(tokenStore.current()).isEqualTo(stale)
+            coVerify(exactly = 0) { preferencesRepository.clearSession() }
+            coVerify(exactly = 0) { userProfileDao.clear() }
+            verify(exactly = 0) { firebaseAuth.signOut() }
         }
 
     private fun createRepository(): SessionRepository =
