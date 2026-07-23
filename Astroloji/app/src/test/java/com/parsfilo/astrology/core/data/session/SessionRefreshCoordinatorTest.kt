@@ -198,6 +198,51 @@ class SessionRefreshCoordinatorTest {
         }
 
     @Test
+    fun `different rejected token waits for active refresh then starts a new refresh`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val tokenStore = SessionTokenStore().apply { update("first-rejected-token") }
+            val coordinator = SessionRefreshCoordinator()
+            val firstTokenPublished = CompletableDeferred<Unit>()
+            val allowFirstRefreshToFinish = CompletableDeferred<Unit>()
+            var refreshCalls = 0
+
+            val first =
+                async {
+                    coordinator.refresh(
+                        rejectedToken = "first-rejected-token",
+                        requireRefresh = true,
+                        currentToken = tokenStore::current,
+                    ) {
+                        refreshCalls += 1
+                        tokenStore.update("second-rejected-token")
+                        firstTokenPublished.complete(Unit)
+                        allowFirstRefreshToFinish.await()
+                        AppResult.Success("second-rejected-token")
+                    }
+                }
+
+            firstTokenPublished.await()
+            val second =
+                async {
+                    coordinator.refresh(
+                        rejectedToken = "second-rejected-token",
+                        requireRefresh = true,
+                        currentToken = tokenStore::current,
+                    ) {
+                        refreshCalls += 1
+                        tokenStore.update("fresh-token")
+                        AppResult.Success("fresh-token")
+                    }
+                }
+
+            allowFirstRefreshToFinish.complete(Unit)
+
+            assertThat(first.await()).isEqualTo(AppResult.Success("second-rejected-token"))
+            assertThat(second.await()).isEqualTo(AppResult.Success("fresh-token"))
+            assertThat(refreshCalls).isEqualTo(2)
+        }
+
+    @Test
     fun `forced refresh reuses token already replaced by another request`() =
         runTest {
             val tokenStore = SessionTokenStore().apply { update("fresh-token") }
