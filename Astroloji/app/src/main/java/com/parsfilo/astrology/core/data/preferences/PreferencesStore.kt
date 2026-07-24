@@ -7,4 +7,5 @@ import androidx.datastore.preferences.preferencesDataStore
 
 val Context.userPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "user_preferences",
+    produceMigrations = { listOf(RemoveLegacyFallbackCredentialsMigration) },
 )

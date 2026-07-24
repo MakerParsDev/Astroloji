@@ -2,6 +2,7 @@ package com.parsfilo.astrology.core.data.repository
 
 import com.google.android.gms.tasks.Tasks
 import com.google.common.truth.Truth.assertThat
+import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GetTokenResult
@@ -46,7 +47,7 @@ class SessionRepositoryRefreshTest {
     private val tokenResult = mockk<GetTokenResult>()
     private val messaging = mockk<FirebaseMessaging>()
     private val api = mockk<AstrologyApi>()
-    private val preferencesRepository = mockk<UserPreferencesRepository>()
+    private val preferencesRepository = mockk<UserPreferencesRepository>(relaxed = true)
     private val userProfileDao = mockk<UserProfileDao>()
     private val database = mockk<AstrologyDatabase>()
     private val stringsProvider = mockk<StringsProvider>(relaxed = true)
@@ -110,6 +111,96 @@ class SessionRepositoryRefreshTest {
         }
 
     @Test
+    fun `missing Firebase user recovers through anonymous authentication without password APIs`() =
+        runTest {
+            val fresh = jwt(exp = 4_000_000_100)
+            val authResult = mockk<AuthResult>()
+            coEvery { preferencesRepository.current() } returns UserPreferences()
+            every { firebaseAuth.currentUser } returns null
+            every { firebaseAuth.signInAnonymously() } returns Tasks.forResult(authResult)
+            every { authResult.user } returns firebaseUser
+            every { tokenResult.token } returns "firebase-token"
+            every { firebaseUser.getIdToken(true) } returns Tasks.forResult(tokenResult)
+            coEvery { api.registerUser(any(), any()) } returns
+                retrofit2.Response.success(
+                    RegisterUserResponse(
+                        userId = "user-1",
+                        jwt = fresh,
+                        isPremium = false,
+                    ),
+                )
+            coJustRun {
+                preferencesRepository.updateSession(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            }
+            coJustRun { userProfileDao.upsert(any()) }
+            val repository = createRepository()
+
+            val result = repository.refreshSessionToken(forceRefreshFirebaseToken = true)
+
+            assertThat(result).isEqualTo(AppResult.Success(fresh))
+            verify(exactly = 1) { firebaseAuth.signInAnonymously() }
+            verify(exactly = 0) { firebaseAuth.signInWithEmailAndPassword(any(), any()) }
+            verify(exactly = 0) { firebaseAuth.createUserWithEmailAndPassword(any(), any()) }
+        }
+
+    @Test
+    fun `disabled anonymous authentication fails without password fallback`() =
+        runTest {
+            val fallbackAuthResult = mockk<AuthResult>()
+            coEvery { preferencesRepository.current() } returns UserPreferences()
+            every { firebaseAuth.currentUser } returns null
+            every { firebaseAuth.signInAnonymously() } returns
+                Tasks.forException(IOException("Anonymous authentication unavailable."))
+            every { firebaseAuth.signInWithEmailAndPassword(any(), any()) } returns Tasks.forResult(fallbackAuthResult)
+            every { fallbackAuthResult.user } returns firebaseUser
+            every { tokenResult.token } returns "firebase-token"
+            every { firebaseUser.getIdToken(true) } returns Tasks.forResult(tokenResult)
+            coEvery { api.registerUser(any(), any()) } returns
+                retrofit2.Response.success(
+                    RegisterUserResponse(
+                        userId = "user-1",
+                        jwt = jwt(exp = 4_000_000_100),
+                        isPremium = false,
+                    ),
+                )
+            coJustRun {
+                preferencesRepository.updateSession(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            }
+            coJustRun { userProfileDao.upsert(any()) }
+            val repository = createRepository()
+
+            val result = repository.refreshSessionToken(forceRefreshFirebaseToken = true)
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            verify(exactly = 1) { firebaseAuth.signInAnonymously() }
+            verify(exactly = 0) { firebaseAuth.signInWithEmailAndPassword(any(), any()) }
+            verify(exactly = 0) { firebaseAuth.createUserWithEmailAndPassword(any(), any()) }
+            coVerify(exactly = 0) { api.registerUser(any(), any()) }
+        }
+
+    @Test
     fun `failed forced recovery clears invalid session state`() =
         runTest {
             val stale = jwt(exp = 4_000_000_000)
@@ -132,6 +223,23 @@ class SessionRepositoryRefreshTest {
             coVerify(exactly = 1) { userProfileDao.clear() }
             verify(exactly = 1) { firebaseAuth.signOut() }
             coVerify(exactly = 0) { api.registerUser(any(), any()) }
+        }
+
+    @Test
+    fun `invalidateSession clears all local session material`() =
+        runTest {
+            tokenStore.update(jwt(exp = 4_000_000_000))
+            coJustRun { preferencesRepository.clearSession() }
+            coJustRun { userProfileDao.clear() }
+            every { firebaseAuth.signOut() } just runs
+            val repository = createRepository()
+
+            repository.invalidateSession()
+
+            assertThat(tokenStore.current()).isNull()
+            coVerify(exactly = 1) { preferencesRepository.clearSession() }
+            coVerify(exactly = 1) { userProfileDao.clear() }
+            verify(exactly = 1) { firebaseAuth.signOut() }
         }
 
     @Test

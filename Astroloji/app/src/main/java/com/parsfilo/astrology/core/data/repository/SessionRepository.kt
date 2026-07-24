@@ -1,7 +1,6 @@
 package com.parsfilo.astrology.core.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.messaging.FirebaseMessaging
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.local.AstrologyDatabase
@@ -522,79 +521,9 @@ class SessionRepository
                     ?: throw AppException.UnauthorizedException()
             }
 
-            val signedInUser =
-                try {
-                    firebaseAuth.signInAnonymously().await().user
-                } catch (exception: Exception) {
-                    if (exception.shouldFallbackToEmailPassword()) {
-                        Timber.w(exception, "Anonymous auth is unavailable, falling back to a generated email/password Firebase session.")
-                        signInWithFallbackCredentials()
-                    } else {
-                        throw exception
-                    }
-                }
-
+            val signedInUser = firebaseAuth.signInAnonymously().await().user
             return signedInUser?.getIdToken(forceRefresh)?.await()?.token
                 ?: throw AppException.UnauthorizedException()
-        }
-
-        private suspend fun signInWithFallbackCredentials() =
-            withContext(dispatchers.io) {
-                val storedCredentials = preferencesRepository.getFallbackAuthCredentials()
-                val (email, password) = storedCredentials ?: generateFallbackCredentials()
-
-                val user =
-                    runCatching {
-                        firebaseAuth.signInWithEmailAndPassword(email, password).await().user
-                    }.getOrElse { signInError ->
-                        if (!signInError.canCreateFallbackAccount()) {
-                            throw signInError
-                        }
-
-                        runCatching {
-                            firebaseAuth.createUserWithEmailAndPassword(email, password).await().user
-                        }.getOrElse { createError ->
-                            if (createError.isExistingAccountError()) {
-                                firebaseAuth.signInWithEmailAndPassword(email, password).await().user
-                            } else {
-                                throw createError
-                            }
-                        }
-                    } ?: throw AppException.UnauthorizedException()
-
-                preferencesRepository.storeFallbackAuthCredentials(email, password)
-                user
-            }
-
-        private fun generateFallbackCredentials(): Pair<String, String> {
-            val seed = UUID.randomUUID().toString().replace("-", "")
-            val email = "astroloji-$seed@parsfilo.dev"
-            val password = "Pars!${seed.take(12)}${seed.takeLast(8)}"
-            return email to password
-        }
-
-        private fun Exception.shouldFallbackToEmailPassword(): Boolean {
-            val code = (this as? FirebaseAuthException)?.errorCode.orEmpty()
-            val message = message.orEmpty()
-            return code == "ERROR_ADMIN_RESTRICTED_OPERATION" ||
-                code == "ERROR_OPERATION_NOT_ALLOWED" ||
-                message.contains("ADMIN_ONLY_OPERATION", ignoreCase = true) ||
-                message.contains("operation-not-allowed", ignoreCase = true)
-        }
-
-        private fun Throwable.canCreateFallbackAccount(): Boolean {
-            val code = (this as? FirebaseAuthException)?.errorCode.orEmpty()
-            return code == "ERROR_INVALID_CREDENTIAL" ||
-                code == "ERROR_INVALID_LOGIN_CREDENTIALS" ||
-                code == "ERROR_USER_NOT_FOUND" ||
-                code == "ERROR_WRONG_PASSWORD" ||
-                code == "ERROR_INVALID_EMAIL" ||
-                code == "ERROR_INTERNAL_ERROR"
-        }
-
-        private fun Throwable.isExistingAccountError(): Boolean {
-            val code = (this as? FirebaseAuthException)?.errorCode.orEmpty()
-            return code == "ERROR_EMAIL_ALREADY_IN_USE"
         }
 
         private fun UserProfileEntity.toDomain(): UserProfile =
