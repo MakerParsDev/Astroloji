@@ -36,8 +36,6 @@ object PreferencesKeys {
     val INTERSTITIAL_COUNT_TODAY = intPreferencesKey("interstitial_count_today")
     val INTERSTITIAL_COUNT_DATE = stringPreferencesKey("interstitial_count_date")
     val CONSENT_STATUS = intPreferencesKey("consent_status")
-    val FALLBACK_AUTH_EMAIL = stringPreferencesKey("fallback_auth_email")
-    val FALLBACK_AUTH_PASSWORD = stringPreferencesKey("fallback_auth_password")
 }
 
 @Singleton
@@ -167,6 +165,7 @@ class UserPreferencesRepository
                 it.remove(PreferencesKeys.IS_PREMIUM)
                 it.remove(PreferencesKeys.SUBSCRIPTION_STATE)
                 it.remove(PreferencesKeys.PREMIUM_EXPIRES_AT)
+                it.removeLegacyFallbackCredentials()
             }
         }
 
@@ -175,27 +174,6 @@ class UserPreferencesRepository
         }
 
         suspend fun getJwt(): String? = current().jwt
-
-        suspend fun getFallbackAuthCredentials(): Pair<String, String>? {
-            val preferences = dataStore.data.first()
-            val email = preferences[PreferencesKeys.FALLBACK_AUTH_EMAIL]
-            val password = preferences[PreferencesKeys.FALLBACK_AUTH_PASSWORD]
-            return if (email.isNullOrBlank() || password.isNullOrBlank()) {
-                null
-            } else {
-                email to password
-            }
-        }
-
-        suspend fun storeFallbackAuthCredentials(
-            email: String,
-            password: String,
-        ) {
-            dataStore.edit {
-                it[PreferencesKeys.FALLBACK_AUTH_EMAIL] = email
-                it[PreferencesKeys.FALLBACK_AUTH_PASSWORD] = password
-            }
-        }
 
         private fun mapPreferences(preferences: Preferences): UserPreferences =
             UserPreferences(

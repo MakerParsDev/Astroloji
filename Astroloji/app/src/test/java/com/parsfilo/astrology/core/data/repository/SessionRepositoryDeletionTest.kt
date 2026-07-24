@@ -39,6 +39,7 @@ class SessionRepositoryDeletionTest {
     private val userProfileDao = mockk<UserProfileDao>()
     private val database = mockk<AstrologyDatabase>()
     private val stringsProvider = mockk<StringsProvider>()
+    private val tokenStore = SessionTokenStore()
 
     @Test
     fun `deleteAccount clears local state only after backend deletion succeeds`() =
@@ -54,6 +55,7 @@ class SessionRepositoryDeletionTest {
             every { firebaseAuth.signOut() } just runs
             every { database.clearAllTables() } just runs
             coJustRun { preferencesRepository.clearAll() }
+            tokenStore.update("app-jwt")
             val repository = createRepository()
 
             val result = repository.deleteAccount()
@@ -63,6 +65,7 @@ class SessionRepositoryDeletionTest {
             verify(exactly = 1) { firebaseAuth.signOut() }
             verify(exactly = 1) { database.clearAllTables() }
             coVerify(exactly = 1) { preferencesRepository.clearAll() }
+            assertThat(tokenStore.current()).isNull()
         }
 
     @Test
@@ -71,6 +74,7 @@ class SessionRepositoryDeletionTest {
             every { stringsProvider.get(R.string.session_error_account_delete_failed) } returns
                 "Account deletion failed."
             coEvery { api.deleteUser() } throws IOException("offline")
+            tokenStore.update("app-jwt")
             val repository = createRepository()
 
             val result = repository.deleteAccount()
@@ -79,6 +83,7 @@ class SessionRepositoryDeletionTest {
             verify(exactly = 0) { firebaseAuth.signOut() }
             verify(exactly = 0) { database.clearAllTables() }
             coVerify(exactly = 0) { preferencesRepository.clearAll() }
+            assertThat(tokenStore.current()).isEqualTo("app-jwt")
         }
 
     @Test
@@ -91,6 +96,7 @@ class SessionRepositoryDeletionTest {
                     502,
                     "{}".toResponseBody("application/json".toMediaType()),
                 )
+            tokenStore.update("app-jwt")
             val repository = createRepository()
 
             val result = repository.deleteAccount()
@@ -99,6 +105,7 @@ class SessionRepositoryDeletionTest {
             verify(exactly = 0) { firebaseAuth.signOut() }
             verify(exactly = 0) { database.clearAllTables() }
             coVerify(exactly = 0) { preferencesRepository.clearAll() }
+            assertThat(tokenStore.current()).isEqualTo("app-jwt")
         }
 
     private fun createRepository(): SessionRepository {
@@ -115,7 +122,7 @@ class SessionRepositoryDeletionTest {
                     default = UnconfinedTestDispatcher(),
                 ),
             stringsProvider = stringsProvider,
-            tokenStore = SessionTokenStore(),
+            tokenStore = tokenStore,
             refreshCoordinator = SessionRefreshCoordinator(),
             requestExecutor = AuthenticatedRequestExecutor(),
         )
