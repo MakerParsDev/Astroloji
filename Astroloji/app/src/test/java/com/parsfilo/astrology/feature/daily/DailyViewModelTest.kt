@@ -268,6 +268,35 @@ class DailyViewModelTest {
             assertThat(unlockedFull).isEqualTo("Tam yorum")
         }
 
+    @Test
+    fun `surfaces an error when the prepared rewarded ad cannot be shown`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(selectedSign = "aries", language = "tr", userId = "user-1")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags()
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+
+            val viewModel =
+                DailyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            viewModel.onEvent(DailyUiEvent.RewardAdUnavailable("Reklam hazır değil"))
+
+            assertThat(viewModel.state.value.error).isEqualTo("Reklam hazır değil")
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+        }
+
     private fun lockedDailyHoroscope(): DailyHoroscope =
         DailyHoroscope(
             date = "2026-07-26",

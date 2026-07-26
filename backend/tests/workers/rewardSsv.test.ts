@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { createApp } from '@/index';
-import type { ParsedAdmobSsvCallback } from '@/services/admobSsv';
+import { AdmobSsvVerificationError, type ParsedAdmobSsvCallback } from '@/services/admobSsv';
+import { cleanupRewardChallenges } from '@/workers/reward';
 import type { Env, RewardChallengeRow } from '@/types';
 import { signAppJwt } from '@/utils/jwt';
 import { createTestEnv } from '../helpers/env';
@@ -403,6 +404,42 @@ describe('rewarded access SSV routes', () => {
     });
   });
 
+  it('rejects callback timestamp skew and verifier failures', async () => {
+    const { db } = createRewardDb();
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    const timestampApp = testApp({
+      verifyCallback: async () =>
+        verifiedCallback(CHALLENGE_ID, TRANSACTION_ID, 'user-1', AD_UNIT, NOW_MS - 16 * 60 * 1_000)
+    });
+    await timestampApp.request(
+      '/api/v1/rewards/prepare',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+      },
+      env
+    );
+
+    const skewed = await timestampApp.request('/api/v1/rewards/ssv?skewed', {}, env);
+    expect(skewed.status).toBe(400);
+    await expect(skewed.json()).resolves.toMatchObject({
+      error: { code: 'REWARD_TIMESTAMP_INVALID' }
+    });
+
+    const signatureApp = testApp({
+      verifyCallback: async () => {
+        throw new AdmobSsvVerificationError('INVALID_SIGNATURE', 'invalid signature');
+      }
+    });
+    const rejected = await signatureApp.request('/api/v1/rewards/ssv?rejected', {}, env);
+    expect(rejected.status).toBe(400);
+    await expect(rejected.json()).resolves.toMatchObject({
+      error: { code: 'INVALID_SIGNATURE' }
+    });
+  });
+
   it('does not prepare another challenge for an active entitlement', async () => {
     const { db } = createRewardDb();
     const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
@@ -477,6 +514,33 @@ describe('rewarded access SSV routes', () => {
     const callback = await app.request('/api/v1/rewards/ssv?numeric-ad-unit', {}, env);
     expect(callback.status).toBe(200);
     expect(rows.get(CHALLENGE_ID)?.status).toBe('verified');
+  });
+
+  it('cleans old reward rows in bounded batches until no rows remain', async () => {
+    const changes = [500, 2, 0];
+    const bindings: unknown[][] = [];
+    let calls = 0;
+    const db = {
+      prepare(sql: string) {
+        expect(sql).toContain('LIMIT ?');
+        const statement = {
+          bind(...args: unknown[]) {
+            bindings.push(args);
+            return statement;
+          },
+          async run() {
+            return { success: true, meta: { changes: changes[calls++] ?? 0 } };
+          }
+        };
+        return statement;
+      }
+    } as unknown as D1Database;
+
+    await cleanupRewardChallenges(db, NOW_MS);
+
+    expect(calls).toBe(3);
+    expect(bindings).toHaveLength(3);
+    expect(bindings.every((args) => args[2] === 500)).toBe(true);
   });
 
 });

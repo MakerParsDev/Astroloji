@@ -15,9 +15,9 @@ Last reviewed: 2026-07-26
 1. Merge and verify the rewarded SSV release.
 2. In AdMob, enable SSV on the production rewarded ad unit with callback URL:
    `https://astrology.parsfilo.com/api/v1/rewards/ssv`
-3. Run the AdMob SSV testing tool and confirm a signed callback is accepted.
-4. Run `backend-production-deploy` from `main` with confirmation `DEPLOY`.
-5. Verify the live malformed-callback smoke test returns HTTP 400 with `MALFORMED_CALLBACK`.
+3. Run `backend-production-deploy` from `main` with confirmation `DEPLOY`; it applies the additive D1 migration, synchronizes secrets, and deploys the fail-closed claim contract.
+4. Verify the live malformed-callback smoke test returns HTTP 400 with `MALFORMED_CALLBACK`.
+5. Run the AdMob SSV testing tool and confirm a signed callback is accepted by the deployed endpoint.
 6. Run `android-internal-preflight` from `main` with confirmation `PREFLIGHT`.
 7. Publish to the internal track and complete real-device tests for rewarded daily/weekly unlock, subscription purchase/restore, consent, notifications, and account deletion.
 8. Update Play Console declarations and submit a staged production release only after internal QA.

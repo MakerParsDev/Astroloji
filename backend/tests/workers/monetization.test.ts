@@ -54,18 +54,21 @@ describe('monetization routes', () => {
     );
 
     expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'INVALID_REQUEST' }
+    });
   });
 
   it('unlocks daily premium fields when a valid reward claim exists', async () => {
     const env = createTestEnv({
       DB: {
-        prepare() {
+        prepare(sql: string) {
           const statement = {
             bind() {
               return statement;
             },
             async first() {
-              return { id: 'consumed-challenge' };
+              return sql.includes('FROM reward_challenges') ? { id: 'consumed-challenge' } : null;
             },
             async all() {
               return { results: [] };

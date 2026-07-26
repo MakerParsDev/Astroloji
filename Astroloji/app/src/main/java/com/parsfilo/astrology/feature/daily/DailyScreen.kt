@@ -66,19 +66,28 @@ fun DailyScreen(
         viewModel.effects.collect { effect ->
             when (effect) {
                 is DailyUiEffect.ShowRewardAd -> {
-                    val hostActivity = activity ?: return@collect
-                    rewardedAdManager.showIfAvailable(
-                        activity = hostActivity,
-                        request =
-                            RewardedAdRequest(
-                                placement = "unlock_daily_full",
-                                ssvUserId = effect.challenge.userId,
-                                ssvCustomData = effect.challenge.customData,
-                            ),
-                        onRewardEarned = {
-                            viewModel.onEvent(DailyUiEvent.RewardEarned(effect.challenge.challengeId))
-                        },
-                    )
+                    val unavailableMessage = context.getString(R.string.rewarded_ad_unavailable)
+                    val hostActivity =
+                        activity ?: run {
+                            viewModel.onEvent(DailyUiEvent.RewardAdUnavailable(unavailableMessage))
+                            return@collect
+                        }
+                    val shown =
+                        rewardedAdManager.showIfAvailable(
+                            activity = hostActivity,
+                            request =
+                                RewardedAdRequest(
+                                    placement = "unlock_daily_full",
+                                    ssvUserId = effect.challenge.userId,
+                                    ssvCustomData = effect.challenge.customData,
+                                ),
+                            onRewardEarned = {
+                                viewModel.onEvent(DailyUiEvent.RewardEarned(effect.challenge.challengeId))
+                            },
+                        )
+                    if (!shown) {
+                        viewModel.onEvent(DailyUiEvent.RewardAdUnavailable(unavailableMessage))
+                    }
                 }
             }
         }

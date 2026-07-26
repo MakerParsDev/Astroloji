@@ -43,6 +43,20 @@ test('rejects an absent or permissive backend SSV route', async () => {
   );
 });
 
+test('aborts a stalled backend preflight request', async () => {
+  await assert.rejects(
+    checkBackendRewardSsv({
+      baseUrl: 'https://astrology.parsfilo.com',
+      timeoutMs: 5,
+      fetcher: async (_url, init) =>
+        await new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        }),
+    }),
+    /timed out/,
+  );
+});
+
 test('requires the backend base URL and valid JSON', async () => {
   await assert.rejects(checkBackendRewardSsv({ baseUrl: '' }), /BACKEND_BASE_URL/);
   await assert.rejects(

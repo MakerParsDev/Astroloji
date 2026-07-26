@@ -224,11 +224,17 @@ export function registerRewardRoutes(
           verifiedAt
         )
         .run();
-    } catch {
+    } catch (error) {
+      console.error('Reward SSV verification update failed.', {
+        requestId: c.get('requestId'),
+        error: error instanceof Error ? error.message : 'unknown database error'
+      });
       const transactionOwner = await getChallengeByTransaction(c.env.DB, transactionId);
       if (transactionOwner && transactionOwner.id !== challengeId) {
+        logRewardResult(c.get('requestId'), 'transaction_replay', challengeId, transactionId);
         return jsonError(409, 'TRANSACTION_REPLAY', 'Reward transaction was already used.');
       }
+      logRewardResult(c.get('requestId'), 'verification_conflict', challengeId, transactionId);
       return jsonError(409, 'REWARD_VERIFICATION_CONFLICT', 'Reward challenge could not be verified.');
     }
 
@@ -240,8 +246,10 @@ export function registerRewardRoutes(
       }
       const transactionOwner = await getChallengeByTransaction(c.env.DB, transactionId);
       if (transactionOwner && transactionOwner.id !== challengeId) {
+        logRewardResult(c.get('requestId'), 'transaction_replay', challengeId, transactionId);
         return jsonError(409, 'TRANSACTION_REPLAY', 'Reward transaction was already used.');
       }
+      logRewardResult(c.get('requestId'), 'verification_conflict', challengeId, transactionId);
       return jsonError(409, 'REWARD_VERIFICATION_CONFLICT', 'Reward challenge could not be verified.');
     }
 
@@ -341,17 +349,28 @@ export async function hasRewardEntitlement(
 }
 
 
+const REWARD_CLEANUP_BATCH_SIZE = 500;
+
 export async function cleanupRewardChallenges(
   db: D1Database,
   nowMs: number = Date.now()
 ): Promise<void> {
   const auditCutoff = new Date(nowMs - 30 * 24 * 60 * 60 * 1_000).toISOString();
-  await db
-    .prepare(
-      `DELETE FROM reward_challenges
-       WHERE expires_at < ?
-         AND (entitlement_expires_at IS NULL OR entitlement_expires_at < ?)`
-    )
-    .bind(auditCutoff, auditCutoff)
-    .run();
+  while (true) {
+    const result = await db
+      .prepare(
+        `DELETE FROM reward_challenges
+         WHERE id IN (
+           SELECT id FROM reward_challenges
+           WHERE expires_at < ?
+             AND (entitlement_expires_at IS NULL OR entitlement_expires_at < ?)
+           LIMIT ?
+         )`
+      )
+      .bind(auditCutoff, auditCutoff, REWARD_CLEANUP_BATCH_SIZE)
+      .run();
+    if ((result.meta.changes ?? 0) === 0) {
+      break;
+    }
+  }
 }

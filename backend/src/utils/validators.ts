@@ -82,7 +82,7 @@ export const rewardPrepareSchema = z
   });
 
 export const rewardClaimSchema = z.object({
-  challenge_id: z.string().uuid()
+  challenge_id: z.uuid()
 });
 
 const optionalSeedDateSchema = z.preprocess(

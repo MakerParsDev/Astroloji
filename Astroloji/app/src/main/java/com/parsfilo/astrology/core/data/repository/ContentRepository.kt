@@ -239,18 +239,17 @@ class ContentRepository
                 }
             }
 
-        private fun Response<*>.errorCode(): String? {
-            val raw = errorBody()?.string().orEmpty()
-            return runCatching { json.decodeFromString<ErrorEnvelope>(raw).error.code }.getOrNull()
-        }
+        private fun Response<*>.errorCode(): String? =
+            runCatching {
+                val raw = errorBody()?.string().orEmpty()
+                json.decodeFromString<ErrorEnvelope>(raw).error.code
+            }.getOrNull()
 
-        private fun Response<*>.errorMessage(): String {
-            val raw = errorBody()?.string().orEmpty()
-            return runCatching { json.decodeFromString<ErrorEnvelope>(raw).error.message }
-                .getOrNull()
-                .orEmpty()
-                .ifBlank { message() }
-        }
+        private fun Response<*>.errorMessage(): String =
+            runCatching {
+                val raw = errorBody()?.string().orEmpty()
+                json.decodeFromString<ErrorEnvelope>(raw).error.message
+            }.getOrNull().orEmpty().ifBlank { message() }
 
         private suspend fun fetchDaily(
             sign: String,

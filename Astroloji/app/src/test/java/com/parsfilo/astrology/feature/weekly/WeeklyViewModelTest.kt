@@ -159,6 +159,35 @@ class WeeklyViewModelTest {
             assertThat(unlockedLove).isEqualTo("Aşk")
         }
 
+    @Test
+    fun `surfaces an error when the prepared weekly rewarded ad cannot be shown`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(selectedSign = "aries", language = "tr", userId = "user-1")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags()
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+
+            val viewModel =
+                WeeklyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable("Reklam hazır değil"))
+
+            assertThat(viewModel.state.value.error).isEqualTo("Reklam hazır değil")
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+        }
+
     private fun weekly(
         love: String?,
         career: String?,

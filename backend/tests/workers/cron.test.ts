@@ -35,6 +35,7 @@ describe('cron worker', () => {
   it('runs expiry reconciliation and paged notification dispatch on the hourly cron', async () => {
     const seenOffsets: number[] = [];
     const writes: string[] = [];
+    const operations: string[] = [];
     const env = createTestEnv({
       DB: {
         prepare(sql: string) {
@@ -49,10 +50,12 @@ describe('cron worker', () => {
             },
             async all() {
               if (sql.includes("FROM subscriptions WHERE status IN ('active', 'cancelled')")) {
+                operations.push('subscriptions');
                 return { results: [] };
               }
 
               if (sql.includes('FROM users u') && sql.includes('LIMIT ? OFFSET ?')) {
+                operations.push('notifications');
                 const [, offset] = bindings as [number, number];
                 seenOffsets.push(offset);
                 if (offset === 0) {
@@ -89,8 +92,12 @@ describe('cron worker', () => {
               return { results: [] };
             },
             async run() {
-              writes.push(sql.replace(/\s+/g, ' ').trim());
-              return { success: true, meta: {} };
+              const normalized = sql.replace(/\s+/g, ' ').trim();
+              writes.push(normalized);
+              if (normalized.startsWith('DELETE FROM reward_challenges')) {
+                operations.push('cleanup');
+              }
+              return { success: true, meta: { changes: 0 } };
             }
           };
           return statement;
@@ -141,6 +148,8 @@ describe('cron worker', () => {
     );
 
     expect(writes.some((sql) => sql.startsWith('DELETE FROM reward_challenges'))).toBe(true);
+    expect(operations.indexOf('subscriptions')).toBeLessThan(operations.indexOf('notifications'));
+    expect(operations.at(-1)).toBe('cleanup');
     expect(seenOffsets).toEqual([0, 500]);
     expect(sendBatchNotifications).toHaveBeenCalledTimes(1);
     expect(sendBatchNotifications).toHaveBeenCalledWith(
@@ -154,6 +163,49 @@ describe('cron worker', () => {
         date: '2026-04-10'
       }
     );
+  });
+
+  it('isolates cleanup failures after the main cron work', async () => {
+    const cleanupError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const env = createTestEnv({
+      DB: {
+        prepare(sql: string) {
+          const statement = {
+            bind() {
+              return statement;
+            },
+            async first() {
+              return null;
+            },
+            async all() {
+              return { results: [] };
+            },
+            async run() {
+              if (sql.includes('DELETE FROM reward_challenges')) {
+                throw new Error('cleanup unavailable');
+              }
+              return { success: true, meta: { changes: 0 } };
+            }
+          };
+          return statement;
+        },
+        async batch() {
+          return [];
+        }
+      } as unknown as D1Database
+    });
+
+    await expect(
+      handleCron(
+        { cron: '0 * * * *' } as ScheduledController,
+        env,
+        {} as ExecutionContext
+      )
+    ).resolves.toBeUndefined();
+
+    expect(cleanupError).toHaveBeenCalledWith('Reward challenge cleanup failed.', {
+      error: 'cleanup unavailable'
+    });
   });
 
   it('ignores the legacy fixed-hour cron expressions', async () => {

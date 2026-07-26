@@ -56,19 +56,28 @@ fun WeeklyScreen(
         viewModel.effects.collect { effect ->
             when (effect) {
                 is WeeklyUiEffect.ShowRewardAd -> {
-                    val hostActivity = activity ?: return@collect
-                    rewardedAdManager.showIfAvailable(
-                        activity = hostActivity,
-                        request =
-                            RewardedAdRequest(
-                                placement = "unlock_weekly_full",
-                                ssvUserId = effect.challenge.userId,
-                                ssvCustomData = effect.challenge.customData,
-                            ),
-                        onRewardEarned = {
-                            viewModel.onEvent(WeeklyUiEvent.RewardEarned(effect.challenge.challengeId))
-                        },
-                    )
+                    val unavailableMessage = context.getString(R.string.rewarded_ad_unavailable)
+                    val hostActivity =
+                        activity ?: run {
+                            viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable(unavailableMessage))
+                            return@collect
+                        }
+                    val shown =
+                        rewardedAdManager.showIfAvailable(
+                            activity = hostActivity,
+                            request =
+                                RewardedAdRequest(
+                                    placement = "unlock_weekly_full",
+                                    ssvUserId = effect.challenge.userId,
+                                    ssvCustomData = effect.challenge.customData,
+                                ),
+                            onRewardEarned = {
+                                viewModel.onEvent(WeeklyUiEvent.RewardEarned(effect.challenge.challengeId))
+                            },
+                        )
+                    if (!shown) {
+                        viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable(unavailableMessage))
+                    }
                 }
             }
         }

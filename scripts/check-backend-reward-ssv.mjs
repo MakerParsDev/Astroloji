@@ -1,11 +1,24 @@
 import { pathToFileURL } from 'node:url';
 
-export async function checkBackendRewardSsv({ baseUrl, fetcher = fetch }) {
+export async function checkBackendRewardSsv({ baseUrl, fetcher = fetch, timeoutMs = 10_000 }) {
   if (!baseUrl) throw new Error('BACKEND_BASE_URL is required.');
   const endpoint = `${baseUrl.replace(/\/$/, '')}/api/v1/rewards/ssv?preflight=invalid`;
-  const response = await fetcher(endpoint, {
-    headers: { accept: 'application/json' },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetcher(endpoint, {
+      headers: { accept: 'application/json' },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('Backend rewarded SSV preflight timed out.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
   const text = await response.text();
   let body = {};
   try {

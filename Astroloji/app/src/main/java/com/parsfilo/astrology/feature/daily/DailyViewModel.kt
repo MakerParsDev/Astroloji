@@ -31,6 +31,10 @@ sealed interface DailyUiEvent {
 
     data object UnlockWithReward : DailyUiEvent
 
+    data class RewardAdUnavailable(
+        val message: String,
+    ) : DailyUiEvent
+
     data class RewardEarned(
         val challengeId: String,
     ) : DailyUiEvent
@@ -77,6 +81,9 @@ class DailyViewModel
                             AppResult.Loading -> Unit
                         }
                     }
+                }
+                is DailyUiEvent.RewardAdUnavailable -> {
+                    setState { copy(error = event.message) }
                 }
                 is DailyUiEvent.RewardEarned -> {
                     viewModelScope.launch {

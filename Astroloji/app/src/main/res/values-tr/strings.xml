@@ -242,4 +242,5 @@
     <string name="settings_delete_dialog_body">Bu işlem geri alınamaz. Hesabınız ve ilişkili uygulama verileri silinir. Aktif Google Play aboneliğiniz otomatik olarak iptal edilmez.</string>
     <string name="settings_delete_dialog_confirm">Kalıcı olarak sil</string>
     <string name="settings_delete_dialog_cancel">Vazgeç</string>
+    <string name="rewarded_ad_unavailable">Ödüllü reklam henüz hazır değil. Lütfen tekrar deneyin.</string>
 </resources>

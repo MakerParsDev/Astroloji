@@ -1,5 +1,7 @@
 const ADMOB_PUBLIC_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
 const PUBLIC_KEY_CACHE_TTL_MS = 12 * 60 * 60 * 1_000;
+const MISS_REFRESH_COOLDOWN_MS = 5 * 60 * 1_000;
+const PUBLIC_KEY_FETCH_TIMEOUT_MS = 5_000;
 const P256_COMPONENT_SIZE = 32;
 
 export type AdmobSsvErrorCode =
@@ -38,6 +40,7 @@ export interface ParsedAdmobSsvCallback {
 
 export interface AdmobKeyCache {
   expiresAtMs: number;
+  missRefreshAfterMs: number;
   keys: Map<string, string>;
 }
 
@@ -54,10 +57,12 @@ interface AdmobSsvVerifierOptions {
   now?: () => number;
   keysUrl?: string;
   subtle?: SubtleCrypto;
+  fetchTimeoutMs?: number;
 }
 
 const defaultKeyCache: AdmobKeyCache = {
   expiresAtMs: 0,
+  missRefreshAfterMs: 0,
   keys: new Map()
 };
 
@@ -227,15 +232,21 @@ async function refreshPublicKeys(
   cache: AdmobKeyCache,
   fetcher: typeof fetch,
   keysUrl: string,
-  nowMs: number
+  nowMs: number,
+  fetchTimeoutMs: number
 ): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), fetchTimeoutMs);
   let response: Response;
   try {
     response = await fetcher(keysUrl, {
-      headers: { accept: 'application/json' }
+      headers: { accept: 'application/json' },
+      signal: controller.signal
     });
   } catch {
     throw new AdmobSsvVerificationError('KEY_FETCH_FAILED', 'AdMob public keys could not be fetched.');
+  } finally {
+    clearTimeout(timeout);
   }
   if (!response.ok) {
     throw new AdmobSsvVerificationError(
@@ -266,21 +277,41 @@ async function refreshPublicKeys(
 
 async function getPublicKeyBase64(
   keyId: string,
-  options: Required<Pick<AdmobSsvVerifierOptions, 'fetcher' | 'now' | 'keysUrl'>> & {
+  options: Required<
+    Pick<AdmobSsvVerifierOptions, 'fetcher' | 'now' | 'keysUrl' | 'fetchTimeoutMs'>
+  > & {
     cache: AdmobKeyCache;
   }
 ): Promise<string> {
   const nowMs = options.now();
+  let refreshedThisCall = false;
   if (options.cache.expiresAtMs <= nowMs) {
-    await refreshPublicKeys(options.cache, options.fetcher, options.keysUrl, nowMs);
+    await refreshPublicKeys(
+      options.cache,
+      options.fetcher,
+      options.keysUrl,
+      nowMs,
+      options.fetchTimeoutMs
+    );
+    refreshedThisCall = true;
   }
 
   let key = options.cache.keys.get(keyId);
-  if (!key) {
-    await refreshPublicKeys(options.cache, options.fetcher, options.keysUrl, nowMs);
+  if (!key && !refreshedThisCall && options.cache.missRefreshAfterMs <= nowMs) {
+    await refreshPublicKeys(
+      options.cache,
+      options.fetcher,
+      options.keysUrl,
+      nowMs,
+      options.fetchTimeoutMs
+    );
+    refreshedThisCall = true;
     key = options.cache.keys.get(keyId);
   }
   if (!key) {
+    if (refreshedThisCall) {
+      options.cache.missRefreshAfterMs = nowMs + MISS_REFRESH_COOLDOWN_MS;
+    }
     throw new AdmobSsvVerificationError('UNKNOWN_KEY', 'AdMob callback references an unknown key ID.');
   }
   return key;
@@ -292,6 +323,7 @@ export function createAdmobSsvVerifier(options: AdmobSsvVerifierOptions = {}) {
   const now = options.now ?? Date.now;
   const keysUrl = options.keysUrl ?? ADMOB_PUBLIC_KEYS_URL;
   const subtle = options.subtle ?? crypto.subtle;
+  const fetchTimeoutMs = options.fetchTimeoutMs ?? PUBLIC_KEY_FETCH_TIMEOUT_MS;
 
   return async (callbackUrl: string): Promise<ParsedAdmobSsvCallback> => {
     const parsed = parseAdmobSsvCallback(callbackUrl);
@@ -299,7 +331,8 @@ export function createAdmobSsvVerifier(options: AdmobSsvVerifierOptions = {}) {
       fetcher,
       cache,
       now,
-      keysUrl
+      keysUrl,
+      fetchTimeoutMs
     });
 
     let publicKey: CryptoKey;

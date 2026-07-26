@@ -87,7 +87,7 @@ async function createSignedCallback(overrides: Partial<Record<string, string>> =
 }
 
 function createCache(): AdmobKeyCache {
-  return { expiresAtMs: 0, keys: new Map() };
+  return { expiresAtMs: 0, missRefreshAfterMs: 0, keys: new Map() };
 }
 
 describe('AdMob SSV verification', () => {
@@ -173,16 +173,37 @@ describe('AdMob SSV verification', () => {
     );
   });
 
-  it('rejects a callback when no matching public key exists after refresh', async () => {
+  it('rejects an unknown key without repeatedly refetching during the miss cooldown', async () => {
     const callback = await createSignedCallback();
+    const fetcher = vi.fn(async () => Response.json({ keys: [] }));
     const verify = createAdmobSsvVerifier({
-      fetcher: (async () => Response.json({ keys: [] })) as typeof fetch,
+      fetcher: fetcher as typeof fetch,
       cache: createCache(),
       now: () => 1_785_080_000_000
     });
 
-    await expect(verify(callback.url)).rejects.toMatchObject({
-      code: 'UNKNOWN_KEY'
+    await expect(verify(callback.url)).rejects.toMatchObject({ code: 'UNKNOWN_KEY' });
+    await expect(verify(callback.url)).rejects.toMatchObject({ code: 'UNKNOWN_KEY' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('aborts a stalled public-key fetch within the configured timeout', async () => {
+    const callback = await createSignedCallback();
+    const fetcher = vi.fn(
+      async (_url: string | URL | Request, init?: RequestInit) =>
+        await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        })
+    );
+    const verify = createAdmobSsvVerifier({
+      fetcher: fetcher as typeof fetch,
+      cache: createCache(),
+      now: () => 1_785_080_000_000,
+      fetchTimeoutMs: 5
     });
+
+    await expect(verify(callback.url)).rejects.toMatchObject({ code: 'KEY_FETCH_FAILED' });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 });

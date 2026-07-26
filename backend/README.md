@@ -111,6 +111,6 @@ CREATE INDEX IF NOT EXISTS idx_users_subscription_state ON users(subscription_st
 ## Rewarded Ad SSV Kurulumu
 
 1. D1 migration: `npx wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql`
-2. Doppler/Cloudflare secret: `ADMOB_REWARDED_ID`
+2. Doppler/Cloudflare secret: `ADMOB_REWARDED_ID`. Bu değer Android release yapılandırması ve AdMob'daki production `REWARDED` reklam birimiyle birebir aynı olmalıdır; farklılık geçerli SSV callback'lerini reddeder ve ödülü kilitli bırakır.
 3. AdMob SSV callback URL: `https://astrology.parsfilo.com/api/v1/rewards/ssv`
 4. Backend deploy sonrasında malformed callback smoke testi HTTP 400 dönmelidir.

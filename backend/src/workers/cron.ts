@@ -212,7 +212,13 @@ export async function handleCron(
   _ctx: ExecutionContext
 ) {
   void controller;
-  await cleanupRewardChallenges(env.DB);
   await expireAndRefreshSubscriptions(env);
   await dispatchScheduledNotifications(env, getCurrentUtcHour());
+  try {
+    await cleanupRewardChallenges(env.DB);
+  } catch (error) {
+    console.error('Reward challenge cleanup failed.', {
+      error: error instanceof Error ? error.message : 'unknown cleanup error'
+    });
+  }
 }
