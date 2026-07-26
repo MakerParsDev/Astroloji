@@ -48,6 +48,9 @@ test('deploy workflow validates gates and attaches route only after worker and s
   assert.doesNotMatch(deploy, /npm run deploy\s*$/m);
   assert.doesNotMatch(deploy, /backend-production-deploy/);
   assert.match(deploy, /CLOUDFLARE_API_TOKEN/);
+  assert.match(deploy, /wrangler secret list[^\n]*--format json/);
+  assert.match(deploy, /body\.result\?\.deployments\?\.\[0\]\?\.id/);
+  assert.doesNotMatch(deploy, /body\.result\?\.\[0\]\?\.id/);
   assert.match(deploy, /for \(const name of required\)[\s\S]*::add-mask::\$\{value\(name\)\}/);
   assert.equal((deploy.match(/persist-credentials: false/g) ?? []).length, 1);
   assert.equal((rollback.match(/persist-credentials: false/g) ?? []).length, 1);
