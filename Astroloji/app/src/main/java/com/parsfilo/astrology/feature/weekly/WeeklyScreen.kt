@@ -98,6 +98,23 @@ fun WeeklyScreen(
                 }
 
                 uiState.weekly?.let { weekly ->
+                    val rewardedActivity = activity
+                    val rewardSection =
+                        firstLockedWeeklyPremiumSection(weekly)
+                            .takeIf { uiState.canUnlockWithReward && rewardedActivity != null }
+                    val rewardAction: (() -> Unit)? =
+                        if (rewardSection != null && rewardedActivity != null) {
+                            {
+                                adsEntryPoint.rewardedAdManager().showIfAvailable(
+                                    activity = rewardedActivity,
+                                    placement = "unlock_weekly_full",
+                                    onRewardEarned = { viewModel.onEvent(WeeklyUiEvent.UnlockWithReward) },
+                                )
+                            }
+                        } else {
+                            null
+                        }
+
                     AstroSectionTitle(
                         title = stringResource(R.string.weekly_label_week, weekly.week),
                         eyebrow = "${weekly.weekStart} - ${weekly.weekEnd}",
@@ -126,30 +143,21 @@ fun WeeklyScreen(
                         body = weekly.love ?: stringResource(R.string.weekly_premium_locked),
                         locked = weekly.love == null,
                         onOpenPremium = onOpenPremium,
-                        rewardAction =
-                            if (weekly.love == null && uiState.canUnlockWithReward && activity != null) {
-                                {
-                                    adsEntryPoint.rewardedAdManager().showIfAvailable(
-                                        activity = activity,
-                                        placement = "unlock_weekly_full",
-                                        onRewardEarned = { viewModel.onEvent(WeeklyUiEvent.UnlockWithReward) },
-                                    )
-                                }
-                            } else {
-                                null
-                            },
+                        rewardAction = rewardAction.takeIf { rewardSection == WeeklyPremiumSection.LOVE },
                     )
                     WeeklySectionCard(
                         title = stringResource(R.string.weekly_tab_career),
                         body = weekly.career ?: stringResource(R.string.weekly_premium_locked),
                         locked = weekly.career == null,
                         onOpenPremium = onOpenPremium,
+                        rewardAction = rewardAction.takeIf { rewardSection == WeeklyPremiumSection.CAREER },
                     )
                     WeeklySectionCard(
                         title = stringResource(R.string.weekly_tab_money),
                         body = weekly.money ?: stringResource(R.string.weekly_premium_locked),
                         locked = weekly.money == null,
                         onOpenPremium = onOpenPremium,
+                        rewardAction = rewardAction.takeIf { rewardSection == WeeklyPremiumSection.MONEY },
                     )
                     weekly.warning?.let {
                         AstrologyCard {

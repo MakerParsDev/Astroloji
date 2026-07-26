@@ -33,6 +33,32 @@ class WeeklyViewModelTest {
     private val adEligibilityChecker = mockk<AdEligibilityChecker>()
 
     @Test
+    fun `selects the first locked premium section for the reward action`() {
+        val weekly =
+            weekly(
+                love = "Aşk",
+                career = null,
+                money = null,
+            )
+
+        assertThat(firstLockedWeeklyPremiumSection(weekly)).isEqualTo(WeeklyPremiumSection.CAREER)
+        assertThat(isWeeklyPremiumContentLocked(weekly)).isTrue()
+    }
+
+    @Test
+    fun `does not offer reward when all lockable premium sections are available`() {
+        val weekly =
+            weekly(
+                love = "Aşk",
+                career = "Kariyer",
+                money = "Para",
+            )
+
+        assertThat(firstLockedWeeklyPremiumSection(weekly)).isNull()
+        assertThat(isWeeklyPremiumContentLocked(weekly)).isFalse()
+    }
+
+    @Test
     fun `offers rewarded unlock when free summary exists but premium fields are locked`() =
         runTest {
             val weekly =
@@ -75,4 +101,23 @@ class WeeklyViewModelTest {
             assertThat(viewModel.state.value.weekly).isEqualTo(weekly)
             assertThat(viewModel.state.value.canUnlockWithReward).isTrue()
         }
+
+    private fun weekly(
+        love: String?,
+        career: String?,
+        money: String?,
+    ): WeeklyHoroscope =
+        WeeklyHoroscope(
+            week = "2026-W30",
+            weekStart = "2026-07-20",
+            weekEnd = "2026-07-26",
+            sign = "aries",
+            language = "tr",
+            summary = "Haftanın ücretsiz özeti",
+            love = love,
+            career = career,
+            money = money,
+            bestDay = null,
+            warning = null,
+        )
 }

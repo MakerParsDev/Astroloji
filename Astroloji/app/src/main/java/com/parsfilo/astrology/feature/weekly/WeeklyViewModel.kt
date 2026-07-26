@@ -106,9 +106,20 @@ class WeeklyViewModel
         }
     }
 
-internal fun isWeeklyPremiumContentLocked(weekly: WeeklyHoroscope): Boolean =
-    weekly.love == null ||
-        weekly.career == null ||
-        weekly.money == null ||
-        weekly.bestDay == null ||
-        weekly.warning == null
+internal enum class WeeklyPremiumSection {
+    LOVE,
+    CAREER,
+    MONEY,
+}
+
+internal fun firstLockedWeeklyPremiumSection(weekly: WeeklyHoroscope): WeeklyPremiumSection? =
+    when {
+        weekly.love == null -> WeeklyPremiumSection.LOVE
+        weekly.career == null -> WeeklyPremiumSection.CAREER
+        weekly.money == null -> WeeklyPremiumSection.MONEY
+        else -> null
+    }
+
+internal fun isWeeklyPremiumContentLocked(
+    weekly: WeeklyHoroscope,
+): Boolean = firstLockedWeeklyPremiumSection(weekly) != null
