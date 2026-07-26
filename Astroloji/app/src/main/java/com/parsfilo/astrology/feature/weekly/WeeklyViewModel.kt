@@ -88,7 +88,7 @@ class WeeklyViewModel
                             isRefreshing = false,
                             weekly = result.data,
                             showBannerAd = canShowBannerAd,
-                            canUnlockWithReward = result.data.summary == null && canShowRewarded,
+                            canUnlockWithReward = isWeeklyPremiumContentLocked(result.data) && canShowRewarded,
                         )
                     }
                 is AppResult.Error ->
@@ -105,3 +105,10 @@ class WeeklyViewModel
             }
         }
     }
+
+internal fun isWeeklyPremiumContentLocked(weekly: WeeklyHoroscope): Boolean =
+    weekly.love == null ||
+        weekly.career == null ||
+        weekly.money == null ||
+        weekly.bestDay == null ||
+        weekly.warning == null

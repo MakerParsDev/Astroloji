@@ -120,8 +120,14 @@ fun WeeklyScreen(
                         body = weekly.summary ?: stringResource(R.string.weekly_premium_locked),
                         locked = weekly.summary == null,
                         onOpenPremium = onOpenPremium,
+                    )
+                    WeeklySectionCard(
+                        title = stringResource(R.string.weekly_tab_love),
+                        body = weekly.love ?: stringResource(R.string.weekly_premium_locked),
+                        locked = weekly.love == null,
+                        onOpenPremium = onOpenPremium,
                         rewardAction =
-                            if (weekly.summary == null && uiState.canUnlockWithReward && activity != null) {
+                            if (weekly.love == null && uiState.canUnlockWithReward && activity != null) {
                                 {
                                     adsEntryPoint.rewardedAdManager().showIfAvailable(
                                         activity = activity,
@@ -132,12 +138,6 @@ fun WeeklyScreen(
                             } else {
                                 null
                             },
-                    )
-                    WeeklySectionCard(
-                        title = stringResource(R.string.weekly_tab_love),
-                        body = weekly.love ?: stringResource(R.string.weekly_premium_locked),
-                        locked = weekly.love == null,
-                        onOpenPremium = onOpenPremium,
                     )
                     WeeklySectionCard(
                         title = stringResource(R.string.weekly_tab_career),
