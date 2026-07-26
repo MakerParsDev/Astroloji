@@ -39,11 +39,67 @@ function expectResult(label, actualStatus, expectedStatus, actualCode, expectedC
   }
 }
 
+
+
+function defaultSleep(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function waitForMalformedSsvRoute({
+  fetcher,
+  url,
+  timeoutMs,
+  routeReadyAttempts,
+  routeReadyDelayMs,
+  sleep
+}) {
+  let lastStatus = 0;
+  let lastCode = null;
+
+  for (let attempt = 1; attempt <= routeReadyAttempts; attempt += 1) {
+    const response = await fetchWithTimeout(
+      fetcher,
+      url,
+      { headers: { accept: 'application/json' } },
+      timeoutMs,
+      'Malformed SSV route check'
+    );
+    lastStatus = response.status;
+    lastCode = await readErrorCode(response);
+
+    if (lastStatus === 400 && lastCode === 'MALFORMED_CALLBACK') {
+      return { status: lastStatus, code: lastCode, attempts: attempt };
+    }
+
+    const propagationPending = lastStatus === 403 && lastCode === 'FORBIDDEN';
+    if (!propagationPending) {
+      expectResult(
+        'Malformed SSV route check',
+        lastStatus,
+        400,
+        lastCode,
+        'MALFORMED_CALLBACK'
+      );
+    }
+
+    if (attempt < routeReadyAttempts) {
+      await sleep(routeReadyDelayMs);
+    }
+  }
+
+  throw new Error(
+    `Malformed SSV route check failed after ${routeReadyAttempts} attempts (${lastStatus}, ${lastCode ?? 'unknown'}); expected (400, MALFORMED_CALLBACK).`
+  );
+}
+
 export async function checkSsvTransitionRoute({
   baseUrl,
   fetcher = fetch,
   timeoutMs = 10_000,
-  legacyJwt
+  legacyJwt,
+  routeReadyAttempts = 30,
+  routeReadyDelayMs = 3_000,
+  sleep = defaultSleep
 }) {
   requireValue(baseUrl, 'BACKEND_BASE_URL');
   requireValue(legacyJwt, 'LEGACY_SMOKE_JWT');
@@ -59,21 +115,15 @@ export async function checkSsvTransitionRoute({
   );
   expectResult('Origin health check', health.status, 200, null, null);
 
-  const malformedSsv = await fetchWithTimeout(
+  const malformedSsv = await waitForMalformedSsvRoute({
     fetcher,
-    `${root}/api/v1/rewards/ssv?preflight=invalid`,
-    { headers: { accept: 'application/json' } },
+    url: `${root}/api/v1/rewards/ssv?preflight=invalid`,
     timeoutMs,
-    'Malformed SSV route check'
-  );
-  const malformedSsvCode = await readErrorCode(malformedSsv);
-  expectResult(
-    'Malformed SSV route check',
-    malformedSsv.status,
-    400,
-    malformedSsvCode,
-    'MALFORMED_CALLBACK'
-  );
+    routeReadyAttempts,
+    routeReadyDelayMs,
+    sleep
+  });
+  const malformedSsvCode = malformedSsv.code;
 
   const legacy = await fetchWithTimeout(
     fetcher,
@@ -141,6 +191,7 @@ export async function checkSsvTransitionRoute({
     originHealth: health.status,
     malformedSsv: malformedSsv.status,
     malformedSsvCode,
+    routeReadyAttempts: malformedSsv.attempts,
     legacyOriginResponse: legacy.status,
     legacyOriginCode,
     unsupportedReward: unsupported.status,
