@@ -101,6 +101,7 @@ Repoda gercek secret tutulmaz. Asagidaki dosyalar lokal/CI secret store uzerinde
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
 - `PLAY_WEBHOOK_SECRET`
 - `ADMIN_SECRET`
+- `ADMOB_REWARDED_ID`
 
 ## Deploy Akisi
 

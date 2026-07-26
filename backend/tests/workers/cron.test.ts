@@ -34,6 +34,7 @@ describe('cron worker', () => {
 
   it('runs expiry reconciliation and paged notification dispatch on the hourly cron', async () => {
     const seenOffsets: number[] = [];
+    const writes: string[] = [];
     const env = createTestEnv({
       DB: {
         prepare(sql: string) {
@@ -88,6 +89,7 @@ describe('cron worker', () => {
               return { results: [] };
             },
             async run() {
+              writes.push(sql.replace(/\s+/g, ' ').trim());
               return { success: true, meta: {} };
             }
           };
@@ -138,6 +140,7 @@ describe('cron worker', () => {
       {} as ExecutionContext
     );
 
+    expect(writes.some((sql) => sql.startsWith('DELETE FROM reward_challenges'))).toBe(true);
     expect(seenOffsets).toEqual([0, 500]);
     expect(sendBatchNotifications).toHaveBeenCalledTimes(1);
     expect(sendBatchNotifications).toHaveBeenCalledWith(

@@ -83,6 +83,7 @@ jobs:
               "GOOGLE_SERVICE_ACCOUNT_JSON",
               "FIREBASE_SERVICE_ACCOUNT_JSON",
               "PLAY_WEBHOOK_SECRET",
+              "ADMOB_REWARDED_ID",
             ];
             const missing = required.filter((name) => !secrets[name]);
             if (missing.length) {

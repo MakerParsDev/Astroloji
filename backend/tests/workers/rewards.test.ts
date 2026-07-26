@@ -4,124 +4,81 @@ import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
 import { createTestEnv } from '../helpers/env';
 
-function createRewardCache() {
-  const store = new Map<string, string>();
+function createEntitlementDb(hasEntitlement: boolean): D1Database {
   return {
-    async get(key: string, type?: string) {
-      const value = store.get(key) ?? null;
-      if (type === 'json' && value) {
-        return JSON.parse(value);
-      }
-      return value;
+    prepare(sql: string) {
+      const statement = {
+        bind() {
+          return statement;
+        },
+        async first() {
+          if (sql.includes('FROM reward_challenges') && hasEntitlement) {
+            return { id: 'challenge-1' };
+          }
+          return null;
+        },
+        async all() {
+          return { results: [] };
+        },
+        async run() {
+          return { success: true, meta: { changes: 0 } };
+        }
+      };
+      return statement;
     },
-    async put(key: string, value: string) {
-      store.set(key, value);
-    },
-    async delete(key: string) {
-      store.delete(key);
+    async batch() {
+      return [];
     }
-  } as unknown as KVNamespace;
+  } as unknown as D1Database;
+}
+
+function createDailyContent(): R2Bucket {
+  return {
+    async head() {
+      return { size: 1 } as R2Object;
+    },
+    async get() {
+      return {
+        async json() {
+          return {
+            date: '2026-04-10',
+            language: 'tr',
+            signs: {
+              aries: {
+                short: 'Kisa yorum',
+                full: 'Tam gunluk yorum',
+                love: 'Ask',
+                career: 'Kariyer',
+                money: 'Para',
+                health: 'Saglik',
+                lucky_number: 7,
+                lucky_color: 'Mavi',
+                energy: 88,
+                love_score: 76,
+                career_score: 81,
+                money_score: 66,
+                health_score: 70,
+                daily_tip: 'Su ic'
+              }
+            }
+          };
+        }
+      } as R2ObjectBody;
+    }
+  } as unknown as R2Bucket;
 }
 
 describe('reward unlock routes', () => {
-  it('allows one reward claim per user and content period', async () => {
-    const cache = createRewardCache();
-    const env = createTestEnv({ CACHE: cache });
-    const app = createApp();
-    const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
-
-    const firstResponse = await app.request(
-      '/api/v1/rewards/claim',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          reward_type: 'daily',
-          identifier: '2026-04-10'
-        })
-      },
-      env
-    );
-
-    const secondResponse = await app.request(
-      '/api/v1/rewards/claim',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          reward_type: 'daily',
-          identifier: '2026-04-10'
-        })
-      },
-      env
-    );
-
-    expect(firstResponse.status).toBe(200);
-    await expect(firstResponse.json()).resolves.toEqual({
-      ok: true,
-      reward_type: 'daily',
-      identifier: '2026-04-10'
-    });
-    expect(secondResponse.status).toBe(409);
-  });
-
-  it('unlocks full daily content when a reward claim exists for that date', async () => {
-    const cache = createRewardCache();
+  it('unlocks full daily content only from a consumed D1 entitlement', async () => {
     const env = createTestEnv({
-      CACHE: cache,
-      CONTENT: {
-        async head() {
-          return { size: 1 } as R2Object;
-        },
-        async get() {
-          return {
-            async json() {
-              return {
-                date: '2026-04-10',
-                language: 'tr',
-                signs: {
-                  aries: {
-                    short: 'Kisa yorum',
-                    full: 'Tam gunluk yorum',
-                    love: 'Ask',
-                    career: 'Kariyer',
-                    money: 'Para',
-                    health: 'Saglik',
-                    lucky_number: 7,
-                    lucky_color: 'Mavi',
-                    energy: 88,
-                    love_score: 76,
-                    career_score: 81,
-                    money_score: 66,
-                    health_score: 70,
-                    daily_tip: 'Su ic'
-                  }
-                }
-              };
-            }
-          } as R2ObjectBody;
-        }
-      } as unknown as R2Bucket
+      DB: createEntitlementDb(true),
+      CONTENT: createDailyContent()
     });
-    const app = createApp();
     const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
-    const cacheNamespace = env.CACHE as unknown as KVNamespace;
-    await cacheNamespace.put('reward:user-1:daily:2026-04-10', '1');
 
-    const response = await app.request(
+    const response = await createApp().request(
       '/api/v1/content/daily?sign=aries&lang=tr&date=2026-04-10',
-      {
-        method: 'GET',
-        headers: {
-          authorization: `Bearer ${jwt}`
-        }
-      },
+      { headers: { authorization: `Bearer ${jwt}` } },
       env
     );
 
@@ -134,5 +91,26 @@ describe('reward unlock routes', () => {
       health: 'Saglik',
       daily_tip: 'Su ic'
     });
+  });
+
+  it('keeps premium fields locked without a consumed D1 entitlement', async () => {
+    const env = createTestEnv({
+      DB: createEntitlementDb(false),
+      CONTENT: createDailyContent()
+    });
+    const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
+
+    const response = await createApp().request(
+      '/api/v1/content/daily?sign=aries&lang=tr&date=2026-04-10',
+      { headers: { authorization: `Bearer ${jwt}` } },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body.short).toBe('Kisa yorum');
+    expect(body.full).toBeUndefined();
+    expect(body.love).toBeUndefined();
+    expect(body.daily_tip).toBeUndefined();
   });
 });

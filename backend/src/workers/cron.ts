@@ -8,6 +8,7 @@ import type {
   SubscriptionRow
 } from '@/types';
 import { getCurrentUtcHour, getDateIdentifier, shouldSendNotificationAtUtcHour } from '@/utils/date';
+import { cleanupRewardChallenges } from '@/workers/reward';
 
 const SIGN_LABELS = {
   tr: {
@@ -211,6 +212,7 @@ export async function handleCron(
   _ctx: ExecutionContext
 ) {
   void controller;
+  await cleanupRewardChallenges(env.DB);
   await expireAndRefreshSubscriptions(env);
   await dispatchScheduledNotifications(env, getCurrentUtcHour());
 }

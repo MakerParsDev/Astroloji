@@ -26,7 +26,8 @@ describe('worker runtime routes', () => {
           project_id: 'demo-project'
         }),
         PLAY_WEBHOOK_SECRET: 'play-secret',
-        ADMIN_SECRET: 'admin-secret'
+        ADMIN_SECRET: 'admin-secret',
+        ADMOB_REWARDED_ID: 'ca-app-pub-3940256099942544/5224354917'
       }
     });
   }, 120_000);
@@ -58,6 +59,15 @@ describe('worker runtime routes', () => {
     });
 
     expect(response.status).toBe(400);
+  });
+
+  it('keeps the AdMob SSV callback public but rejects malformed callbacks', async () => {
+    const response = await worker.fetch('http://127.0.0.1/api/v1/rewards/ssv?invalid=1');
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'MALFORMED_CALLBACK' }
+    });
   });
 
   it('accepts the play webhook secret and validates RTDN payload shape', async () => {

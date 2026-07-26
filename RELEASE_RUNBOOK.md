@@ -42,6 +42,7 @@ Release almadan once su maddeler `PASS` olmali:
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
 - `PLAY_WEBHOOK_SECRET`
 - `ADMIN_SECRET`
+- `ADMOB_REWARDED_ID`
 - `CLOUDFLARE_API_TOKEN`
 
 ## Android Release Adimlari
@@ -68,6 +69,8 @@ Not: Debug/unit verify gorevleri gerekiyorsa `app/google-services.example.json` 
 8. Doppler modeli kullaniliyorsa `internal` ve `production` environment icin ayri read-only token tercih et.
 
 ## Backend Deploy Adimlari
+
+Rewarded SSV tablosu production D1'da yoksa deploydan once `backend/scripts/migrate-reward-ssv.sql` dosyasini remote D1'a uygula ve AdMob callback URL'sini `/api/v1/rewards/ssv` olarak ayarla.
 
 1. Doppler secret'larinin guncel oldugunu kontrol et.
 2. Lokal on dogrulama calistir:

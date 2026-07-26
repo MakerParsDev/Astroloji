@@ -16,6 +16,7 @@ import type {
   WeeklySignContent
 } from '@/types';
 import { getDateIdentifier, getMonthIdentifier, getWeekIdentifier } from '@/utils/date';
+import { hasRewardEntitlement } from '@/workers/reward';
 import {
   normalizeCompatibilityPair,
   validateContentBackfillBody,
@@ -25,23 +26,6 @@ import {
 
 function jsonError(status: number, code: string, message: string) {
   return Response.json({ error: { code, message } }, { status });
-}
-
-export function buildRewardCacheKey(
-  userId: string,
-  rewardType: 'daily' | 'weekly',
-  identifier: string
-): string {
-  return `reward:${userId}:${rewardType}:${identifier}`;
-}
-
-async function hasRewardUnlock(
-  env: AppBindings['Bindings'],
-  userId: string,
-  rewardType: 'daily' | 'weekly',
-  identifier: string
-): Promise<boolean> {
-  return Boolean(await env.CACHE.get(buildRewardCacheKey(userId, rewardType, identifier)));
 }
 
 export async function backfillContentDocuments(
@@ -138,7 +122,7 @@ export function registerContentRoutes(app: Hono<AppBindings>) {
 
     const canAccessPremiumFields =
       c.get('auth').isPremium ||
-      (await hasRewardUnlock(c.env, c.get('auth').userId, 'daily', date));
+      (await hasRewardEntitlement(c.env.DB, c.get('auth').userId, 'daily', date));
 
     return c.json({
       date: document.date,
@@ -167,7 +151,7 @@ export function registerContentRoutes(app: Hono<AppBindings>) {
 
     const canAccessPremiumFields =
       c.get('auth').isPremium ||
-      (await hasRewardUnlock(c.env, c.get('auth').userId, 'weekly', week));
+      (await hasRewardEntitlement(c.env.DB, c.get('auth').userId, 'weekly', week));
 
     return c.json({
       week: document.week,
