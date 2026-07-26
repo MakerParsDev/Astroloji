@@ -1,0 +1,120 @@
+name: backend-ssv-transition-rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type REMOVE_TRANSITION_ROUTE to remove only the rewarded transition route."
+        required: true
+        type: string
+      delete_worker:
+        description: "Delete astrology-ssv-transition after route removal and origin verification."
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ssv-transition-deploy
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    if: github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'REMOVE_TRANSITION_ROUTE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+      TRANSITION_WORKER_NAME: astrology-ssv-transition
+      TRANSITION_ROUTE_PATTERN: astrology.parsfilo.com/api/v1/rewards/*
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Validate rollback settings
+        run: |
+          missing=0
+          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required rollback setting: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install Doppler CLI
+        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+
+      - name: Load and mask Cloudflare deployment token
+        run: |
+          umask 077
+          token="$(doppler secrets get CLOUDFLARE_API_TOKEN --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
+          if [ -z "$token" ]; then exit 1; fi
+          echo "::add-mask::$token"
+          echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Remove only the exact transition route
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const api = `https://api.cloudflare.com/client/v4/zones/${process.env.CLOUDFLARE_ZONE_ID}/workers/routes`;
+          const headers = { authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` };
+          const response = await fetch(api, { headers });
+          const body = await response.json();
+          if (!response.ok || !body.success) throw new Error('Unable to list Cloudflare Worker routes.');
+          const matches = body.result.filter((route) => route.pattern === process.env.TRANSITION_ROUTE_PATTERN);
+          if (matches.length > 1) throw new Error('Multiple exact transition routes exist.');
+          const route = matches[0];
+          if (route && route.script !== process.env.TRANSITION_WORKER_NAME) {
+            throw new Error(`Refusing to remove route owned by ${route.script ?? 'none'}.`);
+          }
+          if (route) {
+            const deleted = await fetch(`${api}/${route.id}`, { method: 'DELETE', headers });
+            const result = await deleted.json();
+            if (!deleted.ok || !result.success) throw new Error('Unable to delete transition route.');
+            fs.appendFileSync(process.env.GITHUB_ENV, `REMOVED_ROUTE_ID=${route.id}\n`);
+          } else {
+            fs.appendFileSync(process.env.GITHUB_ENV, 'REMOVED_ROUTE_ID=already-absent\n');
+          }
+          NODE
+
+      - name: Verify origin health after route removal
+        run: |
+          status="$(curl --silent --show-error --output "$RUNNER_TEMP/health.json" --write-out '%{http_code}' "$BACKEND_BASE_URL/api/v1/health")"
+          test "$status" = "200"
+
+      - name: Verify SSV path falls through to the unchanged origin
+        run: |
+          status="$(curl --silent --show-error --output "$RUNNER_TEMP/origin-ssv.json" --write-out '%{http_code}' "$BACKEND_BASE_URL/api/v1/rewards/ssv?rollback=1")"
+          test "$status" = "403"
+
+      - name: Optionally delete transition Worker after route removal
+        if: inputs.delete_worker == true
+        run: npx wrangler delete --name astrology-ssv-transition --force
+
+      - name: Publish rollback evidence
+        run: |
+          {
+            echo '## Rewarded SSV transition rollback'
+            echo
+            echo "- Removed route ID: $REMOVED_ROUTE_ID"
+            echo '- Origin health: 200'
+            echo '- Origin SSV fall-through: 403'
+            echo '- D1 migration remains intact; no data tables were removed.'
+            echo '- Leave rewarded SSV D1 migration intact.'
+            echo "- Worker deleted: ${{ inputs.delete_worker }}"
+          } >> "$GITHUB_STEP_SUMMARY"

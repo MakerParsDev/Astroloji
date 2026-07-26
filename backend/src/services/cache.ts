@@ -48,7 +48,7 @@ export async function getCachedJsonContent<T>(
 }
 
 export async function enforceRateLimit(
-  env: Env,
+  env: Pick<Env, 'CACHE'>,
   key: string,
   limit: number,
   windowSeconds: number

@@ -80,6 +80,17 @@ interface SecretBindings {
 
 export type Env = CloudflareEnv & SecretBindings;
 
+export interface RewardEnv {
+  DB: D1Database;
+  CACHE: KVNamespace;
+  JWT_SECRET: string;
+  ADMOB_REWARDED_ID: string;
+}
+
+export interface TransitionEnv extends RewardEnv {
+  LEGACY_REWARD_FORWARD_UNTIL: string;
+}
+
 export interface AuthContext {
   userId: string;
   isPremium: boolean;
@@ -94,10 +105,14 @@ export interface AppVariables {
   bypassCache: boolean;
 }
 
-export interface AppBindings {
-  Bindings: Env;
+export interface BindingsFor<E> {
+  Bindings: E;
   Variables: AppVariables;
 }
+
+export interface AppBindings extends BindingsFor<Env> {}
+export interface RewardBindings<E extends RewardEnv = RewardEnv> extends BindingsFor<E> {}
+export interface TransitionBindings extends RewardBindings<TransitionEnv> {}
 
 export interface ErrorResponse {
   error: {

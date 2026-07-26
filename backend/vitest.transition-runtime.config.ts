@@ -4,8 +4,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['tests/runtime/**/*.test.ts'],
-    exclude: ['tests/runtime/transition-worker-runtime.test.ts']
+    include: ['tests/runtime/transition-worker-runtime.test.ts']
   },
   resolve: {
     alias: {

@@ -6,7 +6,7 @@ import {
   type ParsedAdmobSsvCallback,
   verifyAdmobSsvCallback
 } from '@/services/admobSsv';
-import type { AppBindings, RewardChallengeRow, RewardType } from '@/types';
+import type { BindingsFor, RewardChallengeRow, RewardEnv, RewardType } from '@/types';
 import { validateRewardClaimBody, validateRewardPrepareBody } from '@/utils/validators';
 
 const CHALLENGE_TTL_MS = 10 * 60 * 1_000;
@@ -92,8 +92,8 @@ function callbackMatchesExisting(
   );
 }
 
-export function registerRewardRoutes(
-  app: Hono<AppBindings>,
+export function registerRewardRoutes<E extends RewardEnv>(
+  app: Hono<BindingsFor<E>>,
   dependencies: RewardRouteDependencies = {}
 ): void {
   const nowMs = dependencies.nowMs ?? Date.now;
