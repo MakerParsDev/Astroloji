@@ -1,0 +1,25 @@
+name = "astrology-ssv-transition"
+main = "src/transition/index.ts"
+compatibility_date = "2026-04-05"
+workers_dev = false
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[[routes]]
+pattern = "astrology.parsfilo.com/api/v1/rewards/*"
+zone_name = "parsfilo.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "astrology-db"
+database_id = "ccbbb9fa-56f6-4601-85d7-447288a11056"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "12c50600e61447c29ed0bcb122f5cc85"
+
+[vars]
+# Fail closed unless the reviewed deploy workflow supplies an explicit future UTC deadline.
+LEGACY_REWARD_FORWARD_UNTIL = "1970-01-01T00:00:00Z"

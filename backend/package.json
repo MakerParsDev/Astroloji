@@ -17,7 +17,10 @@
     "doppler:devvars": "tsx scripts/render-dev-vars.ts",
     "doppler:cf-secrets": "tsx scripts/sync-cloudflare-secrets.ts",
     "seed": "tsx scripts/seed-content.ts",
-    "schema:apply": "tsx scripts/generate-schema.ts"
+    "schema:apply": "tsx scripts/generate-schema.ts",
+    "build:transition": "wrangler deploy --dry-run --config wrangler.transition.toml --outdir dist/transition",
+    "test:runtime:transition": "vitest run --config vitest.transition-runtime.config.ts",
+    "deploy:transition": "wrangler deploy --config wrangler.transition.toml"
   },
   "dependencies": {
     "hono": "4.12.31",
