@@ -30,7 +30,7 @@ const utcOffsetSchema = z.number().int().min(-12).max(14);
 export const registerSchema = z.object({
   sign: signSchema,
   language: languageSchema.default('tr'),
-  fcm_token: z.string().min(1),
+  fcm_token: z.string().min(1).optional(),
   notification_hour: notificationHourSchema.optional().default(9),
   utc_offset: utcOffsetSchema,
   platform: platformSchema.default('android')

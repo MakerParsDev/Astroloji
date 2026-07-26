@@ -176,12 +176,14 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
       return jsonError(500, 'USER_SYNC_FAILED', 'Unable to create or load user.');
     }
 
-    await upsertFcmToken(c.env.DB, {
-      userId: user.id,
-      token: body.fcm_token,
-      notificationHour: body.notification_hour ?? 9,
-      platform: body.platform
-    });
+    if (body.fcm_token) {
+      await upsertFcmToken(c.env.DB, {
+        userId: user.id,
+        token: body.fcm_token,
+        notificationHour: body.notification_hour ?? 9,
+        platform: body.platform
+      });
+    }
 
     const refreshedUser = await getUserById(c.env.DB, user.id);
     if (!refreshedUser) {

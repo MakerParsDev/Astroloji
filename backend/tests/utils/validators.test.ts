@@ -29,6 +29,18 @@ describe('validators', () => {
     });
   });
 
+  it('allows registration before an FCM token is available', () => {
+    const body = validateRegisterBody({
+      sign: 'aries',
+      language: 'tr',
+      notification_hour: 9,
+      utc_offset: 3,
+      platform: 'android'
+    });
+
+    expect(body.fcm_token).toBeUndefined();
+  });
+
   it('accepts supported mobile platforms on register and update payloads', () => {
     expect(
       validateRegisterBody({

@@ -8,6 +8,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 
 @Entity(tableName = "user_profile")
 data class UserProfileEntity(
@@ -230,15 +231,48 @@ interface FavoriteSignDao {
 }
 
 @Dao
-interface QueuedEventDao {
-    @Query("SELECT * FROM queued_events ORDER BY createdAt ASC")
-    suspend fun getAll(): List<QueuedEventEntity>
+abstract class QueuedEventDao {
+    @Query("SELECT * FROM queued_events ORDER BY createdAt ASC LIMIT :limit")
+    abstract suspend fun getBatch(limit: Int): List<QueuedEventEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(entity: QueuedEventEntity)
+    abstract suspend fun upsert(entity: QueuedEventEntity)
+
+    @Query("SELECT COUNT(*) FROM queued_events")
+    abstract suspend fun count(): Int
+
+    @Query("DELETE FROM queued_events WHERE createdAt < :minCreatedAt")
+    abstract suspend fun deleteOlderThan(minCreatedAt: Long)
+
+    @Query(
+        """
+        DELETE FROM queued_events
+        WHERE id IN (
+            SELECT id FROM queued_events
+            ORDER BY createdAt ASC
+            LIMIT :limit
+        )
+        """,
+    )
+    abstract suspend fun deleteOldest(limit: Int)
 
     @Query("DELETE FROM queued_events WHERE id = :id")
-    suspend fun delete(id: String)
+    abstract suspend fun delete(id: String)
+
+    @Transaction
+    open suspend fun enqueueBounded(
+        entity: QueuedEventEntity,
+        maxSize: Int,
+        minCreatedAt: Long,
+    ) {
+        deleteOlderThan(minCreatedAt)
+        upsert(entity)
+        deleteOlderThan(minCreatedAt)
+        val excess = count() - maxSize
+        if (excess > 0) {
+            deleteOldest(excess)
+        }
+    }
 }
 
 @Database(

@@ -88,7 +88,7 @@ class WeeklyViewModel
                             isRefreshing = false,
                             weekly = result.data,
                             showBannerAd = canShowBannerAd,
-                            canUnlockWithReward = result.data.summary == null && canShowRewarded,
+                            canUnlockWithReward = isWeeklyPremiumContentLocked(result.data) && canShowRewarded,
                         )
                     }
                 is AppResult.Error ->
@@ -105,3 +105,21 @@ class WeeklyViewModel
             }
         }
     }
+
+internal enum class WeeklyPremiumSection {
+    LOVE,
+    CAREER,
+    MONEY,
+}
+
+internal fun firstLockedWeeklyPremiumSection(weekly: WeeklyHoroscope): WeeklyPremiumSection? =
+    when {
+        weekly.love == null -> WeeklyPremiumSection.LOVE
+        weekly.career == null -> WeeklyPremiumSection.CAREER
+        weekly.money == null -> WeeklyPremiumSection.MONEY
+        else -> null
+    }
+
+internal fun isWeeklyPremiumContentLocked(
+    weekly: WeeklyHoroscope,
+): Boolean = firstLockedWeeklyPremiumSection(weekly) != null

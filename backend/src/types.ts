@@ -38,6 +38,19 @@ export const SUBSCRIPTION_EVENT_TYPES = [
 ] as const;
 export const USER_EVENT_TYPES = [
   'app_open',
+  'sign_selected',
+  'daily_viewed',
+  'weekly_viewed',
+  'monthly_viewed',
+  'compat_checked',
+  'personality_viewed',
+  'share_clicked',
+  'premium_screen_viewed',
+  'premium_purchased',
+  'premium_restored',
+  'notification_tapped',
+  'ad_shown',
+  'streak_achieved',
   'content_view',
   'compat_check',
   'share',
@@ -243,7 +256,7 @@ export interface PersonalityContentDocument {
 export interface RegisterRequest {
   sign: Sign;
   language: Language;
-  fcm_token: string;
+  fcm_token?: string;
   notification_hour?: number;
   utc_offset: number;
   platform: Platform;

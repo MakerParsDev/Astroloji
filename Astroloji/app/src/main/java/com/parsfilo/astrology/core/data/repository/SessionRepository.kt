@@ -25,7 +25,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -381,19 +380,25 @@ class SessionRepository
             runCatching {
                 val firebaseToken = ensureFirebaseIdToken(forceRefreshFirebaseToken)
                 val fcmToken =
-                    runCatching { FirebaseMessaging.getInstance().token.await() }
-                        .getOrElse {
-                            if (it is CancellationException) throw it
-                            Timber.w(it, "FCM token could not be retrieved, using a local fallback token.")
-                            "fcm-${UUID.randomUUID()}"
-                        }
+                    try {
+                        FirebaseMessaging
+                            .getInstance()
+                            .token
+                            .await()
+                            .takeIf { it.isNotBlank() }
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        Timber.w(exception, "FCM token could not be retrieved; continuing without push registration.")
+                        null
+                    }
                 val response =
                     api.registerUser(
                         authorization = "Bearer $firebaseToken",
                         RegisterUserRequest(
                             sign = preferences.selectedSign,
                             language = preferences.language,
-                            fcmToken = fcmToken.ifBlank { "fcm-${UUID.randomUUID()}" },
+                            fcmToken = fcmToken,
                             notificationHour = preferences.notificationHour,
                             utcOffset = preferences.utcOffset,
                             platform = "android",
