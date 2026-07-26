@@ -6,6 +6,9 @@ import com.parsfilo.astrology.core.data.local.QueuedEventDao
 import com.parsfilo.astrology.core.data.local.QueuedEventEntity
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventRequest
+import com.parsfilo.astrology.notification.AnalyticsDeliveryDisposition
+import com.parsfilo.astrology.notification.classifyAnalyticsResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.MapSerializer
@@ -52,19 +55,42 @@ class AnalyticsRepository
                     meta.forEach { (key, value) -> putString(key, value) }
                 },
             )
-            runCatching {
+            try {
                 val response = api.trackEvent(TrackEventRequest(eventType = eventType, meta = meta))
-                if (!response.isSuccessful) error("Backend event rejected with ${response.code()}")
-            }.onFailure {
-                Timber.w(it, "Queueing analytics event: %s", eventType)
-                queuedEventDao.upsert(
+                when (classifyAnalyticsResponse(response.code())) {
+                    AnalyticsDeliveryDisposition.DELIVERED -> Unit
+                    AnalyticsDeliveryDisposition.PERMANENT_FAILURE ->
+                        Timber.w("Dropping permanently rejected analytics event: %s (%d)", eventType, response.code())
+                    AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, meta)
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
+                queueEvent(eventType, meta)
+            }
+        }
+
+        private suspend fun queueEvent(
+            eventType: String,
+            meta: Map<String, String>,
+        ) {
+            val createdAt = System.currentTimeMillis()
+            queuedEventDao.enqueueBounded(
+                entity =
                     QueuedEventEntity(
                         id = UUID.randomUUID().toString(),
                         type = eventType,
                         payload = json.encodeToString(MapSerializer(String.serializer(), String.serializer()), meta),
-                        createdAt = System.currentTimeMillis(),
+                        createdAt = createdAt,
                     ),
-                )
-            }
+                maxSize = MAX_QUEUED_EVENTS,
+                minCreatedAt = createdAt - EVENT_RETENTION_MILLIS,
+            )
+        }
+
+        private companion object {
+            const val MAX_QUEUED_EVENTS = 500
+            const val EVENT_RETENTION_MILLIS = 30L * 24L * 60L * 60L * 1_000L
         }
     }
