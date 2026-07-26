@@ -1,0 +1,236 @@
+name: backend-ssv-transition-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY_TRANSITION to deploy and route the rewarded SSV transition Worker."
+        required: true
+        type: string
+      legacy_forward_until:
+        description: "UTC expiry for legacy reward forwarding, for example 2026-08-09T00:00:00Z (maximum 30 days)."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ssv-transition-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY_TRANSITION'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    defaults:
+      run:
+        shell: bash
+    env:
+      DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+      ENABLE_PRODUCTION_RELEASE: ${{ vars.ENABLE_PRODUCTION_RELEASE }}
+      LEGACY_FORWARD_UNTIL: ${{ inputs.legacy_forward_until }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+      TRANSITION_WORKER_NAME: astrology-ssv-transition
+      TRANSITION_ROUTE_PATTERN: astrology.parsfilo.com/api/v1/rewards/*
+      LEGACY_SMOKE_JWT: invalid-transition-smoke-token
+      TRANSITION_WRANGLER_CONFIG: .wrangler.transition.deploy.toml
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Validate production gates and compatibility deadline
+        run: |
+          missing=0
+          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_ZONE_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required transition setting: $name"
+              missing=1
+            fi
+          done
+          if [ "${ENABLE_PRODUCTION_RELEASE:-}" != "false" ]; then
+            echo "ENABLE_PRODUCTION_RELEASE must remain false during the transition."
+            missing=1
+          fi
+          exit "$missing"
+          
+      - name: Validate future UTC deadline within 30 days
+        run: |
+          node <<'NODE'
+          const value = process.env.LEGACY_FORWARD_UNTIL;
+          if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value ?? '')) {
+            throw new Error('legacy_forward_until must be an ISO UTC timestamp ending in Z.');
+          }
+          const deadline = Date.parse(value);
+          const now = Date.now();
+          const max = now + 30 * 24 * 60 * 60 * 1000;
+          if (!Number.isFinite(deadline) || deadline <= now || deadline > max) {
+            throw new Error('legacy_forward_until must be in the future and no more than 30 days ahead.');
+          }
+          console.log(`Validated legacy forwarding deadline: ${value}`);
+          NODE
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Verify backend and transition bundle
+        working-directory: backend
+        run: |
+          npm run build
+          npm test
+          npm run build:transition
+          npm run test:runtime:transition
+
+      - name: Install Doppler CLI
+        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+
+      - name: Load and mask Cloudflare deployment token
+        working-directory: backend
+        run: |
+          umask 077
+          doppler secrets download \
+            --no-file \
+            --format json \
+            --project "$DOPPLER_PROJECT" \
+            --config "$DOPPLER_CONFIG" \
+            > "$RUNNER_TEMP/doppler-transition.json"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const values = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/doppler-transition.json', 'utf8'));
+          const value = (name) => typeof values[name] === 'string' ? values[name] : values[name]?.computed;
+          const required = ['JWT_SECRET', 'ADMOB_REWARDED_ID', 'CLOUDFLARE_API_TOKEN'];
+          const missing = required.filter((name) => !value(name));
+          if (missing.length) throw new Error(`Missing required Doppler values: ${missing.join(', ')}`);
+          const token = value('CLOUDFLARE_API_TOKEN');
+          console.log(`::add-mask::${token}`);
+          fs.appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_API_TOKEN<<CF_TOKEN\n${token}\nCF_TOKEN\n`);
+          NODE
+
+      - name: Render route-free reviewed Wrangler config
+        working-directory: backend
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const source = fs.readFileSync('wrangler.transition.toml', 'utf8');
+          if (source.includes('[[routes]]')) throw new Error('Committed transition config must remain route-free.');
+          const rendered = source.replace(
+            'LEGACY_REWARD_FORWARD_UNTIL = "1970-01-01T00:00:00Z"',
+            `LEGACY_REWARD_FORWARD_UNTIL = "${process.env.LEGACY_FORWARD_UNTIL}"`
+          );
+          if (rendered === source) throw new Error('Unable to render reviewed legacy deadline.');
+          fs.writeFileSync(process.env.TRANSITION_WRANGLER_CONFIG, rendered, { mode: 0o600 });
+          NODE
+
+      - name: Apply rewarded SSV D1 migration
+        working-directory: backend
+        run: npx wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql
+
+      - name: Deploy route-free transition Worker
+        working-directory: backend
+        run: npm run deploy:transition
+
+      - name: Sync only transition Worker secrets
+        working-directory: backend
+        run: npm run transition:secrets
+
+      - name: Verify exact transition secret inventory
+        working-directory: backend
+        run: |
+          npx wrangler secret list --config "$TRANSITION_WRANGLER_CONFIG" --json > "$RUNNER_TEMP/transition-secret-list.json"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const listed = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/transition-secret-list.json', 'utf8'));
+          const names = listed.map((item) => item.name).sort();
+          const expected = ['ADMOB_REWARDED_ID', 'JWT_SECRET'];
+          if (JSON.stringify(names) !== JSON.stringify(expected)) {
+            throw new Error(`Unexpected transition secret inventory: ${names.join(', ')}`);
+          }
+          console.log('Verified exact transition secret inventory.');
+          NODE
+
+      - name: Attach exact rewarded transition route
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const api = `https://api.cloudflare.com/client/v4/zones/${process.env.CLOUDFLARE_ZONE_ID}/workers/routes`;
+          const headers = {
+            authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}`,
+            'content-type': 'application/json'
+          };
+          const listResponse = await fetch(api, { headers });
+          const list = await listResponse.json();
+          if (!listResponse.ok || !list.success) throw new Error('Unable to list Cloudflare Worker routes.');
+          const matches = list.result.filter((route) => route.pattern === process.env.TRANSITION_ROUTE_PATTERN);
+          if (matches.length > 1) throw new Error('Multiple exact transition routes exist.');
+          let route = matches[0];
+          if (route && route.script !== process.env.TRANSITION_WORKER_NAME) {
+            throw new Error(`Exact route is owned by unexpected Worker: ${route.script ?? 'none'}`);
+          }
+          if (!route) {
+            const createResponse = await fetch(api, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                pattern: process.env.TRANSITION_ROUTE_PATTERN,
+                script: process.env.TRANSITION_WORKER_NAME
+              })
+            });
+            const created = await createResponse.json();
+            if (!createResponse.ok || !created.success) throw new Error('Unable to create transition route.');
+            route = created.result;
+          }
+          fs.appendFileSync(process.env.GITHUB_ENV, `TRANSITION_ROUTE_ID=${route.id}\n`);
+          console.log(`Attached exact transition route ID ${route.id}.`);
+          NODE
+
+      - name: Verify live transition route isolation
+        run: node scripts/check-ssv-transition-route.mjs
+
+      - name: Resolve Worker deployment evidence
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const url = `https://api.cloudflare.com/client/v4/accounts/${process.env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${process.env.TRANSITION_WORKER_NAME}/deployments`;
+          const response = await fetch(url, {
+            headers: { authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` }
+          });
+          const body = await response.json();
+          if (!response.ok || !body.success || !body.result?.[0]?.id) {
+            throw new Error('Unable to resolve transition Worker deployment ID.');
+          }
+          fs.appendFileSync(process.env.GITHUB_ENV, `TRANSITION_DEPLOYMENT_ID=${body.result[0].id}\n`);
+          NODE
+
+      - name: Publish deployment and rollback evidence
+        run: |
+          {
+            echo '## Rewarded SSV transition deployment'
+            echo
+            echo "- Worker: $TRANSITION_WORKER_NAME"
+            echo "- Deployment ID: $TRANSITION_DEPLOYMENT_ID"
+            echo "- Route: $TRANSITION_ROUTE_PATTERN"
+            echo "- Route ID: $TRANSITION_ROUTE_ID"
+            echo "- Zone ID: $CLOUDFLARE_ZONE_ID"
+            echo "- Legacy forwarding deadline: $LEGACY_FORWARD_UNTIL"
+            echo '- D1 migration: applied idempotently'
+            echo '- Live route smoke: passed'
+            echo '- Rollback workflow: backend-ssv-transition-rollback'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary deployment files
+        if: always()
+        working-directory: backend
+        run: rm -f "$TRANSITION_WRANGLER_CONFIG" "$RUNNER_TEMP/doppler-transition.json" "$RUNNER_TEMP/transition-secret-list.json"

@@ -7,6 +7,10 @@ import {
   resolveTransitionSecrets
 } from './shared';
 
+function transitionConfig(): string {
+  return process.env.TRANSITION_WRANGLER_CONFIG ?? 'wrangler.transition.toml';
+}
+
 function putSecret(name: string, value: string): void {
   const args = [
     'wrangler',
@@ -14,7 +18,7 @@ function putSecret(name: string, value: string): void {
     'put',
     name,
     '--config',
-    'wrangler.transition.toml'
+    transitionConfig()
   ];
 
   if (process.platform === 'win32') {

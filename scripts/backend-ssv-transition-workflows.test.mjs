@@ -1,0 +1,76 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import test from 'node:test';
+
+const deploy = fs.readFileSync('.github/workflows/backend-ssv-transition-deploy.yml', 'utf8');
+const rollback = fs.readFileSync('.github/workflows/backend-ssv-transition-rollback.yml', 'utf8');
+const ci = fs.readFileSync('.github/workflows/ci.yml', 'utf8');
+const transitionConfig = fs.readFileSync('backend/wrangler.transition.toml', 'utf8');
+
+function ordered(content, tokens) {
+  const positions = tokens.map((token) => content.indexOf(token));
+  assert.ok(positions.every((position) => position >= 0), `Missing ordered token: ${tokens[positions.indexOf(-1)]}`);
+  for (let index = 1; index < positions.length; index += 1) {
+    assert.ok(positions[index - 1] < positions[index], `${tokens[index - 1]} must precede ${tokens[index]}`);
+  }
+}
+
+test('transition config cannot attach production routes by itself', () => {
+  assert.match(transitionConfig, /name = "astrology-ssv-transition"/);
+  assert.match(transitionConfig, /workers_dev = false/);
+  assert.doesNotMatch(transitionConfig, /\[\[routes\]\]/);
+  assert.doesNotMatch(transitionConfig, /astrology\.parsfilo\.com\/api\/v1\/rewards/);
+});
+
+test('deploy workflow validates gates and attaches route only after worker and secrets are ready', () => {
+  assert.match(deploy, /confirm:[\s\S]*DEPLOY_TRANSITION/);
+  assert.match(deploy, /legacy_forward_until/);
+  assert.match(deploy, /ENABLE_PRODUCTION_RELEASE/);
+  assert.match(deploy, /must remain false|== "false"|!= "false"/);
+  assert.match(deploy, /30 days|30 \* 24 \* 60 \* 60/);
+  assert.match(deploy, /astrology-ssv-transition/);
+  assert.match(deploy, /astrology\.parsfilo\.com\/api\/v1\/rewards\/\*/);
+
+  ordered(deploy, [
+    'migrate-reward-ssv.sql',
+    'deploy:transition',
+    'transition:secrets',
+    'wrangler secret list',
+    '/workers/routes',
+    'check-ssv-transition-route.mjs'
+  ]);
+
+  assert.doesNotMatch(deploy, /deploy:doppler/);
+  assert.doesNotMatch(deploy, /npm run deploy\s*$/m);
+  assert.doesNotMatch(deploy, /backend-production-deploy/);
+  assert.match(deploy, /CLOUDFLARE_API_TOKEN/);
+  assert.match(deploy, /::add-mask::/);
+  assert.ok((deploy.match(/node --input-type=module <<'NODE'/g) ?? []).length >= 2);
+});
+
+test('rollback removes only the exact route before origin verification and optional deletion', () => {
+  assert.match(rollback, /REMOVE_TRANSITION_ROUTE/);
+  assert.match(rollback, /astrology\.parsfilo\.com\/api\/v1\/rewards\/\*/);
+  assert.match(rollback, /DELETE/);
+  assert.match(rollback, /route\.id|route_id|ROUTE_ID/);
+  assert.match(rollback, /api\/v1\/health/);
+  assert.match(rollback, /api\/v1\/rewards\/ssv/);
+  assert.match(rollback, /403/);
+
+  ordered(rollback, [
+    '/workers/routes',
+    'method: \'DELETE\'',
+    '/api/v1/health',
+    '/api/v1/rewards/ssv',
+    'wrangler delete'
+  ]);
+  assert.match(rollback, /delete_worker/);
+  assert.match(rollback, /node --input-type=module <<'NODE'/);
+  assert.match(rollback, /Leave rewarded SSV D1 migration intact|D1 migration remains/);
+});
+
+test('CI runs transition bundle and runtime verification', () => {
+  assert.match(ci, /npm run build:transition/);
+  assert.match(ci, /npm run test:runtime:transition/);
+  assert.match(ci, /backend-ssv-transition-workflows\.test\.mjs|scripts\/\*\.test\.mjs/);
+});

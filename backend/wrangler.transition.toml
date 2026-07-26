@@ -7,10 +7,6 @@ workers_dev = false
 enabled = true
 head_sampling_rate = 1
 
-[[routes]]
-pattern = "astrology.parsfilo.com/api/v1/rewards/*"
-zone_name = "parsfilo.com"
-
 [[d1_databases]]
 binding = "DB"
 database_name = "astrology-db"

@@ -20,7 +20,7 @@
     "schema:apply": "tsx scripts/generate-schema.ts",
     "build:transition": "wrangler deploy --dry-run --config wrangler.transition.toml --outdir dist/transition",
     "test:runtime:transition": "vitest run --config vitest.transition-runtime.config.ts",
-    "deploy:transition": "wrangler deploy --config wrangler.transition.toml",
+    "deploy:transition": "tsx scripts/deploy-transition.ts",
     "transition:secrets": "tsx scripts/sync-transition-secrets.ts",
     "transition:challenge:create": "tsx scripts/create-admob-verification-challenge.ts create",
     "transition:challenge:inspect": "tsx scripts/create-admob-verification-challenge.ts inspect",

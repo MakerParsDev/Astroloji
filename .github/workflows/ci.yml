@@ -36,10 +36,14 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+      - name: Build transition Worker
+        run: npm run build:transition
       - name: Test
         run: npm test
       - name: Runtime smoke tests
         run: npm run test:runtime
+      - name: Transition runtime smoke tests
+        run: npm run test:runtime:transition
 
   android-verify:
     runs-on: ubuntu-latest
