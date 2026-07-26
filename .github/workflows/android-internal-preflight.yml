@@ -30,6 +30,7 @@ jobs:
       JAVA_VERSION: ${{ vars.JAVA_VERSION }}
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
       DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
     steps:
       - uses: actions/checkout@v6
@@ -57,6 +58,10 @@ jobs:
             missing=1
           }
           exit "$missing"
+
+
+      - name: Verify live rewarded SSV backend
+        run: node ../scripts/check-backend-reward-ssv.mjs
 
       - name: Install Doppler CLI
         run: curl -Ls https://cli.doppler.com/install.sh | sudo sh

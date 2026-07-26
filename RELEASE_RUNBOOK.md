@@ -70,7 +70,7 @@ Not: Debug/unit verify gorevleri gerekiyorsa `app/google-services.example.json` 
 
 ## Backend Deploy Adimlari
 
-Rewarded SSV tablosu production D1'da yoksa deploydan once `backend/scripts/migrate-reward-ssv.sql` dosyasini remote D1'a uygula ve AdMob callback URL'sini `/api/v1/rewards/ssv` olarak ayarla.
+`backend-production-deploy` workflow'u rewarded SSV D1 migration'ini idempotent uygular ve canlı `/api/v1/rewards/ssv` fail-closed kontrolünü yapar. Acil manuel deployda aynı migration dosyasını önce remote D1'a uygula. AdMob callback URL'sini `/api/v1/rewards/ssv` olarak ayarla.
 
 1. Doppler secret'larinin guncel oldugunu kontrol et.
 2. Lokal on dogrulama calistir:
