@@ -11,6 +11,7 @@ import com.parsfilo.astrology.core.data.local.AstrologyDatabase
 import com.parsfilo.astrology.core.data.local.UserProfileDao
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
+import com.parsfilo.astrology.core.data.remote.RegisterUserRequest
 import com.parsfilo.astrology.core.data.remote.RegisterUserResponse
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.data.session.SessionRefreshCoordinator
@@ -28,6 +29,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.runs
+import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
@@ -65,6 +67,48 @@ class SessionRepositoryRefreshTest {
     fun tearDown() {
         unmockkStatic(FirebaseMessaging::class)
     }
+
+
+    @Test
+    fun `missing FCM token does not generate a placeholder during registration`() =
+        runTest {
+            val fresh = jwt(exp = 4_000_000_100)
+            val registerRequest = slot<RegisterUserRequest>()
+            coEvery { preferencesRepository.current() } returns UserPreferences()
+            every { firebaseAuth.currentUser } returns firebaseUser
+            every { tokenResult.token } returns "firebase-token"
+            every { firebaseUser.getIdToken(true) } returns Tasks.forResult(tokenResult)
+            every { messaging.token } returns Tasks.forException(IOException("FCM unavailable"))
+            coEvery { api.registerUser(any(), capture(registerRequest)) } returns
+                retrofit2.Response.success(
+                    RegisterUserResponse(
+                        userId = "user-1",
+                        jwt = fresh,
+                        isPremium = false,
+                    ),
+                )
+            coJustRun {
+                preferencesRepository.updateSession(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            }
+            coJustRun { userProfileDao.upsert(any()) }
+            val repository = createRepository()
+
+            val result = repository.refreshSessionToken(forceRefreshFirebaseToken = true)
+
+            assertThat(result).isEqualTo(AppResult.Success(fresh))
+            assertThat(registerRequest.captured.fcmToken).isNull()
+        }
 
     @Test
     fun `forced recovery persists and publishes a fresh token`() =

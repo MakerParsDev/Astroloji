@@ -15,7 +15,7 @@ import retrofit2.http.Query
 data class RegisterUserRequest(
     val sign: String,
     val language: String,
-    @SerialName("fcm_token") val fcmToken: String,
+    @SerialName("fcm_token") val fcmToken: String? = null,
     @SerialName("notification_hour") val notificationHour: Int,
     @SerialName("utc_offset") val utcOffset: Int,
     val platform: String = "android",

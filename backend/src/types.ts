@@ -256,7 +256,7 @@ export interface PersonalityContentDocument {
 export interface RegisterRequest {
   sign: Sign;
   language: Language;
-  fcm_token: string;
+  fcm_token?: string;
   notification_hour?: number;
   utc_offset: number;
   platform: Platform;

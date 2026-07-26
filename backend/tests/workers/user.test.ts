@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { deleteFirebaseUserMock } = vi.hoisted(() => ({
-  deleteFirebaseUserMock: vi.fn()
+const { deleteFirebaseUserMock, verifyFirebaseIdTokenMock } = vi.hoisted(() => ({
+  deleteFirebaseUserMock: vi.fn(),
+  verifyFirebaseIdTokenMock: vi.fn()
 }));
 
 vi.mock('@/services/firebaseAuth', async () => {
@@ -11,6 +12,14 @@ vi.mock('@/services/firebaseAuth', async () => {
   return {
     ...actual,
     deleteFirebaseUser: deleteFirebaseUserMock
+  };
+});
+
+vi.mock('@/utils/jwt', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/jwt')>('@/utils/jwt');
+  return {
+    ...actual,
+    verifyFirebaseIdToken: verifyFirebaseIdTokenMock
   };
 });
 
@@ -59,10 +68,93 @@ describe('user routes', () => {
   beforeEach(() => {
     deleteFirebaseUserMock.mockReset();
     deleteFirebaseUserMock.mockResolvedValue(undefined);
+    verifyFirebaseIdTokenMock.mockReset();
+    verifyFirebaseIdTokenMock.mockResolvedValue({
+      aud: 'demo-project',
+      iss: 'https://securetoken.google.com/demo-project',
+      sub: 'firebase-1'
+    });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+
+  it('registers a user without creating an FCM token row when no token is available', async () => {
+    const user = {
+      id: 'user-1',
+      firebase_uid: 'firebase-1',
+      sign: 'aries',
+      language: 'tr',
+      utc_offset: 3,
+      is_premium: 0,
+      subscription_state: 'none',
+      premium_expires_at: null,
+      created_at: '2026-07-26T00:00:00.000Z',
+      last_seen_at: '2026-07-26T00:00:00.000Z'
+    };
+    const executedSql: string[] = [];
+    const env = createTestEnv({
+      DB: {
+        prepare(sql: string) {
+          const statement = {
+            bindings: [] as unknown[],
+            bind(...bindings: unknown[]) {
+              statement.bindings = bindings;
+              return statement;
+            },
+            async first() {
+              if (sql.includes('SELECT * FROM users WHERE firebase_uid = ?')) {
+                return user;
+              }
+              if (sql.includes('SELECT * FROM users WHERE id = ?')) {
+                return user;
+              }
+              return null;
+            },
+            async all() {
+              return { results: [] };
+            },
+            async run() {
+              executedSql.push(sql.replace(/\s+/g, ' ').trim());
+              return { success: true, meta: {} };
+            }
+          };
+          return statement;
+        },
+        async batch() {
+          return [];
+        }
+      } as unknown as D1Database
+    });
+
+    const response = await createApp().request(
+      '/api/v1/users/register',
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer firebase-id-token',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          sign: 'aries',
+          language: 'tr',
+          notification_hour: 9,
+          utc_offset: 3,
+          platform: 'android'
+        })
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      user_id: 'user-1',
+      is_premium: false,
+      subscription_state: 'none'
+    });
+    expect(executedSql.some((sql) => sql.includes('fcm_tokens'))).toBe(false);
   });
 
   it('refreshes the app JWT with the latest premium flag', async () => {
