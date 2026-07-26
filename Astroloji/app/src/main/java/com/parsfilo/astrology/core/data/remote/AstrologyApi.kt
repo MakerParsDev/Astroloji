@@ -166,16 +166,34 @@ data class VerifySubscriptionResponse(
 )
 
 @Serializable
-data class RewardClaimRequest(
+data class RewardPrepareRequest(
     @SerialName("reward_type") val rewardType: String,
     val identifier: String,
 )
 
 @Serializable
-data class RewardClaimResponse(
-    val ok: Boolean,
+data class RewardChallengeResponse(
+    @SerialName("challenge_id") val challengeId: String,
+    @SerialName("custom_data") val customData: String,
+    @SerialName("user_id") val userId: String,
     @SerialName("reward_type") val rewardType: String,
     val identifier: String,
+    @SerialName("expires_at") val expiresAt: String,
+)
+
+@Serializable
+data class RewardClaimRequest(
+    @SerialName("challenge_id") val challengeId: String,
+)
+
+@Serializable
+data class RewardClaimResponse(
+    val ok: Boolean,
+    val duplicate: Boolean = false,
+    @SerialName("challenge_id") val challengeId: String,
+    @SerialName("reward_type") val rewardType: String,
+    val identifier: String,
+    @SerialName("entitlement_expires_at") val entitlementExpiresAt: String,
 )
 
 @Serializable
@@ -264,6 +282,11 @@ interface AstrologyApi {
     suspend fun restoreSubscription(
         @Body body: VerifySubscriptionRequest,
     ): Response<VerifySubscriptionResponse>
+
+    @POST("api/v1/rewards/prepare")
+    suspend fun prepareReward(
+        @Body body: RewardPrepareRequest,
+    ): Response<RewardChallengeResponse>
 
     @POST("api/v1/rewards/claim")
     suspend fun claimReward(

@@ -16,6 +16,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -27,6 +28,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ads.AdaptiveBannerAd
+import com.parsfilo.astrology.core.ads.RewardedAdRequest
 import com.parsfilo.astrology.core.ads.adsEntryPoint
 import com.parsfilo.astrology.core.ui.components.AstroSectionTitle
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
@@ -47,7 +49,30 @@ fun WeeklyScreen(
     val context = LocalContext.current
     val activity = context as? Activity
     val adsEntryPoint = adsEntryPoint(context)
+    val rewardedAdManager = adsEntryPoint.rewardedAdManager()
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(viewModel, activity) {
+        viewModel.effects.collect { effect ->
+            when (effect) {
+                is WeeklyUiEffect.ShowRewardAd -> {
+                    val hostActivity = activity ?: return@collect
+                    rewardedAdManager.showIfAvailable(
+                        activity = hostActivity,
+                        request =
+                            RewardedAdRequest(
+                                placement = "unlock_weekly_full",
+                                ssvUserId = effect.challenge.userId,
+                                ssvCustomData = effect.challenge.customData,
+                            ),
+                        onRewardEarned = {
+                            viewModel.onEvent(WeeklyUiEvent.RewardEarned(effect.challenge.challengeId))
+                        },
+                    )
+                }
+            }
+        }
+    }
 
     BackHandler(enabled = activity != null) {
         val hostActivity = activity ?: return@BackHandler
@@ -104,13 +129,7 @@ fun WeeklyScreen(
                             .takeIf { uiState.canUnlockWithReward && rewardedActivity != null }
                     val rewardAction: (() -> Unit)? =
                         if (rewardSection != null && rewardedActivity != null) {
-                            {
-                                adsEntryPoint.rewardedAdManager().showIfAvailable(
-                                    activity = rewardedActivity,
-                                    placement = "unlock_weekly_full",
-                                    onRewardEarned = { viewModel.onEvent(WeeklyUiEvent.UnlockWithReward) },
-                                )
-                            }
+                            { viewModel.onEvent(WeeklyUiEvent.UnlockWithReward) }
                         } else {
                             null
                         }

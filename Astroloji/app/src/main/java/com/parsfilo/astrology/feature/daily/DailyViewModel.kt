@@ -9,6 +9,7 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.ContentRepository
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.core.domain.model.DailyHoroscope
+import com.parsfilo.astrology.core.domain.model.RewardChallenge
 import com.parsfilo.astrology.core.ui.MviViewModel
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.TimeUtils
@@ -29,9 +30,17 @@ sealed interface DailyUiEvent {
     data object Refresh : DailyUiEvent
 
     data object UnlockWithReward : DailyUiEvent
+
+    data class RewardEarned(
+        val challengeId: String,
+    ) : DailyUiEvent
 }
 
-sealed interface DailyUiEffect
+sealed interface DailyUiEffect {
+    data class ShowRewardAd(
+        val challenge: RewardChallenge,
+    ) : DailyUiEffect
+}
 
 @HiltViewModel
 class DailyViewModel
@@ -62,7 +71,16 @@ class DailyViewModel
                 DailyUiEvent.UnlockWithReward -> {
                     viewModelScope.launch {
                         val identifier = TimeUtils.dateIdentifier()
-                        when (val claimResult = contentRepository.claimRewardUnlock("daily", identifier)) {
+                        when (val prepareResult = contentRepository.prepareRewardUnlock("daily", identifier)) {
+                            is AppResult.Success -> sendEffect { DailyUiEffect.ShowRewardAd(prepareResult.data) }
+                            is AppResult.Error -> setState { copy(error = prepareResult.exception.message) }
+                            AppResult.Loading -> Unit
+                        }
+                    }
+                }
+                is DailyUiEvent.RewardEarned -> {
+                    viewModelScope.launch {
+                        when (val claimResult = contentRepository.claimRewardUnlock(event.challengeId)) {
                             is AppResult.Success -> load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
                             is AppResult.Error -> setState { copy(error = claimResult.exception.message) }
                             AppResult.Loading -> Unit

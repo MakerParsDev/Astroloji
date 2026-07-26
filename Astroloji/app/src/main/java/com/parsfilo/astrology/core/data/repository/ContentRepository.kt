@@ -12,12 +12,15 @@ import com.parsfilo.astrology.core.data.local.PersonalityEntity
 import com.parsfilo.astrology.core.data.local.WeeklyDao
 import com.parsfilo.astrology.core.data.local.WeeklyHoroscopeEntity
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
+import com.parsfilo.astrology.core.data.remote.ErrorEnvelope
 import com.parsfilo.astrology.core.data.remote.RewardClaimRequest
+import com.parsfilo.astrology.core.data.remote.RewardPrepareRequest
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.domain.model.CompatibilityReport
 import com.parsfilo.astrology.core.domain.model.DailyHoroscope
 import com.parsfilo.astrology.core.domain.model.MonthlyHoroscope
 import com.parsfilo.astrology.core.domain.model.PersonalityReport
+import com.parsfilo.astrology.core.domain.model.RewardChallenge
 import com.parsfilo.astrology.core.domain.model.WeeklyHoroscope
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
@@ -26,6 +29,7 @@ import com.parsfilo.astrology.core.util.StringsProvider
 import com.parsfilo.astrology.core.util.TimeUtils
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
 import retrofit2.Response
@@ -175,19 +179,78 @@ class ContentRepository
                 personalityDao.deleteOlderThan(now - evergreenTtl.toMillis())
             }
 
-        suspend fun claimRewardUnlock(
+        suspend fun prepareRewardUnlock(
             rewardType: String,
             identifier: String,
-        ): AppResult<Unit> =
+        ): AppResult<RewardChallenge> =
             withContext(dispatchers.io) {
-                val request = RewardClaimRequest(rewardType = rewardType, identifier = identifier)
-                val response = authenticatedRequest { api.claimReward(request) }
+                val response =
+                    authenticatedRequest {
+                        api.prepareReward(RewardPrepareRequest(rewardType = rewardType, identifier = identifier))
+                    }
                 when {
-                    response.isSuccessful || response.code() == 409 -> AppResult.Success(Unit)
+                    response.isSuccessful -> {
+                        val body =
+                            response.body()
+                                ?: return@withContext AppResult.Error(
+                                    AppException.NetworkException("Reward challenge response was empty."),
+                                )
+                        AppResult.Success(
+                            RewardChallenge(
+                                challengeId = body.challengeId,
+                                customData = body.customData,
+                                userId = body.userId,
+                                rewardType = body.rewardType,
+                                identifier = body.identifier,
+                                expiresAt = body.expiresAt,
+                            ),
+                        )
+                    }
                     response.code() == 401 -> AppResult.Error(AppException.UnauthorizedException())
-                    else -> AppResult.Error(AppException.NetworkException(response.message()))
+                    else -> AppResult.Error(AppException.NetworkException(response.errorMessage()))
                 }
             }
+
+        suspend fun claimRewardUnlock(
+            challengeId: String,
+        ): AppResult<Unit> =
+            withContext(dispatchers.io) {
+                val outcome =
+                    pollRewardClaim(
+                        maxAttempts = REWARD_CLAIM_MAX_ATTEMPTS,
+                        delayMillis = REWARD_CLAIM_DELAY_MILLIS,
+                    ) {
+                        val response =
+                            authenticatedRequest {
+                                api.claimReward(RewardClaimRequest(challengeId = challengeId))
+                            }
+                        RewardClaimAttempt(
+                            statusCode = response.code(),
+                            errorCode = response.errorCode(),
+                        )
+                    }
+                when (outcome) {
+                    RewardClaimPollOutcome.CLAIMED -> AppResult.Success(Unit)
+                    RewardClaimPollOutcome.UNAUTHORIZED -> AppResult.Error(AppException.UnauthorizedException())
+                    RewardClaimPollOutcome.TIMED_OUT ->
+                        AppResult.Error(AppException.NetworkException("Reward verification is still pending."))
+                    RewardClaimPollOutcome.FAILED ->
+                        AppResult.Error(AppException.NetworkException("Reward verification failed."))
+                }
+            }
+
+        private fun Response<*>.errorCode(): String? {
+            val raw = errorBody()?.string().orEmpty()
+            return runCatching { json.decodeFromString<ErrorEnvelope>(raw).error.code }.getOrNull()
+        }
+
+        private fun Response<*>.errorMessage(): String {
+            val raw = errorBody()?.string().orEmpty()
+            return runCatching { json.decodeFromString<ErrorEnvelope>(raw).error.message }
+                .getOrNull()
+                .orEmpty()
+                .ifBlank { message() }
+        }
 
         private suspend fun fetchDaily(
             sign: String,
@@ -520,6 +583,8 @@ class ContentRepository
 
         private companion object {
             private const val LIST_DELIMITER = "|||"
+            private const val REWARD_CLAIM_MAX_ATTEMPTS = 6
+            private const val REWARD_CLAIM_DELAY_MILLIS = 750L
         }
 
         private fun String.decodeList(): List<String> =

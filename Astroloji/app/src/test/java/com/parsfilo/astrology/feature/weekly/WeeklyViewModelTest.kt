@@ -9,13 +9,16 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.ContentRepository
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.core.domain.model.RemoteFlags
+import com.parsfilo.astrology.core.domain.model.RewardChallenge
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.domain.model.WeeklyHoroscope
 import com.parsfilo.astrology.core.util.AppResult
 import io.mockk.coEvery
 import io.mockk.coJustRun
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -100,6 +103,60 @@ class WeeklyViewModelTest {
 
             assertThat(viewModel.state.value.weekly).isEqualTo(weekly)
             assertThat(viewModel.state.value.canUnlockWithReward).isTrue()
+        }
+
+    @Test
+    fun `weekly reward uses prepared challenge before verified claim`() =
+        runTest {
+            val locked = weekly(love = null, career = null, money = null)
+            val unlocked = weekly(love = "Aşk", career = "Kariyer", money = "Para")
+            val challenge =
+                RewardChallenge(
+                    challengeId = "challenge-weekly",
+                    customData = "challenge-weekly",
+                    userId = "user-1",
+                    rewardType = "weekly",
+                    identifier = "2026-W30",
+                    expiresAt = "2026-07-26T20:00:00.000Z",
+                )
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(selectedSign = "aries", language = "tr", userId = "user-1")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returnsMany
+                listOf(AppResult.Success(locked), AppResult.Success(unlocked))
+            coEvery { contentRepository.prepareRewardUnlock("weekly", any()) } returns AppResult.Success(challenge)
+            coEvery { contentRepository.claimRewardUnlock(challenge.challengeId) } returns AppResult.Success(Unit)
+
+            val viewModel =
+                WeeklyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            viewModel.onEvent(WeeklyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+            val effect = viewModel.effects.first()
+
+            assertThat(effect).isEqualTo(WeeklyUiEffect.ShowRewardAd(challenge))
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+
+            viewModel.onEvent(WeeklyUiEvent.RewardEarned(challenge.challengeId))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { contentRepository.claimRewardUnlock(challenge.challengeId) }
+            val unlockedLove =
+                viewModel.state.value.weekly
+                    ?.love
+            assertThat(unlockedLove).isEqualTo("Aşk")
         }
 
     private fun weekly(
