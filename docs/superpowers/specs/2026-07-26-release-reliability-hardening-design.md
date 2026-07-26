@@ -55,7 +55,7 @@ Weekly rewarded access is available when rewarded ads are allowed and any premiu
 - Backend analytics contract test fails before the allowlist change and passes afterward.
 - Backend validator and user route tests cover registration without `fcm_token`.
 - Android repository tests cover transient queueing and permanent rejection.
-- Android sync policy tests cover response classification, malformed payload deletion, batch limits, and retry behavior.
+- Android policy and Worker tests cover response classification, malformed payload deletion, the 50-event batch limit, delivery deletion, and retry behavior.
 - Weekly ViewModel tests cover free summary with locked premium fields.
 - Session repository tests prove no synthetic FCM token is sent.
-- Backend build/tests and targeted Android unit tests pass, followed by Detekt and ktlint.
+- Backend build, full unit/runtime tests, Android full JVM tests, debug assembly, Detekt, ktlint, diff checks, and secret scanning pass.
