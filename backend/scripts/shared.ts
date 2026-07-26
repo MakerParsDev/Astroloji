@@ -15,6 +15,25 @@ export const CLOUDFLARE_SECRET_NAMES = [
 
 export type CloudflareSecretName = (typeof CLOUDFLARE_SECRET_NAMES)[number];
 
+
+export const TRANSITION_SECRET_NAMES = ['JWT_SECRET', 'ADMOB_REWARDED_ID'] as const;
+export type TransitionSecretName = (typeof TRANSITION_SECRET_NAMES)[number];
+
+export function resolveTransitionSecrets(
+  dopplerSecrets: Record<string, string>,
+  environment: NodeJS.ProcessEnv = process.env,
+): Record<TransitionSecretName, string> {
+  const resolved = {} as Record<TransitionSecretName, string>;
+  for (const name of TRANSITION_SECRET_NAMES) {
+    const value = environment[name] ?? dopplerSecrets[name];
+    if (!value) {
+      throw new Error(`Required transition secret is missing: ${name}`);
+    }
+    resolved[name] = value;
+  }
+  return resolved;
+}
+
 export function downloadDopplerSecrets() {
   const output = execFileSync(
     'doppler',
