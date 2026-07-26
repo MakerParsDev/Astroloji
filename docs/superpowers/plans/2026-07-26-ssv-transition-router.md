@@ -132,7 +132,7 @@ it('expires legacy forwarding at the exact deadline', async () => {
 
 Run:
 
-```bash
+```powershell
 cd backend
 npm test -- --run tests/transition/rewardTransition.test.ts
 ```
@@ -193,7 +193,7 @@ Use `Object.keys(value).sort()` and require exactly `['identifier', 'reward_type
 
 Run:
 
-```bash
+```powershell
 npm test -- --run tests/transition/rewardTransition.test.ts
 ```
 
@@ -201,9 +201,9 @@ Expected: PASS for exact forwarding, deadline, malformed JSON, mixed payload, se
 
 - [ ] **Step 5: Commit Task 1**
 
-```bash
-git add backend/src/transition/rewardTransition.ts \
-  backend/tests/transition/rewardTransition.test.ts \
+```powershell
+git add backend/src/transition/rewardTransition.ts `
+  backend/tests/transition/rewardTransition.test.ts `
   backend/src/utils/validators.ts
 git commit -m "feat(ssv-transition): classify reward traffic safely"
 ```
@@ -308,10 +308,10 @@ Ensure local middleware sets request ID and authenticates only `/prepare` and `/
 
 - [ ] **Step 4: Run transition unit tests and existing reward tests**
 
-```bash
-npm test -- --run \
-  tests/transition/rewardTransition.test.ts \
-  tests/workers/rewardSsv.test.ts \
+```powershell
+npm test -- --run `
+  tests/transition/rewardTransition.test.ts `
+  tests/workers/rewardSsv.test.ts `
   tests/workers/rewards.test.ts
 npm run build
 ```
@@ -320,8 +320,8 @@ Expected: all tests pass and TypeScript confirms the minimum environment is suff
 
 - [ ] **Step 5: Commit Task 2**
 
-```bash
-git add backend/src/transition/index.ts backend/src/types.ts \
+```powershell
+git add backend/src/transition/index.ts backend/src/types.ts `
   backend/src/workers/reward.ts backend/tests/transition/rewardTransition.test.ts
 git commit -m "feat(ssv-transition): add focused reward worker"
 ```
@@ -405,7 +405,7 @@ The committed date is deliberately expired and fail-closed. The reviewed deploym
 {
   "build:transition": "wrangler deploy --dry-run --config wrangler.transition.toml --outdir dist/transition",
   "test:runtime:transition": "vitest run --config vitest.transition-runtime.config.ts",
-  "deploy:transition": "wrangler deploy --config wrangler.transition.toml"
+  "deploy:transition": "tsx scripts/deploy-transition.ts"
 }
 ```
 
@@ -413,7 +413,7 @@ Use a dedicated runtime Vitest config if the existing pool cannot host two entry
 
 - [ ] **Step 4: Run runtime/build verification**
 
-```bash
+```powershell
 npm run build
 npm run build:transition
 npm run test:runtime
@@ -424,9 +424,9 @@ Expected: the generated transition bundle has no R2/admin/Firebase/Play bindings
 
 - [ ] **Step 5: Commit Task 3**
 
-```bash
-git add backend/wrangler.transition.toml backend/package.json \
-  backend/tests/runtime/transition-worker-runtime.test.ts \
+```powershell
+git add backend/wrangler.transition.toml backend/package.json `
+  backend/tests/runtime/transition-worker-runtime.test.ts `
   backend/vitest.runtime.config.ts backend/vitest.transition-runtime.config.ts
 git commit -m "build(ssv-transition): configure isolated worker"
 ```
@@ -523,7 +523,7 @@ The create command may print the full test `userId` and `challengeId` exactly on
 
 - [ ] **Step 4: Run script tests and dry-run bundle**
 
-```bash
+```powershell
 npm test -- --run tests/scripts/transitionShared.test.ts
 npm run build
 npm run build:transition
@@ -531,9 +531,9 @@ npm run build:transition
 
 - [ ] **Step 5: Commit Task 4**
 
-```bash
-git add backend/scripts/shared.ts backend/scripts/sync-transition-secrets.ts \
-  backend/scripts/create-admob-verification-challenge.ts \
+```powershell
+git add backend/scripts/shared.ts backend/scripts/sync-transition-secrets.ts `
+  backend/scripts/create-admob-verification-challenge.ts `
   backend/tests/scripts/transitionShared.test.ts backend/package.json
 git commit -m "feat(ssv-transition): add minimal secrets and test challenge tools"
 ```
@@ -592,13 +592,13 @@ Perform four requests with one AbortController per request:
 
 - [ ] **Step 3: Run tests**
 
-```bash
+```powershell
 node --test scripts/check-ssv-transition-route.test.mjs
 ```
 
 - [ ] **Step 4: Commit Task 5**
 
-```bash
+```powershell
 git add scripts/check-ssv-transition-route.mjs scripts/check-ssv-transition-route.test.mjs
 git commit -m "test(ssv-transition): add live route smoke checker"
 ```
@@ -667,16 +667,16 @@ Rollback must:
 
 - [ ] **Step 4: Run workflow tests and YAML parser**
 
-```bash
+```powershell
 node --test scripts/backend-ssv-transition-workflows.test.mjs
-ruby -e "require 'yaml'; Dir['.github/workflows/*.yml'].each { |f| YAML.load_file(f) }"
+python -c "from pathlib import Path; import yaml; [yaml.safe_load(p.read_text()) for p in Path('.github/workflows').glob('*.yml')]"
 ```
 
 - [ ] **Step 5: Commit Task 6**
 
-```bash
-git add .github/workflows/backend-ssv-transition-deploy.yml \
-  .github/workflows/backend-ssv-transition-rollback.yml \
+```powershell
+git add .github/workflows/backend-ssv-transition-deploy.yml `
+  .github/workflows/backend-ssv-transition-rollback.yml `
   .github/workflows/ci.yml scripts/backend-ssv-transition-workflows.test.mjs
 git commit -m "ci(ssv-transition): add reviewed deploy and rollback"
 ```
@@ -720,7 +720,7 @@ Require:
 
 - [ ] **Step 3: Run complete repository verification**
 
-```bash
+```powershell
 cd backend
 npm run build
 npm test
@@ -731,7 +731,7 @@ cd ..
 node --test scripts/*.test.mjs
 node scripts/validate-play-metadata.mjs
 node scripts/scan-secrets.mjs
-ruby -e "require 'yaml'; Dir['.github/workflows/*.yml'].each { |f| YAML.load_file(f) }"
+python -c "from pathlib import Path; import yaml; [yaml.safe_load(p.read_text()) for p in Path('.github/workflows').glob('*.yml')]"
 git diff --check origin/main...HEAD
 ```
 
@@ -745,7 +745,7 @@ Expected:
 
 - [ ] **Step 4: Commit documentation and verification record**
 
-```bash
+```powershell
 git add docs/PLAY_PRODUCTION_READINESS.md RELEASE_RUNBOOK.md backend/README.md
 git commit -m "docs(ssv-transition): record rollout and rollback"
 ```
@@ -762,13 +762,13 @@ git commit -m "docs(ssv-transition): record rollout and rollback"
 
 - [ ] **Step 1: Push branch and open PR**
 
-```bash
+```powershell
 git push -u origin feat/ssv-transition-router-20260726
-gh pr create \
-  --base main \
-  --head feat/ssv-transition-router-20260726 \
-  --title "feat: add reversible rewarded SSV transition router" \
-  --body-file /tmp/ssv-transition-pr.md
+gh pr create `
+  --base main `
+  --head feat/ssv-transition-router-20260726 `
+  --title "feat: add reversible rewarded SSV transition router" `
+  --body-file $env:TEMP\ssv-transition-pr.md
 ```
 
 PR body must explicitly say the full `astrology-backend` is not deployed by this change.

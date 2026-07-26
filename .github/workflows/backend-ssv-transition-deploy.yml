@@ -44,6 +44,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:
@@ -114,8 +116,10 @@ jobs:
           const required = ['JWT_SECRET', 'ADMOB_REWARDED_ID', 'CLOUDFLARE_API_TOKEN'];
           const missing = required.filter((name) => !value(name));
           if (missing.length) throw new Error(`Missing required Doppler values: ${missing.join(', ')}`);
+          for (const name of required) {
+            console.log(`::add-mask::${value(name)}`);
+          }
           const token = value('CLOUDFLARE_API_TOKEN');
-          console.log(`::add-mask::${token}`);
           fs.appendFileSync(process.env.GITHUB_ENV, `CLOUDFLARE_API_TOKEN<<CF_TOKEN\n${token}\nCF_TOKEN\n`);
           NODE
 

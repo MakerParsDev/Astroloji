@@ -22,6 +22,8 @@ jobs:
   backend-verify:
     runs-on: ubuntu-latest
     needs: secret-scan
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: backend

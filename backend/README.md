@@ -117,7 +117,7 @@ Production gecisi icin tam backend'i hemen deploy etmeyin. Once route-free `astr
 3. Canli malformed callback `400 / MALFORMED_CALLBACK` donmelidir.
 4. Test challenge degerleri GitHub Actions disinda uretilir:
 
-   ```bash
+   ```powershell
    npm run transition:challenge:create
    ```
 

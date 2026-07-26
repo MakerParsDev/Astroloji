@@ -4,7 +4,8 @@ import path from 'node:path';
 import {
   TRANSITION_SECRET_NAMES,
   downloadDopplerSecrets,
-  resolveTransitionSecrets
+  resolveTransitionSecrets,
+  resolveNpxInvocation
 } from './shared';
 
 function transitionConfig(): string {
@@ -21,21 +22,13 @@ function putSecret(name: string, value: string): void {
     transitionConfig()
   ];
 
-  if (process.platform === 'win32') {
-    execFileSync(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `npx ${args.join(' ')}`], {
-      cwd: path.resolve('.'),
-      input: value,
-      encoding: 'utf8',
-      stdio: ['pipe', 'inherit', 'inherit']
-    });
-    return;
-  }
-
-  execFileSync('npx', args, {
+  const invocation = resolveNpxInvocation();
+  execFileSync(invocation.executable, args, {
     cwd: path.resolve('.'),
     input: value,
     encoding: 'utf8',
-    stdio: ['pipe', 'inherit', 'inherit']
+    stdio: ['pipe', 'inherit', 'inherit'],
+    shell: invocation.shell
   });
 }
 

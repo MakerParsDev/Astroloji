@@ -136,8 +136,9 @@ The exact callback URL is `https://astrology.parsfilo.com/api/v1/rewards/ssv`.
 
 ### Rollback
 
-- Remove the specific reward route or delete `astrology-ssv-transition`.
-- Requests immediately fall through to the unchanged `astrology-backend` Custom Domain Worker.
+- Remove the exact reward route before any Worker deletion.
+- After route removal, verify origin health and SSV fall-through to the unchanged `astrology-backend` Custom Domain Worker.
+- Only after both origin checks pass, optionally delete `astrology-ssv-transition`.
 - The additive D1 table may remain; it does not affect the legacy backend.
 - Do not deploy the full secure backend as part of rollback.
 

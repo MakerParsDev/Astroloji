@@ -26,7 +26,7 @@ Last reviewed: 2026-07-26
    - rollback workflow `backend-ssv-transition-rollback`.
 4. Outside GitHub Actions, create the one-time AdMob verification values:
 
-   ```bash
+   ```powershell
    cd backend
    npm run transition:challenge:create
    ```
@@ -42,13 +42,13 @@ Last reviewed: 2026-07-26
 6. Click **URL'yi doğrula**. Continue only after success; then click **Doğrulanan URL'yi kullan** and **Kaydet**. Do not save a failed verification.
 7. Inspect the challenge by exact UUID and record only the challenge prefix, expiry, `verified` status, and transaction prefix:
 
-   ```bash
+   ```powershell
    npm run transition:challenge:inspect -- <challenge-uuid>
    ```
 
 8. Delete the one-time test challenge after evidence is recorded:
 
-   ```bash
+   ```powershell
    npm run transition:challenge:delete -- <challenge-uuid>
    ```
 

@@ -6,6 +6,10 @@ const deploy = fs.readFileSync('.github/workflows/backend-ssv-transition-deploy.
 const rollback = fs.readFileSync('.github/workflows/backend-ssv-transition-rollback.yml', 'utf8');
 const ci = fs.readFileSync('.github/workflows/ci.yml', 'utf8');
 const transitionConfig = fs.readFileSync('backend/wrangler.transition.toml', 'utf8');
+const plan = fs.readFileSync('docs/superpowers/plans/2026-07-26-ssv-transition-router.md', 'utf8');
+const design = fs.readFileSync('docs/superpowers/specs/2026-07-26-ssv-transition-router-design.md', 'utf8');
+const backendReadme = fs.readFileSync('backend/README.md', 'utf8');
+const readiness = fs.readFileSync('docs/PLAY_PRODUCTION_READINESS.md', 'utf8');
 
 function ordered(content, tokens) {
   const positions = tokens.map((token) => content.indexOf(token));
@@ -44,7 +48,9 @@ test('deploy workflow validates gates and attaches route only after worker and s
   assert.doesNotMatch(deploy, /npm run deploy\s*$/m);
   assert.doesNotMatch(deploy, /backend-production-deploy/);
   assert.match(deploy, /CLOUDFLARE_API_TOKEN/);
-  assert.match(deploy, /::add-mask::/);
+  assert.match(deploy, /for \(const name of required\)[\s\S]*::add-mask::\$\{value\(name\)\}/);
+  assert.equal((deploy.match(/persist-credentials: false/g) ?? []).length, 1);
+  assert.equal((rollback.match(/persist-credentials: false/g) ?? []).length, 1);
   assert.ok((deploy.match(/node --input-type=module <<'NODE'/g) ?? []).length >= 2);
 });
 
@@ -69,8 +75,21 @@ test('rollback removes only the exact route before origin verification and optio
   assert.match(rollback, /Leave rewarded SSV D1 migration intact|D1 migration remains/);
 });
 
-test('CI runs transition bundle and runtime verification', () => {
+test('CI runs transition bundle and runtime verification with minimal permissions', () => {
+  assert.match(ci, /backend-verify:[\s\S]*permissions:[\s\S]*contents: read/);
   assert.match(ci, /npm run build:transition/);
   assert.match(ci, /npm run test:runtime:transition/);
   assert.match(ci, /backend-ssv-transition-workflows\.test\.mjs|scripts\/\*\.test\.mjs/);
+});
+
+
+test('operator docs use PowerShell and preserve fail-closed deployment and rollback order', () => {
+  for (const content of [plan, backendReadme, readiness]) {
+    assert.doesNotMatch(content, /```bash/);
+  }
+  assert.match(plan, /"deploy:transition": "tsx scripts\/deploy-transition\.ts"/);
+  const removeRoute = design.indexOf('Remove the exact reward route');
+  const verifyOrigin = design.indexOf('verify origin health');
+  const deleteWorker = design.indexOf('optionally delete');
+  assert.ok(removeRoute >= 0 && removeRoute < verifyOrigin && verifyOrigin < deleteWorker);
 });

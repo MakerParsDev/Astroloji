@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   TRANSITION_SECRET_NAMES,
-  resolveTransitionSecrets
+  resolveTransitionSecrets,
+  resolveNpxInvocation
 } from '../../scripts/shared';
 import {
   buildDeleteVerificationChallengeSql,
@@ -24,6 +25,13 @@ describe('transition secret resolution', () => {
       ADMOB_REWARDED_ID: 'ca-app-pub-x/y'
     });
     expect(TRANSITION_SECRET_NAMES).toEqual(['JWT_SECRET', 'ADMOB_REWARDED_ID']);
+  });
+
+
+
+  it('uses direct npx executables without constructing a command string', () => {
+    expect(resolveNpxInvocation('linux')).toEqual({ executable: 'npx', shell: false });
+    expect(resolveNpxInvocation('win32')).toEqual({ executable: 'npx.cmd', shell: true });
   });
 
   it('supports explicit environment overrides and requires both secrets', () => {
