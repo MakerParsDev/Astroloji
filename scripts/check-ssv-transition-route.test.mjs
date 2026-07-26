@@ -173,6 +173,20 @@ test('does not retry an unexpected transition Worker failure', async () => {
   assert.equal(ssvAttempts, 1);
 });
 
+test('requires route readiness attempts to be an integer from 1 through 30', async () => {
+  for (const routeReadyAttempts of [0, 31, 1.5]) {
+    await assert.rejects(
+      checkSsvTransitionRoute({
+        baseUrl: BASE_URL,
+        fetcher: successfulFetcher,
+        legacyJwt: 'invalid-smoke-token',
+        routeReadyAttempts
+      }),
+      /routeReadyAttempts must be an integer between 1 and 30/
+    );
+  }
+});
+
 test('aborts a stalled request with a bounded timeout', async () => {
   let observedSignal;
   const fetcher = (_url, init = {}) => {

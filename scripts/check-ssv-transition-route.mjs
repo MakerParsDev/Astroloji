@@ -1,5 +1,7 @@
 import { pathToFileURL } from 'node:url';
 
+const MAX_ROUTE_READY_ATTEMPTS = 30;
+
 function requireValue(value, name) {
   if (!value) throw new Error(`${name} is required.`);
   return value;
@@ -95,12 +97,21 @@ export async function checkSsvTransitionRoute({
   fetcher = fetch,
   timeoutMs = 10_000,
   legacyJwt,
-  routeReadyAttempts = 30,
+  routeReadyAttempts = MAX_ROUTE_READY_ATTEMPTS,
   routeReadyDelayMs = 3_000,
   sleep = defaultSleep
 }) {
   requireValue(baseUrl, 'BACKEND_BASE_URL');
   requireValue(legacyJwt, 'LEGACY_SMOKE_JWT');
+  if (
+    !Number.isInteger(routeReadyAttempts) ||
+    routeReadyAttempts < 1 ||
+    routeReadyAttempts > MAX_ROUTE_READY_ATTEMPTS
+  ) {
+    throw new RangeError(
+      `routeReadyAttempts must be an integer between 1 and ${MAX_ROUTE_READY_ATTEMPTS}.`
+    );
+  }
   const root = baseUrl.replace(/\/$/, '');
   const today = new Date().toISOString().slice(0, 10);
 
