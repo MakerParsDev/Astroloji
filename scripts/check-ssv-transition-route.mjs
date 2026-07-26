@@ -39,8 +39,6 @@ function expectResult(label, actualStatus, expectedStatus, actualCode, expectedC
   }
 }
 
-
-
 function defaultSleep(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }

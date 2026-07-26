@@ -234,6 +234,34 @@ jobs:
             echo '- Rollback workflow: backend-ssv-transition-rollback'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Remove exact transition route after failed live verification
+        if: failure()
+        run: |
+          node --input-type=module <<'NODE'
+          const api = `https://api.cloudflare.com/client/v4/zones/${process.env.CLOUDFLARE_ZONE_ID}/workers/routes`;
+          const headers = { authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` };
+          const response = await fetch(api, { headers });
+          const body = await response.json();
+          if (!response.ok || !body.success) throw new Error('Unable to list Cloudflare Worker routes for automatic cleanup.');
+          const matches = body.result.filter((route) => route.pattern === process.env.TRANSITION_ROUTE_PATTERN);
+          if (matches.length > 1) throw new Error('Multiple exact transition routes exist during automatic cleanup.');
+          const route = matches[0];
+          if (!route) {
+            console.log('Exact transition route is already absent.');
+          } else {
+            if (route.script !== process.env.TRANSITION_WORKER_NAME) {
+              throw new Error(`Refusing to remove route owned by ${route.script ?? 'none'}.`);
+            }
+            if (process.env.TRANSITION_ROUTE_ID && route.id !== process.env.TRANSITION_ROUTE_ID) {
+              throw new Error(`Refusing to remove unexpected route ID ${route.id}.`);
+            }
+            const deleted = await fetch(`${api}/${route.id}`, { method: 'DELETE', headers });
+            const result = await deleted.json();
+            if (!deleted.ok || !result.success) throw new Error('Unable to remove failed transition route automatically.');
+            console.log(`Automatically removed failed transition route ID ${route.id}.`);
+          }
+          NODE
+
       - name: Remove temporary deployment files
         if: always()
         working-directory: backend

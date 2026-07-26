@@ -55,6 +55,14 @@ test('deploy workflow validates gates and attaches route only after worker and s
   assert.equal((deploy.match(/persist-credentials: false/g) ?? []).length, 1);
   assert.equal((rollback.match(/persist-credentials: false/g) ?? []).length, 1);
   assert.ok((deploy.match(/node --input-type=module <<'NODE'/g) ?? []).length >= 2);
+  ordered(deploy, [
+    'check-ssv-transition-route.mjs',
+    'Remove exact transition route after failed live verification'
+  ]);
+  assert.match(
+    deploy,
+    /name: Remove exact transition route after failed live verification[\s\S]*if: failure\(\)[\s\S]*method: 'DELETE'/
+  );
 });
 
 test('rollback removes only the exact route before origin verification and optional deletion', () => {

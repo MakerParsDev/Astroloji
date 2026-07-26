@@ -88,8 +88,6 @@ test('rejects a permissive or missing transition route', async () => {
   );
 });
 
-
-
 test('retries origin fall-through until the transition route becomes visible', async () => {
   let ssvAttempts = 0;
   const sleeps = [];
