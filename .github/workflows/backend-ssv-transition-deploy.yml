@@ -65,7 +65,7 @@ jobs:
             missing=1
           fi
           exit "$missing"
-          
+
       - name: Validate future UTC deadline within 30 days
         run: |
           node <<'NODE'
