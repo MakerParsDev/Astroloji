@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 
+import { enforceRateLimit } from '@/services/cache';
 import {
   AdmobSsvVerificationError,
   type ParsedAdmobSsvCallback,
@@ -13,6 +14,8 @@ const CALLBACK_PAST_SKEW_MS = 15 * 60 * 1_000;
 const CALLBACK_FUTURE_SKEW_MS = 5 * 60 * 1_000;
 const DAILY_ENTITLEMENT_TTL_MS = 48 * 60 * 60 * 1_000;
 const WEEKLY_ENTITLEMENT_TTL_MS = 14 * 24 * 60 * 60 * 1_000;
+const PREPARE_RATE_LIMIT = 10;
+const PREPARE_RATE_WINDOW_SECONDS = 60;
 
 export interface RewardRouteDependencies {
   nowMs?: () => number;
@@ -26,6 +29,11 @@ function jsonError(status: number, code: string, message: string) {
 
 function iso(ms: number): string {
   return new Date(ms).toISOString();
+}
+
+function normalizeAdUnitId(value: string): string {
+  const separator = value.lastIndexOf('/');
+  return separator >= 0 ? value.slice(separator + 1) : value;
 }
 
 function entitlementTtlMs(rewardType: RewardType): number {
@@ -95,7 +103,27 @@ export function registerRewardRoutes(
   app.post('/rewards/prepare', async (c) => {
     const body = validateRewardPrepareBody(await c.req.json());
     const auth = c.get('auth');
+    const allowed = await enforceRateLimit(
+      c.env,
+      `reward-prepare:${auth.userId}`,
+      PREPARE_RATE_LIMIT,
+      PREPARE_RATE_WINDOW_SECONDS
+    );
+    if (!allowed) {
+      return jsonError(429, 'RATE_LIMITED', 'Too many reward preparation attempts.');
+    }
     const createdAtMs = nowMs();
+    if (
+      await hasRewardEntitlement(
+        c.env.DB,
+        auth.userId,
+        body.reward_type,
+        body.identifier,
+        new Date(createdAtMs)
+      )
+    ) {
+      return jsonError(409, 'ALREADY_CLAIMED', 'Reward was already claimed for this content period.');
+    }
     const challengeId = randomUUID();
     const expiresAtMs = createdAtMs + CHALLENGE_TTL_MS;
 
@@ -166,7 +194,7 @@ export function registerRewardRoutes(
       logRewardResult(c.get('requestId'), 'user_mismatch', challengeId, transactionId);
       return jsonError(400, 'REWARD_USER_MISMATCH', 'Reward callback user does not match.');
     }
-    if (callback.fields.adUnit !== c.env.ADMOB_REWARDED_ID) {
+    if (normalizeAdUnitId(callback.fields.adUnit) !== normalizeAdUnitId(c.env.ADMOB_REWARDED_ID)) {
       logRewardResult(c.get('requestId'), 'ad_unit_mismatch', challengeId, transactionId);
       return jsonError(400, 'REWARD_AD_UNIT_MISMATCH', 'Reward callback ad unit does not match.');
     }
@@ -179,21 +207,30 @@ export function registerRewardRoutes(
     }
 
     const verifiedAt = iso(currentMs);
-    const result = await c.env.DB
-      .prepare(
-        `UPDATE reward_challenges
-         SET status = 'verified', transaction_id = ?, ad_unit = ?, callback_timestamp_ms = ?, verified_at = ?
-         WHERE id = ? AND status = 'pending' AND transaction_id IS NULL AND expires_at > ?`
-      )
-      .bind(
-        transactionId,
-        callback.fields.adUnit,
-        callback.fields.timestampMs,
-        verifiedAt,
-        challengeId,
-        verifiedAt
-      )
-      .run();
+    let result: D1Result<unknown>;
+    try {
+      result = await c.env.DB
+        .prepare(
+          `UPDATE reward_challenges
+           SET status = 'verified', transaction_id = ?, ad_unit = ?, callback_timestamp_ms = ?, verified_at = ?
+           WHERE id = ? AND status = 'pending' AND transaction_id IS NULL AND expires_at > ?`
+        )
+        .bind(
+          transactionId,
+          callback.fields.adUnit,
+          callback.fields.timestampMs,
+          verifiedAt,
+          challengeId,
+          verifiedAt
+        )
+        .run();
+    } catch {
+      const transactionOwner = await getChallengeByTransaction(c.env.DB, transactionId);
+      if (transactionOwner && transactionOwner.id !== challengeId) {
+        return jsonError(409, 'TRANSACTION_REPLAY', 'Reward transaction was already used.');
+      }
+      return jsonError(409, 'REWARD_VERIFICATION_CONFLICT', 'Reward challenge could not be verified.');
+    }
 
     if ((result.meta.changes ?? 0) !== 1) {
       const current = await getChallenge(c.env.DB, challengeId);

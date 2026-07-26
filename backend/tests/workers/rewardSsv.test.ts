@@ -402,4 +402,81 @@ describe('rewarded access SSV routes', () => {
       error: { code: 'REWARD_CHALLENGE_EXPIRED' }
     });
   });
+
+  it('does not prepare another challenge for an active entitlement', async () => {
+    const { db } = createRewardDb();
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    const app = testApp();
+    const request = () =>
+      app.request(
+        '/api/v1/rewards/prepare',
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+        },
+        env
+      );
+
+    expect((await request()).status).toBe(201);
+    expect((await app.request('/api/v1/rewards/ssv?verified', {}, env)).status).toBe(200);
+    expect(
+      (
+        await app.request(
+          '/api/v1/rewards/claim',
+          {
+            method: 'POST',
+            headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ challenge_id: CHALLENGE_ID })
+          },
+          env
+        )
+      ).status
+    ).toBe(200);
+
+    const duplicatePrepare = await request();
+    expect(duplicatePrepare.status).toBe(409);
+    await expect(duplicatePrepare.json()).resolves.toMatchObject({
+      error: { code: 'ALREADY_CLAIMED' }
+    });
+  });
+
+  it('accepts the numeric ad unit segment used by AdMob SSV callbacks', async () => {
+    const { db, rows } = createRewardDb();
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    const app = createApp({
+      reward: {
+        nowMs: () => NOW_MS,
+        randomUUID: () => CHALLENGE_ID,
+        verifyCallback: async () =>
+          verifiedCallback(
+            CHALLENGE_ID,
+            TRANSACTION_ID,
+            'user-1',
+            AD_UNIT.split('/').at(-1) ?? AD_UNIT
+          )
+      }
+    });
+
+    expect(
+      (
+        await app.request(
+          '/api/v1/rewards/prepare',
+          {
+            method: 'POST',
+            headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+            body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+          },
+          env
+        )
+      ).status
+    ).toBe(201);
+
+    const callback = await app.request('/api/v1/rewards/ssv?numeric-ad-unit', {}, env);
+    expect(callback.status).toBe(200);
+    expect(rows.get(CHALLENGE_ID)?.status).toBe('verified');
+  });
+
 });
