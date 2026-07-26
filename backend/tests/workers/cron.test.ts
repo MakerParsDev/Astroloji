@@ -49,7 +49,7 @@ describe('cron worker', () => {
               return null;
             },
             async all() {
-              if (sql.includes("FROM subscriptions WHERE status IN ('active', 'cancelled')")) {
+              if (sql.includes("FROM subscriptions WHERE status IN ('active', 'cancelled', 'grace_period')")) {
                 operations.push('subscriptions');
                 return { results: [] };
               }
@@ -148,6 +148,8 @@ describe('cron worker', () => {
     );
 
     expect(writes.some((sql) => sql.startsWith('DELETE FROM reward_challenges'))).toBe(true);
+    expect(operations).toContain('subscriptions');
+    expect(operations).toContain('notifications');
     expect(operations.indexOf('subscriptions')).toBeLessThan(operations.indexOf('notifications'));
     expect(operations.at(-1)).toBe('cleanup');
     expect(seenOffsets).toEqual([0, 500]);
