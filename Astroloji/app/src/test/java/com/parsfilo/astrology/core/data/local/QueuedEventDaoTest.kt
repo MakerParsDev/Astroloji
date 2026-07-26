@@ -58,6 +58,21 @@ class QueuedEventDaoTest {
             assertThat(ids).contains("newest")
         }
 
+    @Test
+    fun `bounded enqueue rejects an incoming expired event`() =
+        runTest {
+            val now = 2_000_000_000_000L
+            val minCreatedAt = now - THIRTY_DAYS_MILLIS
+
+            dao.enqueueBounded(
+                entity = event(id = "incoming-expired", createdAt = minCreatedAt - 1L),
+                maxSize = MAX_SIZE,
+                minCreatedAt = minCreatedAt,
+            )
+
+            assertThat(dao.getBatch(10)).isEmpty()
+        }
+
     private fun event(
         id: String,
         createdAt: Long,

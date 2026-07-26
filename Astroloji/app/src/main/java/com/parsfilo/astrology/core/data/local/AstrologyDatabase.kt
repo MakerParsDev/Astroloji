@@ -267,6 +267,7 @@ abstract class QueuedEventDao {
     ) {
         deleteOlderThan(minCreatedAt)
         upsert(entity)
+        deleteOlderThan(minCreatedAt)
         val excess = count() - maxSize
         if (excess > 0) {
             deleteOldest(excess)
