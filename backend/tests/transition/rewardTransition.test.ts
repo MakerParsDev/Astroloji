@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { createRewardTransitionWorker } from '@/transition';
+import type { TransitionEnv } from '@/types';
 import {
   classifyRewardRequest,
   isExactLegacyRewardClaim
@@ -182,5 +184,135 @@ describe('classifyRewardRequest', () => {
     );
 
     await expectReject(decision, 404, 'NOT_FOUND');
+  });
+});
+
+
+function transitionEnv(overrides: Partial<TransitionEnv> = {}): TransitionEnv {
+  return {
+    DB: {} as D1Database,
+    CACHE: {} as KVNamespace,
+    JWT_SECRET: 'transition-jwt-secret',
+    ADMOB_REWARDED_ID: 'ca-app-pub-1234567890123456/1234567890',
+    LEGACY_REWARD_FORWARD_UNTIL: DEADLINE,
+    ...overrides
+  };
+}
+
+function executionContext(): ExecutionContext {
+  return {
+    waitUntil: vi.fn(),
+    passThroughOnException: vi.fn(),
+    props: {}
+  } as unknown as ExecutionContext;
+}
+
+describe('createRewardTransitionWorker', () => {
+  it('forwards approved legacy traffic with unchanged URL headers and bytes', async () => {
+    const seen: Array<{
+      url: string;
+      method: string;
+      headers: Headers;
+      body: string;
+    }> = [];
+    const worker = createRewardTransitionWorker({
+      nowMs: () => NOW,
+      originFetcher: async (forwardedRequest) => {
+        const clone = forwardedRequest.clone();
+        seen.push({
+          url: clone.url,
+          method: clone.method,
+          headers: new Headers(clone.headers),
+          body: await clone.text()
+        });
+        return Response.json({ forwarded: true }, { status: 202 });
+      }
+    });
+    const raw = '{\n  "reward_type": "daily",\n  "identifier": "2026-07-26"\n}';
+    const original = request('/api/v1/rewards/claim?source=legacy', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer legacy-token',
+        'content-type': 'application/json',
+        'x-client-version': '1.0.0'
+      },
+      body: raw
+    });
+
+    const response = await worker.fetch(original, transitionEnv(), executionContext());
+
+    expect(response.status).toBe(202);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.url).toBe(original.url);
+    expect(seen[0]?.method).toBe('POST');
+    expect(seen[0]?.headers.get('authorization')).toBe('Bearer legacy-token');
+    expect(seen[0]?.headers.get('content-type')).toBe('application/json');
+    expect(seen[0]?.headers.get('x-client-version')).toBe('1.0.0');
+    expect(seen[0]?.body).toBe(raw);
+  });
+
+  it('never calls the origin for secure challenge claims', async () => {
+    const originFetcher = vi.fn<() => Promise<Response>>();
+    const worker = createRewardTransitionWorker({ originFetcher });
+
+    const response = await worker.fetch(
+      jsonRequest('/api/v1/rewards/claim', { challenge_id: crypto.randomUUID() }),
+      transitionEnv(),
+      executionContext()
+    );
+
+    expect(originFetcher).not.toHaveBeenCalled();
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'UNAUTHORIZED' }
+    });
+  });
+
+  it('handles secure prepare locally and requires JWT', async () => {
+    const originFetcher = vi.fn<() => Promise<Response>>();
+    const worker = createRewardTransitionWorker({ originFetcher });
+
+    const response = await worker.fetch(
+      jsonRequest('/api/v1/rewards/prepare', {
+        reward_type: 'daily',
+        identifier: '2026-07-26'
+      }),
+      transitionEnv(),
+      executionContext()
+    );
+
+    expect(originFetcher).not.toHaveBeenCalled();
+    expect(response.status).toBe(401);
+  });
+
+  it('handles malformed SSV callbacks locally without authentication', async () => {
+    const originFetcher = vi.fn<() => Promise<Response>>();
+    const worker = createRewardTransitionWorker({ originFetcher });
+
+    const response = await worker.fetch(
+      request('/api/v1/rewards/ssv?preflight=invalid'),
+      transitionEnv(),
+      executionContext()
+    );
+
+    expect(originFetcher).not.toHaveBeenCalled();
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'MALFORMED_CALLBACK' }
+    });
+  });
+
+  it('returns classifier rejection without calling either handler', async () => {
+    const originFetcher = vi.fn<() => Promise<Response>>();
+    const worker = createRewardTransitionWorker({ originFetcher });
+
+    const response = await worker.fetch(
+      request('/api/v1/health'),
+      transitionEnv(),
+      executionContext()
+    );
+
+    expect(originFetcher).not.toHaveBeenCalled();
+    expect(response.status).toBe(404);
   });
 });

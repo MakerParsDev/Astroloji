@@ -42,7 +42,10 @@ export async function signAppJwt(
     .sign(secret);
 }
 
-export async function verifyAppJwt(env: Env, token: string): Promise<JwtClaims> {
+export async function verifyAppJwt(
+  env: Pick<Env, 'JWT_SECRET'>,
+  token: string
+): Promise<JwtClaims> {
   const secret = await importHs256Secret(env.JWT_SECRET);
   const { payload } = await jwtVerify(token, secret, {
     algorithms: ['HS256']
