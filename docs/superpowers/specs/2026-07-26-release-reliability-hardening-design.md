@@ -30,7 +30,7 @@ Malformed queued JSON is treated as permanently invalid and deleted rather than 
 
 ### Weekly reward eligibility
 
-Weekly rewarded access is available when rewarded ads are allowed and any premium weekly field is missing. The eligibility decision is a small pure function covered by JVM tests. The overview card remains visible as free content; the reward button is attached to the first locked premium section rather than requiring `summary` to be locked.
+Weekly rewarded access is available when rewarded ads are allowed and one of the visible reward-capable premium cards (`love`, `career`, or `money`) is missing. The eligibility decision and first locked section are derived by shared pure functions covered by JVM tests. The overview card remains visible as free content; the reward button is attached to the first locked card, so partial payloads cannot produce an eligible state with no visible action. Missing optional highlights such as `bestDay` or `warning` do not by themselves create reward eligibility.
 
 ### Optional FCM registration
 
@@ -48,14 +48,15 @@ Weekly rewarded access is available when rewarded ads are allowed and any premiu
 - Analytics permanent 4xx responses are dropped with sanitized logs.
 - Analytics transient failures are queued or retried without logging payload contents.
 - Missing FCM token is a normal state, not an error.
-- Weekly reward eligibility is derived only from content fields and ad eligibility; it does not grant access by itself.
+- Weekly reward eligibility is derived only from visible reward-capable content cards and ad eligibility; it does not grant access by itself.
 
 ## Verification
 
 - Backend analytics contract test fails before the allowlist change and passes afterward.
 - Backend validator and user route tests cover registration without `fcm_token`.
 - Android repository tests cover transient queueing and permanent rejection.
+- An in-memory Room test proves 30-day pruning and 500-event oldest-first eviction in the real DAO implementation.
 - Android policy and Worker tests cover response classification, malformed payload deletion, the 50-event batch limit, delivery deletion, and retry behavior.
-- Weekly ViewModel tests cover free summary with locked premium fields.
-- Session repository tests prove no synthetic FCM token is sent.
+- Weekly ViewModel tests cover free summary, partial premium payloads, first-locked-section selection, and the absence of false eligibility when all visible reward-capable cards are present.
+- Session repository tests prove no synthetic FCM token is sent, and serialization tests prove a null token is omitted from the Retrofit JSON payload.
 - Backend build, full unit/runtime tests, Android full JVM tests, debug assembly, Detekt, ktlint, diff checks, and secret scanning pass.

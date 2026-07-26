@@ -126,7 +126,7 @@ git commit -m "fix(analytics): bound and classify offline events"
 - Modify: `Astroloji/app/src/main/java/com/parsfilo/astrology/feature/weekly/WeeklyScreen.kt`
 
 **Interfaces:**
-- Produces: `isWeeklyPremiumContentLocked(weekly: WeeklyHoroscope): Boolean`.
+- Produces: `firstLockedWeeklyPremiumSection(weekly: WeeklyHoroscope): WeeklyPremiumSection?` and `isWeeklyPremiumContentLocked(weekly: WeeklyHoroscope): Boolean`.
 
 - [x] **Step 1: Write a failing ViewModel test**
 
@@ -138,11 +138,11 @@ Run `WeeklyViewModelTest`; expected false from the existing `summary == null` co
 
 - [x] **Step 3: Implement premium-field lock detection**
 
-A weekly item is locked when any of `love`, `career`, `money`, `bestDay`, or `warning` is null.
+A weekly item is reward-eligible when one of the visible reward-capable cards (`love`, `career`, or `money`) is null. Missing `bestDay` or `warning` alone must not create a hidden reward state.
 
 - [x] **Step 4: Attach reward action to the first locked premium section**
 
-Keep overview free. Pass the reward action to the Love section when premium weekly content is locked.
+Keep overview free. Select the first locked card in Love → Career → Money order and attach the reward action only to that card.
 
 - [x] **Step 5: Run targeted tests and commit**
 
@@ -152,6 +152,10 @@ git add Astroloji/app/src/main/java/com/parsfilo/astrology/feature/weekly/Weekly
   Astroloji/app/src/test/java/com/parsfilo/astrology/feature/weekly/WeeklyViewModelTest.kt
 git commit -m "fix(weekly): expose rewarded premium unlock"
 ```
+
+- [x] **Step 6: Close partial-payload visibility gap**
+
+Add tests where Love is present but Career is locked, select Career as the reward target, and verify missing optional highlights do not produce an invisible reward action.
 
 ### Task 4: Optional real FCM token
 
@@ -219,7 +223,7 @@ Run targeted unit tests, `:app:detekt`, and `:app:ktlintCheck` with the configur
 
 - [x] **Step 3: Review diff and secrets**
 
-Run `git diff --check`, `node scripts/scan-secrets.mjs`, and inspect `git status`.
+Run `git diff --check`, `node scripts/scan-secrets.mjs`, and inspect `git status`. Add an in-memory Room regression test for retention/capacity and a serialization regression test proving null `fcm_token` omission.
 
 - [x] **Step 4: Commit documentation completion**
 
@@ -233,7 +237,7 @@ git commit -m "docs: record reliability hardening verification"
 - Backend type/build verification: passed.
 - Backend Vitest: 16 suites, 55 tests, 0 failures.
 - Worker runtime lane: 1 suite, 3 tests, 0 failures.
-- Android JVM tests: 26 suites, 89 tests, 0 failures/errors/skips.
+- Android JVM tests: 28 suites, 94 tests, 0 failures/errors/skips.
 - Android Detekt: passed; generated text report is empty.
 - Android ktlint: passed; generated reports contain 0 violations.
 - Android debug assembly: passed; `app-debug.apk` produced successfully.
