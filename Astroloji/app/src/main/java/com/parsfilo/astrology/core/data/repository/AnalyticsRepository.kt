@@ -15,6 +15,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import timber.log.Timber
+import java.io.IOException
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -65,7 +66,7 @@ class AnalyticsRepository
                 }
             } catch (exception: CancellationException) {
                 throw exception
-            } catch (exception: Exception) {
+            } catch (exception: IOException) {
                 Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
                 queueEvent(eventType, meta)
             }

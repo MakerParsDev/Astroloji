@@ -381,7 +381,11 @@ class SessionRepository
                 val firebaseToken = ensureFirebaseIdToken(forceRefreshFirebaseToken)
                 val fcmToken =
                     try {
-                        FirebaseMessaging.getInstance().token.await().takeIf { it.isNotBlank() }
+                        FirebaseMessaging
+                            .getInstance()
+                            .token
+                            .await()
+                            .takeIf { it.isNotBlank() }
                     } catch (exception: CancellationException) {
                         throw exception
                     } catch (exception: Exception) {

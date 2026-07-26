@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import java.io.IOException
 
 @HiltWorker
 class EventSyncWorker
@@ -49,7 +50,7 @@ class EventSyncWorker
                             )
                         } catch (exception: CancellationException) {
                             throw exception
-                        } catch (_: Exception) {
+                        } catch (_: IOException) {
                             return@withContext Result.retry()
                         }
 

@@ -68,7 +68,6 @@ class SessionRepositoryRefreshTest {
         unmockkStatic(FirebaseMessaging::class)
     }
 
-
     @Test
     fun `missing FCM token does not generate a placeholder during registration`() =
         runTest {
