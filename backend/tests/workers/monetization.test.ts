@@ -32,29 +32,15 @@ function createJsonR2(document: unknown) {
 }
 
 describe('monetization routes', () => {
-  it('claims a daily reward once per user and content period', async () => {
-    const rewardClaims = new Map<string, string>();
-    const env = createTestEnv({
-      CACHE: {
-        async get(key: string) {
-          return rewardClaims.get(key) ?? null;
-        },
-        async put(key: string, value: string) {
-          rewardClaims.set(key, value);
-        },
-        async delete(key: string) {
-          rewardClaims.delete(key);
-        }
-      } as unknown as KVNamespace
-    });
+  it('rejects an unauthoritative client-only reward claim', async () => {
+    const env = createTestEnv();
     const jwt = await signAppJwt(env, {
       userId: 'user-1',
       isPremium: false,
       firebaseUid: 'firebase-1'
     });
-    const app = createApp();
 
-    const firstResponse = await app.request(
+    const response = await createApp().request(
       '/api/v1/rewards/claim',
       {
         method: 'POST',
@@ -62,54 +48,41 @@ describe('monetization routes', () => {
           authorization: `Bearer ${jwt}`,
           'content-type': 'application/json'
         },
-        body: JSON.stringify({
-          reward_type: 'daily',
-          identifier: '2026-04-10'
-        })
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-04-10' })
       },
       env
     );
 
-    expect(firstResponse.status).toBe(200);
-    await expect(firstResponse.json()).resolves.toEqual({
-      ok: true,
-      reward_type: 'daily',
-      identifier: '2026-04-10'
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'INVALID_REQUEST' }
     });
-
-    const duplicateResponse = await app.request(
-      '/api/v1/rewards/claim',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          reward_type: 'daily',
-          identifier: '2026-04-10'
-        })
-      },
-      env
-    );
-
-    expect(duplicateResponse.status).toBe(409);
   });
 
   it('unlocks daily premium fields when a valid reward claim exists', async () => {
-    const rewardClaims = new Map<string, string>([['reward:user-1:daily:2026-04-10', '1']]);
     const env = createTestEnv({
-      CACHE: {
-        async get(key: string) {
-          return rewardClaims.get(key) ?? null;
+      DB: {
+        prepare(sql: string) {
+          const statement = {
+            bind() {
+              return statement;
+            },
+            async first() {
+              return sql.includes('FROM reward_challenges') ? { id: 'consumed-challenge' } : null;
+            },
+            async all() {
+              return { results: [] };
+            },
+            async run() {
+              return { success: true, meta: { changes: 0 } };
+            }
+          };
+          return statement;
         },
-        async put(key: string, value: string) {
-          rewardClaims.set(key, value);
-        },
-        async delete(key: string) {
-          rewardClaims.delete(key);
+        async batch() {
+          return [];
         }
-      } as unknown as KVNamespace,
+      } as unknown as D1Database,
       CONTENT: createJsonR2({
         date: '2026-04-10',
         language: 'tr',

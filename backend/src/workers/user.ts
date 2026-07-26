@@ -3,11 +3,9 @@ import { Hono } from 'hono';
 import { enforceRateLimit } from '@/services/cache';
 import { deleteFirebaseUser, isFirebaseAccountDeletionError } from '@/services/firebaseAuth';
 import type { AppBindings, FcmTokenRow, Platform, UserProfileResponse, UserRow } from '@/types';
-import { buildRewardCacheKey } from '@/workers/content';
 import { signAppJwt, verifyFirebaseIdToken } from '@/utils/jwt';
 import {
   validateRegisterBody,
-  validateRewardClaimBody,
   validateUpdateUserBody
 } from '@/utils/validators';
 
@@ -107,6 +105,7 @@ async function deleteUserData(env: AppBindings['Bindings'], userId: string): Pro
   await env.DB.batch([
     env.DB.prepare('DELETE FROM subscription_events WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM user_events WHERE user_id = ?').bind(userId),
+    env.DB.prepare('DELETE FROM reward_challenges WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM fcm_tokens WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId)
@@ -232,26 +231,6 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
       jwt,
       is_premium: Boolean(user.is_premium),
       subscription_state: user.subscription_state ?? 'none'
-    });
-  });
-
-  app.post('/rewards/claim', async (c) => {
-    const auth = c.get('auth');
-    const body = validateRewardClaimBody(await c.req.json());
-    const key = buildRewardCacheKey(auth.userId, body.reward_type, body.identifier);
-    const existing = await c.env.CACHE.get(key);
-
-    if (existing) {
-      return jsonError(409, 'ALREADY_CLAIMED', 'Reward already claimed for this content period.');
-    }
-
-    const expirationTtl = body.reward_type === 'daily' ? 60 * 60 * 24 * 2 : 60 * 60 * 24 * 14;
-    await c.env.CACHE.put(key, '1', { expirationTtl });
-
-    return c.json({
-      ok: true,
-      reward_type: body.reward_type,
-      identifier: body.identifier
     });
   });
 

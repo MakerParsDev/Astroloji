@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ads.AdaptiveBannerAd
+import com.parsfilo.astrology.core.ads.RewardedAdRequest
 import com.parsfilo.astrology.core.ads.adsEntryPoint
 import com.parsfilo.astrology.core.ui.components.AstroSectionTitle
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
@@ -59,6 +61,37 @@ fun DailyScreen(
     val activity = context as? Activity
     val shareScope = rememberCoroutineScope()
     val rewardedAdManager = adsEntryPoint(context).rewardedAdManager()
+
+    LaunchedEffect(viewModel, activity) {
+        viewModel.effects.collect { effect ->
+            when (effect) {
+                is DailyUiEffect.ShowRewardAd -> {
+                    val unavailableMessage = context.getString(R.string.rewarded_ad_unavailable)
+                    val hostActivity =
+                        activity ?: run {
+                            viewModel.onEvent(DailyUiEvent.RewardAdUnavailable(unavailableMessage))
+                            return@collect
+                        }
+                    val shown =
+                        rewardedAdManager.showIfAvailable(
+                            activity = hostActivity,
+                            request =
+                                RewardedAdRequest(
+                                    placement = "unlock_daily_full",
+                                    ssvUserId = effect.challenge.userId,
+                                    ssvCustomData = effect.challenge.customData,
+                                ),
+                            onRewardEarned = {
+                                viewModel.onEvent(DailyUiEvent.RewardEarned(effect.challenge.challengeId))
+                            },
+                        )
+                    if (!shown) {
+                        viewModel.onEvent(DailyUiEvent.RewardAdUnavailable(unavailableMessage))
+                    }
+                }
+            }
+        }
+    }
 
     if (uiState.isLoading && uiState.horoscope == null) {
         LoadingState()
@@ -173,13 +206,7 @@ fun DailyScreen(
                         onOpenPremium = onOpenPremium,
                         rewardAction =
                             if (horoscope.full == null && uiState.canUnlockWithReward && activity != null) {
-                                {
-                                    rewardedAdManager.showIfAvailable(
-                                        activity = activity,
-                                        placement = "unlock_daily_full",
-                                        onRewardEarned = { viewModel.onEvent(DailyUiEvent.UnlockWithReward) },
-                                    )
-                                }
+                                { viewModel.onEvent(DailyUiEvent.UnlockWithReward) }
                             } else {
                                 null
                             },

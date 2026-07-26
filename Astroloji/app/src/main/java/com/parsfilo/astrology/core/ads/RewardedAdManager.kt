@@ -8,6 +8,7 @@ import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.rewarded.RewardItem
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.google.android.gms.ads.rewarded.ServerSideVerificationOptions
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,6 +19,12 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
+
+data class RewardedAdRequest(
+    val placement: String,
+    val ssvUserId: String,
+    val ssvCustomData: String,
+)
 
 @Singleton
 class RewardedAdManager
@@ -56,7 +63,7 @@ class RewardedAdManager
 
         fun showIfAvailable(
             activity: Activity,
-            placement: String,
+            request: RewardedAdRequest,
             onRewardEarned: (RewardItem) -> Unit,
             onDismissed: () -> Unit = {},
         ): Boolean {
@@ -66,6 +73,7 @@ class RewardedAdManager
                     return false
                 }
             rewardedAd = null
+            applyRewardSsvOptions(ad, request.ssvUserId, request.ssvCustomData)
             ad.fullScreenContentCallback =
                 object : FullScreenContentCallback() {
                     override fun onAdDismissedFullScreenContent() {
@@ -83,7 +91,7 @@ class RewardedAdManager
                         scope.launch {
                             analyticsRepository.track(
                                 AnalyticsEvents.AD_SHOWN,
-                                mapOf("format" to "rewarded", "placement" to placement),
+                                mapOf("format" to "rewarded", "placement" to request.placement),
                             )
                         }
                     }
@@ -92,3 +100,17 @@ class RewardedAdManager
             return true
         }
     }
+
+internal fun applyRewardSsvOptions(
+    ad: RewardedAd,
+    userId: String,
+    customData: String,
+) {
+    val options =
+        ServerSideVerificationOptions
+            .Builder()
+            .setUserId(userId)
+            .setCustomData(customData)
+            .build()
+    ad.setServerSideVerificationOptions(options)
+}

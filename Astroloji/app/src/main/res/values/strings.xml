@@ -242,4 +242,5 @@
     <string name="settings_delete_dialog_body">This action cannot be undone. Your account and associated app data will be deleted. This does not automatically cancel an active Google Play subscription.</string>
     <string name="settings_delete_dialog_confirm">Delete permanently</string>
     <string name="settings_delete_dialog_cancel">Cancel</string>
+    <string name="rewarded_ad_unavailable">Rewarded ad is not ready. Please try again.</string>
 </resources>

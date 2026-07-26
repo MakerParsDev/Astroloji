@@ -29,8 +29,6 @@ jobs:
       DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
-      ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
     steps:
@@ -45,7 +43,7 @@ jobs:
       - name: Validate deployment configuration
         run: |
           missing=0
-          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG ADMIN_SECRET CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID; do
             if [ -z "${!name:-}" ]; then
               echo "Missing required production setting: $name"
               missing=1
@@ -68,32 +66,51 @@ jobs:
       - name: Install Doppler CLI
         run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
 
-      - name: Validate required Doppler secrets
+      - name: Load and validate deployment secrets from Doppler
         run: |
+          umask 077
           doppler secrets download \
             --no-file \
             --format json \
             --project "$DOPPLER_PROJECT" \
-            --config "$DOPPLER_CONFIG" |
-          node -e '
-            const fs = require("node:fs");
-            const secrets = JSON.parse(fs.readFileSync(0, "utf8"));
-            const required = [
-              "JWT_SECRET",
-              "GOOGLE_SERVICE_ACCOUNT_JSON",
-              "FIREBASE_SERVICE_ACCOUNT_JSON",
-              "PLAY_WEBHOOK_SECRET",
-            ];
-            const missing = required.filter((name) => !secrets[name]);
-            if (missing.length) {
-              console.error("Missing required Doppler secrets: " + missing.join(", "));
-              process.exit(1);
-            }
-            console.log("Validated " + required.length + " required Doppler secrets and the GitHub ADMIN_SECRET override.");
-          '
+            --config "$DOPPLER_CONFIG" \
+            > "$RUNNER_TEMP/doppler-secrets.json"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const secrets = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/doppler-secrets.json', 'utf8'));
+          const value = (name) => {
+            const raw = secrets[name];
+            return typeof raw === 'string' ? raw : raw?.computed;
+          };
+          const required = [
+            'JWT_SECRET',
+            'GOOGLE_SERVICE_ACCOUNT_JSON',
+            'FIREBASE_SERVICE_ACCOUNT_JSON',
+            'PLAY_WEBHOOK_SECRET',
+            'ADMIN_SECRET',
+            'ADMOB_REWARDED_ID',
+            'CLOUDFLARE_API_TOKEN',
+          ];
+          const missing = required.filter((name) => !value(name));
+          if (missing.length) throw new Error(`Missing required Doppler secrets: ${missing.join(', ')}`);
+          for (const name of ['ADMIN_SECRET', 'CLOUDFLARE_API_TOKEN']) {
+            const resolved = value(name);
+            console.log(`::add-mask::${resolved}`);
+            fs.appendFileSync(process.env.GITHUB_ENV, `${name}<<DOPPLER_${name}\n${resolved}\nDOPPLER_${name}\n`);
+          }
+          console.log(`Validated ${required.length} required Doppler secrets.`);
+          NODE
+
+
+      - name: Apply rewarded SSV D1 migration
+        run: npx wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql
 
       - name: Sync Worker secrets and deploy
         run: npm run deploy:doppler
+
+
+      - name: Verify live rewarded SSV endpoint
+        run: node ../scripts/check-backend-reward-ssv.mjs
 
       - name: Verify live endpoints
         run: |
@@ -150,3 +167,7 @@ jobs:
             echo "- Terms: ${BACKEND_BASE_URL%/}/terms"
             echo "- Account deletion: ${BACKEND_BASE_URL%/}/delete-account"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove deployment secret files
+        if: always()
+        run: rm -f "$RUNNER_TEMP/doppler-secrets.json"

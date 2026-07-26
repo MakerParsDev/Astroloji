@@ -11,6 +11,7 @@ import {
   type Language,
   type NotificationRequest,
   type RewardClaimRequest,
+  type RewardPrepareRequest,
   type RegisterRequest,
   type Sign,
   type SubscriptionVerifyRequest,
@@ -61,9 +62,27 @@ export const trackEventSchema = z.object({
   meta: z.record(z.string(), z.unknown()).optional().default({})
 });
 
+const dailyRewardIdentifierSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const weeklyRewardIdentifierSchema = z.string().regex(/^\d{4}-W\d{2}$/);
+
+export const rewardPrepareSchema = z
+  .object({
+    reward_type: rewardTypeSchema,
+    identifier: z.string().min(1)
+  })
+  .superRefine((value, context) => {
+    const schema = value.reward_type === 'daily' ? dailyRewardIdentifierSchema : weeklyRewardIdentifierSchema;
+    if (!schema.safeParse(value.identifier).success) {
+      context.addIssue({
+        code: 'custom',
+        path: ['identifier'],
+        message: `identifier is invalid for ${value.reward_type} rewards.`
+      });
+    }
+  });
+
 export const rewardClaimSchema = z.object({
-  reward_type: rewardTypeSchema,
-  identifier: z.string().min(1)
+  challenge_id: z.uuid()
 });
 
 const optionalSeedDateSchema = z.preprocess(
@@ -125,6 +144,10 @@ export function validateSubscriptionBody(payload: unknown): SubscriptionVerifyRe
 
 export function validateTrackEventBody(payload: unknown): TrackEventRequest {
   return trackEventSchema.parse(payload);
+}
+
+export function validateRewardPrepareBody(payload: unknown): RewardPrepareRequest {
+  return rewardPrepareSchema.parse(payload);
 }
 
 export function validateRewardClaimBody(payload: unknown): RewardClaimRequest {

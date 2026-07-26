@@ -8,6 +8,7 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.ContentRepository
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
+import com.parsfilo.astrology.core.domain.model.RewardChallenge
 import com.parsfilo.astrology.core.domain.model.WeeklyHoroscope
 import com.parsfilo.astrology.core.ui.MviViewModel
 import com.parsfilo.astrology.core.util.AppResult
@@ -29,6 +30,20 @@ sealed interface WeeklyUiEvent {
     data object Refresh : WeeklyUiEvent
 
     data object UnlockWithReward : WeeklyUiEvent
+
+    data class RewardAdUnavailable(
+        val message: String,
+    ) : WeeklyUiEvent
+
+    data class RewardEarned(
+        val challengeId: String,
+    ) : WeeklyUiEvent
+}
+
+sealed interface WeeklyUiEffect {
+    data class ShowRewardAd(
+        val challenge: RewardChallenge,
+    ) : WeeklyUiEffect
 }
 
 @HiltViewModel
@@ -41,7 +56,7 @@ class WeeklyViewModel
         private val analyticsRepository: AnalyticsRepository,
         private val remoteConfigRepository: RemoteConfigRepository,
         private val adEligibilityChecker: AdEligibilityChecker,
-    ) : MviViewModel<WeeklyUiState, WeeklyUiEvent, Unit>(WeeklyUiState()) {
+    ) : MviViewModel<WeeklyUiState, WeeklyUiEvent, WeeklyUiEffect>(WeeklyUiState()) {
         private val signFromArgs: String? = savedStateHandle.get<String>("sign")
 
         init {
@@ -56,7 +71,19 @@ class WeeklyViewModel
                 WeeklyUiEvent.UnlockWithReward -> {
                     viewModelScope.launch {
                         val identifier = TimeUtils.weekIdentifier()
-                        when (val claimResult = contentRepository.claimRewardUnlock("weekly", identifier)) {
+                        when (val prepareResult = contentRepository.prepareRewardUnlock("weekly", identifier)) {
+                            is AppResult.Success -> sendEffect { WeeklyUiEffect.ShowRewardAd(prepareResult.data) }
+                            is AppResult.Error -> setState { copy(error = prepareResult.exception.message) }
+                            AppResult.Loading -> Unit
+                        }
+                    }
+                }
+                is WeeklyUiEvent.RewardAdUnavailable -> {
+                    setState { copy(error = event.message) }
+                }
+                is WeeklyUiEvent.RewardEarned -> {
+                    viewModelScope.launch {
+                        when (val claimResult = contentRepository.claimRewardUnlock(event.challengeId)) {
                             is AppResult.Success -> load(true)
                             is AppResult.Error -> setState { copy(error = claimResult.exception.message) }
                             AppResult.Loading -> Unit

@@ -8,6 +8,7 @@ import type {
   SubscriptionRow
 } from '@/types';
 import { getCurrentUtcHour, getDateIdentifier, shouldSendNotificationAtUtcHour } from '@/utils/date';
+import { cleanupRewardChallenges } from '@/workers/reward';
 
 const SIGN_LABELS = {
   tr: {
@@ -213,4 +214,11 @@ export async function handleCron(
   void controller;
   await expireAndRefreshSubscriptions(env);
   await dispatchScheduledNotifications(env, getCurrentUtcHour());
+  try {
+    await cleanupRewardChallenges(env.DB);
+  } catch (error) {
+    console.error('Reward challenge cleanup failed.', {
+      error: error instanceof Error ? error.message : 'unknown cleanup error'
+    });
+  }
 }

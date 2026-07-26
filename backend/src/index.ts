@@ -10,10 +10,12 @@ import { corsMiddleware } from '@/middleware/cors';
 import { renderAccountDeletion, renderPrivacyPolicy, renderTermsOfUse } from '@/pages/legal';
 import { enforceRateLimit } from '@/services/cache';
 import type { AppBindings } from '@/types';
+import type { RewardRouteDependencies } from '@/workers/reward';
 import { validateTrackEventBody } from '@/utils/validators';
 import { registerContentAdminRoutes, registerContentRoutes } from '@/workers/content';
 import { handleCron } from '@/workers/cron';
 import { registerNotificationRoutes } from '@/workers/notification';
+import { registerRewardRoutes } from '@/workers/reward';
 import {
   registerSubscriptionAdminRoutes,
   registerSubscriptionRoutes
@@ -24,7 +26,11 @@ function jsonError(status: number, code: string, message: string) {
   return Response.json({ error: { code, message } }, { status });
 }
 
-export function createApp() {
+export interface CreateAppOptions {
+  reward?: RewardRouteDependencies;
+}
+
+export function createApp(options: CreateAppOptions = {}) {
   const app = new Hono<AppBindings>();
 
   app.use('*', corsMiddleware);
@@ -88,6 +94,7 @@ export function createApp() {
 
   apiRoutes.use('/users/me', jwtAuthMiddleware);
   apiRoutes.use('/users/refresh-token', jwtAuthMiddleware);
+  apiRoutes.use('/rewards/prepare', jwtAuthMiddleware);
   apiRoutes.use('/rewards/claim', jwtAuthMiddleware);
   apiRoutes.use('/content/*', jwtAuthMiddleware);
   apiRoutes.use('/content/*', contentCacheBypassMiddleware);
@@ -108,6 +115,7 @@ export function createApp() {
   apiRoutes.use('/events/track', jwtAuthMiddleware);
 
   registerUserRoutes(apiRoutes);
+  registerRewardRoutes(apiRoutes, options.reward);
   registerContentRoutes(apiRoutes);
   registerSubscriptionRoutes(apiRoutes);
 

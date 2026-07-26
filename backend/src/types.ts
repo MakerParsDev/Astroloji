@@ -75,6 +75,7 @@ interface SecretBindings {
   FIREBASE_SERVICE_ACCOUNT_JSON: string;
   PLAY_WEBHOOK_SECRET: string;
   ADMIN_SECRET: string;
+  ADMOB_REWARDED_ID: string;
 }
 
 export type Env = CloudflareEnv & SecretBindings;
@@ -163,6 +164,24 @@ export interface SubscriptionRow {
   cancel_reason: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type RewardChallengeStatus = 'pending' | 'verified' | 'consumed';
+
+export interface RewardChallengeRow {
+  id: string;
+  user_id: string;
+  reward_type: RewardType;
+  identifier: string;
+  status: RewardChallengeStatus;
+  transaction_id: string | null;
+  ad_unit: string | null;
+  callback_timestamp_ms: number | null;
+  created_at: string;
+  expires_at: string;
+  verified_at: string | null;
+  consumed_at: string | null;
+  entitlement_expires_at: string | null;
 }
 
 export interface DailySignContent {
@@ -290,9 +309,13 @@ export interface TrackEventRequest {
   meta?: Record<string, unknown>;
 }
 
-export interface RewardClaimRequest {
+export interface RewardPrepareRequest {
   reward_type: RewardType;
   identifier: string;
+}
+
+export interface RewardClaimRequest {
+  challenge_id: string;
 }
 
 export interface ContentBackfillRequest {

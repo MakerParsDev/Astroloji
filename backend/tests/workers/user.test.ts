@@ -277,6 +277,7 @@ describe('user routes', () => {
     expect(batched.map((statement) => statement.sql.replace(/\s+/g, ' ').trim())).toEqual([
       'DELETE FROM subscription_events WHERE user_id = ?',
       'DELETE FROM user_events WHERE user_id = ?',
+      'DELETE FROM reward_challenges WHERE user_id = ?',
       'DELETE FROM fcm_tokens WHERE user_id = ?',
       'DELETE FROM subscriptions WHERE user_id = ?',
       'DELETE FROM users WHERE id = ?'

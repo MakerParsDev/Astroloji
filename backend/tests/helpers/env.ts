@@ -3,13 +3,13 @@ import type { Env } from '@/types';
 export function createTestEnv(overrides: Partial<Env> = {}): Env {
   return {
     DB: {
-      prepare() {
+      prepare(sql: string) {
         const statement = {
           bind() {
             return statement;
           },
           async first() {
-            return { ok: 1 };
+            return sql.replace(/\s+/g, ' ').trim().startsWith('SELECT 1') ? { ok: 1 } : null;
           },
           async all() {
             return { results: [] };
@@ -63,6 +63,7 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
     }),
     PLAY_WEBHOOK_SECRET: 'play-secret',
     ADMIN_SECRET: 'admin-secret',
+    ADMOB_REWARDED_ID: 'ca-app-pub-3940256099942544/5224354917',
     ...overrides
   };
 }

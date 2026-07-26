@@ -39,6 +39,7 @@ jobs:
       JAVA_VERSION: ${{ vars.JAVA_VERSION }}
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
     steps:
       - uses: actions/checkout@v6
 
@@ -50,6 +51,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
+
+
+      - name: Verify live rewarded SSV backend
+        run: node ../scripts/check-backend-reward-ssv.mjs
 
       - name: Install Doppler CLI
         env:
