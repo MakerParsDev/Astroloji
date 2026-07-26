@@ -68,9 +68,49 @@ Not: Debug/unit verify gorevleri gerekiyorsa `app/google-services.example.json` 
 7. Release artifact'i repoya commit etme; GitHub artifact olarak saklanir.
 8. Doppler modeli kullaniliyorsa `internal` ve `production` environment icin ayri read-only token tercih et.
 
+## Rewarded SSV Gecis Worker'i
+
+Bu gecis tam `astrology-backend` deploy'u degildir. Sadece `astrology.parsfilo.com/api/v1/rewards/*` yolu `astrology-ssv-transition` Worker'ina baglanir; diger tum yollar degismemis origin Worker'da kalir.
+
+1. `main` uzerinde `backend-ssv-transition-deploy` workflow'unu calistir. Onay: `DEPLOY_TRANSITION`. `legacy_forward_until` gelecekte, UTC ve en fazla 30 gun (tercihen 14 gun veya daha kisa) olmalidir.
+2. Workflow ozetinde deployment ID, route ID/pattern, D1 migration, deadline, `MALFORMED_CALLBACK` smoke sonucu ve rollback workflow adini kaydet.
+3. GitHub Actions disinda tek kullanimlik test degerlerini olustur:
+
+```powershell
+cd backend
+npm run transition:challenge:create
+```
+
+4. AdMob SSV ekraninda su alanlari kullan:
+
+```text
+Callback URL: https://astrology.parsfilo.com/api/v1/rewards/ssv
+User ID: transition:challenge:create ciktisindaki User ID
+Custom data: transition:challenge:create ciktisindaki challenge UUID
+```
+
+5. **URL'yi doğrula** butonuna bas. Basarisizsa kaydetme. Basariliysa **Doğrulanan URL'yi kullan**, ardindan **Kaydet**.
+6. Challenge'i kontrol et; kayda yalnizca challenge prefix, expiry, `verified` status ve transaction prefix ekle:
+
+```powershell
+npm run transition:challenge:inspect -- <challenge-uuid>
+```
+
+7. Evidence kaydindan sonra test satirini sil:
+
+```powershell
+npm run transition:challenge:delete -- <challenge-uuid>
+```
+
+8. `android-internal-preflight` calistir ve workflow URL/sonucunu kaydet. `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
+
+### Gecis rollback
+
+`backend-ssv-transition-rollback` workflow'unu `REMOVE_TRANSITION_ROUTE` onayi ile calistir. Workflow yalnizca exact reward route'unu siler, origin health'i `200`, eski SSV fall-through davranisini `403` olarak dogrular ve D1 migration'ini silmez. Worker silme secenegi route kaldirildiktan ve origin dogrulandiktan sonra kullanilabilir.
+
 ## Backend Deploy Adimlari
 
-`backend-production-deploy` workflow'u rewarded SSV D1 migration'ini idempotent uygular ve canlı `/api/v1/rewards/ssv` fail-closed kontrolünü yapar. Acil manuel deployda aynı migration dosyasını önce remote D1'a uygula. AdMob callback URL'sini `/api/v1/rewards/ssv` olarak ayarla.
+`backend-production-deploy` tam backend cutover isidir ve gecis asamasinda calistirilmaz. Rewarded SSV panel dogrulamasi ve internal QA tamamlanmadan eski client uyumlulugunu kaldirma.
 
 1. Doppler secret'larinin guncel oldugunu kontrol et.
 2. Lokal on dogrulama calistir:
@@ -153,6 +193,12 @@ Her release sonunda su bilgiler saklanmali:
 - Release tag
 - Git commit SHA
 - Cloudflare Worker deploy ID
+- Transition route ID ve `astrology.parsfilo.com/api/v1/rewards/*` pattern
+- Legacy compatibility deadline
+- D1 migration ve malformed callback 400 sonucu
+- AdMob test challenge prefix/expiry/verified status/transaction prefix
+- Test challenge silme sonucu
+- Android internal preflight workflow URL/sonucu
 - Android artifact/build numarasi
 - GitHub workflow run URL'si
 - Smoke check sonucu

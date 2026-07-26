@@ -89,6 +89,8 @@ The initial deadline is set conservatively for the planned internal/closed-test 
 
 ## AdMob URL verification flow
 
+The exact callback URL is `https://astrology.parsfilo.com/api/v1/rewards/ssv`.
+
 1. Apply the additive `reward_challenges` D1 migration.
 2. Deploy `astrology-ssv-transition` and attach the reward route.
 3. Verify that unrelated endpoints still reach `astrology-backend` and that malformed SSV callbacks fail closed through the transition Worker.
@@ -124,9 +126,9 @@ The initial deadline is set conservatively for the planned internal/closed-test 
 1. Merge and verify the transition Worker change.
 2. Create a Cloudflare deployment review plan against the current `astrology-backend` deployment state.
 3. Apply the D1 migration idempotently.
-4. Sync only the required transition Worker secrets from Doppler.
-5. Deploy the transition Worker without a route and test its generated bundle locally/runtime-first.
-6. Attach `astrology.parsfilo.com/api/v1/rewards/*` to the transition Worker.
+4. Deploy the transition Worker without a route or workers.dev endpoint, using the reviewed compatibility deadline.
+5. Sync and verify only the required transition Worker secrets from Doppler while the Worker is still unrouted.
+6. Attach `astrology.parsfilo.com/api/v1/rewards/*` through the Cloudflare Routes API only after the Worker and exact secret inventory are ready.
 7. Run route isolation and legacy-forwarding smoke tests.
 8. Provision the one-time AdMob verification challenge.
 9. Have the user verify and save the callback URL in AdMob.

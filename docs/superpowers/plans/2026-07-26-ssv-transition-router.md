@@ -32,7 +32,7 @@
 - Create `backend/src/transition/index.ts`: focused Worker entrypoint and minimum environment contract.
 - Create `backend/tests/transition/rewardTransition.test.ts`: unit contract for exact legacy matching, secure-local routing, deadline behavior, and byte-preserving forwarding.
 - Create `backend/tests/runtime/transition-worker-runtime.test.ts`: Miniflare/Wrangler runtime smoke coverage for bindings and public SSV behavior.
-- Create `backend/wrangler.transition.toml`: dedicated Worker name, entrypoint, bindings, route, and `workers_dev = false`.
+- Create `backend/wrangler.transition.toml`: dedicated Worker name, entrypoint, minimum bindings, fail-closed deadline, and `workers_dev = false`; production route attachment remains workflow-only.
 - Create `backend/scripts/sync-transition-secrets.ts`: sync only `JWT_SECRET` and `ADMOB_REWARDED_ID` to the transition Worker.
 - Create `backend/scripts/create-admob-verification-challenge.ts`: insert and later inspect/delete a short-lived D1 verification challenge without printing full identifiers.
 - Create `backend/tests/scripts/transitionShared.test.ts`: tests for transition secret selection and verification challenge SQL/format helpers.
@@ -384,10 +384,6 @@ main = "src/transition/index.ts"
 compatibility_date = "2026-04-05"
 workers_dev = false
 
-[[routes]]
-pattern = "astrology.parsfilo.com/api/v1/rewards/*"
-zone_name = "parsfilo.com"
-
 [[d1_databases]]
 binding = "DB"
 database_name = "astrology-db"
@@ -398,10 +394,10 @@ binding = "CACHE"
 id = "12c50600e61447c29ed0bcb122f5cc85"
 
 [vars]
-LEGACY_REWARD_FORWARD_UNTIL = "2026-08-09T00:00:00Z"
+LEGACY_REWARD_FORWARD_UNTIL = "1970-01-01T00:00:00Z"
 ```
 
-The date is deliberately explicit and audited; extending it requires a new commit or workflow input recorded in deployment evidence.
+The committed date is deliberately expired and fail-closed. The reviewed deployment workflow renders a temporary route-free config with its validated future UTC input; the committed file is never edited in place.
 
 - [ ] **Step 3: Add package scripts**
 
@@ -630,10 +626,10 @@ Assert exact ordering:
 
 ```js
 const migration = deploy.indexOf('migrate-reward-ssv.sql');
-const secretSync = deploy.indexOf('transition:secrets');
 const deployWorker = deploy.indexOf('deploy:transition');
+const secretSync = deploy.indexOf('transition:secrets');
 const routeSmoke = deploy.indexOf('check-ssv-transition-route.mjs');
-assert.ok(migration < secretSync && secretSync < deployWorker && deployWorker < routeSmoke);
+assert.ok(migration < deployWorker && deployWorker < secretSync && secretSync < routeSmoke);
 assert.match(deploy, /ENABLE_PRODUCTION_RELEASE/);
 assert.match(deploy, /false/);
 assert.doesNotMatch(deploy, /deploy:doppler/);
@@ -652,9 +648,9 @@ Required sequence:
 4. Build/test main backend and transition bundle.
 5. Install Doppler and load `CLOUDFLARE_API_TOKEN` only into masked environment.
 6. Apply `backend/scripts/migrate-reward-ssv.sql` remotely.
-7. Run `npm run transition:secrets`.
-8. Render a temporary Wrangler config with the reviewed deadline; do not edit the committed file in place.
-9. Deploy `astrology-ssv-transition` and attach `astrology.parsfilo.com/api/v1/rewards/*`.
+7. Render a temporary route-free Wrangler config with the reviewed deadline; do not edit the committed file in place.
+8. Deploy `astrology-ssv-transition` while it has no route, then run `npm run transition:secrets` and verify the exact two-secret inventory.
+9. Attach `astrology.parsfilo.com/api/v1/rewards/*` through the Cloudflare Routes API.
 10. Run `node ../scripts/check-ssv-transition-route.mjs`.
 11. Record Worker deployment ID, route pattern, zone ID, deadline, D1 result, and rollback workflow name in `$GITHUB_STEP_SUMMARY`.
 

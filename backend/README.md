@@ -110,7 +110,25 @@ CREATE INDEX IF NOT EXISTS idx_users_subscription_state ON users(subscription_st
 
 ## Rewarded Ad SSV Kurulumu
 
-1. D1 migration: `npx wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql`
-2. Doppler/Cloudflare secret: `ADMOB_REWARDED_ID`. Bu değer Android release yapılandırması ve AdMob'daki production `REWARDED` reklam birimiyle birebir aynı olmalıdır; farklılık geçerli SSV callback'lerini reddeder ve ödülü kilitli bırakır.
-3. AdMob SSV callback URL: `https://astrology.parsfilo.com/api/v1/rewards/ssv`
-4. Backend deploy sonrasında malformed callback smoke testi HTTP 400 dönmelidir.
+Production gecisi icin tam backend'i hemen deploy etmeyin. Once route-free `astrology-ssv-transition` Worker'ini reviewed workflow ile deploy edin; workflow sadece `JWT_SECRET` ve Android/AdMob production `REWARDED` birimiyle birebir ayni `ADMOB_REWARDED_ID` secret'ini senkronlar ve exact reward route'unu son adimda baglar.
+
+1. Workflow: `backend-ssv-transition-deploy` (`DEPLOY_TRANSITION` + gelecekte UTC deadline).
+2. D1 migration workflow tarafindan idempotent uygulanir: `scripts/migrate-reward-ssv.sql`.
+3. Canli malformed callback `400 / MALFORMED_CALLBACK` donmelidir.
+4. Test challenge degerleri GitHub Actions disinda uretilir:
+
+   ```bash
+   npm run transition:challenge:create
+   ```
+
+5. AdMob alanlari:
+
+   ```text
+   Callback URL: https://astrology.parsfilo.com/api/v1/rewards/ssv
+   User ID: create komutunun User ID ciktisi
+   Custom data: create komutunun challenge UUID ciktisi
+   ```
+
+6. AdMob'da **URL'yi doğrula** basarili olmadan kaydetmeyin. Basaridan sonra **Doğrulanan URL'yi kullan** ve **Kaydet**.
+7. `npm run transition:challenge:inspect -- <uuid>` ile sadece redakte evidence alin; ardindan `npm run transition:challenge:delete -- <uuid>` ile test satirini silin.
+8. Rollback: `backend-ssv-transition-rollback` exact route'u kaldirir; `astrology-backend` ve D1 tablosu degismez.
