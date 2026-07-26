@@ -74,6 +74,7 @@ Bu gecis tam `astrology-backend` deploy'u degildir. Sadece `astrology.parsfilo.c
 
 1. `main` uzerinde `backend-ssv-transition-deploy` workflow'unu calistir. Onay: `DEPLOY_TRANSITION`. `legacy_forward_until` gelecekte, UTC ve en fazla 30 gun (tercihen 14 gun veya daha kisa) olmalidir.
 2. Workflow ozetinde deployment ID, route ID/pattern, D1 migration, deadline, `MALFORMED_CALLBACK` smoke sonucu ve rollback workflow adini kaydet.
+   Secret senkronu yarida kalirsa Worker henuz route edilmemistir; hatayi duzeltip ayni workflow'u yeniden calistir. Route'u elle baglama.
 3. GitHub Actions disinda tek kullanimlik test degerlerini olustur:
 
 ```powershell

@@ -115,6 +115,7 @@ Production gecisi icin tam backend'i hemen deploy etmeyin. Once route-free `astr
 1. Workflow: `backend-ssv-transition-deploy` (`DEPLOY_TRANSITION` + gelecekte UTC deadline).
 2. D1 migration workflow tarafindan idempotent uygulanir: `scripts/migrate-reward-ssv.sql`.
 3. Canli malformed callback `400 / MALFORMED_CALLBACK` donmelidir.
+   Secret senkronu yarida kalirsa Worker route edilmez; hatayi duzeltip ayni deploy workflow'unu guvenle yeniden calistirin. Route'u elle baglamayin.
 4. Test challenge degerleri GitHub Actions disinda uretilir:
 
    ```powershell

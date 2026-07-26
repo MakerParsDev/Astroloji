@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   TRANSITION_SECRET_NAMES,
@@ -11,6 +15,11 @@ import {
   createVerificationChallengeValues,
   formatVerificationEvidence
 } from '../../scripts/create-admob-verification-challenge';
+import {
+  putTransitionSecret,
+  resolveTransitionConfig,
+  syncTransitionSecrets
+} from '../../scripts/sync-transition-secrets';
 
 describe('transition secret resolution', () => {
   it('selects only transition secrets', () => {
@@ -50,6 +59,136 @@ describe('transition secret resolution', () => {
     expect(() => resolveTransitionSecrets({ JWT_SECRET: 'jwt' }, {})).toThrow(
       'Required transition secret is missing: ADMOB_REWARDED_ID'
     );
+  });
+});
+
+
+describe('transition secret synchronization', () => {
+  function withTransitionConfig(
+    fileName: 'wrangler.transition.toml' | '.wrangler.transition.deploy.toml',
+    body = `name = "astrology-ssv-transition"
+main = "src/transition/index.ts"
+workers_dev = false
+
+[vars]
+LEGACY_REWARD_FORWARD_UNTIL = "2026-08-09T21:00:00Z"
+`
+  ) {
+    const directory = mkdtempSync(path.join(os.tmpdir(), 'astrology-transition-'));
+    writeFileSync(path.join(directory, fileName), body, 'utf8');
+    return {
+      directory,
+      cleanup: () => rmSync(directory, { recursive: true, force: true })
+    };
+  }
+
+  it('accepts only the committed or reviewed temporary config for the transition Worker', () => {
+    for (const fileName of ['wrangler.transition.toml', '.wrangler.transition.deploy.toml'] as const) {
+      const fixture = withTransitionConfig(fileName);
+      try {
+        expect(resolveTransitionConfig({ requested: fileName, cwd: fixture.directory })).toBe(
+          path.join(fixture.directory, fileName)
+        );
+      } finally {
+        fixture.cleanup();
+      }
+    }
+  });
+
+  it('rejects arbitrary paths, another Worker, or a config containing routes', () => {
+    const fixture = withTransitionConfig('wrangler.transition.toml');
+    try {
+      expect(() =>
+        resolveTransitionConfig({ requested: '../other.toml', cwd: fixture.directory })
+      ).toThrow('Transition Wrangler config path is not allowed.');
+    } finally {
+      fixture.cleanup();
+    }
+
+    const wrongWorker = withTransitionConfig(
+      '.wrangler.transition.deploy.toml',
+      'name = "another-worker"\nmain = "src/transition/index.ts"\nworkers_dev = false\n'
+    );
+    try {
+      expect(() =>
+        resolveTransitionConfig({
+          requested: '.wrangler.transition.deploy.toml',
+          cwd: wrongWorker.directory
+        })
+      ).toThrow('Transition Wrangler config must target astrology-ssv-transition.');
+    } finally {
+      wrongWorker.cleanup();
+    }
+
+    const routed = withTransitionConfig(
+      '.wrangler.transition.deploy.toml',
+      'name = "astrology-ssv-transition"\nmain = "src/transition/index.ts"\nworkers_dev = false\n[[routes]]\npattern = "example.com/*"\n'
+    );
+    try {
+      expect(() =>
+        resolveTransitionConfig({
+          requested: '.wrangler.transition.deploy.toml',
+          cwd: routed.directory
+        })
+      ).toThrow('Transition Wrangler config must remain route-free.');
+    } finally {
+      routed.cleanup();
+    }
+  });
+
+  it.each([
+    ['linux', 'npx', false],
+    ['win32', 'npx.cmd', true]
+  ] as const)(
+    'invokes Wrangler safely on %s with config, stdin, and a bounded timeout',
+    (platform, executable, shell) => {
+      const execute = vi.fn();
+      putTransitionSecret('JWT_SECRET', 'jwt-value', {
+        configPath: '/repo/.wrangler.transition.deploy.toml',
+        cwd: '/repo',
+        platform,
+        execute
+      });
+
+      expect(execute).toHaveBeenCalledWith(
+        executable,
+        [
+          'wrangler',
+          'secret',
+          'put',
+          'JWT_SECRET',
+          '--config',
+          '/repo/.wrangler.transition.deploy.toml'
+        ],
+        expect.objectContaining({
+          cwd: '/repo',
+          input: 'jwt-value',
+          shell,
+          timeout: 120_000
+        })
+      );
+    }
+  );
+
+  it('reports partial synchronization as a safe retry and never prints final success', () => {
+    const log = vi.fn();
+    const putSecret = vi
+      .fn()
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => {
+        throw new Error('Wrangler timed out');
+      });
+
+    expect(() =>
+      syncTransitionSecrets(
+        { JWT_SECRET: 'jwt', ADMOB_REWARDED_ID: 'admob' },
+        { configPath: '/repo/.wrangler.transition.deploy.toml', putSecret, log }
+      )
+    ).toThrow(
+      'Failed to sync transition Worker secret ADMOB_REWARDED_ID. The Worker is still unrouted; fix the error and safely rerun the deployment workflow.'
+    );
+    expect(log).toHaveBeenCalledWith('Synced transition Worker secret: JWT_SECRET');
+    expect(log).not.toHaveBeenCalledWith('Synced 2 minimum transition secrets.');
   });
 });
 

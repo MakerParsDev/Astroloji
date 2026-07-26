@@ -17,21 +17,22 @@ Last reviewed: 2026-07-26
 2. Run `backend-ssv-transition-deploy` from `main` with:
    - confirmation `DEPLOY_TRANSITION`;
    - an ISO UTC `legacy_forward_until` no more than 30 days ahead (normally 14 days or less).
-3. Confirm the workflow evidence contains:
+3. If transition secret synchronization fails, leave the Worker unrouted, correct the failure, and safely rerun the same deployment workflow. Never attach the route manually after a partial secret update.
+4. Confirm the workflow evidence contains:
    - Worker deployment ID;
    - route `astrology.parsfilo.com/api/v1/rewards/*` and its route ID;
    - D1 migration success;
    - compatibility deadline;
    - malformed callback HTTP 400 / `MALFORMED_CALLBACK`;
    - rollback workflow `backend-ssv-transition-rollback`.
-4. Outside GitHub Actions, create the one-time AdMob verification values:
+5. Outside GitHub Actions, create the one-time AdMob verification values:
 
    ```powershell
    cd backend
    npm run transition:challenge:create
    ```
 
-5. In the production rewarded ad unit's SSV dialog enter exactly:
+6. In the production rewarded ad unit's SSV dialog enter exactly:
 
    ```text
    Callback URL: https://astrology.parsfilo.com/api/v1/rewards/ssv
@@ -39,21 +40,21 @@ Last reviewed: 2026-07-26
    Custom data: challenge UUID printed by transition:challenge:create
    ```
 
-6. Click **URL'yi doğrula**. Continue only after success; then click **Doğrulanan URL'yi kullan** and **Kaydet**. Do not save a failed verification.
-7. Inspect the challenge by exact UUID and record only the challenge prefix, expiry, `verified` status, and transaction prefix:
+7. Click **URL'yi doğrula**. Continue only after success; then click **Doğrulanan URL'yi kullan** and **Kaydet**. Do not save a failed verification.
+8. Inspect the challenge by exact UUID and record only the challenge prefix, expiry, `verified` status, and transaction prefix:
 
    ```powershell
    npm run transition:challenge:inspect -- <challenge-uuid>
    ```
 
-8. Delete the one-time test challenge after evidence is recorded:
+9. Delete the one-time test challenge after evidence is recorded:
 
    ```powershell
    npm run transition:challenge:delete -- <challenge-uuid>
    ```
 
-9. Run `android-internal-preflight` from `main`, retain its workflow URL/result, and complete real-device rewarded daily/weekly QA before any Play release.
-10. Keep `ENABLE_PRODUCTION_RELEASE=false`. Do not run `backend-production-deploy` until the secure Android rollout/cutover plan explicitly allows removal of the legacy compatibility path.
+10. Run `android-internal-preflight` from `main`, retain its workflow URL/result, and complete real-device rewarded daily/weekly QA before any Play release.
+11. Keep `ENABLE_PRODUCTION_RELEASE=false`. Do not run `backend-production-deploy` until the secure Android rollout/cutover plan explicitly allows removal of the legacy compatibility path.
 
 ## Transition rollback
 
