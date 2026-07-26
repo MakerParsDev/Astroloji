@@ -12,6 +12,7 @@ import {
   type NotificationRequest,
   type RewardClaimRequest,
   type RewardPrepareRequest,
+  type RewardType,
   type RegisterRequest,
   type Sign,
   type SubscriptionVerifyRequest,
@@ -65,14 +66,18 @@ export const trackEventSchema = z.object({
 const dailyRewardIdentifierSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const weeklyRewardIdentifierSchema = z.string().regex(/^\d{4}-W\d{2}$/);
 
+export function isValidRewardIdentifier(rewardType: RewardType, identifier: string): boolean {
+  const schema = rewardType === 'daily' ? dailyRewardIdentifierSchema : weeklyRewardIdentifierSchema;
+  return schema.safeParse(identifier).success;
+}
+
 export const rewardPrepareSchema = z
   .object({
     reward_type: rewardTypeSchema,
     identifier: z.string().min(1)
   })
   .superRefine((value, context) => {
-    const schema = value.reward_type === 'daily' ? dailyRewardIdentifierSchema : weeklyRewardIdentifierSchema;
-    if (!schema.safeParse(value.identifier).success) {
+    if (!isValidRewardIdentifier(value.reward_type, value.identifier)) {
       context.addIssue({
         code: 'custom',
         path: ['identifier'],
