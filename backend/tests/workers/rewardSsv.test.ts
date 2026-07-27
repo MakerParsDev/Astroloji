@@ -22,7 +22,7 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
-function createRewardDb() {
+function createRewardDb(options: { failVerifyUpdate?: boolean } = {}) {
   const rows = new Map<string, RewardChallengeRow>();
 
   const db = {
@@ -85,6 +85,7 @@ function createRewardDb() {
             return { success: true, meta: { changes: 1 } };
           }
           if (query.startsWith('UPDATE reward_challenges SET status = \'verified\'')) {
+            if (options.failVerifyUpdate) throw new Error('database unavailable');
             const [transactionId, adUnit, callbackTimestampMs, verifiedAt, id, nowIso] = statement.bindings;
             const row = rows.get(String(id));
             const transactionUsed = [...rows.values()].some(
@@ -443,16 +444,69 @@ describe('rewarded access SSV routes', () => {
     await expect(rejected.json()).resolves.toMatchObject({
       error: { code: 'INVALID_SIGNATURE' }
     });
-    expect(info).toHaveBeenCalledWith(
-      'Reward SSV result.',
-      expect.objectContaining({
-        outcome: 'signature_rejected',
-        verifierCode: 'INVALID_SIGNATURE'
-      })
-    );
+    expect(info).toHaveBeenCalledWith({
+      event: 'reward_ssv_result',
+      outcome: 'signature_rejected',
+      verifierCode: 'INVALID_SIGNATURE'
+    });
+    expect(info.mock.calls.at(-1)).toHaveLength(1);
     const logged = JSON.stringify(info.mock.calls.at(-1));
-    expect(logged).not.toContain('invalid signature');
-    expect(logged).not.toContain('/api/v1/rewards/ssv?rejected');
+    for (const forbidden of [
+      'invalid signature',
+      '/api/v1/rewards/ssv?rejected',
+      'requestId',
+      'challenge',
+      'transaction'
+    ]) {
+      expect(logged).not.toContain(forbidden);
+    }
+  });
+
+  it('redacts request identifiers when the verification update fails', async () => {
+    const { db } = createRewardDb({ failVerifyUpdate: true });
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    const app = testApp();
+    await app.request(
+      '/api/v1/rewards/prepare',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+      },
+      env
+    );
+
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const infoLog = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const response = await app.request('/api/v1/rewards/ssv?db-failure', {}, env);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'REWARD_VERIFICATION_CONFLICT' }
+    });
+    expect(errorLog.mock.calls).toEqual([
+      ['Reward SSV verification update failed.', { error: 'database unavailable' }]
+    ]);
+    expect(infoLog.mock.calls).toEqual([
+      [{ event: 'reward_ssv_result', outcome: 'verification_conflict' }]
+    ]);
+    const capturedLogs = JSON.stringify({
+      error: errorLog.mock.calls,
+      info: infoLog.mock.calls
+    });
+    for (const forbidden of [
+      CHALLENGE_ID,
+      CHALLENGE_ID.slice(0, 8),
+      TRANSACTION_ID,
+      TRANSACTION_ID.slice(0, 8),
+      '/api/v1/rewards/ssv?db-failure',
+      'db-failure'
+    ]) {
+      expect(capturedLogs).not.toContain(forbidden);
+    }
+    expect(capturedLogs).not.toMatch(/request[-_ ]?id/i);
+    expect(capturedLogs).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
   });
 
   it('does not prepare another challenge for an active entitlement', async () => {

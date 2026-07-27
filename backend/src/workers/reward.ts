@@ -58,18 +58,10 @@ async function getChallengeByTransaction(
     .first()) as RewardChallengeRow | null;
 }
 
-function logRewardResult(
-  requestId: string,
-  outcome: string,
-  challengeId?: string,
-  transactionId?: string,
-  verifierCode?: AdmobSsvErrorCode
-): void {
-  console.info('Reward SSV result.', {
-    requestId,
+function logRewardResult(outcome: string, verifierCode?: AdmobSsvErrorCode): void {
+  console.info({
+    event: 'reward_ssv_result',
     outcome,
-    challenge: challengeId?.slice(0, 8),
-    transaction: transactionId?.slice(0, 8),
     ...(verifierCode ? { verifierCode } : {})
   });
 }
@@ -167,7 +159,7 @@ export function registerRewardRoutes<E extends RewardEnv>(
       callback = await verifyCallback(c.req.url);
     } catch (error) {
       const verifierCode = error instanceof AdmobSsvVerificationError ? error.code : undefined;
-      logRewardResult(c.get('requestId'), 'signature_rejected', undefined, undefined, verifierCode);
+      logRewardResult('signature_rejected', verifierCode);
       return callbackError(error);
     }
 
@@ -176,37 +168,37 @@ export function registerRewardRoutes<E extends RewardEnv>(
     const duplicateTransaction = await getChallengeByTransaction(c.env.DB, transactionId);
     if (duplicateTransaction) {
       if (callbackMatchesExisting(duplicateTransaction, callback)) {
-        logRewardResult(c.get('requestId'), 'duplicate_callback', challengeId, transactionId);
+        logRewardResult('duplicate_callback');
         return c.json({ ok: true, duplicate: true });
       }
-      logRewardResult(c.get('requestId'), 'transaction_replay', challengeId, transactionId);
+      logRewardResult('transaction_replay');
       return jsonError(409, 'TRANSACTION_REPLAY', 'Reward transaction was already used.');
     }
 
     const challenge = await getChallenge(c.env.DB, challengeId);
     if (!challenge) {
-      logRewardResult(c.get('requestId'), 'unknown_challenge', challengeId, transactionId);
+      logRewardResult('unknown_challenge');
       return jsonError(404, 'REWARD_CHALLENGE_NOT_FOUND', 'Reward challenge was not found.');
     }
 
     const currentMs = nowMs();
     if (challenge.expires_at <= iso(currentMs)) {
-      logRewardResult(c.get('requestId'), 'expired_challenge', challengeId, transactionId);
+      logRewardResult('expired_challenge');
       return jsonError(410, 'REWARD_CHALLENGE_EXPIRED', 'Reward challenge expired.');
     }
     if (callback.fields.userId !== challenge.user_id) {
-      logRewardResult(c.get('requestId'), 'user_mismatch', challengeId, transactionId);
+      logRewardResult('user_mismatch');
       return jsonError(400, 'REWARD_USER_MISMATCH', 'Reward callback user does not match.');
     }
     if (normalizeAdUnitId(callback.fields.adUnit) !== normalizeAdUnitId(c.env.ADMOB_REWARDED_ID)) {
-      logRewardResult(c.get('requestId'), 'ad_unit_mismatch', challengeId, transactionId);
+      logRewardResult('ad_unit_mismatch');
       return jsonError(400, 'REWARD_AD_UNIT_MISMATCH', 'Reward callback ad unit does not match.');
     }
     if (
       callback.fields.timestampMs < currentMs - CALLBACK_PAST_SKEW_MS ||
       callback.fields.timestampMs > currentMs + CALLBACK_FUTURE_SKEW_MS
     ) {
-      logRewardResult(c.get('requestId'), 'timestamp_rejected', challengeId, transactionId);
+      logRewardResult('timestamp_rejected');
       return jsonError(400, 'REWARD_TIMESTAMP_INVALID', 'Reward callback timestamp is outside the allowed window.');
     }
 
@@ -230,34 +222,33 @@ export function registerRewardRoutes<E extends RewardEnv>(
         .run();
     } catch (error) {
       console.error('Reward SSV verification update failed.', {
-        requestId: c.get('requestId'),
         error: error instanceof Error ? error.message : 'unknown database error'
       });
       const transactionOwner = await getChallengeByTransaction(c.env.DB, transactionId);
       if (transactionOwner && transactionOwner.id !== challengeId) {
-        logRewardResult(c.get('requestId'), 'transaction_replay', challengeId, transactionId);
+        logRewardResult('transaction_replay');
         return jsonError(409, 'TRANSACTION_REPLAY', 'Reward transaction was already used.');
       }
-      logRewardResult(c.get('requestId'), 'verification_conflict', challengeId, transactionId);
+      logRewardResult('verification_conflict');
       return jsonError(409, 'REWARD_VERIFICATION_CONFLICT', 'Reward challenge could not be verified.');
     }
 
     if ((result.meta.changes ?? 0) !== 1) {
       const current = await getChallenge(c.env.DB, challengeId);
       if (current && callbackMatchesExisting(current, callback)) {
-        logRewardResult(c.get('requestId'), 'duplicate_callback', challengeId, transactionId);
+        logRewardResult('duplicate_callback');
         return c.json({ ok: true, duplicate: true });
       }
       const transactionOwner = await getChallengeByTransaction(c.env.DB, transactionId);
       if (transactionOwner && transactionOwner.id !== challengeId) {
-        logRewardResult(c.get('requestId'), 'transaction_replay', challengeId, transactionId);
+        logRewardResult('transaction_replay');
         return jsonError(409, 'TRANSACTION_REPLAY', 'Reward transaction was already used.');
       }
-      logRewardResult(c.get('requestId'), 'verification_conflict', challengeId, transactionId);
+      logRewardResult('verification_conflict');
       return jsonError(409, 'REWARD_VERIFICATION_CONFLICT', 'Reward challenge could not be verified.');
     }
 
-    logRewardResult(c.get('requestId'), 'verified', challengeId, transactionId);
+    logRewardResult('verified');
     return c.json({ ok: true, duplicate: false });
   });
 
