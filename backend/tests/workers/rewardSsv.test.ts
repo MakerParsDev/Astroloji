@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '@/index';
 import { AdmobSsvVerificationError, type ParsedAdmobSsvCallback } from '@/services/admobSsv';
@@ -13,6 +13,10 @@ const NOW_ISO = '2026-07-26T16:00:00.000Z';
 const NOW_MS = Date.parse(NOW_ISO);
 const AD_UNIT = 'ca-app-pub-3940256099942544/5224354917';
 const TRANSACTION_ID = '18fa792de1bca816048293fc71035638';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
@@ -449,7 +453,6 @@ describe('rewarded access SSV routes', () => {
     const logged = JSON.stringify(info.mock.calls.at(-1));
     expect(logged).not.toContain('invalid signature');
     expect(logged).not.toContain('/api/v1/rewards/ssv?rejected');
-    info.mockRestore();
   });
 
   it('does not prepare another challenge for an active entitlement', async () => {
