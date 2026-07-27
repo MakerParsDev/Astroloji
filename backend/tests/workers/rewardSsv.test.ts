@@ -22,7 +22,7 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
-function createRewardDb() {
+function createRewardDb(options: { failVerifyUpdate?: boolean } = {}) {
   const rows = new Map<string, RewardChallengeRow>();
 
   const db = {
@@ -85,6 +85,7 @@ function createRewardDb() {
             return { success: true, meta: { changes: 1 } };
           }
           if (query.startsWith('UPDATE reward_challenges SET status = \'verified\'')) {
+            if (options.failVerifyUpdate) throw new Error('database unavailable');
             const [transactionId, adUnit, callbackTimestampMs, verifiedAt, id, nowIso] = statement.bindings;
             const row = rows.get(String(id));
             const transactionUsed = [...rows.values()].some(
@@ -459,6 +460,39 @@ describe('rewarded access SSV routes', () => {
     ]) {
       expect(logged).not.toContain(forbidden);
     }
+  });
+
+  it('redacts request identifiers when the verification update fails', async () => {
+    const { db } = createRewardDb({ failVerifyUpdate: true });
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    const app = testApp();
+    await app.request(
+      '/api/v1/rewards/prepare',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+      },
+      env
+    );
+
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const infoLog = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const response = await app.request('/api/v1/rewards/ssv?db-failure', {}, env);
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'REWARD_VERIFICATION_CONFLICT' }
+    });
+    expect(errorLog).toHaveBeenCalledWith('Reward SSV verification update failed.', {
+      error: 'database unavailable'
+    });
+    expect(JSON.stringify(errorLog.mock.calls)).not.toContain('requestId');
+    expect(infoLog).toHaveBeenCalledWith({
+      event: 'reward_ssv_result',
+      outcome: 'verification_conflict'
+    });
   });
 
   it('does not prepare another challenge for an active entitlement', async () => {

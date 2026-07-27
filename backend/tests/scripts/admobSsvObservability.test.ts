@@ -23,7 +23,8 @@ describe('AdMob SSV observability inspection', () => {
         datasets: ['cloudflare-workers'],
         filterCombination: 'and',
         filters: [
-          { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName }
+          { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName },
+          { key: 'event', operation: 'eq', type: 'string', value: 'reward_ssv_result' }
         ],
         view: 'events'
       }
@@ -85,6 +86,34 @@ describe('AdMob SSV observability inspection', () => {
     for (const forbidden of ['signature=secret', 'secret-request', 'secret-user', 'secret-custom']) {
       expect(serialized).not.toContain(forbidden);
     }
+  });
+
+  it('preserves the allowlisted verification conflict outcome', () => {
+    expect(
+      parseWorkerSsvTelemetry(
+        telemetry([
+          {
+            timestamp: Date.parse('2026-07-27T16:30:00.000Z'),
+            $metadata: { service: workerName },
+            source: { event: 'reward_ssv_result', outcome: 'verification_conflict' },
+            $workers: {
+              scriptName: workerName,
+              scriptVersion: { id: '22222222-2222-4222-8222-222222222222' }
+            }
+          }
+        ]),
+        workerName,
+        20
+      )
+    ).toEqual({
+      operation: 'callback',
+      status: 'found',
+      timestamp: '2026-07-27T16:30:00.000Z',
+      scriptName: workerName,
+      outcome: 'verification_conflict',
+      verifierCode: null,
+      scriptVersion: '22222222-2222-4222-8222-222222222222'
+    });
   });
 
   it('queries Cloudflare with scoped credentials and logs redacted evidence only', async () => {

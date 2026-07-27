@@ -107,7 +107,8 @@ export function buildWorkerSsvTelemetryQuery(
       datasets: ['cloudflare-workers'],
       filterCombination: 'and',
       filters: [
-        { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName }
+        { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName },
+        { key: 'event', operation: 'eq', type: 'string', value: SSV_EVENT }
       ],
       view: 'events'
     }
