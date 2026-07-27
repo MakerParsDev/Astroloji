@@ -128,7 +128,41 @@ describe('AdMob SSV observability inspection', () => {
       Authorization: 'Bearer cf-secret-token',
       'Content-Type': 'application/json'
     });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect(init.signal?.aborted).toBe(false);
     expect(JSON.stringify(log.mock.calls)).not.toContain('cf-secret-token');
+  });
+
+
+  it('normalizes network and non-JSON failures into the telemetry error context', async () => {
+    const networkFailure = vi.fn().mockRejectedValue(new Error('socket closed'));
+    await expect(
+      executeWorkerSsvInspection({
+        env: {
+          CLOUDFLARE_API_TOKEN: 'token',
+          CLOUDFLARE_ACCOUNT_ID: 'account-id',
+          SSV_WORKER_NAME: workerName
+        },
+        fetchImpl: networkFailure
+      })
+    ).rejects.toThrow(/Cloudflare telemetry query failed/);
+
+    const htmlFailure = vi.fn().mockResolvedValue(
+      new Response('<html>upstream failure</html>', {
+        status: 502,
+        headers: { 'content-type': 'text/html' }
+      })
+    );
+    await expect(
+      executeWorkerSsvInspection({
+        env: {
+          CLOUDFLARE_API_TOKEN: 'token',
+          CLOUDFLARE_ACCOUNT_ID: 'account-id',
+          SSV_WORKER_NAME: workerName
+        },
+        fetchImpl: htmlFailure
+      })
+    ).rejects.toThrow(/Cloudflare telemetry query failed/);
   });
 
   it('rejects invalid names, bounds, missing credentials, and Cloudflare failures', async () => {

@@ -55,14 +55,20 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Validate production gate
+        env:
+          INPUT_COMMAND: ${{ inputs.command }}
         run: |
           missing=0
-          for name in DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID; do
+          for name in DOPPLER_PROJECT DOPPLER_CONFIG; do
             if [ -z "${!name:-}" ]; then
               echo "Missing required challenge setting: $name"
               missing=1
             fi
           done
+          if [ "$INPUT_COMMAND" = "callback" ] && [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Missing required callback setting: CLOUDFLARE_ACCOUNT_ID"
+            missing=1
+          fi
           if [ "${ENABLE_PRODUCTION_RELEASE:-}" != "false" ]; then
             echo "ENABLE_PRODUCTION_RELEASE must remain false during AdMob verification."
             missing=1

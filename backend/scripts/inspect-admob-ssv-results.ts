@@ -4,6 +4,7 @@ const SSV_MESSAGE = 'Reward SSV result.';
 const DEFAULT_WORKER = 'astrology-ssv-transition';
 const DEFAULT_LOOKBACK_MINUTES = 360;
 const DEFAULT_LIMIT = 20;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const WORKER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -80,6 +81,7 @@ function parseInteger(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
+/** Builds a bounded Cloudflare Workers telemetry query for redacted SSV result events. */
 export function buildWorkerSsvTelemetryQuery(
   workerName: string,
   lookbackMinutes: number,
@@ -117,6 +119,7 @@ function workerEnvelope(event: UnknownRecord, source: UnknownRecord): UnknownRec
   return Object.keys(direct).length ? direct : record(source.$workers);
 }
 
+/** Converts raw telemetry into one latest allowlisted callback evidence record. */
 export function parseWorkerSsvTelemetry(
   value: unknown,
   expectedWorkerName: string,
@@ -170,6 +173,7 @@ export function parseWorkerSsvTelemetry(
       };
 }
 
+/** Queries Cloudflare telemetry and emits only strict redacted callback evidence. */
 export async function executeWorkerSsvInspection({
   env,
   fetchImpl = fetch,
@@ -181,23 +185,43 @@ export async function executeWorkerSsvInspection({
   const workerName = env.SSV_WORKER_NAME?.trim() || DEFAULT_WORKER;
   const lookbackMinutes = parseInteger(env.SSV_LOOKBACK_MINUTES, DEFAULT_LOOKBACK_MINUTES);
   const limit = parseInteger(env.SSV_RESULT_LIMIT, DEFAULT_LIMIT);
-  const query = buildWorkerSsvTelemetryQuery(workerName, lookbackMinutes, limit, nowMs);
-  const response = await fetchImpl(
-    `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/query`,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(query)
-    }
+  const requestTimeoutMs = parseInteger(
+    env.SSV_REQUEST_TIMEOUT_MS,
+    DEFAULT_REQUEST_TIMEOUT_MS
   );
-  const payload = (await response.json()) as {
+  if (requestTimeoutMs < 1_000 || requestTimeoutMs > 30_000) {
+    throw new Error('Telemetry request timeout must be an integer from 1000 to 30000 ms.');
+  }
+  const query = buildWorkerSsvTelemetryQuery(workerName, lookbackMinutes, limit, nowMs);
+  let response: Response;
+  try {
+    response = await fetchImpl(
+      `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/query`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(query),
+        signal: AbortSignal.timeout(requestTimeoutMs)
+      }
+    );
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : 'request failed';
+    throw new Error(`Cloudflare telemetry query failed: ${reason}`);
+  }
+
+  let payload: {
     success?: boolean;
     result?: unknown;
     errors?: Array<{ message?: string }>;
   };
+  try {
+    payload = (await response.json()) as typeof payload;
+  } catch {
+    throw new Error(`Cloudflare telemetry query failed: invalid JSON response (${response.status})`);
+  }
   if (!response.ok || payload.success !== true) {
     throw new Error(
       `Cloudflare telemetry query failed: ${payload.errors?.[0]?.message ?? response.status}`

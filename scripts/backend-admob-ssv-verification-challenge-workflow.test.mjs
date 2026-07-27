@@ -40,7 +40,7 @@ test('challenge values are masked, validated, and never persisted or summarized 
   assert.match(workflow, /redacted evidence/i);
 });
 
-test('challenge and callback operations call only hardened backend commands in safe order', () => {
+test('challenge and callback operations expose only hardened backend commands', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
 
   assert.match(workflow, /npm run(?: --silent)? transition:challenge:create/);
@@ -48,6 +48,11 @@ test('challenge and callback operations call only hardened backend commands in s
   assert.match(workflow, /npm run(?: --silent)? transition:challenge:delete/);
   assert.match(workflow, /npm run(?: --silent)? transition:callback:inspect/);
   assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID/);
+  assert.match(
+    workflow,
+    /if \[ "\$INPUT_COMMAND" = "callback" \] && \[ -z "\$\{CLOUDFLARE_ACCOUNT_ID:-\}" \]/
+  );
+  assert.doesNotMatch(workflow, /for name in DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /::add-mask::\$CLOUDFLARE_API_TOKEN/);
 
