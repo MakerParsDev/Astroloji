@@ -39,8 +39,8 @@ For `inspect`:
 For `delete`:
 
 1. Delete only the exact challenge UUID when its user ID starts with `admob-verify-`.
-2. Remove both temporary repository secrets after the D1 deletion succeeds by using the production environment secret `ADMOB_SSV_SECRET_ADMIN_TOKEN`, which has only repository Actions-secrets write permission.
-3. Publish only the deleted challenge prefix.
+2. Publish only the deleted challenge prefix and an explicit reminder to remove the two temporary repository secrets manually.
+3. Do not request or use any GitHub token with repository-secrets write permission.
 
 ## Security Boundaries
 
@@ -48,7 +48,7 @@ For `delete`:
 - The workflow receives full challenge values only through the two temporary Actions secrets.
 - Full challenge values are masked before any command can emit them.
 - Full values are never written to `$GITHUB_STEP_SUMMARY`, artifacts, cache, issues, pull requests, or normal environment files.
-- The operator replaces the temporary secrets before every create operation. The delete command removes both temporary secrets after D1 cleanup through a narrowly scoped GitHub token supplied only to that cleanup step.
+- The operator replaces the temporary secrets before every create operation and removes both names manually after the D1 delete succeeds. The workflow never receives repository-secrets write permission.
 - The challenge expires after 15 minutes in D1 even if operator cleanup is missed.
 - `inspect` and `delete` reject malformed UUIDs and rows outside the dedicated verification-user namespace.
 - No production Android release, full backend deploy, or route change is part of this workflow.
@@ -57,25 +57,25 @@ For `delete`:
 
 1. Open `tools/admob-ssv-verification-values.html` locally and create fresh values. Keep that page open.
 2. In GitHub repository settings, save the generated values as `ADMOB_SSV_TEST_USER_ID` and `ADMOB_SSV_TEST_CUSTOM_DATA`.
-3. Confirm `ADMOB_SSV_SECRET_ADMIN_TOKEN` exists in the production environment, then run workflow command `create` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE` and require redacted evidence showing a pending 15-minute challenge.
+3. Run workflow command `create` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE` and require redacted evidence showing a pending 15-minute challenge.
 4. Enter the still-visible local values in AdMob URL verification.
 5. Run AdMob's verification test.
 6. Run workflow command `inspect` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE` and require status `verified` with a transaction prefix.
-7. Run workflow command `delete` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE`; verify the D1 row and both temporary repository secrets are gone.
+7. Run workflow command `delete` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE`; verify the D1 row is gone, then delete `ADMOB_SSV_TEST_USER_ID` and `ADMOB_SSV_TEST_CUSTOM_DATA` manually in repository Actions settings.
 
 ## Failure Handling
 
 - If either temporary secret is missing, malformed, or inconsistent, `create` fails before D1 access.
 - If D1 insert fails, the workflow leaves the temporary secrets intact so the operator can retry or delete them manually.
-- If secret cleanup fails after D1 deletion, the workflow fails loudly and provides exact secret names to remove manually, without printing their values.
+- If manual secret cleanup is missed, the expired D1 challenge remains unusable; the operator must still remove both temporary repository secret names before the next verification run.
 - Re-running `create` with the same values is rejected if the exact challenge already exists; the operator must inspect/delete it or generate a fresh pair.
 - An expired or unverified challenge can be safely deleted and recreated.
 
 ## Testing
 
-- Unit tests cover offline UUID/User ID generation helpers, supplied-value validation, SQL restrictions, redacted evidence, exact secret-name allowlisting, and idempotent cleanup behavior.
+- Unit tests cover offline UUID/User ID generation helpers, supplied-value validation, SQL restrictions, redacted evidence, exact secret-name allowlisting, and manual-cleanup evidence.
 - Browser tests assert the generator performs no network calls and uses no persistent storage.
-- Workflow tests assert main-only/production gating, minimal permissions, no full-value output, exact secret names, operation ordering, and cleanup semantics.
+- Workflow tests assert main-only/production gating, minimal permissions, no full-value output, exact secret names, operation ordering, absence of repository-secrets write permission, and manual-cleanup semantics.
 - Secret scan and YAML parse remain mandatory.
 - A dry-run test verifies that no workflow path can publish User ID or challenge UUID to logs or summaries.
 

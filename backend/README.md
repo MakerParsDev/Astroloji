@@ -119,12 +119,11 @@ Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 3. GitHub repository Actions secrets alanina su iki gecici secret'i kaydedin:
    - `ADMOB_SSV_TEST_USER_ID`
    - `ADMOB_SSV_TEST_CUSTOM_DATA`
-4. `production` environment icinde, yalnizca repository Actions secrets yazma/silme yetkisi olan `ADMOB_SSV_SECRET_ADMIN_TOKEN` secret'inin tanimli oldugunu dogrulayin. Bu token yalnizca `delete` temizliginde kullanilir.
-5. `backend-admob-ssv-verification-challenge` workflow'unu `main` uzerinden calistirin:
+4. `backend-admob-ssv-verification-challenge` workflow'unu `main` uzerinden calistirin:
    - command: `create`
    - confirm: `MANAGE_ADMOB_SSV_CHALLENGE`
    Workflow ozetinde yalnizca prefix, `pending` status ve 15 dakikalik expiry bulunmalidir.
-6. AdMob SSV ekraninda su alanlari kullanin:
+5. AdMob SSV ekraninda su alanlari kullanin:
 
    ```text
    Callback URL: https://astrology.parsfilo.com/api/v1/rewards/ssv
@@ -132,7 +131,7 @@ Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
    Custom data: acik tuttugunuz yerel sayfadaki Custom data
    ```
 
-7. **URL'yi doğrula** basarili olmadan kaydetmeyin. Basaridan sonra **Doğrulanan URL'yi kullan** ve **Kaydet**.
-8. Ayni workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Redakte evidence icinde status `verified` ve transaction prefix bulunmalidir.
-9. Ayni workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Exact D1 challenge satiri ve iki gecici repository secret'i silinmelidir.
-10. Rollback gerektiginde `backend-ssv-transition-rollback` exact route'u kaldirir; `astrology-backend` ve additif D1 tablolari degismez.
+6. **URL'yi doğrula** basarili olmadan kaydetmeyin. Basaridan sonra **Doğrulanan URL'yi kullan** ve **Kaydet**.
+7. Ayni workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Redakte evidence icinde status `verified` ve transaction prefix bulunmalidir.
+8. Ayni workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Exact D1 challenge satiri silinmelidir. Ardindan GitHub Actions ayarlarindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel silin.
+9. Rollback gerektiginde `backend-ssv-transition-rollback` exact route'u kaldirir; `astrology-backend` ve additif D1 tablolari degismez.

@@ -80,9 +80,8 @@ Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 4. Degerleri gecici repository Actions secrets olarak kaydet:
    - `ADMOB_SSV_TEST_USER_ID`
    - `ADMOB_SSV_TEST_CUSTOM_DATA`
-5. `production` environment icinde repository Actions secrets yazma/silme yetkili `ADMOB_SSV_SECRET_ADMIN_TOKEN` secret'ini dogrula.
-6. `backend-admob-ssv-verification-challenge` workflow'unu command `create`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir. Ozet yalnızca redakte prefix, `pending` status ve expiry icermelidir.
-7. AdMob SSV ekraninda su alanlari kullan:
+5. `backend-admob-ssv-verification-challenge` workflow'unu command `create`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir. Ozet yalnızca redakte prefix, `pending` status ve expiry icermelidir.
+6. AdMob SSV ekraninda su alanlari kullan:
 
 ```text
 Callback URL: https://astrology.parsfilo.com/api/v1/rewards/ssv
@@ -90,10 +89,10 @@ User ID: acik yerel generator sayfasindaki User ID
 Custom data: acik yerel generator sayfasindaki Custom data
 ```
 
-8. **URL'yi doğrula** basarisizsa kaydetme. Basariliysa **Doğrulanan URL'yi kullan**, ardindan **Kaydet**.
-9. Workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; redakte evidence status `verified` ve transaction prefix gostermelidir.
-10. Workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; exact D1 satiri ile `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'lari silinmelidir.
-11. `android-internal-preflight` calistir ve workflow URL/sonucunu kaydet. `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
+7. **URL'yi doğrula** basarisizsa kaydetme. Basariliysa **Doğrulanan URL'yi kullan**, ardindan **Kaydet**.
+8. Workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; redakte evidence status `verified` ve transaction prefix gostermelidir.
+9. Workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; exact D1 satiri silinmelidir. Ardindan repository Actions settings ekranindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel sil.
+10. `android-internal-preflight` calistir ve workflow URL/sonucunu kaydet. `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
 
 ### Gecis rollback
 

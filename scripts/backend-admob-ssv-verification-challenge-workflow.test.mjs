@@ -58,21 +58,20 @@ test('create inspect and delete call only the hardened backend commands in safe 
   ]);
 });
 
-test('delete validates its narrow admin token before D1 deletion and removes exact secrets afterward', () => {
+test('delete removes only the D1 challenge and requires manual temporary-secret cleanup', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
 
-  assert.match(workflow, /ADMOB_SSV_SECRET_ADMIN_TOKEN: \$\{\{ secrets\.ADMOB_SSV_SECRET_ADMIN_TOKEN \}\}/);
-  assert.match(workflow, /::add-mask::\$ADMOB_SSV_SECRET_ADMIN_TOKEN/);
-  assert.equal((workflow.match(/gh secret delete ADMOB_SSV_TEST_USER_ID/g) ?? []).length, 1);
-  assert.equal((workflow.match(/gh secret delete ADMOB_SSV_TEST_CUSTOM_DATA/g) ?? []).length, 1);
+  assert.doesNotMatch(workflow, /ADMOB_SSV_SECRET_ADMIN_TOKEN/);
+  assert.doesNotMatch(workflow, /gh secret delete/);
+  assert.doesNotMatch(workflow, /GH_TOKEN:/);
+  assert.match(workflow, /Delete these temporary repository secrets manually/);
+  assert.match(workflow, /ADMOB_SSV_TEST_USER_ID/);
+  assert.match(workflow, /ADMOB_SSV_TEST_CUSTOM_DATA/);
 
   ordered(workflow, [
-    'Validate repository-secret cleanup token',
     'Delete verification challenge from D1',
-    'Delete temporary repository secrets'
+    'Publish redacted evidence'
   ]);
-  assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.ADMOB_SSV_SECRET_ADMIN_TOKEN \}\}/);
-  assert.doesNotMatch(workflow, /^\s{4}ADMOB_SSV_SECRET_ADMIN_TOKEN:/m);
 });
 
 const operatorDocs = [
@@ -88,7 +87,6 @@ test('operator docs describe one offline-secret workflow without positional iden
       'tools/admob-ssv-verification-values.html',
       'ADMOB_SSV_TEST_USER_ID',
       'ADMOB_SSV_TEST_CUSTOM_DATA',
-      'ADMOB_SSV_SECRET_ADMIN_TOKEN',
       'MANAGE_ADMOB_SSV_CHALLENGE',
       'backend-admob-ssv-verification-challenge'
     ]) {
@@ -99,5 +97,7 @@ test('operator docs describe one offline-secret workflow without positional iden
     assert.doesNotMatch(content, /transition:challenge:delete\s+--/);
     assert.doesNotMatch(content, /<challenge-uuid>|<uuid>/);
     assert.match(content, /create -> AdMob -> inspect verified -> delete/);
+    assert.doesNotMatch(content, /ADMOB_SSV_SECRET_ADMIN_TOKEN/);
+    assert.match(content, /manuel/i);
   }
 });

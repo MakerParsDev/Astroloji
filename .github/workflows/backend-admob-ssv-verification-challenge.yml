@@ -121,19 +121,6 @@ jobs:
             echo 'CF_TOKEN'
           } >> "$GITHUB_ENV"
 
-      - name: Validate repository-secret cleanup token
-        if: inputs.command == 'delete'
-        env:
-          ADMOB_SSV_SECRET_ADMIN_TOKEN: ${{ secrets.ADMOB_SSV_SECRET_ADMIN_TOKEN }}
-        run: |
-          if [ -z "${ADMOB_SSV_SECRET_ADMIN_TOKEN:-}" ]; then
-            echo 'ADMOB_SSV_SECRET_ADMIN_TOKEN is required before D1 deletion.'
-            exit 1
-          fi
-          echo "::add-mask::$ADMOB_SSV_SECRET_ADMIN_TOKEN"
-          GH_TOKEN="$ADMOB_SSV_SECRET_ADMIN_TOKEN" gh api --silent "repos/$GITHUB_REPOSITORY/actions/secrets" >/dev/null
-          echo 'Validated repository-secret cleanup permission.'
-
       - name: Create verification challenge
         if: inputs.command == 'create'
         working-directory: backend
@@ -156,15 +143,6 @@ jobs:
           ADMOB_SSV_TEST_CUSTOM_DATA: ${{ secrets.ADMOB_SSV_TEST_CUSTOM_DATA }}
         run: npm run --silent transition:challenge:delete > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
 
-      - name: Delete temporary repository secrets
-        if: inputs.command == 'delete'
-        env:
-          GH_TOKEN: ${{ secrets.ADMOB_SSV_SECRET_ADMIN_TOKEN }}
-        run: |
-          gh secret delete ADMOB_SSV_TEST_USER_ID --repo "$GITHUB_REPOSITORY"
-          gh secret delete ADMOB_SSV_TEST_CUSTOM_DATA --repo "$GITHUB_REPOSITORY"
-          echo 'Deleted the two temporary repository secret names.'
-
       - name: Publish redacted evidence
         run: |
           node <<'NODE'
@@ -183,6 +161,10 @@ jobs:
           const lines = ['## AdMob SSV verification challenge', ''];
           for (const key of allowed) {
             lines.push(`- ${key}: ${evidence[key] ?? 'none'}`);
+          }
+          if (evidence.operation === 'delete') {
+            lines.push('');
+            lines.push('- Manual cleanup required: Delete these temporary repository secrets manually: ADMOB_SSV_TEST_USER_ID and ADMOB_SSV_TEST_CUSTOM_DATA.');
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
           NODE

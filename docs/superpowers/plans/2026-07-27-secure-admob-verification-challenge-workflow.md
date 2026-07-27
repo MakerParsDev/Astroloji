@@ -4,7 +4,7 @@
 
 **Goal:** Build an offline value generator and a main-only production workflow that creates, inspects, and deletes AdMob SSV verification challenges without exposing full User ID or Custom data values in logs or summaries.
 
-**Architecture:** A standalone local HTML page generates the two full values with browser Web Crypto and keeps them only in memory. A hardened TypeScript CLI consumes the two temporary Actions secrets, validates them, performs namespace-restricted D1 SQL, and emits only redacted evidence. One `workflow_dispatch` workflow gates `create`, `inspect`, and `delete`; the delete path uses a narrowly scoped `ADMOB_SSV_SECRET_ADMIN_TOKEN` production environment secret only after D1 cleanup to remove the two temporary repository secrets.
+**Architecture:** A standalone local HTML page generates the two full values with browser Web Crypto and keeps them only in memory. A hardened TypeScript CLI consumes the two temporary Actions secrets, validates them, performs namespace-restricted D1 SQL, and emits only redacted evidence. One `workflow_dispatch` workflow gates `create`, `inspect`, and `delete`; the delete path removes only the exact D1 row and emits a reminder for the operator to delete the two temporary repository secrets manually.
 
 **Tech Stack:** Static HTML/JavaScript, Node.js 24, TypeScript 5.9, Vitest 3.2, GitHub Actions, Doppler CLI, Wrangler 4.112, Cloudflare D1.
 
@@ -16,7 +16,7 @@
 - Challenges expire exactly 15 minutes after workflow creation time.
 - D1 reads/deletes must require both the exact challenge UUID and `user_id LIKE 'admob-verify-%'`.
 - The workflow runs only from `main`, uses the `production` environment, and keeps `ENABLE_PRODUCTION_RELEASE=false` unchanged.
-- The workflow has top-level `contents: read`; `ADMOB_SSV_SECRET_ADMIN_TOKEN` is exposed only to the delete-secret cleanup step and must have repository Actions-secrets write permission.
+- The workflow has top-level `contents: read` and never receives repository Actions-secrets write permission.
 - No full backend deploy, transition route mutation, Android release, or Play production rollout is part of this plan.
 
 ---
@@ -124,13 +124,12 @@ git commit -m "feat(admob): add offline SSV verification value generator"
   - `command`: `create | inspect | delete`
   - `confirm`: exact `MANAGE_ADMOB_SSV_CHALLENGE`
   - repository secrets `ADMOB_SSV_TEST_USER_ID`, `ADMOB_SSV_TEST_CUSTOM_DATA`
-  - production environment secret `ADMOB_SSV_SECRET_ADMIN_TOKEN` only for cleanup
   - existing Doppler settings and `DOPPLER_TOKEN`
-- Produces: redacted summary evidence; delete also removes the two temporary repository secrets.
+- Produces: redacted summary evidence; delete also emits the exact two temporary secret names that the operator must remove manually.
 
 - [ ] **Step 1: Write the failing workflow contract test**
 
-Assert allowed commands, confirmation phrase, `main` gate, production environment, minimal permissions, exact secret names, explicit `::add-mask::`, all three package commands, cleanup token isolation, exact two `gh secret delete` calls, no echo of secret variables, and safe operation ordering.
+Assert allowed commands, confirmation phrase, `main` gate, production environment, minimal permissions, exact secret names, explicit `::add-mask::`, all three package commands, absence of GitHub secret-write tokens and `gh secret delete`, no echo of secret variables, and safe operation ordering.
 
 - [ ] **Step 2: Run the workflow test and verify RED**
 
@@ -146,7 +145,7 @@ Use top-level `contents: read`, non-cancelling concurrency, repository/main/conf
 
 - [ ] **Step 4: Implement create/inspect/delete execution**
 
-Install dependencies and Doppler CLI, load/mask `CLOUDFLARE_API_TOKEN`, run exactly one backend package command, capture redacted JSON in `$RUNNER_TEMP`, and allowlist summary keys. Before D1 delete, require and mask `ADMOB_SSV_SECRET_ADMIN_TOKEN`; after D1 deletion succeeds, delete both temporary repository secrets with `gh secret delete`. Never write any sensitive value to `$GITHUB_ENV`.
+Install dependencies and Doppler CLI, load/mask `CLOUDFLARE_API_TOKEN`, run exactly one backend package command, capture redacted JSON in `$RUNNER_TEMP`, and allowlist summary keys. After D1 deletion succeeds, publish a manual-cleanup reminder naming only `ADMOB_SSV_TEST_USER_ID` and `ADMOB_SSV_TEST_CUSTOM_DATA`. Never request repository-secrets write permission or write any sensitive value to `$GITHUB_ENV`.
 
 - [ ] **Step 5: Run workflow tests, YAML parse, and secret scan**
 
@@ -185,7 +184,6 @@ Require all runbooks to mention:
 `tools/admob-ssv-verification-values.html`,
 `ADMOB_SSV_TEST_USER_ID`,
 `ADMOB_SSV_TEST_CUSTOM_DATA`,
-`ADMOB_SSV_SECRET_ADMIN_TOKEN`,
 `MANAGE_ADMOB_SSV_CHALLENGE`,
 and the sequence `create → AdMob test → inspect verified → delete`.
 Reject obsolete printed-output and positional `<challenge-uuid>` instructions.
@@ -196,7 +194,7 @@ Expected: FAIL because current runbooks still describe printed values and positi
 
 - [ ] **Step 3: Rewrite operator flow**
 
-Document: open generator locally; keep it open; save both values as temporary Actions secrets; ensure cleanup token prerequisite; dispatch create; verify in AdMob using still-visible local values; dispatch inspect and require verified plus transaction prefix; dispatch delete and confirm D1 and secret cleanup.
+Document: open generator locally; keep it open; save both values as temporary Actions secrets; dispatch create; verify in AdMob using still-visible local values; dispatch inspect and require verified plus transaction prefix; dispatch delete, confirm D1 cleanup, then remove both temporary secret names manually in repository Actions settings.
 
 - [ ] **Step 4: Run full final verification**
 
