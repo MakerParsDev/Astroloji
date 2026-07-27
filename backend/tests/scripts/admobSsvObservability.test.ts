@@ -112,6 +112,45 @@ describe('AdMob SSV observability inspection', () => {
     });
   });
 
+  it('parses a JSON-string source and preserves only allowlisted evidence', () => {
+    const parsed = parseWorkerSsvTelemetry(
+      telemetry([
+        {
+          timestamp: Date.parse('2026-07-27T23:22:00.000Z'),
+          source: JSON.stringify({
+            event: 'reward_ssv_result',
+            outcome: 'signature_rejected',
+            verifierCode: 'MALFORMED_CALLBACK',
+            url: 'https://example.invalid/?signature=secret',
+            requestId: 'secret-request',
+            userId: 'secret-user',
+            customData: 'secret-custom'
+          }),
+          $workers: {
+            scriptName: workerName,
+            scriptVersion: { id: '33333333-3333-4333-8333-333333333333' }
+          }
+        }
+      ]),
+      workerName,
+      20
+    );
+
+    expect(parsed).toEqual({
+      operation: 'callback',
+      status: 'found',
+      timestamp: '2026-07-27T23:22:00.000Z',
+      scriptName: workerName,
+      outcome: 'signature_rejected',
+      verifierCode: 'MALFORMED_CALLBACK',
+      scriptVersion: '33333333-3333-4333-8333-333333333333'
+    });
+    const serialized = JSON.stringify(parsed);
+    for (const forbidden of ['signature=secret', 'secret-request', 'secret-user', 'secret-custom']) {
+      expect(serialized).not.toContain(forbidden);
+    }
+  });
+
   it('queries Cloudflare with scoped credentials and logs redacted evidence only', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(
