@@ -485,14 +485,28 @@ describe('rewarded access SSV routes', () => {
     await expect(response.json()).resolves.toMatchObject({
       error: { code: 'REWARD_VERIFICATION_CONFLICT' }
     });
-    expect(errorLog).toHaveBeenCalledWith('Reward SSV verification update failed.', {
-      error: 'database unavailable'
+    expect(errorLog.mock.calls).toEqual([
+      ['Reward SSV verification update failed.', { error: 'database unavailable' }]
+    ]);
+    expect(infoLog.mock.calls).toEqual([
+      [{ event: 'reward_ssv_result', outcome: 'verification_conflict' }]
+    ]);
+    const capturedLogs = JSON.stringify({
+      error: errorLog.mock.calls,
+      info: infoLog.mock.calls
     });
-    expect(JSON.stringify(errorLog.mock.calls)).not.toContain('requestId');
-    expect(infoLog).toHaveBeenCalledWith({
-      event: 'reward_ssv_result',
-      outcome: 'verification_conflict'
-    });
+    for (const forbidden of [
+      CHALLENGE_ID,
+      CHALLENGE_ID.slice(0, 8),
+      TRANSACTION_ID,
+      TRANSACTION_ID.slice(0, 8),
+      '/api/v1/rewards/ssv?db-failure',
+      'db-failure'
+    ]) {
+      expect(capturedLogs).not.toContain(forbidden);
+    }
+    expect(capturedLogs).not.toMatch(/request[-_ ]?id/i);
+    expect(capturedLogs).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
   });
 
   it('does not prepare another challenge for an active entitlement', async () => {
