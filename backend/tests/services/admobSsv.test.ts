@@ -48,7 +48,10 @@ function p1363ToDer(signature: Uint8Array): Uint8Array {
   return der;
 }
 
-async function createSignedCallback(overrides: Partial<Record<string, string>> = {}) {
+async function createSignedCallback(
+  overrides: Partial<Record<string, string>> = {},
+  options: { decodeBeforeSigning?: boolean } = {}
+) {
   const keyPair = (await crypto.subtle.generateKey(
     { name: 'ECDSA', namedCurve: 'P-256' },
     true,
@@ -73,7 +76,9 @@ async function createSignedCallback(overrides: Partial<Record<string, string>> =
     await crypto.subtle.sign(
       { name: 'ECDSA', hash: 'SHA-256' },
       keyPair.privateKey,
-      new TextEncoder().encode(signedContent)
+      new TextEncoder().encode(
+        (options.decodeBeforeSigning ?? true) ? decodeURIComponent(signedContent) : signedContent
+      )
     )
   );
   const signature = base64Url(p1363ToDer(rawSignature));
@@ -129,6 +134,23 @@ describe('AdMob SSV verification', () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it('verifies percent-encoded fields using Google Tink decoded-query semantics', async () => {
+    const callback = await createSignedCallback(
+      { reward_item: 'Premium%20Eri%C5%9Fim' },
+      { decodeBeforeSigning: true }
+    );
+    const verify = createAdmobSsvVerifier({
+      fetcher: (async () =>
+        Response.json({ keys: [{ keyId: KEY_ID, base64: callback.publicKeyBase64 }] })) as typeof fetch,
+      cache: createCache(),
+      now: () => 1_785_080_000_000
+    });
+
+    await expect(verify(callback.url)).resolves.toMatchObject({
+      fields: { rewardItem: 'Premium Erişim' }
+    });
+  });
+
   it('rejects a modified signed field', async () => {
     const callback = await createSignedCallback();
     const tamperedUrl = callback.url.replace('reward_amount=1', 'reward_amount=2');
@@ -160,6 +182,21 @@ describe('AdMob SSV verification', () => {
 
     await expect(verify(callback.url)).resolves.toBeDefined();
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects invalid percent-encoding before signature verification', async () => {
+    const callback = await createSignedCallback();
+    const malformedUrl = callback.url.replace('reward_item=unlock', 'reward_item=%ZZ');
+    const verify = createAdmobSsvVerifier({
+      fetcher: (async () =>
+        Response.json({ keys: [{ keyId: KEY_ID, base64: callback.publicKeyBase64 }] })) as typeof fetch,
+      cache: createCache(),
+      now: () => 1_785_080_000_000
+    });
+
+    await expect(verify(malformedUrl)).rejects.toMatchObject({
+      code: 'MALFORMED_CALLBACK'
+    });
   });
 
   it('rejects malformed terminal signature parameters', () => {

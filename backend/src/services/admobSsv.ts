@@ -168,6 +168,16 @@ function requiredSingleValue(params: URLSearchParams, name: string): string {
   return values[0];
 }
 
+function decodeSignedContent(value: string): string {
+  // Match Google's RewardedAdsVerifier URI.getQuery() behavior: decode percent escapes
+  // without treating literal '+' characters as spaces. Parameter order remains unchanged.
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    malformed('Callback query contains invalid percent-encoding.');
+  }
+}
+
 function parsePositiveInteger(value: string, name: string): number {
   if (!/^\d+$/.test(value)) {
     malformed(`Callback ${name} must be an integer.`);
@@ -353,7 +363,7 @@ export function createAdmobSsvVerifier(options: AdmobSsvVerifierOptions = {}) {
       { name: 'ECDSA', hash: 'SHA-256' },
       publicKey,
       toArrayBuffer(signature),
-      toArrayBuffer(new TextEncoder().encode(parsed.signedContent))
+      toArrayBuffer(new TextEncoder().encode(decodeSignedContent(parsed.signedContent)))
     );
     if (!verified) {
       throw new AdmobSsvVerificationError('INVALID_SIGNATURE', 'AdMob callback signature is invalid.');
