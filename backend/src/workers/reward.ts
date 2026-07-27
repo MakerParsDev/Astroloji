@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { enforceRateLimit } from '@/services/cache';
 import {
   AdmobSsvVerificationError,
+  type AdmobSsvErrorCode,
   type ParsedAdmobSsvCallback,
   verifyAdmobSsvCallback
 } from '@/services/admobSsv';
@@ -61,13 +62,15 @@ function logRewardResult(
   requestId: string,
   outcome: string,
   challengeId?: string,
-  transactionId?: string
+  transactionId?: string,
+  verifierCode?: AdmobSsvErrorCode
 ): void {
   console.info('Reward SSV result.', {
     requestId,
     outcome,
     challenge: challengeId?.slice(0, 8),
-    transaction: transactionId?.slice(0, 8)
+    transaction: transactionId?.slice(0, 8),
+    ...(verifierCode ? { verifierCode } : {})
   });
 }
 
@@ -163,7 +166,8 @@ export function registerRewardRoutes<E extends RewardEnv>(
     try {
       callback = await verifyCallback(c.req.url);
     } catch (error) {
-      logRewardResult(c.get('requestId'), 'signature_rejected');
+      const verifierCode = error instanceof AdmobSsvVerificationError ? error.code : undefined;
+      logRewardResult(c.get('requestId'), 'signature_rejected', undefined, undefined, verifierCode);
       return callbackError(error);
     }
 

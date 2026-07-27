@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '@/index';
 import { AdmobSsvVerificationError, type ParsedAdmobSsvCallback } from '@/services/admobSsv';
@@ -428,6 +428,7 @@ describe('rewarded access SSV routes', () => {
       error: { code: 'REWARD_TIMESTAMP_INVALID' }
     });
 
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
     const signatureApp = testApp({
       verifyCallback: async () => {
         throw new AdmobSsvVerificationError('INVALID_SIGNATURE', 'invalid signature');
@@ -438,6 +439,17 @@ describe('rewarded access SSV routes', () => {
     await expect(rejected.json()).resolves.toMatchObject({
       error: { code: 'INVALID_SIGNATURE' }
     });
+    expect(info).toHaveBeenCalledWith(
+      'Reward SSV result.',
+      expect.objectContaining({
+        outcome: 'signature_rejected',
+        verifierCode: 'INVALID_SIGNATURE'
+      })
+    );
+    const logged = JSON.stringify(info.mock.calls.at(-1));
+    expect(logged).not.toContain('invalid signature');
+    expect(logged).not.toContain('/api/v1/rewards/ssv?rejected');
+    info.mockRestore();
   });
 
   it('does not prepare another challenge for an active entitlement', async () => {
