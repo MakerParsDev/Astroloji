@@ -74,3 +74,30 @@ test('delete validates its narrow admin token before D1 deletion and removes exa
   assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.ADMOB_SSV_SECRET_ADMIN_TOKEN \}\}/);
   assert.doesNotMatch(workflow, /^\s{4}ADMOB_SSV_SECRET_ADMIN_TOKEN:/m);
 });
+
+const operatorDocs = [
+  'backend/README.md',
+  'docs/PLAY_PRODUCTION_READINESS.md',
+  'RELEASE_RUNBOOK.md'
+];
+
+test('operator docs describe one offline-secret workflow without positional identifiers', () => {
+  for (const path of operatorDocs) {
+    const content = fs.readFileSync(path, 'utf8');
+    for (const required of [
+      'tools/admob-ssv-verification-values.html',
+      'ADMOB_SSV_TEST_USER_ID',
+      'ADMOB_SSV_TEST_CUSTOM_DATA',
+      'ADMOB_SSV_SECRET_ADMIN_TOKEN',
+      'MANAGE_ADMOB_SSV_CHALLENGE',
+      'backend-admob-ssv-verification-challenge'
+    ]) {
+      assert.match(content, new RegExp(required), `${path} must mention ${required}`);
+    }
+    assert.doesNotMatch(content, /transition:challenge:create/);
+    assert.doesNotMatch(content, /transition:challenge:inspect\s+--/);
+    assert.doesNotMatch(content, /transition:challenge:delete\s+--/);
+    assert.doesNotMatch(content, /<challenge-uuid>|<uuid>/);
+    assert.match(content, /create -> AdMob -> inspect verified -> delete/);
+  }
+});

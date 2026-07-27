@@ -10,7 +10,7 @@ Provide a main-only, auditable GitHub Actions workflow that can create, inspect,
 
 ## Selected Approach
 
-Use a local, offline HTML generator plus one `workflow_dispatch` workflow with three commands: `create`, `inspect`, and `delete`.
+Use a local, offline HTML generator plus the main-only `backend-admob-ssv-verification-challenge` workflow with three commands: `create`, `inspect`, and `delete`; every dispatch requires confirmation `MANAGE_ADMOB_SSV_CHALLENGE`.
 
 The offline generator:
 
@@ -39,7 +39,7 @@ For `inspect`:
 For `delete`:
 
 1. Delete only the exact challenge UUID when its user ID starts with `admob-verify-`.
-2. Remove both temporary repository secrets after the D1 deletion succeeds.
+2. Remove both temporary repository secrets after the D1 deletion succeeds by using the production environment secret `ADMOB_SSV_SECRET_ADMIN_TOKEN`, which has only repository Actions-secrets write permission.
 3. Publish only the deleted challenge prefix.
 
 ## Security Boundaries
@@ -55,13 +55,13 @@ For `delete`:
 
 ## Operator Flow
 
-1. Open the repository-hosted offline generator locally and create fresh values. Keep that page open.
+1. Open `tools/admob-ssv-verification-values.html` locally and create fresh values. Keep that page open.
 2. In GitHub repository settings, save the generated values as `ADMOB_SSV_TEST_USER_ID` and `ADMOB_SSV_TEST_CUSTOM_DATA`.
-3. Run workflow command `create` and require redacted evidence showing a pending 15-minute challenge.
+3. Confirm `ADMOB_SSV_SECRET_ADMIN_TOKEN` exists in the production environment, then run workflow command `create` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE` and require redacted evidence showing a pending 15-minute challenge.
 4. Enter the still-visible local values in AdMob URL verification.
 5. Run AdMob's verification test.
-6. Run workflow command `inspect` and require status `verified` with a transaction prefix.
-7. Run workflow command `delete`; verify the D1 row and both temporary repository secrets are gone.
+6. Run workflow command `inspect` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE` and require status `verified` with a transaction prefix.
+7. Run workflow command `delete` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE`; verify the D1 row and both temporary repository secrets are gone.
 
 ## Failure Handling
 

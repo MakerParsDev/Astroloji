@@ -1,6 +1,6 @@
 # Google Play Production Readiness
 
-Last reviewed: 2026-07-26
+Last reviewed: 2026-07-27
 
 ## Automated gates
 
@@ -13,48 +13,29 @@ Last reviewed: 2026-07-26
 
 ## Required rewarded SSV transition order
 
-1. Merge the transition Worker change and require green CI/security checks.
-2. Run `backend-ssv-transition-deploy` from `main` with:
-   - confirmation `DEPLOY_TRANSITION`;
-   - an ISO UTC `legacy_forward_until` no more than 30 days ahead (normally 14 days or less).
-3. If transition secret synchronization fails, leave the Worker unrouted, correct the failure, and safely rerun the same deployment workflow. Never attach the route manually after a partial secret update.
-4. Confirm the workflow evidence contains:
-   - Worker deployment ID;
-   - route `astrology.parsfilo.com/api/v1/rewards/*` and its route ID;
-   - D1 migration success;
-   - compatibility deadline;
-   - malformed callback HTTP 400 / `MALFORMED_CALLBACK`;
-   - rollback workflow `backend-ssv-transition-rollback`.
-5. Outside GitHub Actions, create the one-time AdMob verification values:
+Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 
-   ```powershell
-   cd backend
-   npm run transition:challenge:create
-   ```
-
-6. In the production rewarded ad unit's SSV dialog enter exactly:
+1. Merge edilen transition Worker degisikligi icin `main` CI ve guvenlik kontrollerinin yesil oldugunu dogrulayin.
+2. Gerekliyse `backend-ssv-transition-deploy` workflow'unu `main` uzerinden `DEPLOY_TRANSITION` onayi ve en fazla 30 gun ileride UTC deadline ile calistirin.
+3. Canli callback `400 / MALFORMED_CALLBACK` donmeli; route ID, deployment ID, D1 migration ve rollback evidence kaydedilmelidir.
+4. Repo kokundeki `tools/admob-ssv-verification-values.html` dosyasini yerel tarayicida acin. Yeni degerler uretin ve sayfayi test tamamlanana kadar acik tutun.
+5. Uretilen degerleri gecici repository Actions secrets olarak kaydedin:
+   - `ADMOB_SSV_TEST_USER_ID`
+   - `ADMOB_SSV_TEST_CUSTOM_DATA`
+6. `production` environment icinde dar yetkili `ADMOB_SSV_SECRET_ADMIN_TOKEN` secret'ini dogrulayin. Token repository Actions secrets yazma/silme yetkisine sahip olmali ve yalnizca delete cleanup adiminda kullanilmalidir.
+7. `backend-admob-ssv-verification-challenge` workflow'unu command `create` ve confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Ozet yalnizca redakte prefix, `pending` status ve expiry gostermelidir.
+8. Production rewarded ad unit SSV ekraninda tam olarak sunlari girin:
 
    ```text
    Callback URL: https://astrology.parsfilo.com/api/v1/rewards/ssv
-   User ID: User ID printed by transition:challenge:create
-   Custom data: challenge UUID printed by transition:challenge:create
+   User ID: yerel generator sayfasinda gorunen User ID
+   Custom data: yerel generator sayfasinda gorunen Custom data
    ```
 
-7. Click **URL'yi doğrula**. Continue only after success; then click **Doğrulanan URL'yi kullan** and **Kaydet**. Do not save a failed verification.
-8. Inspect the challenge by exact UUID and record only the challenge prefix, expiry, `verified` status, and transaction prefix:
-
-   ```powershell
-   npm run transition:challenge:inspect -- <challenge-uuid>
-   ```
-
-9. Delete the one-time test challenge after evidence is recorded:
-
-   ```powershell
-   npm run transition:challenge:delete -- <challenge-uuid>
-   ```
-
-10. Run `android-internal-preflight` from `main`, retain its workflow URL/result, and complete real-device rewarded daily/weekly QA before any Play release.
-11. Keep `ENABLE_PRODUCTION_RELEASE=false`. Do not run `backend-production-deploy` until the secure Android rollout/cutover plan explicitly allows removal of the legacy compatibility path.
+9. **URL'yi doğrula** basarili olduktan sonra **Doğrulanan URL'yi kullan** ve **Kaydet** secin. Basarisiz dogrulamayi kaydetmeyin.
+10. Ayni workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin; status `verified` ve transaction prefix zorunludur.
+11. Evidence kaydindan sonra workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin; D1 satiri ve iki gecici repository secret'i silinmelidir.
+12. `android-internal-preflight` calistirin ve gercek cihazda daily/weekly rewarded QA tamamlayin. `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
 
 ## Transition rollback
 
