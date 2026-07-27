@@ -59,6 +59,18 @@ function records(value: unknown): UnknownRecord[] {
   return Array.isArray(value) ? value.map(record) : [];
 }
 
+function structuredSource(value: unknown): UnknownRecord {
+  const direct = record(value);
+  if (Object.keys(direct).length > 0 || typeof value !== 'string') return direct;
+  const serialized = value.trim();
+  if (!serialized || serialized.length > 16_384) return {};
+  try {
+    return record(JSON.parse(serialized));
+  } catch {
+    return {};
+  }
+}
+
 function string(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
@@ -126,7 +138,7 @@ export function parseWorkerSsvTelemetry(
   const container = record(root.events);
   const candidates = records(container.events)
     .map((event) => {
-      const source = record(event.source);
+      const source = structuredSource(event.source);
       const metadata = record(event.$metadata);
       const workers = workerEnvelope(event, source);
       const scriptName = string(workers.scriptName) ?? string(metadata.service);
