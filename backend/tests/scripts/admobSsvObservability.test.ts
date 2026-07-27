@@ -23,9 +23,9 @@ describe('AdMob SSV observability inspection', () => {
         datasets: ['cloudflare-workers'],
         filterCombination: 'and',
         filters: [
-          { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName },
-          { key: 'event', operation: 'eq', type: 'string', value: 'reward_ssv_result' }
+          { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName }
         ],
+        needle: { value: 'reward_ssv_result', isRegex: false, matchCase: true },
         view: 'events'
       }
     });
