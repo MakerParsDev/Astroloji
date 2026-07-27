@@ -70,40 +70,29 @@ Not: Debug/unit verify gorevleri gerekiyorsa `app/google-services.example.json` 
 
 ## Rewarded SSV Gecis Worker'i
 
-Bu gecis tam `astrology-backend` deploy'u degildir. Sadece `astrology.parsfilo.com/api/v1/rewards/*` yolu `astrology-ssv-transition` Worker'ina baglanir; diger tum yollar degismemis origin Worker'da kalir.
+Bu gecis tam `astrology-backend` deploy'u degildir. Sadece exact reward route transition Worker'a gider; diger yollar degismemis origin Worker'da kalir.
 
-1. `main` uzerinde `backend-ssv-transition-deploy` workflow'unu calistir. Onay: `DEPLOY_TRANSITION`. `legacy_forward_until` gelecekte, UTC ve en fazla 30 gun (tercihen 14 gun veya daha kisa) olmalidir.
-2. Workflow ozetinde deployment ID, route ID/pattern, D1 migration, deadline, `MALFORMED_CALLBACK` smoke sonucu ve rollback workflow adini kaydet.
-   Secret senkronu yarida kalirsa Worker henuz route edilmemistir; hatayi duzeltip ayni workflow'u yeniden calistir. Route'u elle baglama.
-3. GitHub Actions disinda tek kullanimlik test degerlerini olustur:
+Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 
-```powershell
-cd backend
-npm run transition:challenge:create
-```
-
-4. AdMob SSV ekraninda su alanlari kullan:
+1. `main` uzerinde `backend-ssv-transition-deploy` workflow'unu gerekiyorsa `DEPLOY_TRANSITION` onayi ve gelecekte UTC deadline ile calistir.
+2. Workflow ozetinde deployment ID, route ID/pattern, D1 migration, deadline ve `MALFORMED_CALLBACK` sonucunu kaydet.
+3. Repo kokundeki `tools/admob-ssv-verification-values.html` dosyasini yerel tarayicida ac, yeni degerler uret ve sayfayi acik tut.
+4. Degerleri gecici repository Actions secrets olarak kaydet:
+   - `ADMOB_SSV_TEST_USER_ID`
+   - `ADMOB_SSV_TEST_CUSTOM_DATA`
+5. `backend-admob-ssv-verification-challenge` workflow'unu command `create`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir. Ozet yalnızca redakte prefix, `pending` status ve expiry icermelidir.
+6. AdMob SSV ekraninda su alanlari kullan:
 
 ```text
 Callback URL: https://astrology.parsfilo.com/api/v1/rewards/ssv
-User ID: transition:challenge:create ciktisindaki User ID
-Custom data: transition:challenge:create ciktisindaki challenge UUID
+User ID: acik yerel generator sayfasindaki User ID
+Custom data: acik yerel generator sayfasindaki Custom data
 ```
 
-5. **URL'yi doğrula** butonuna bas. Basarisizsa kaydetme. Basariliysa **Doğrulanan URL'yi kullan**, ardindan **Kaydet**.
-6. Challenge'i kontrol et; kayda yalnizca challenge prefix, expiry, `verified` status ve transaction prefix ekle:
-
-```powershell
-npm run transition:challenge:inspect -- <challenge-uuid>
-```
-
-7. Evidence kaydindan sonra test satirini sil:
-
-```powershell
-npm run transition:challenge:delete -- <challenge-uuid>
-```
-
-8. `android-internal-preflight` calistir ve workflow URL/sonucunu kaydet. `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
+7. **URL'yi doğrula** basarisizsa kaydetme. Basariliysa **Doğrulanan URL'yi kullan**, ardindan **Kaydet**.
+8. Workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; redakte evidence status `verified` ve transaction prefix gostermelidir.
+9. Workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; exact D1 satiri silinmelidir. Ardindan repository Actions settings ekranindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel sil.
+10. `android-internal-preflight` calistir ve workflow URL/sonucunu kaydet. `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
 
 ### Gecis rollback
 

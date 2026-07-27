@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>AdMob SSV Test Değerleri</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 760px; margin: 0 auto; padding: 32px 20px; line-height: 1.5; }
+    h1 { margin-top: 0; }
+    .notice { border: 1px solid currentColor; border-radius: 10px; padding: 14px; margin: 16px 0; }
+    .field { margin: 18px 0; }
+    label { display: block; font-weight: 700; margin-bottom: 6px; }
+    .row { display: flex; gap: 8px; }
+    input { flex: 1; min-width: 0; padding: 10px; font-family: ui-monospace, monospace; }
+    button { padding: 10px 14px; cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .55; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; }
+    dd { margin: 0; font-family: ui-monospace, monospace; }
+    #status { min-height: 1.5em; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>AdMob SSV doğrulama değerleri</h1>
+  <p>Bu sayfa tamamen yerel çalışır. Değerler yalnızca bu sekmenin belleğinde tutulur.</p>
+
+  <div class="notice">
+    <strong>Önemli:</strong> Değerler 15 dakika geçerlidir. GitHub kaydedilen secret değerlerini daha sonra göstermez; AdMob doğrulaması bitene kadar bu sayfayı açık tut.
+  </div>
+
+  <button id="generate" type="button">Yeni değerler üret</button>
+
+  <section id="results" hidden>
+    <div class="field">
+      <label for="userId">User ID → ADMOB_SSV_TEST_USER_ID</label>
+      <div class="row">
+        <input id="userId" readonly autocomplete="off" spellcheck="false">
+        <button id="copyUserId" type="button" disabled>User ID kopyala</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="customData">Custom data → ADMOB_SSV_TEST_CUSTOM_DATA</label>
+      <div class="row">
+        <input id="customData" readonly autocomplete="off" spellcheck="false">
+        <button id="copyCustomData" type="button" disabled>Custom data kopyala</button>
+      </div>
+    </div>
+
+    <dl>
+      <dt>Üretildi</dt><dd id="generatedAt"></dd>
+      <dt>Son kullanım</dt><dd id="expiresAt"></dd>
+    </dl>
+    <p id="status" aria-live="polite"></p>
+  </section>
+
+  <script>
+    function generateValues(randomUUID = () => crypto.randomUUID(), now = new Date()) {
+      const userUuid = randomUUID();
+      const customData = randomUUID();
+      return {
+        userId: `admob-verify-${userUuid}`,
+        customData,
+        generatedAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + 15 * 60 * 1000).toISOString()
+      };
+    }
+
+    globalThis.generateValues = generateValues;
+
+    let currentValues = null;
+    const generateButton = document.getElementById('generate');
+    const results = document.getElementById('results');
+    const userIdInput = document.getElementById('userId');
+    const customDataInput = document.getElementById('customData');
+    const generatedAt = document.getElementById('generatedAt');
+    const expiresAt = document.getElementById('expiresAt');
+    const copyUserId = document.getElementById('copyUserId');
+    const copyCustomData = document.getElementById('copyCustomData');
+    const status = document.getElementById('status');
+
+    generateButton.addEventListener('click', () => {
+      currentValues = generateValues();
+      userIdInput.value = currentValues.userId;
+      customDataInput.value = currentValues.customData;
+      generatedAt.textContent = currentValues.generatedAt;
+      expiresAt.textContent = currentValues.expiresAt;
+      results.hidden = false;
+      copyUserId.disabled = false;
+      copyCustomData.disabled = false;
+      status.textContent = 'Yeni değerler yalnızca bu sekmede oluşturuldu.';
+    });
+
+    copyUserId.addEventListener('click', async () => {
+      if (!currentValues) return;
+      try {
+        await navigator.clipboard.writeText(currentValues.userId);
+        status.textContent = 'User ID panoya kopyalandı.';
+      } catch {
+        status.textContent = 'Kopyalama kullanılamadı; User ID alanını elle seçip kopyala.';
+      }
+    });
+
+    copyCustomData.addEventListener('click', async () => {
+      if (!currentValues) return;
+      try {
+        await navigator.clipboard.writeText(currentValues.customData);
+        status.textContent = 'Custom data panoya kopyalandı.';
+      } catch {
+        status.textContent = 'Kopyalama kullanılamadı; Custom data alanını elle seçip kopyala.';
+      }
+    });
+  </script>
+</body>
+</html>

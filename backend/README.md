@@ -110,26 +110,28 @@ CREATE INDEX IF NOT EXISTS idx_users_subscription_state ON users(subscription_st
 
 ## Rewarded Ad SSV Kurulumu
 
-Production gecisi icin tam backend'i hemen deploy etmeyin. Once route-free `astrology-ssv-transition` Worker'ini reviewed workflow ile deploy edin; workflow sadece `JWT_SECRET` ve Android/AdMob production `REWARDED` birimiyle birebir ayni `ADMOB_REWARDED_ID` secret'ini senkronlar ve exact reward route'unu son adimda baglar.
+Production gecisi icin tam backend'i hemen deploy etmeyin. `astrology-ssv-transition` Worker'i canli malformed callback icin `400 / MALFORMED_CALLBACK` donmeli ve `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
 
-1. Workflow: `backend-ssv-transition-deploy` (`DEPLOY_TRANSITION` + gelecekte UTC deadline).
-2. D1 migration workflow tarafindan idempotent uygulanir: `scripts/migrate-reward-ssv.sql`.
-3. Canli malformed callback `400 / MALFORMED_CALLBACK` donmelidir.
-   Secret senkronu yarida kalirsa Worker route edilmez; hatayi duzeltip ayni deploy workflow'unu guvenle yeniden calistirin. Route'u elle baglamayin.
-4. Test challenge degerleri GitHub Actions disinda uretilir:
+Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 
-   ```powershell
-   npm run transition:challenge:create
-   ```
-
-5. AdMob alanlari:
+1. Gecis Worker'i gerekiyorsa `backend-ssv-transition-deploy` workflow'u ile `main` uzerinden deploy edin; onay `DEPLOY_TRANSITION` ve gelecekte UTC deadline kullanin.
+2. Yerel bilgisayarda repo kokundeki `tools/admob-ssv-verification-values.html` dosyasini tarayicida acin, yeni degerler uretin ve sayfayi AdMob testi bitene kadar acik tutun.
+3. GitHub repository Actions secrets alanina su iki gecici secret'i kaydedin:
+   - `ADMOB_SSV_TEST_USER_ID`
+   - `ADMOB_SSV_TEST_CUSTOM_DATA`
+4. `backend-admob-ssv-verification-challenge` workflow'unu `main` uzerinden calistirin:
+   - command: `create`
+   - confirm: `MANAGE_ADMOB_SSV_CHALLENGE`
+   Workflow ozetinde yalnizca prefix, `pending` status ve 15 dakikalik expiry bulunmalidir.
+5. AdMob SSV ekraninda su alanlari kullanin:
 
    ```text
    Callback URL: https://astrology.parsfilo.com/api/v1/rewards/ssv
-   User ID: create komutunun User ID ciktisi
-   Custom data: create komutunun challenge UUID ciktisi
+   User ID: acik tuttugunuz yerel sayfadaki User ID
+   Custom data: acik tuttugunuz yerel sayfadaki Custom data
    ```
 
-6. AdMob'da **URL'yi doğrula** basarili olmadan kaydetmeyin. Basaridan sonra **Doğrulanan URL'yi kullan** ve **Kaydet**.
-7. `npm run transition:challenge:inspect -- <uuid>` ile sadece redakte evidence alin; ardindan `npm run transition:challenge:delete -- <uuid>` ile test satirini silin.
-8. Rollback: `backend-ssv-transition-rollback` exact route'u kaldirir; `astrology-backend` ve D1 tablosu degismez.
+6. **URL'yi doğrula** basarili olmadan kaydetmeyin. Basaridan sonra **Doğrulanan URL'yi kullan** ve **Kaydet**.
+7. Ayni workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Redakte evidence icinde status `verified` ve transaction prefix bulunmalidir.
+8. Ayni workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Exact D1 challenge satiri silinmelidir. Ardindan GitHub Actions ayarlarindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel silin.
+9. Rollback gerektiginde `backend-ssv-transition-rollback` exact route'u kaldirir; `astrology-backend` ve additif D1 tablolari degismez.

@@ -24,15 +24,59 @@ export interface VerificationChallengeRow {
   expires_at: string;
 }
 
+export type D1CommandResult = Array<{
+  results?: unknown[];
+  success?: boolean;
+  meta?: { changes?: number };
+}>;
+
+export type VerificationChallengeCommand = 'create' | 'inspect' | 'delete';
+
+export type VerificationChallengeEvidence =
+  | ({ operation: 'create' | 'inspect' } & ReturnType<typeof formatVerificationEvidence>)
+  | { operation: 'delete'; deletedChallengePrefix: string };
+
+export interface ExecuteVerificationChallengeCommandOptions {
+  command: VerificationChallengeCommand;
+  env: Record<string, string | undefined>;
+  now?: Date;
+  runSql?: (sql: string) => D1CommandResult;
+  log?: (message: string) => void;
+}
+
 function sqlString(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
 
-function requireUuid(value: string): string {
+function requireUuid(value: string, label = 'Challenge ID'): string {
   if (!UUID_PATTERN.test(value)) {
-    throw new Error('Challenge ID must be a UUID.');
+    throw new Error(`${label} must be a UUID.`);
   }
   return value;
+}
+
+function requireEnv(
+  env: Record<string, string | undefined>,
+  name: 'ADMOB_SSV_TEST_USER_ID' | 'ADMOB_SSV_TEST_CUSTOM_DATA'
+): string {
+  const value = env[name]?.trim();
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+  return value;
+}
+
+export function validateSuppliedVerificationValues(userId: string, challengeId: string) {
+  const normalizedChallengeId = requireUuid(challengeId.trim(), 'Custom data');
+  const normalizedUserId = userId.trim();
+  if (!normalizedUserId.startsWith(VERIFICATION_USER_PREFIX)) {
+    throw new Error('User ID must use the admob-verify-<uuid> namespace.');
+  }
+  const userUuid = normalizedUserId.slice(VERIFICATION_USER_PREFIX.length);
+  if (!UUID_PATTERN.test(userUuid)) {
+    throw new Error('User ID must use the admob-verify-<uuid> namespace.');
+  }
+  return { userId: normalizedUserId, challengeId: normalizedChallengeId };
 }
 
 export function createVerificationChallengeValues(options: {
@@ -45,6 +89,26 @@ export function createVerificationChallengeValues(options: {
   const userId = `${VERIFICATION_USER_PREFIX}${randomUUID()}`;
   const expiresAt = new Date(now.getTime() + CHALLENGE_TTL_MS);
 
+  return {
+    challengeId,
+    userId,
+    identifier: now.toISOString().slice(0, 10),
+    createdAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString()
+  };
+}
+
+export function createSuppliedVerificationChallengeValues(options: {
+  userId: string;
+  challengeId: string;
+  now?: Date;
+}): VerificationChallengeValues {
+  const { userId, challengeId } = validateSuppliedVerificationValues(
+    options.userId,
+    options.challengeId
+  );
+  const now = options.now ?? new Date();
+  const expiresAt = new Date(now.getTime() + CHALLENGE_TTL_MS);
   return {
     challengeId,
     userId,
@@ -88,13 +152,7 @@ export function formatVerificationEvidence(row: VerificationChallengeRow) {
   };
 }
 
-type D1CommandResult = Array<{
-  results?: unknown[];
-  success?: boolean;
-  meta?: { changes?: number };
-}>;
-
-function runRemoteSql(sql: string): D1CommandResult {
+export function runRemoteSql(sql: string): D1CommandResult {
   const output = execFileSync(
     'npx',
     [
@@ -112,7 +170,8 @@ function runRemoteSql(sql: string): D1CommandResult {
     {
       cwd: path.resolve('.'),
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'inherit']
+      stdio: ['ignore', 'pipe', 'inherit'],
+      timeout: 120_000
     }
   );
   return JSON.parse(output) as D1CommandResult;
@@ -123,43 +182,68 @@ function firstRow(result: D1CommandResult): VerificationChallengeRow | null {
   return row ? (row as VerificationChallengeRow) : null;
 }
 
-function createChallenge(): void {
-  const values = createVerificationChallengeValues();
-  runRemoteSql(buildInsertVerificationChallengeSql(values));
-  console.log('SHORT-LIVED ADMOB TEST VALUES — do not paste into tickets or GitHub logs.');
-  console.log(`User ID: ${values.userId}`);
-  console.log(`Custom data: ${values.challengeId}`);
-  console.log(`Expires at (UTC): ${values.expiresAt}`);
-}
-
-function inspectChallenge(challengeId: string): void {
-  const row = firstRow(runRemoteSql(buildSelectVerificationChallengeSql(challengeId)));
-  if (!row) {
-    throw new Error('AdMob verification challenge was not found.');
+export function executeVerificationChallengeCommand({
+  command,
+  env,
+  now,
+  runSql = runRemoteSql,
+  log = console.log
+}: ExecuteVerificationChallengeCommandOptions): VerificationChallengeEvidence {
+  if (command === 'create') {
+    const userId = requireEnv(env, 'ADMOB_SSV_TEST_USER_ID');
+    const challengeId = requireEnv(env, 'ADMOB_SSV_TEST_CUSTOM_DATA');
+    const values = createSuppliedVerificationChallengeValues({ userId, challengeId, now });
+    runSql(buildInsertVerificationChallengeSql(values));
+    const evidence: VerificationChallengeEvidence = {
+      operation: 'create',
+      ...formatVerificationEvidence({
+        id: values.challengeId,
+        user_id: values.userId,
+        status: 'pending',
+        transaction_id: null,
+        expires_at: values.expiresAt
+      })
+    };
+    log(JSON.stringify(evidence));
+    return evidence;
   }
-  console.log(JSON.stringify(formatVerificationEvidence(row), null, 2));
-}
 
-function deleteChallenge(challengeId: string): void {
-  runRemoteSql(buildDeleteVerificationChallengeSql(challengeId));
-  console.log(JSON.stringify({ deletedChallengePrefix: requireUuid(challengeId).slice(0, 8) }));
+  const challengeId = requireUuid(
+    requireEnv(env, 'ADMOB_SSV_TEST_CUSTOM_DATA'),
+    'Custom data'
+  );
+
+  if (command === 'inspect') {
+    const row = firstRow(runSql(buildSelectVerificationChallengeSql(challengeId)));
+    if (!row || !row.user_id.startsWith(VERIFICATION_USER_PREFIX)) {
+      throw new Error('AdMob verification challenge was not found.');
+    }
+    const evidence: VerificationChallengeEvidence = {
+      operation: 'inspect',
+      ...formatVerificationEvidence(row)
+    };
+    log(JSON.stringify(evidence));
+    return evidence;
+  }
+
+  runSql(buildDeleteVerificationChallengeSql(challengeId));
+  const evidence: VerificationChallengeEvidence = {
+    operation: 'delete',
+    deletedChallengePrefix: challengeId.slice(0, 8)
+  };
+  log(JSON.stringify(evidence));
+  return evidence;
 }
 
 async function main(): Promise<void> {
-  const [command, challengeId] = process.argv.slice(2);
-  if (command === 'create') {
-    createChallenge();
-    return;
+  const [command, ...rest] = process.argv.slice(2);
+  if (rest.length > 0 || !['create', 'inspect', 'delete'].includes(command ?? '')) {
+    throw new Error('Usage: create | inspect | delete');
   }
-  if (command === 'inspect' && challengeId) {
-    inspectChallenge(challengeId);
-    return;
-  }
-  if (command === 'delete' && challengeId) {
-    deleteChallenge(challengeId);
-    return;
-  }
-  throw new Error('Usage: create | inspect <challenge-uuid> | delete <challenge-uuid>');
+  executeVerificationChallengeCommand({
+    command: command as VerificationChallengeCommand,
+    env: process.env
+  });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
