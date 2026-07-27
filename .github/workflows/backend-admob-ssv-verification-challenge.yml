@@ -77,8 +77,8 @@ jobs:
             echo 'ADMOB_SSV_TEST_CUSTOM_DATA is required.'
             exit 1
           fi
-          if [ "$INPUT_COMMAND" = "create" ] && [ -z "${ADMOB_SSV_TEST_USER_ID:-}" ]; then
-            echo 'ADMOB_SSV_TEST_USER_ID is required for create.'
+          if { [ "$INPUT_COMMAND" = "create" ] || [ "$INPUT_COMMAND" = "delete" ]; } && [ -z "${ADMOB_SSV_TEST_USER_ID:-}" ]; then
+            echo 'ADMOB_SSV_TEST_USER_ID is required for create and delete.'
             exit 1
           fi
           echo "::add-mask::$ADMOB_SSV_TEST_CUSTOM_DATA"
@@ -90,7 +90,7 @@ jobs:
           const userId = process.env.ADMOB_SSV_TEST_USER_ID ?? '';
           const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
           if (!uuid.test(challenge)) throw new Error('Custom data must be a UUID.');
-          if (process.env.INPUT_COMMAND === 'create') {
+          if (['create', 'delete'].includes(process.env.INPUT_COMMAND ?? '')) {
             if (!userId.startsWith('admob-verify-') || !uuid.test(userId.slice('admob-verify-'.length))) {
               throw new Error('User ID must use the admob-verify-<uuid> namespace.');
             }
@@ -152,6 +152,7 @@ jobs:
         working-directory: backend
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          ADMOB_SSV_TEST_USER_ID: ${{ secrets.ADMOB_SSV_TEST_USER_ID }}
           ADMOB_SSV_TEST_CUSTOM_DATA: ${{ secrets.ADMOB_SSV_TEST_CUSTOM_DATA }}
         run: |
           set -euo pipefail

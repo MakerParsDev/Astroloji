@@ -241,6 +241,10 @@ describe('AdMob verification challenge helpers', () => {
       expiresAt: '2026-07-26T20:15:00.000Z'
     });
 
+    expect(sql).toContain('INSERT OR IGNORE INTO users');
+    expect(sql.indexOf('INSERT OR IGNORE INTO users')).toBeLessThan(
+      sql.indexOf('INSERT INTO reward_challenges')
+    );
     expect(sql).toContain("'daily', '2026-07-26', 'pending'");
     expect(sql).toContain("'2026-07-26T20:15:00.000Z'");
     expect(sql).toContain('NULL, NULL, NULL');
@@ -248,13 +252,20 @@ describe('AdMob verification challenge helpers', () => {
 
   it('deletes only the exact UUID when it belongs to an AdMob verification user', () => {
     const sql = buildDeleteVerificationChallengeSql(
-      '11111111-1111-4111-8111-111111111111'
+      '11111111-1111-4111-8111-111111111111',
+      'admob-verify-22222222-2222-4222-8222-222222222222'
     );
 
     expect(sql).toContain("id = '11111111-1111-4111-8111-111111111111'");
-    expect(sql).toContain("user_id LIKE 'admob-verify-%'");
-    expect(() => buildDeleteVerificationChallengeSql('not-a-uuid')).toThrow(
-      'Challenge ID must be a UUID.'
+    expect(sql).toContain(
+      "user_id = 'admob-verify-22222222-2222-4222-8222-222222222222'"
     );
+    expect(sql).toContain('DELETE FROM users');
+    expect(() =>
+      buildDeleteVerificationChallengeSql(
+        'not-a-uuid',
+        'admob-verify-22222222-2222-4222-8222-222222222222'
+      )
+    ).toThrow('Custom data must be a UUID.');
   });
 });

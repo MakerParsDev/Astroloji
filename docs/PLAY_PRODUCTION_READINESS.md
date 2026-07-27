@@ -22,7 +22,7 @@ Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 5. Uretilen degerleri gecici repository Actions secrets olarak kaydedin:
    - `ADMOB_SSV_TEST_USER_ID`
    - `ADMOB_SSV_TEST_CUSTOM_DATA`
-6. `backend-admob-ssv-verification-challenge` workflow'unu command `create` ve confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Ozet yalnizca redakte prefix, `pending` status ve expiry gostermelidir.
+6. `backend-admob-ssv-verification-challenge` workflow'unu command `create` ve confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Workflow exact `admob-verify-*` gecici D1 kullanicisini otomatik olusturur; ozet yalnizca redakte prefix, `pending` status ve expiry gostermelidir.
 7. Production rewarded ad unit SSV ekraninda tam olarak sunlari girin:
 
    ```text
@@ -33,7 +33,7 @@ Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 
 8. **URL'yi doğrula** basarili olduktan sonra **Doğrulanan URL'yi kullan** ve **Kaydet** secin. Basarisiz dogrulamayi kaydetmeyin.
 9. Ayni workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin; status `verified` ve transaction prefix zorunludur.
-10. Evidence kaydindan sonra workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin; D1 satiri silinmelidir. Sonra repository Actions settings ekranindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel silin.
+10. Evidence kaydindan sonra workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin; D1 challenge satiri ve artik kullanilmayan gecici D1 kullanicisi otomatik silinmelidir. Sonra repository Actions settings ekranindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel silin.
 11. `android-internal-preflight` calistirin ve gercek cihazda daily/weekly rewarded QA tamamlayin. `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
 
 ## Transition rollback

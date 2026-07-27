@@ -119,7 +119,12 @@ export function createSuppliedVerificationChallengeValues(options: {
 }
 
 export function buildInsertVerificationChallengeSql(values: VerificationChallengeValues): string {
-  return `INSERT INTO reward_challenges
+  return `INSERT OR IGNORE INTO users
+(id, firebase_uid, sign, language, utc_offset, is_premium, subscription_state,
+ premium_expires_at, created_at, last_seen_at)
+VALUES (${sqlString(values.userId)}, NULL, 'aries', 'tr', 0, 0, 'none', NULL,
+ ${sqlString(values.createdAt)}, ${sqlString(values.createdAt)});
+INSERT INTO reward_challenges
 (id, user_id, reward_type, identifier, status, transaction_id, ad_unit,
  callback_timestamp_ms, created_at, expires_at, verified_at, consumed_at,
  entitlement_expires_at)
@@ -134,10 +139,22 @@ WHERE id = ${sqlString(requireUuid(challengeId))}
 LIMIT 1;`;
 }
 
-export function buildDeleteVerificationChallengeSql(challengeId: string): string {
+export function buildDeleteVerificationChallengeSql(
+  challengeId: string,
+  userId: string
+): string {
+  const supplied = validateSuppliedVerificationValues(userId, challengeId);
   return `DELETE FROM reward_challenges
-WHERE id = ${sqlString(requireUuid(challengeId))}
-  AND user_id LIKE 'admob-verify-%';`;
+WHERE id = ${sqlString(supplied.challengeId)}
+  AND user_id = ${sqlString(supplied.userId)}
+  AND user_id LIKE 'admob-verify-%';
+DELETE FROM users
+WHERE id = ${sqlString(supplied.userId)}
+  AND id LIKE 'admob-verify-%'
+  AND NOT EXISTS (
+    SELECT 1 FROM reward_challenges
+    WHERE user_id = ${sqlString(supplied.userId)}
+  );`;
 }
 
 export function formatVerificationEvidence(row: VerificationChallengeRow) {
@@ -226,7 +243,8 @@ export function executeVerificationChallengeCommand({
     return evidence;
   }
 
-  runSql(buildDeleteVerificationChallengeSql(challengeId));
+  const userId = requireEnv(env, 'ADMOB_SSV_TEST_USER_ID');
+  runSql(buildDeleteVerificationChallengeSql(challengeId, userId));
   const evidence: VerificationChallengeEvidence = {
     operation: 'delete',
     deletedChallengePrefix: challengeId.slice(0, 8)
