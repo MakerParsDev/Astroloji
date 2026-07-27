@@ -58,6 +58,21 @@ test('create inspect and delete call only the hardened backend commands in safe 
   ]);
 });
 
+test('delete receives both supplied identifiers for challenge and temporary-user cleanup', () => {
+  const workflow = fs.readFileSync(workflowPath, 'utf8');
+  const deleteStart = workflow.indexOf('Delete verification challenge from D1');
+  const deleteEnd = workflow.indexOf('Publish redacted evidence');
+  assert.ok(deleteStart >= 0 && deleteEnd > deleteStart);
+  const deleteBlock = workflow.slice(deleteStart, deleteEnd);
+
+  assert.match(
+    workflow,
+    /\[ "\$INPUT_COMMAND" = "create" \] \|\| \[ "\$INPUT_COMMAND" = "delete" \]/
+  );
+  assert.match(deleteBlock, /ADMOB_SSV_TEST_USER_ID: \$\{\{ secrets\.ADMOB_SSV_TEST_USER_ID \}\}/);
+  assert.match(deleteBlock, /ADMOB_SSV_TEST_CUSTOM_DATA: \$\{\{ secrets\.ADMOB_SSV_TEST_CUSTOM_DATA \}\}/);
+});
+
 test('delete removes only the D1 challenge and requires manual temporary-secret cleanup', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
 
@@ -127,5 +142,6 @@ test('operator docs describe one offline-secret workflow without positional iden
     assert.match(content, /create -> AdMob -> inspect verified -> delete/);
     assert.doesNotMatch(content, /ADMOB_SSV_SECRET_ADMIN_TOKEN/);
     assert.match(content, /manuel/i);
+    assert.match(content, /gecici D1 kullanic/i);
   }
 });

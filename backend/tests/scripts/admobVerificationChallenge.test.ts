@@ -57,8 +57,14 @@ describe('verification challenge command execution', () => {
     });
 
     expect(runSql).toHaveBeenCalledOnce();
-    expect(runSql.mock.calls[0]?.[0]).toContain(`'${challengeId}'`);
-    expect(runSql.mock.calls[0]?.[0]).toContain(`'${userId}'`);
+    const sql = runSql.mock.calls[0]?.[0] as string;
+    expect(sql).toContain('INSERT OR IGNORE INTO users');
+    expect(sql).toContain('INSERT INTO reward_challenges');
+    expect(sql.indexOf('INSERT OR IGNORE INTO users')).toBeLessThan(sql.indexOf('INSERT INTO reward_challenges'));
+    expect(sql).toContain(`'${challengeId}'`);
+    expect(sql).toContain(`'${userId}'`);
+    expect(sql).toContain("'aries'");
+    expect(sql).toContain("'2026-07-27T10:00:00.000Z'");
     expect(evidence).toEqual({
       operation: 'create',
       challengePrefix: '22222222',
@@ -115,14 +121,21 @@ describe('verification challenge command execution', () => {
 
     const evidence = executeVerificationChallengeCommand({
       command: 'delete',
-      env: { ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+      env: {
+        ADMOB_SSV_TEST_USER_ID: userId,
+        ADMOB_SSV_TEST_CUSTOM_DATA: challengeId
+      },
       runSql,
       log
     });
 
     const sql = runSql.mock.calls[0]?.[0] as string;
     expect(sql).toContain(`id = '${challengeId}'`);
-    expect(sql).toContain("user_id LIKE 'admob-verify-%'");
+    expect(sql).toContain(`user_id = '${userId}'`);
+    expect(sql).toContain('DELETE FROM users');
+    expect(sql.indexOf('DELETE FROM reward_challenges')).toBeLessThan(sql.indexOf('DELETE FROM users'));
+    expect(sql).toContain(`id = '${userId}'`);
+    expect(sql).toContain('NOT EXISTS');
     expect(evidence).toEqual({ operation: 'delete', deletedChallengePrefix: '22222222' });
     expect(JSON.stringify(log.mock.calls)).not.toContain(challengeId);
   });
@@ -136,6 +149,13 @@ describe('verification challenge command execution', () => {
     expect(() =>
       executeVerificationChallengeCommand({ command: 'inspect', env: {}, runSql })
     ).toThrow(/ADMOB_SSV_TEST_CUSTOM_DATA/);
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'delete',
+        env: { ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+        runSql
+      })
+    ).toThrow(/ADMOB_SSV_TEST_USER_ID/);
     expect(runSql).not.toHaveBeenCalled();
   });
 });

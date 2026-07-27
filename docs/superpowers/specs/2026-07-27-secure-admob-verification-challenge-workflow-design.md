@@ -27,7 +27,7 @@ For `create`:
 2. Read the two temporary repository secrets and mask both values before any command uses them.
 3. Validate the User ID namespace and UUID format before database access.
 4. Load the Cloudflare API token through Doppler and mask it immediately.
-5. Insert the pending challenge into production D1 using the exact supplied values and the existing transition Wrangler configuration.
+5. Insert or reuse only the exact namespaced temporary D1 user required by the foreign key, then insert the pending challenge using the supplied values and the existing transition Wrangler configuration.
 6. Store only redacted prefixes and expiration time in the job summary.
 
 For `inspect`:
@@ -38,7 +38,7 @@ For `inspect`:
 
 For `delete`:
 
-1. Delete only the exact challenge UUID when its user ID starts with `admob-verify-`.
+1. Delete only the exact challenge UUID for the supplied `admob-verify-*` User ID, then delete that exact temporary D1 user only when no reward challenge still references it.
 2. Publish only the deleted challenge prefix and an explicit reminder to remove the two temporary repository secrets manually.
 3. Do not request or use any GitHub token with repository-secrets write permission.
 
@@ -50,7 +50,7 @@ For `delete`:
 - Full values are never written to `$GITHUB_STEP_SUMMARY`, artifacts, cache, issues, pull requests, or normal environment files.
 - The operator replaces the temporary secrets before every create operation and removes both names manually after the D1 delete succeeds. The workflow never receives repository-secrets write permission.
 - The challenge expires after 15 minutes in D1 even if operator cleanup is missed.
-- `inspect` and `delete` reject malformed UUIDs and rows outside the dedicated verification-user namespace.
+- `create` and `delete` validate both supplied identifiers; `inspect` and `delete` reject rows outside the dedicated verification-user namespace.
 - No production Android release, full backend deploy, or route change is part of this workflow.
 
 ## Operator Flow
@@ -61,7 +61,7 @@ For `delete`:
 4. Enter the still-visible local values in AdMob URL verification.
 5. Run AdMob's verification test.
 6. Run workflow command `inspect` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE` and require status `verified` with a transaction prefix.
-7. Run workflow command `delete` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE`; verify the D1 row is gone, then delete `ADMOB_SSV_TEST_USER_ID` and `ADMOB_SSV_TEST_CUSTOM_DATA` manually in repository Actions settings.
+7. Run workflow command `delete` with confirmation `MANAGE_ADMOB_SSV_CHALLENGE`; verify the challenge and now-unused temporary D1 user are gone, then delete `ADMOB_SSV_TEST_USER_ID` and `ADMOB_SSV_TEST_CUSTOM_DATA` manually in repository Actions settings.
 
 ## Failure Handling
 

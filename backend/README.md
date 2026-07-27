@@ -122,7 +122,7 @@ Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 4. `backend-admob-ssv-verification-challenge` workflow'unu `main` uzerinden calistirin:
    - command: `create`
    - confirm: `MANAGE_ADMOB_SSV_CHALLENGE`
-   Workflow ozetinde yalnizca prefix, `pending` status ve 15 dakikalik expiry bulunmalidir.
+   Workflow, foreign key gereksinimi icin exact `admob-verify-*` gecici D1 kullanicisini otomatik olusturur; ozette yalnizca prefix, `pending` status ve 15 dakikalik expiry bulunmalidir.
 5. AdMob SSV ekraninda su alanlari kullanin:
 
    ```text
@@ -133,5 +133,5 @@ Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 
 6. **URL'yi doğrula** basarili olmadan kaydetmeyin. Basaridan sonra **Doğrulanan URL'yi kullan** ve **Kaydet**.
 7. Ayni workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Redakte evidence icinde status `verified` ve transaction prefix bulunmalidir.
-8. Ayni workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Exact D1 challenge satiri silinmelidir. Ardindan GitHub Actions ayarlarindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel silin.
+8. Ayni workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistirin. Exact D1 challenge satiri ve artik kullanilmayan gecici D1 kullanicisi otomatik silinmelidir. Ardindan GitHub Actions ayarlarindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel silin.
 9. Rollback gerektiginde `backend-ssv-transition-rollback` exact route'u kaldirir; `astrology-backend` ve additif D1 tablolari degismez.

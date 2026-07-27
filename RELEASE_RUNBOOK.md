@@ -80,7 +80,7 @@ Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 4. Degerleri gecici repository Actions secrets olarak kaydet:
    - `ADMOB_SSV_TEST_USER_ID`
    - `ADMOB_SSV_TEST_CUSTOM_DATA`
-5. `backend-admob-ssv-verification-challenge` workflow'unu command `create`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir. Ozet yalnızca redakte prefix, `pending` status ve expiry icermelidir.
+5. `backend-admob-ssv-verification-challenge` workflow'unu command `create`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir. Workflow exact `admob-verify-*` gecici D1 kullanicisini otomatik olusturur; ozet yalnızca redakte prefix, `pending` status ve expiry icermelidir.
 6. AdMob SSV ekraninda su alanlari kullan:
 
 ```text
@@ -91,7 +91,7 @@ Custom data: acik yerel generator sayfasindaki Custom data
 
 7. **URL'yi doğrula** basarisizsa kaydetme. Basariliysa **Doğrulanan URL'yi kullan**, ardindan **Kaydet**.
 8. Workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; redakte evidence status `verified` ve transaction prefix gostermelidir.
-9. Workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; exact D1 satiri silinmelidir. Ardindan repository Actions settings ekranindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel sil.
+9. Workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; exact D1 challenge satiri ve artik kullanilmayan gecici D1 kullanicisi otomatik silinmelidir. Ardindan repository Actions settings ekranindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel sil.
 10. `android-internal-preflight` calistir ve workflow URL/sonucunu kaydet. `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
 
 ### Gecis rollback

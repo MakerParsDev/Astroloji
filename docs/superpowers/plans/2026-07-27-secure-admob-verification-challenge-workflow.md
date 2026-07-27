@@ -4,7 +4,7 @@
 
 **Goal:** Build an offline value generator and a main-only production workflow that creates, inspects, and deletes AdMob SSV verification challenges without exposing full User ID or Custom data values in logs or summaries.
 
-**Architecture:** A standalone local HTML page generates the two full values with browser Web Crypto and keeps them only in memory. A hardened TypeScript CLI consumes the two temporary Actions secrets, validates them, performs namespace-restricted D1 SQL, and emits only redacted evidence. One `workflow_dispatch` workflow gates `create`, `inspect`, and `delete`; the delete path removes only the exact D1 row and emits a reminder for the operator to delete the two temporary repository secrets manually.
+**Architecture:** A standalone local HTML page generates the two full values with browser Web Crypto and keeps them only in memory. A hardened TypeScript CLI consumes the two temporary Actions secrets, validates them, creates the exact namespaced temporary D1 user required by the challenge foreign key, performs namespace-restricted challenge SQL, and emits only redacted evidence. One `workflow_dispatch` workflow gates `create`, `inspect`, and `delete`; the delete path removes the exact challenge and now-unused temporary D1 user, then reminds the operator to delete the two temporary repository secrets manually.
 
 **Tech Stack:** Static HTML/JavaScript, Node.js 24, TypeScript 5.9, Vitest 3.2, GitHub Actions, Doppler CLI, Wrangler 4.112, Cloudflare D1.
 
@@ -14,7 +14,7 @@
 - The offline generator must perform no network requests and use no external scripts, analytics, service workers, cookies, localStorage, sessionStorage, IndexedDB, or automatic clipboard writes.
 - `ADMOB_SSV_TEST_USER_ID` must match `admob-verify-<uuid>` and `ADMOB_SSV_TEST_CUSTOM_DATA` must be an exact UUID.
 - Challenges expire exactly 15 minutes after workflow creation time.
-- D1 reads/deletes must require both the exact challenge UUID and `user_id LIKE 'admob-verify-%'`.
+- D1 create/delete operations must require the exact challenge UUID and exact `admob-verify-*` User ID; temporary-user deletion is allowed only when no reward challenge still references it.
 - The workflow runs only from `main`, uses the `production` environment, and keeps `ENABLE_PRODUCTION_RELEASE=false` unchanged.
 - The workflow has top-level `contents: read` and never receives repository Actions-secrets write permission.
 - No full backend deploy, transition route mutation, Android release, or Play production rollout is part of this plan.
@@ -145,7 +145,7 @@ Use top-level `contents: read`, non-cancelling concurrency, repository/main/conf
 
 - [ ] **Step 4: Implement create/inspect/delete execution**
 
-Install dependencies and Doppler CLI, load/mask `CLOUDFLARE_API_TOKEN`, run exactly one backend package command, capture redacted JSON in `$RUNNER_TEMP`, and allowlist summary keys. After D1 deletion succeeds, publish a manual-cleanup reminder naming only `ADMOB_SSV_TEST_USER_ID` and `ADMOB_SSV_TEST_CUSTOM_DATA`. Never request repository-secrets write permission or write any sensitive value to `$GITHUB_ENV`.
+Install dependencies and Doppler CLI, load/mask `CLOUDFLARE_API_TOKEN`, run exactly one backend package command, capture redacted JSON in `$RUNNER_TEMP`, and allowlist summary keys. `create` inserts the exact namespaced temporary D1 user before the challenge; `delete` receives both temporary secrets, removes the exact challenge, and removes the exact user only when no challenge still references it. After D1 deletion succeeds, publish a manual-cleanup reminder naming only `ADMOB_SSV_TEST_USER_ID` and `ADMOB_SSV_TEST_CUSTOM_DATA`. Never request repository-secrets write permission or write any sensitive value to `$GITHUB_ENV`.
 
 - [ ] **Step 5: Run workflow tests, YAML parse, and secret scan**
 
