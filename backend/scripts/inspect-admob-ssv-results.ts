@@ -105,10 +105,6 @@ export function buildWorkerSsvTelemetryQuery(
     limit,
     parameters: {
       datasets: ['cloudflare-workers'],
-      filterCombination: 'and',
-      filters: [
-        { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName }
-      ],
       needle: { value: SSV_EVENT, isRegex: false, matchCase: true },
       view: 'events'
     }

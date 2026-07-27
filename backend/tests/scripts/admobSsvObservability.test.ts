@@ -13,7 +13,7 @@ function telemetry(events: unknown[]) {
 }
 
 describe('AdMob SSV observability inspection', () => {
-  it('builds a bounded worker telemetry query', () => {
+  it('builds a bounded marker telemetry query', () => {
     expect(buildWorkerSsvTelemetryQuery(workerName, 360, 20, 1_800_000_000_000)).toEqual({
       queryId: 'astrology-worker-ssv-results',
       timeframe: { from: 1_799_978_400_000, to: 1_800_000_000_000 },
@@ -21,10 +21,6 @@ describe('AdMob SSV observability inspection', () => {
       limit: 20,
       parameters: {
         datasets: ['cloudflare-workers'],
-        filterCombination: 'and',
-        filters: [
-          { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName }
-        ],
         needle: { value: 'reward_ssv_result', isRegex: false, matchCase: true },
         view: 'events'
       }
