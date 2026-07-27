@@ -15,7 +15,7 @@ function ordered(content, tokens) {
 test('challenge workflow is main-only, production-gated, and minimally permissioned', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
 
-  assert.match(workflow, /command:[\s\S]*options:[\s\S]*- create[\s\S]*- inspect[\s\S]*- delete/);
+  assert.match(workflow, /command:[\s\S]*options:[\s\S]*- create[\s\S]*- inspect[\s\S]*- delete[\s\S]*- callback/);
   assert.match(workflow, /MANAGE_ADMOB_SSV_CHALLENGE/);
   assert.match(workflow, /github\.repository == 'MakerParsDev\/Astroloji'/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
@@ -40,12 +40,14 @@ test('challenge values are masked, validated, and never persisted or summarized 
   assert.match(workflow, /redacted evidence/i);
 });
 
-test('create inspect and delete call only the hardened backend commands in safe order', () => {
+test('challenge and callback operations call only hardened backend commands in safe order', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
 
   assert.match(workflow, /npm run(?: --silent)? transition:challenge:create/);
   assert.match(workflow, /npm run(?: --silent)? transition:challenge:inspect/);
   assert.match(workflow, /npm run(?: --silent)? transition:challenge:delete/);
+  assert.match(workflow, /npm run(?: --silent)? transition:callback:inspect/);
+  assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN/);
   assert.match(workflow, /::add-mask::\$CLOUDFLARE_API_TOKEN/);
 
@@ -101,8 +103,25 @@ test('workflow pins external tooling and scopes deployment credentials to execut
   assert.doesNotMatch(workflow, /cli\.doppler\.com\/install\.sh/);
   assert.doesNotMatch(workflow, /^\s{6}DOPPLER_TOKEN:/m);
   assert.doesNotMatch(workflow, /CLOUDFLARE_API_TOKEN[\s\S]*GITHUB_ENV/);
-  assert.equal((workflow.match(/DOPPLER_TOKEN: \$\{\{ secrets\.DOPPLER_TOKEN \}\}/g) ?? []).length, 3);
-  assert.equal((workflow.match(/env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN=/g) ?? []).length, 3);
+  assert.equal((workflow.match(/DOPPLER_TOKEN: \$\{\{ secrets\.DOPPLER_TOKEN \}\}/g) ?? []).length, 4);
+  assert.equal((workflow.match(/env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN=/g) ?? []).length, 4);
+});
+
+
+test('callback inspection publishes only bounded redacted telemetry fields', () => {
+  const workflow = fs.readFileSync(workflowPath, 'utf8');
+  const callbackStart = workflow.indexOf('Inspect redacted SSV callback results');
+  const callbackEnd = workflow.indexOf('Publish redacted evidence');
+  assert.ok(callbackStart >= 0 && callbackEnd > callbackStart);
+  const callbackBlock = workflow.slice(callbackStart, callbackEnd);
+
+  assert.match(callbackBlock, /SSV_LOOKBACK_MINUTES: '360'/);
+  assert.match(callbackBlock, /SSV_RESULT_LIMIT: '20'/);
+  assert.match(callbackBlock, /transition:callback:inspect/);
+  assert.match(workflow, /callback: \['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'verifierCode', 'scriptVersion'\]/);
+  for (const forbidden of ['signature', 'requestId', 'userId', 'customData', 'url']) {
+    assert.doesNotMatch(callbackBlock, new RegExp(`console\\.log[^\\n]*${forbidden}`, 'i'));
+  }
 });
 
 test('implementation plan uses portable PowerShell-friendly verification commands', () => {
