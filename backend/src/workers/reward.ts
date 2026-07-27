@@ -59,7 +59,7 @@ async function getChallengeByTransaction(
 }
 
 function logRewardResult(outcome: string, verifierCode?: AdmobSsvErrorCode): void {
-  console.info({
+  console.log({
     event: 'reward_ssv_result',
     outcome,
     ...(verifierCode ? { verifierCode } : {})

@@ -433,7 +433,7 @@ describe('rewarded access SSV routes', () => {
       error: { code: 'REWARD_TIMESTAMP_INVALID' }
     });
 
-    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const signatureApp = testApp({
       verifyCallback: async () => {
         throw new AdmobSsvVerificationError('INVALID_SIGNATURE', 'invalid signature');
@@ -444,13 +444,13 @@ describe('rewarded access SSV routes', () => {
     await expect(rejected.json()).resolves.toMatchObject({
       error: { code: 'INVALID_SIGNATURE' }
     });
-    expect(info).toHaveBeenCalledWith({
+    expect(log).toHaveBeenCalledWith({
       event: 'reward_ssv_result',
       outcome: 'signature_rejected',
       verifierCode: 'INVALID_SIGNATURE'
     });
-    expect(info.mock.calls.at(-1)).toHaveLength(1);
-    const logged = JSON.stringify(info.mock.calls.at(-1));
+    expect(log.mock.calls.at(-1)).toHaveLength(1);
+    const logged = JSON.stringify(log.mock.calls.at(-1));
     for (const forbidden of [
       'invalid signature',
       '/api/v1/rewards/ssv?rejected',
@@ -478,7 +478,7 @@ describe('rewarded access SSV routes', () => {
     );
 
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const infoLog = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const structuredLog = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const response = await app.request('/api/v1/rewards/ssv?db-failure', {}, env);
 
     expect(response.status).toBe(409);
@@ -488,12 +488,12 @@ describe('rewarded access SSV routes', () => {
     expect(errorLog.mock.calls).toEqual([
       ['Reward SSV verification update failed.', { error: 'database unavailable' }]
     ]);
-    expect(infoLog.mock.calls).toEqual([
+    expect(structuredLog.mock.calls).toEqual([
       [{ event: 'reward_ssv_result', outcome: 'verification_conflict' }]
     ]);
     const capturedLogs = JSON.stringify({
       error: errorLog.mock.calls,
-      info: infoLog.mock.calls
+      structured: structuredLog.mock.calls
     });
     for (const forbidden of [
       CHALLENGE_ID,
