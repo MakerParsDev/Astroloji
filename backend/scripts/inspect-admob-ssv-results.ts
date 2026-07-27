@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 
-const SSV_MESSAGE = 'Reward SSV result.';
+const SSV_EVENT = 'reward_ssv_result';
 const DEFAULT_WORKER = 'astrology-ssv-transition';
 const DEFAULT_LOOKBACK_MINUTES = 360;
 const DEFAULT_LIMIT = 20;
@@ -17,7 +17,8 @@ const OUTCOMES = [
   'expired_challenge',
   'user_mismatch',
   'ad_unit_mismatch',
-  'timestamp_rejected'
+  'timestamp_rejected',
+  'verification_conflict'
 ] as const;
 
 const VERIFIER_CODES = [
@@ -106,8 +107,7 @@ export function buildWorkerSsvTelemetryQuery(
       datasets: ['cloudflare-workers'],
       filterCombination: 'and',
       filters: [
-        { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName },
-        { key: '$metadata.message', operation: 'eq', type: 'string', value: SSV_MESSAGE }
+        { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName }
       ],
       view: 'events'
     }
@@ -133,11 +133,12 @@ export function parseWorkerSsvTelemetry(
       const metadata = record(event.$metadata);
       const workers = workerEnvelope(event, source);
       const scriptName = string(workers.scriptName) ?? string(metadata.service);
-      const message = string(metadata.message) ?? string(source.message);
+      const outcome = enumValue(source.outcome, OUTCOMES);
       const timestamp = event.timestamp;
       if (
         scriptName !== expectedWorkerName ||
-        message !== SSV_MESSAGE ||
+        source.event !== SSV_EVENT ||
+        outcome === null ||
         typeof timestamp !== 'number' ||
         !Number.isFinite(timestamp) ||
         timestamp < 0
@@ -150,7 +151,7 @@ export function parseWorkerSsvTelemetry(
       return {
         timestamp: date.toISOString(),
         scriptName: expectedWorkerName,
-        outcome: enumValue(source.outcome, OUTCOMES),
+        outcome,
         verifierCode: enumValue(source.verifierCode, VERIFIER_CODES),
         scriptVersion: version && UUID_PATTERN.test(version) ? version : null
       };

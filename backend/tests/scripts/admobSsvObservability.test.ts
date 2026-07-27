@@ -13,7 +13,7 @@ function telemetry(events: unknown[]) {
 }
 
 describe('AdMob SSV observability inspection', () => {
-  it('builds a bounded worker/message telemetry query', () => {
+  it('builds a bounded worker telemetry query', () => {
     expect(buildWorkerSsvTelemetryQuery(workerName, 360, 20, 1_800_000_000_000)).toEqual({
       queryId: 'astrology-worker-ssv-results',
       timeframe: { from: 1_799_978_400_000, to: 1_800_000_000_000 },
@@ -23,13 +23,7 @@ describe('AdMob SSV observability inspection', () => {
         datasets: ['cloudflare-workers'],
         filterCombination: 'and',
         filters: [
-          { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName },
-          {
-            key: '$metadata.message',
-            operation: 'eq',
-            type: 'string',
-            value: 'Reward SSV result.'
-          }
+          { key: '$metadata.service', operation: 'eq', type: 'string', value: workerName }
         ],
         view: 'events'
       }
@@ -41,8 +35,9 @@ describe('AdMob SSV observability inspection', () => {
       telemetry([
         {
           timestamp: Date.parse('2026-07-27T16:24:00.000Z'),
-          $metadata: { service: workerName, message: 'Reward SSV result.' },
+          $metadata: { service: workerName },
           source: {
+            event: 'reward_ssv_result',
             outcome: 'signature_rejected',
             verifierCode: 'INVALID_SIGNATURE',
             url: 'https://example.invalid/?signature=secret',
@@ -57,14 +52,20 @@ describe('AdMob SSV observability inspection', () => {
         },
         {
           timestamp: Date.parse('2026-07-27T16:20:00.000Z'),
+          $metadata: { service: workerName },
+          source: { event: 'reward_ssv_result', outcome: 'verified', verifierCode: 'NOT_ALLOWED' },
+          $workers: { scriptName: workerName }
+        },
+        {
+          timestamp: Date.parse('2026-07-27T16:26:00.000Z'),
           $metadata: { service: workerName, message: 'Reward SSV result.' },
-          source: { outcome: 'verified', verifierCode: 'NOT_ALLOWED' },
+          source: { outcome: 'verified' },
           $workers: { scriptName: workerName }
         },
         {
           timestamp: Date.parse('2026-07-27T16:25:00.000Z'),
-          $metadata: { service: 'other-worker', message: 'Reward SSV result.' },
-          source: { outcome: 'verified' }
+          $metadata: { service: 'other-worker' },
+          source: { event: 'reward_ssv_result', outcome: 'verified' }
         }
       ]),
       workerName,

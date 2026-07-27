@@ -443,16 +443,22 @@ describe('rewarded access SSV routes', () => {
     await expect(rejected.json()).resolves.toMatchObject({
       error: { code: 'INVALID_SIGNATURE' }
     });
-    expect(info).toHaveBeenCalledWith(
-      'Reward SSV result.',
-      expect.objectContaining({
-        outcome: 'signature_rejected',
-        verifierCode: 'INVALID_SIGNATURE'
-      })
-    );
+    expect(info).toHaveBeenCalledWith({
+      event: 'reward_ssv_result',
+      outcome: 'signature_rejected',
+      verifierCode: 'INVALID_SIGNATURE'
+    });
+    expect(info.mock.calls.at(-1)).toHaveLength(1);
     const logged = JSON.stringify(info.mock.calls.at(-1));
-    expect(logged).not.toContain('invalid signature');
-    expect(logged).not.toContain('/api/v1/rewards/ssv?rejected');
+    for (const forbidden of [
+      'invalid signature',
+      '/api/v1/rewards/ssv?rejected',
+      'requestId',
+      'challenge',
+      'transaction'
+    ]) {
+      expect(logged).not.toContain(forbidden);
+    }
   });
 
   it('does not prepare another challenge for an active entitlement', async () => {
