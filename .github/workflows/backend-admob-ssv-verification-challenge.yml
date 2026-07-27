@@ -11,6 +11,7 @@ on:
           - create
           - inspect
           - delete
+          - callback
       confirm:
         description: "Type MANAGE_ADMOB_SSV_CHALLENGE to continue."
         required: true
@@ -29,7 +30,7 @@ jobs:
       github.repository == 'MakerParsDev/Astroloji' &&
       github.ref == 'refs/heads/main' &&
       inputs.confirm == 'MANAGE_ADMOB_SSV_CHALLENGE' &&
-      contains(fromJSON('["create","inspect","delete"]'), inputs.command)
+      contains(fromJSON('["create","inspect","delete","callback"]'), inputs.command)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
@@ -40,6 +41,7 @@ jobs:
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
       ENABLE_PRODUCTION_RELEASE: ${{ vars.ENABLE_PRODUCTION_RELEASE }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -53,6 +55,8 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - name: Validate production gate
+        env:
+          INPUT_COMMAND: ${{ inputs.command }}
         run: |
           missing=0
           for name in DOPPLER_PROJECT DOPPLER_CONFIG; do
@@ -61,6 +65,10 @@ jobs:
               missing=1
             fi
           done
+          if [ "$INPUT_COMMAND" = "callback" ] && [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Missing required callback setting: CLOUDFLARE_ACCOUNT_ID"
+            missing=1
+          fi
           if [ "${ENABLE_PRODUCTION_RELEASE:-}" != "false" ]; then
             echo "ENABLE_PRODUCTION_RELEASE must remain false during AdMob verification."
             missing=1
@@ -68,6 +76,7 @@ jobs:
           exit "$missing"
 
       - name: Validate and mask challenge secrets
+        if: inputs.command != 'callback'
         env:
           ADMOB_SSV_TEST_USER_ID: ${{ secrets.ADMOB_SSV_TEST_USER_ID }}
           ADMOB_SSV_TEST_CUSTOM_DATA: ${{ secrets.ADMOB_SSV_TEST_CUSTOM_DATA }}
@@ -163,6 +172,27 @@ jobs:
           env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
             npm run --silent transition:challenge:delete > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
 
+      - name: Inspect redacted SSV callback results
+        if: inputs.command == 'callback'
+        working-directory: backend
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          SSV_WORKER_NAME: astrology-ssv-transition
+          SSV_LOOKBACK_MINUTES: '360'
+          SSV_RESULT_LIMIT: '20'
+        run: |
+          set -euo pipefail
+          if [ -z "${DOPPLER_TOKEN:-}" ]; then echo 'DOPPLER_TOKEN is required.'; exit 1; fi
+          CLOUDFLARE_API_TOKEN="$(doppler secrets get CLOUDFLARE_API_TOKEN --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo 'CLOUDFLARE_API_TOKEN is required.'; exit 1; fi
+          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
+          env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
+            CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" \
+            SSV_WORKER_NAME="$SSV_WORKER_NAME" \
+            SSV_LOOKBACK_MINUTES="$SSV_LOOKBACK_MINUTES" \
+            SSV_RESULT_LIMIT="$SSV_RESULT_LIMIT" \
+            npm run --silent transition:callback:inspect > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
+
       - name: Publish redacted evidence
         run: |
           node <<'NODE'
@@ -172,7 +202,8 @@ jobs:
           const allowedByOperation = {
             create: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
             inspect: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
-            delete: ['operation', 'deletedChallengePrefix']
+            delete: ['operation', 'deletedChallengePrefix'],
+            callback: ['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'verifierCode', 'scriptVersion']
           };
           const allowed = allowedByOperation[evidence.operation];
           if (!allowed) throw new Error('Unexpected redacted evidence operation.');
@@ -187,6 +218,7 @@ jobs:
             lines.push('- Manual cleanup required: Delete these temporary repository secrets manually: ADMOB_SSV_TEST_USER_ID and ADMOB_SSV_TEST_CUSTOM_DATA.');
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
+          console.log(lines.join('\n'));
           NODE
 
       - name: Remove temporary evidence
