@@ -55,6 +55,24 @@ test('deploy workflow validates gates and attaches route only after worker and s
   assert.equal((deploy.match(/persist-credentials: false/g) ?? []).length, 1);
   assert.equal((rollback.match(/persist-credentials: false/g) ?? []).length, 1);
   assert.ok((deploy.match(/node --input-type=module <<'NODE'/g) ?? []).length >= 2);
+  ordered(deploy, [
+    'id: attach_route',
+    'check-ssv-transition-route.mjs',
+    'Remove exact transition route after failed live verification'
+  ]);
+  assert.match(deploy, /id: attach_route[\s\S]*GITHUB_OUTPUT[\s\S]*created=/);
+  assert.match(deploy, /id: verify_route[\s\S]*check-ssv-transition-route\.mjs/);
+  const cleanupStart = deploy.indexOf('name: Remove exact transition route after failed live verification');
+  const cleanupEnd = deploy.indexOf('name: Remove temporary deployment files', cleanupStart);
+  const cleanup = deploy.slice(cleanupStart, cleanupEnd);
+  assert.match(
+    cleanup,
+    /if: failure\(\) && steps\.verify_route\.outcome == 'failure' && steps\.attach_route\.outputs\.created == 'true'/
+  );
+  assert.match(cleanup, /route\.pattern === process\.env\.TRANSITION_ROUTE_PATTERN/);
+  assert.match(cleanup, /route\.script !== process\.env\.TRANSITION_WORKER_NAME/);
+  assert.match(cleanup, /route\.id !== process\.env\.TRANSITION_ROUTE_ID/);
+  assert.match(cleanup, /fetch\(`\$\{api\}\/\$\{route\.id\}`,[\s\S]*method: 'DELETE'/);
 });
 
 test('rollback removes only the exact route before origin verification and optional deletion', () => {

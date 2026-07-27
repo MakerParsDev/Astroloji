@@ -166,6 +166,7 @@ jobs:
           NODE
 
       - name: Attach exact rewarded transition route
+        id: attach_route
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
@@ -180,6 +181,7 @@ jobs:
           const matches = list.result.filter((route) => route.pattern === process.env.TRANSITION_ROUTE_PATTERN);
           if (matches.length > 1) throw new Error('Multiple exact transition routes exist.');
           let route = matches[0];
+          let createdHere = false;
           if (route && route.script !== process.env.TRANSITION_WORKER_NAME) {
             throw new Error(`Exact route is owned by unexpected Worker: ${route.script ?? 'none'}`);
           }
@@ -195,12 +197,15 @@ jobs:
             const created = await createResponse.json();
             if (!createResponse.ok || !created.success) throw new Error('Unable to create transition route.');
             route = created.result;
+            createdHere = true;
           }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `created=${createdHere}\nroute_id=${route.id}\n`);
           fs.appendFileSync(process.env.GITHUB_ENV, `TRANSITION_ROUTE_ID=${route.id}\n`);
           console.log(`Attached exact transition route ID ${route.id}.`);
           NODE
 
       - name: Verify live transition route isolation
+        id: verify_route
         run: node scripts/check-ssv-transition-route.mjs
 
       - name: Resolve Worker deployment evidence
@@ -233,6 +238,34 @@ jobs:
             echo '- Live route smoke: passed'
             echo '- Rollback workflow: backend-ssv-transition-rollback'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove exact transition route after failed live verification
+        if: failure() && steps.verify_route.outcome == 'failure' && steps.attach_route.outputs.created == 'true'
+        run: |
+          node --input-type=module <<'NODE'
+          const api = `https://api.cloudflare.com/client/v4/zones/${process.env.CLOUDFLARE_ZONE_ID}/workers/routes`;
+          const headers = { authorization: `Bearer ${process.env.CLOUDFLARE_API_TOKEN}` };
+          const response = await fetch(api, { headers });
+          const body = await response.json();
+          if (!response.ok || !body.success) throw new Error('Unable to list Cloudflare Worker routes for automatic cleanup.');
+          const matches = body.result.filter((route) => route.pattern === process.env.TRANSITION_ROUTE_PATTERN);
+          if (matches.length > 1) throw new Error('Multiple exact transition routes exist during automatic cleanup.');
+          const route = matches[0];
+          if (!route) {
+            console.log('Exact transition route is already absent.');
+          } else {
+            if (route.script !== process.env.TRANSITION_WORKER_NAME) {
+              throw new Error(`Refusing to remove route owned by ${route.script ?? 'none'}.`);
+            }
+            if (route.id !== process.env.TRANSITION_ROUTE_ID) {
+              throw new Error(`Refusing to remove unexpected route ID ${route.id}.`);
+            }
+            const deleted = await fetch(`${api}/${route.id}`, { method: 'DELETE', headers });
+            const result = await deleted.json();
+            if (!deleted.ok || !result.success) throw new Error('Unable to remove failed transition route automatically.');
+            console.log(`Automatically removed failed transition route ID ${route.id}.`);
+          }
+          NODE
 
       - name: Remove temporary deployment files
         if: always()

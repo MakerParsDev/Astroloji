@@ -48,6 +48,7 @@ test('requires origin health and transition route isolation', async () => {
     originHealth: 200,
     malformedSsv: 400,
     malformedSsvCode: 'MALFORMED_CALLBACK',
+    routeReadyAttempts: 1,
     legacyOriginResponse: 401,
     legacyOriginCode: 'INVALID_TOKEN',
     unsupportedReward: 405,
@@ -80,10 +81,110 @@ test('rejects a permissive or missing transition route', async () => {
     checkSsvTransitionRoute({
       baseUrl: BASE_URL,
       fetcher,
-      legacyJwt: 'invalid-smoke-token'
+      legacyJwt: 'invalid-smoke-token',
+      routeReadyAttempts: 1
     }),
     /Malformed SSV route check failed/
   );
+});
+
+test('retries origin fall-through until the transition route becomes visible', async () => {
+  let ssvAttempts = 0;
+  const sleeps = [];
+  const fetcher = async (url, init = {}) => {
+    const parsed = new URL(url);
+    if (parsed.pathname === '/api/v1/health') {
+      return Response.json({ status: 'ok' });
+    }
+    if (parsed.pathname === '/api/v1/rewards/ssv') {
+      ssvAttempts += 1;
+      if (ssvAttempts < 3) {
+        return Response.json({ error: { code: 'FORBIDDEN' } }, { status: 403 });
+      }
+      return Response.json({ error: { code: 'MALFORMED_CALLBACK' } }, { status: 400 });
+    }
+    return successfulFetcher(url, init);
+  };
+
+  const evidence = await checkSsvTransitionRoute({
+    baseUrl: BASE_URL,
+    fetcher,
+    legacyJwt: 'invalid-smoke-token',
+    routeReadyAttempts: 3,
+    routeReadyDelayMs: 25,
+    sleep: async (delayMs) => sleeps.push(delayMs)
+  });
+
+  assert.equal(ssvAttempts, 3);
+  assert.deepEqual(sleeps, [25, 25]);
+  assert.equal(evidence.malformedSsv, 400);
+  assert.equal(evidence.routeReadyAttempts, 3);
+});
+
+test('fails after bounded propagation attempts', async () => {
+  let ssvAttempts = 0;
+  const fetcher = async (url) => {
+    const path = new URL(url).pathname;
+    if (path === '/api/v1/health') return Response.json({ status: 'ok' });
+    if (path === '/api/v1/rewards/ssv') {
+      ssvAttempts += 1;
+      return Response.json({ error: { code: 'FORBIDDEN' } }, { status: 403 });
+    }
+    return successfulFetcher(url);
+  };
+
+  await assert.rejects(
+    checkSsvTransitionRoute({
+      baseUrl: BASE_URL,
+      fetcher,
+      legacyJwt: 'invalid-smoke-token',
+      routeReadyAttempts: 3,
+      routeReadyDelayMs: 1,
+      sleep: async () => {}
+    }),
+    /after 3 attempts/
+  );
+  assert.equal(ssvAttempts, 3);
+});
+
+test('does not retry an unexpected transition Worker failure', async () => {
+  let ssvAttempts = 0;
+  const fetcher = async (url) => {
+    const path = new URL(url).pathname;
+    if (path === '/api/v1/health') return Response.json({ status: 'ok' });
+    if (path === '/api/v1/rewards/ssv') {
+      ssvAttempts += 1;
+      return Response.json({ error: { code: 'INTERNAL_ERROR' } }, { status: 500 });
+    }
+    return successfulFetcher(url);
+  };
+
+  await assert.rejects(
+    checkSsvTransitionRoute({
+      baseUrl: BASE_URL,
+      fetcher,
+      legacyJwt: 'invalid-smoke-token',
+      routeReadyAttempts: 5,
+      routeReadyDelayMs: 1,
+      sleep: async () => {}
+    }),
+    /Malformed SSV route check failed \(500, INTERNAL_ERROR\)/
+  );
+  assert.equal(ssvAttempts, 1);
+});
+
+test('requires route readiness attempts to be an integer from 1 through 30', async () => {
+  for (const routeReadyAttempts of [0, 31, 1.5]) {
+    await assert.rejects(
+      checkSsvTransitionRoute({
+        baseUrl: BASE_URL,
+        fetcher: successfulFetcher,
+        legacyJwt: 'invalid-smoke-token',
+        routeReadyAttempts
+      }),
+      /routeReadyAttempts must be an integer between 1 and 30/
+    );
+  }
 });
 
 test('aborts a stalled request with a bounded timeout', async () => {
