@@ -52,7 +52,7 @@ test('create inspect and delete call only the hardened backend commands in safe 
   ordered(workflow, [
     'Validate and mask challenge secrets',
     'Install backend dependencies',
-    'Load and mask Cloudflare API token',
+    'Install pinned Doppler CLI',
     'Create verification challenge',
     'Publish redacted evidence'
   ]);
@@ -72,6 +72,34 @@ test('delete removes only the D1 challenge and requires manual temporary-secret 
     'Delete verification challenge from D1',
     'Publish redacted evidence'
   ]);
+});
+
+
+test('workflow pins external tooling and scopes deployment credentials to execution steps', () => {
+  const workflow = fs.readFileSync(workflowPath, 'utf8');
+
+  assert.match(workflow, /actions\/checkout@d23441a48e516b6c34aea4fa41551a30e30af803/);
+  assert.match(workflow, /actions\/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38/);
+  assert.match(workflow, /DOPPLER_VERSION: 3\.76\.1/);
+  assert.match(workflow, /DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2/);
+  assert.match(workflow, /sha256sum --check/);
+  assert.doesNotMatch(workflow, /cli\.doppler\.com\/install\.sh/);
+  assert.doesNotMatch(workflow, /^\s{6}DOPPLER_TOKEN:/m);
+  assert.doesNotMatch(workflow, /CLOUDFLARE_API_TOKEN[\s\S]*GITHUB_ENV/);
+  assert.equal((workflow.match(/DOPPLER_TOKEN: \$\{\{ secrets\.DOPPLER_TOKEN \}\}/g) ?? []).length, 3);
+  assert.equal((workflow.match(/env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN=/g) ?? []).length, 3);
+});
+
+test('implementation plan uses portable PowerShell-friendly verification commands', () => {
+  const plan = fs.readFileSync(
+    'docs/superpowers/plans/2026-07-27-secure-admob-verification-challenge-workflow.md',
+    'utf8'
+  );
+
+  assert.doesNotMatch(plan, /PATH=\/opt\/node|PATH=\/home\//);
+  assert.doesNotMatch(plan, /^cd \.\.$/m);
+  assert.match(plan, /Push-Location backend/);
+  assert.match(plan, /Pop-Location/);
 });
 
 const operatorDocs = [

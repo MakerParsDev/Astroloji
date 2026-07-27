@@ -41,8 +41,8 @@ Add deterministic tests for valid supplied values, malformed namespace, malforme
 
 - [ ] **Step 2: Run the focused test and verify RED**
 
-```bash
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH npm test -- --run tests/scripts/admobVerificationChallenge.test.ts
+```powershell
+npm test -- --run tests/scripts/admobVerificationChallenge.test.ts
 ```
 
 Expected: FAIL because the supplied-value functions and redacted CLI contract do not exist.
@@ -57,16 +57,16 @@ Keep production execution on `execFileSync('npx', ['wrangler', ...])`; expose a 
 
 - [ ] **Step 5: Run focused and existing transition tests**
 
-```bash
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH npm test -- --run tests/scripts/admobVerificationChallenge.test.ts tests/scripts/transitionShared.test.ts
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH npm run build
+```powershell
+npm test -- --run tests/scripts/admobVerificationChallenge.test.ts tests/scripts/transitionShared.test.ts
+npm run build
 ```
 
 Expected: all PASS.
 
 - [ ] **Step 6: Commit**
 
-```bash
+```powershell
 git add backend/scripts/create-admob-verification-challenge.ts backend/tests/scripts/admobVerificationChallenge.test.ts backend/package.json
 git commit -m "fix(admob): consume verification values without logging"
 ```
@@ -89,8 +89,8 @@ Assert the HTML uses `crypto.randomUUID()`, contains the `admob-verify-` namespa
 
 - [ ] **Step 2: Run the test and verify RED**
 
-```bash
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH node --test scripts/admob-ssv-offline-generator.test.mjs
+```powershell
+node --test scripts/admob-ssv-offline-generator.test.mjs
 ```
 
 Expected: FAIL because the HTML file does not exist.
@@ -105,7 +105,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
-```bash
+```powershell
 git add tools/admob-ssv-verification-values.html scripts/admob-ssv-offline-generator.test.mjs
 git commit -m "feat(admob): add offline SSV verification value generator"
 ```
@@ -133,8 +133,8 @@ Assert allowed commands, confirmation phrase, `main` gate, production environmen
 
 - [ ] **Step 2: Run the workflow test and verify RED**
 
-```bash
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH node --test scripts/backend-admob-ssv-verification-challenge-workflow.test.mjs
+```powershell
+node --test scripts/backend-admob-ssv-verification-challenge-workflow.test.mjs
 ```
 
 Expected: FAIL because the workflow does not exist.
@@ -149,16 +149,16 @@ Install dependencies and Doppler CLI, load/mask `CLOUDFLARE_API_TOKEN`, run exac
 
 - [ ] **Step 5: Run workflow tests, YAML parse, and secret scan**
 
-```bash
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH node --test scripts/backend-admob-ssv-verification-challenge-workflow.test.mjs scripts/admob-ssv-offline-generator.test.mjs
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH node scripts/scan-secrets.mjs
+```powershell
+node --test scripts/backend-admob-ssv-verification-challenge-workflow.test.mjs scripts/admob-ssv-offline-generator.test.mjs
+node scripts/scan-secrets.mjs
 ```
 
 Parse the new workflow and CI YAML with PyYAML. Expected: all PASS.
 
 - [ ] **Step 6: Commit**
 
-```bash
+```powershell
 git add .github/workflows/backend-admob-ssv-verification-challenge.yml .github/workflows/ci.yml scripts/backend-admob-ssv-verification-challenge-workflow.test.mjs
 git commit -m "feat(ci): manage AdMob SSV verification challenges"
 ```
@@ -175,7 +175,7 @@ git commit -m "feat(ci): manage AdMob SSV verification challenges"
 - Modify: `scripts/backend-admob-ssv-verification-challenge-workflow.test.mjs`
 
 **Interfaces:**
-- Consumes: generator path, secret names, workflow commands, confirmation phrase, cleanup-token prerequisite.
+- Consumes: generator path, secret names, workflow commands, confirmation phrase, manual secret-cleanup requirement.
 - Produces: one consistent operator sequence with no instruction to print or pass full values on a command line.
 
 - [ ] **Step 1: Write failing documentation assertions**
@@ -198,22 +198,22 @@ Document: open generator locally; keep it open; save both values as temporary Ac
 
 - [ ] **Step 4: Run full final verification**
 
-```bash
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH node --test scripts/*.test.mjs
-cd backend
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH npm run build
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH npm test -- --run
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH npm run test:runtime
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH npm run test:runtime:transition
-cd ..
-PATH=/opt/node-v24.18.0-linux-x64/bin:$PATH node scripts/scan-secrets.mjs
+```powershell
+node --test scripts/*.test.mjs
+Push-Location backend
+npm run build
+npm test -- --run
+npm run test:runtime
+npm run test:runtime:transition
+Pop-Location
+node scripts/scan-secrets.mjs
 ```
 
 Parse all workflow YAML and run `git diff --check`. Expected: all PASS.
 
 - [ ] **Step 5: Commit docs**
 
-```bash
+```powershell
 git add backend/README.md docs/PLAY_PRODUCTION_READINESS.md RELEASE_RUNBOOK.md docs/superpowers/specs/2026-07-27-secure-admob-verification-challenge-workflow-design.md scripts/backend-admob-ssv-verification-challenge-workflow.test.mjs
 git commit -m "docs(admob): document secure SSV verification flow"
 ```
