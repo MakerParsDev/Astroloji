@@ -505,6 +505,10 @@ describe('AdMob SSV observability inspection', () => {
 
     expect(evidence.scriptFilterRequestStatus).toBe('invalid_json');
     expect(evidence.unfilteredRequestStatus).toBe('request_error');
+    expect(evidence.scriptFilterReturnedCount).toBeNull();
+    expect(evidence.unfilteredReturnedCount).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(log).toHaveBeenCalledTimes(1);
     const serialized = JSON.stringify({ evidence, log: log.mock.calls });
     expect(serialized).not.toContain('diagnostic private body');
     expect(serialized).not.toContain('diagnostic socket private detail');
