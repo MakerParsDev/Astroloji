@@ -5,6 +5,8 @@ const DEFAULT_WORKER = 'astrology-ssv-transition';
 const DEFAULT_LOOKBACK_MINUTES = 360;
 const DEFAULT_LIMIT = 20;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+const DIAGNOSTIC_LOOKBACK_MINUTES = 15;
+const DIAGNOSTIC_LIMIT = 1;
 const WORKER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -48,6 +50,12 @@ export interface WorkerSsvInspectionEvidence extends WorkerSsvEvidence {
   workerServiceSeen: boolean | null;
   queryStatus: 'STARTED' | 'COMPLETED' | null;
   rowsRead: number | null;
+  scriptFilterReturnedCount: number | null;
+  scriptFilterQueryStatus: 'STARTED' | 'COMPLETED' | null;
+  scriptFilterRowsRead: number | null;
+  unfilteredReturnedCount: number | null;
+  unfilteredQueryStatus: 'STARTED' | 'COMPLETED' | null;
+  unfilteredRowsRead: number | null;
 }
 
 export interface ExecuteWorkerSsvInspectionOptions {
@@ -102,12 +110,11 @@ function parseInteger(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
-/** Builds a bounded Cloudflare Workers telemetry query for redacted SSV result events. */
-export function buildWorkerSsvTelemetryQuery(
+function validateTelemetryBounds(
   workerName: string,
   lookbackMinutes: number,
   limit: number,
-  nowMs = Date.now()
+  nowMs: number
 ) {
   if (!WORKER_PATTERN.test(workerName)) throw new Error('Worker script name is invalid.');
   if (!Number.isInteger(lookbackMinutes) || lookbackMinutes < 1 || lookbackMinutes > 3600) {
@@ -117,26 +124,74 @@ export function buildWorkerSsvTelemetryQuery(
     throw new Error('Telemetry limit must be an integer from 1 to 50.');
   }
   if (!Number.isFinite(nowMs) || nowMs < 0) throw new Error('Telemetry clock is invalid.');
+}
 
+function buildTelemetryQuery(
+  queryId: string,
+  workerName: string,
+  filterKey: '$metadata.service' | '$workers.scriptName' | null,
+  lookbackMinutes: number,
+  limit: number,
+  nowMs: number
+) {
+  validateTelemetryBounds(workerName, lookbackMinutes, limit, nowMs);
   return {
-    queryId: 'astrology-worker-ssv-results',
+    queryId,
     timeframe: { from: nowMs - lookbackMinutes * 60_000, to: nowMs },
     dry: true,
     limit,
     parameters: {
       datasets: ['cloudflare-workers'],
       filterCombination: 'and',
-      filters: [
-        {
-          key: '$metadata.service',
-          operation: 'eq',
-          type: 'string',
-          value: workerName
-        }
-      ],
+      filters: filterKey
+        ? [{ key: filterKey, operation: 'eq', type: 'string', value: workerName }]
+        : [],
       view: 'events'
     }
   };
+}
+
+export function buildWorkerSsvDiagnosticQueries(
+  workerName: string,
+  lookbackMinutes: number,
+  limit: number,
+  nowMs = Date.now()
+) {
+  return {
+    scriptFilter: buildTelemetryQuery(
+      'astrology-worker-ssv-script-filter-diagnostic',
+      workerName,
+      '$workers.scriptName',
+      lookbackMinutes,
+      limit,
+      nowMs
+    ),
+    unfiltered: buildTelemetryQuery(
+      'astrology-worker-ssv-unfiltered-diagnostic',
+      workerName,
+      null,
+      lookbackMinutes,
+      limit,
+      nowMs
+    )
+  };
+}
+
+/** Builds a bounded Cloudflare Workers telemetry query for redacted SSV result events. */
+export function buildWorkerSsvTelemetryQuery(
+  workerName: string,
+  lookbackMinutes: number,
+  limit: number,
+  nowMs = Date.now()
+) {
+  return buildTelemetryQuery(
+    'astrology-worker-ssv-results',
+    workerName,
+    '$metadata.service',
+    lookbackMinutes,
+    limit,
+    nowMs
+  );
 }
 
 function telemetryStats(value: unknown): {
@@ -237,6 +292,34 @@ export function parseWorkerSsvTelemetry(
       };
 }
 
+async function executeDiagnosticQuery(
+  fetchImpl: typeof fetch,
+  url: string,
+  apiToken: string,
+  requestTimeoutMs: number,
+  query: ReturnType<typeof buildWorkerSsvTelemetryQuery>
+): Promise<{ returnedCount: number | null; queryStatus: 'STARTED' | 'COMPLETED' | null; rowsRead: number | null }> {
+  try {
+    const response = await fetchImpl(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(query),
+      signal: AbortSignal.timeout(requestTimeoutMs)
+    });
+    if (!response.ok) return { returnedCount: null, queryStatus: null, rowsRead: null };
+    const payload = (await response.json()) as { success?: boolean; result?: unknown };
+    if (payload.success !== true) return { returnedCount: null, queryStatus: null, rowsRead: null };
+    const stats = telemetryStats(payload.result);
+    const diagnostics = queryDiagnostics(payload.result);
+    return { returnedCount: stats.returnedCount, queryStatus: diagnostics.queryStatus, rowsRead: diagnostics.rowsRead };
+  } catch {
+    return { returnedCount: null, queryStatus: null, rowsRead: null };
+  }
+}
+
 /** Queries Cloudflare telemetry and emits only strict redacted callback evidence. */
 export async function executeWorkerSsvInspection({
   env,
@@ -295,6 +378,8 @@ export async function executeWorkerSsvInspection({
   const stats = telemetryStats(payload.result);
   const diagnostics = queryDiagnostics(payload.result);
   let workerServiceSeen: boolean | null = null;
+  let scriptFilterDiagnostic = { returnedCount: null as number | null, queryStatus: null as 'STARTED' | 'COMPLETED' | null, rowsRead: null as number | null };
+  let unfilteredDiagnostic = { returnedCount: null as number | null, queryStatus: null as 'STARTED' | 'COMPLETED' | null, rowsRead: null as number | null };
 
   if (parsedEvidence.status === 'no_events') {
     try {
@@ -327,13 +412,29 @@ export async function executeWorkerSsvInspection({
     } catch {
       workerServiceSeen = null;
     }
+
+    const diagnosticQueries = buildWorkerSsvDiagnosticQueries(
+      workerName,
+      DIAGNOSTIC_LOOKBACK_MINUTES,
+      DIAGNOSTIC_LIMIT,
+      nowMs
+    );
+    const queryUrl = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/query`;
+    scriptFilterDiagnostic = await executeDiagnosticQuery(fetchImpl, queryUrl, apiToken, requestTimeoutMs, diagnosticQueries.scriptFilter);
+    unfilteredDiagnostic = await executeDiagnosticQuery(fetchImpl, queryUrl, apiToken, requestTimeoutMs, diagnosticQueries.unfiltered);
   }
 
   const evidence: WorkerSsvInspectionEvidence = {
     ...parsedEvidence,
     ...stats,
     workerServiceSeen,
-    ...diagnostics
+    ...diagnostics,
+    scriptFilterReturnedCount: scriptFilterDiagnostic.returnedCount,
+    scriptFilterQueryStatus: scriptFilterDiagnostic.queryStatus,
+    scriptFilterRowsRead: scriptFilterDiagnostic.rowsRead,
+    unfilteredReturnedCount: unfilteredDiagnostic.returnedCount,
+    unfilteredQueryStatus: unfilteredDiagnostic.queryStatus,
+    unfilteredRowsRead: unfilteredDiagnostic.rowsRead
   };
   log(JSON.stringify(evidence));
   return evidence;
