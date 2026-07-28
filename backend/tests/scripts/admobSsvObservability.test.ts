@@ -278,9 +278,11 @@ describe('AdMob SSV observability inspection', () => {
       scriptFilterReturnedCount: 1,
       scriptFilterQueryStatus: 'COMPLETED',
       scriptFilterRowsRead: 7,
+      scriptFilterRequestStatus: 'ok',
       unfilteredReturnedCount: 1,
       unfilteredQueryStatus: 'COMPLETED',
-      unfilteredRowsRead: 9
+      unfilteredRowsRead: 9,
+      unfilteredRequestStatus: 'ok'
     });
     expect(fetchImpl).toHaveBeenCalledTimes(4);
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
@@ -408,14 +410,104 @@ describe('AdMob SSV observability inspection', () => {
       scriptFilterReturnedCount: null,
       scriptFilterQueryStatus: null,
       scriptFilterRowsRead: null,
+      scriptFilterRequestStatus: 'request_error',
       unfilteredReturnedCount: null,
       unfilteredQueryStatus: null,
-      unfilteredRowsRead: null
+      unfilteredRowsRead: null,
+      unfilteredRequestStatus: 'request_error'
     });
     expect(fetchImpl).toHaveBeenCalledTimes(4);
     expect(JSON.stringify(log.mock.calls)).not.toContain('values socket closed');
     expect(JSON.stringify(log.mock.calls)).not.toContain('values denied');
     expect(JSON.stringify(log.mock.calls)).not.toContain('bad gateway');
+  });
+
+  it('classifies diagnostic HTTP and API failures without exposing response details', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: telemetry([], 0) }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('diagnostic upstream secret', { status: 503 })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ success: false, errors: [{ message: 'diagnostic denied secret' }] }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      );
+    const log = vi.fn();
+
+    const evidence = await executeWorkerSsvInspection({
+      env: {
+        CLOUDFLARE_API_TOKEN: 'token',
+        CLOUDFLARE_ACCOUNT_ID: 'account-id',
+        SSV_WORKER_NAME: workerName
+      },
+      fetchImpl,
+      nowMs: 1_800_000_000_000,
+      log
+    });
+
+    expect(evidence.scriptFilterRequestStatus).toBe('http_error');
+    expect(evidence.unfilteredRequestStatus).toBe('api_error');
+    expect(evidence.scriptFilterReturnedCount).toBeNull();
+    expect(evidence.unfilteredReturnedCount).toBeNull();
+    const serialized = JSON.stringify({ evidence, log: log.mock.calls });
+    expect(serialized).not.toContain('diagnostic upstream secret');
+    expect(serialized).not.toContain('diagnostic denied secret');
+  });
+
+  it('classifies diagnostic JSON and request failures without exposing exception details', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: telemetry([], 0) }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('<html>diagnostic private body</html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' }
+        })
+      )
+      .mockRejectedValueOnce(new Error('diagnostic socket private detail'));
+    const log = vi.fn();
+
+    const evidence = await executeWorkerSsvInspection({
+      env: {
+        CLOUDFLARE_API_TOKEN: 'token',
+        CLOUDFLARE_ACCOUNT_ID: 'account-id',
+        SSV_WORKER_NAME: workerName
+      },
+      fetchImpl,
+      nowMs: 1_800_000_000_000,
+      log
+    });
+
+    expect(evidence.scriptFilterRequestStatus).toBe('invalid_json');
+    expect(evidence.unfilteredRequestStatus).toBe('request_error');
+    const serialized = JSON.stringify({ evidence, log: log.mock.calls });
+    expect(serialized).not.toContain('diagnostic private body');
+    expect(serialized).not.toContain('diagnostic socket private detail');
   });
 
   it('normalizes network and non-JSON failures into the telemetry error context', async () => {

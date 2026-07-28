@@ -33,6 +33,19 @@ const VERIFIER_CODES = [
 type UnknownRecord = Record<string, unknown>;
 type SsvOutcome = (typeof OUTCOMES)[number];
 type VerifierCode = (typeof VERIFIER_CODES)[number];
+type DiagnosticRequestStatus =
+  | 'ok'
+  | 'http_error'
+  | 'api_error'
+  | 'invalid_json'
+  | 'request_error';
+
+interface DiagnosticQueryResult {
+  returnedCount: number | null;
+  queryStatus: 'STARTED' | 'COMPLETED' | null;
+  rowsRead: number | null;
+  requestStatus: DiagnosticRequestStatus | null;
+}
 
 export interface WorkerSsvEvidence {
   operation: 'callback';
@@ -53,9 +66,11 @@ export interface WorkerSsvInspectionEvidence extends WorkerSsvEvidence {
   scriptFilterReturnedCount: number | null;
   scriptFilterQueryStatus: 'STARTED' | 'COMPLETED' | null;
   scriptFilterRowsRead: number | null;
+  scriptFilterRequestStatus: DiagnosticRequestStatus | null;
   unfilteredReturnedCount: number | null;
   unfilteredQueryStatus: 'STARTED' | 'COMPLETED' | null;
   unfilteredRowsRead: number | null;
+  unfilteredRequestStatus: DiagnosticRequestStatus | null;
 }
 
 export interface ExecuteWorkerSsvInspectionOptions {
@@ -292,32 +307,78 @@ export function parseWorkerSsvTelemetry(
       };
 }
 
+function postTelemetryRequest(
+  fetchImpl: typeof fetch,
+  url: string,
+  apiToken: string,
+  requestTimeoutMs: number,
+  body: unknown
+): Promise<Response> {
+  return fetchImpl(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(requestTimeoutMs)
+  });
+}
+
+function failedDiagnostic(requestStatus: Exclude<DiagnosticRequestStatus, 'ok'>): DiagnosticQueryResult {
+  return {
+    returnedCount: null,
+    queryStatus: null,
+    rowsRead: null,
+    requestStatus
+  };
+}
+
 async function executeDiagnosticQuery(
   fetchImpl: typeof fetch,
   url: string,
   apiToken: string,
   requestTimeoutMs: number,
   query: ReturnType<typeof buildWorkerSsvTelemetryQuery>
-): Promise<{ returnedCount: number | null; queryStatus: 'STARTED' | 'COMPLETED' | null; rowsRead: number | null }> {
+): Promise<DiagnosticQueryResult> {
+  let response: Response;
   try {
-    const response = await fetchImpl(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(query),
-      signal: AbortSignal.timeout(requestTimeoutMs)
-    });
-    if (!response.ok) return { returnedCount: null, queryStatus: null, rowsRead: null };
-    const payload = (await response.json()) as { success?: boolean; result?: unknown };
-    if (payload.success !== true) return { returnedCount: null, queryStatus: null, rowsRead: null };
-    const stats = telemetryStats(payload.result);
-    const diagnostics = queryDiagnostics(payload.result);
-    return { returnedCount: stats.returnedCount, queryStatus: diagnostics.queryStatus, rowsRead: diagnostics.rowsRead };
+    response = await postTelemetryRequest(
+      fetchImpl,
+      url,
+      apiToken,
+      requestTimeoutMs,
+      query
+    );
   } catch {
-    return { returnedCount: null, queryStatus: null, rowsRead: null };
+    return failedDiagnostic('request_error');
   }
+  if (
+    response === null ||
+    typeof response !== 'object' ||
+    typeof response.ok !== 'boolean' ||
+    typeof response.json !== 'function'
+  ) {
+    return failedDiagnostic('request_error');
+  }
+  if (!response.ok) return failedDiagnostic('http_error');
+
+  let payload: { success?: boolean; result?: unknown };
+  try {
+    payload = (await response.json()) as typeof payload;
+  } catch {
+    return failedDiagnostic('invalid_json');
+  }
+  if (payload.success !== true) return failedDiagnostic('api_error');
+
+  const stats = telemetryStats(payload.result);
+  const diagnostics = queryDiagnostics(payload.result);
+  return {
+    returnedCount: stats.returnedCount,
+    queryStatus: diagnostics.queryStatus,
+    rowsRead: diagnostics.rowsRead,
+    requestStatus: 'ok'
+  };
 }
 
 /** Queries Cloudflare telemetry and emits only strict redacted callback evidence. */
@@ -342,17 +403,12 @@ export async function executeWorkerSsvInspection({
   const query = buildWorkerSsvTelemetryQuery(workerName, lookbackMinutes, limit, nowMs);
   let response: Response;
   try {
-    response = await fetchImpl(
+    response = await postTelemetryRequest(
+      fetchImpl,
       `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/query`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(query),
-        signal: AbortSignal.timeout(requestTimeoutMs)
-      }
+      apiToken,
+      requestTimeoutMs,
+      query
     );
   } catch (error: unknown) {
     const reason = error instanceof Error ? error.message : 'request failed';
@@ -378,26 +434,31 @@ export async function executeWorkerSsvInspection({
   const stats = telemetryStats(payload.result);
   const diagnostics = queryDiagnostics(payload.result);
   let workerServiceSeen: boolean | null = null;
-  let scriptFilterDiagnostic = { returnedCount: null as number | null, queryStatus: null as 'STARTED' | 'COMPLETED' | null, rowsRead: null as number | null };
-  let unfilteredDiagnostic = { returnedCount: null as number | null, queryStatus: null as 'STARTED' | 'COMPLETED' | null, rowsRead: null as number | null };
+  let scriptFilterDiagnostic: DiagnosticQueryResult = {
+    returnedCount: null,
+    queryStatus: null,
+    rowsRead: null,
+    requestStatus: null
+  };
+  let unfilteredDiagnostic: DiagnosticQueryResult = {
+    returnedCount: null,
+    queryStatus: null,
+    rowsRead: null,
+    requestStatus: null
+  };
 
   if (parsedEvidence.status === 'no_events') {
     try {
-      const valuesResponse = await fetchImpl(
+      const valuesResponse = await postTelemetryRequest(
+        fetchImpl,
         `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/values`,
+        apiToken,
+        requestTimeoutMs,
         {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            datasets: ['cloudflare-workers'],
-            key: '$metadata.service',
-            timeframe: query.timeframe,
-            type: 'string'
-          }),
-          signal: AbortSignal.timeout(requestTimeoutMs)
+          datasets: ['cloudflare-workers'],
+          key: '$metadata.service',
+          timeframe: query.timeframe,
+          type: 'string'
         }
       );
       if (valuesResponse.ok) {
@@ -432,9 +493,11 @@ export async function executeWorkerSsvInspection({
     scriptFilterReturnedCount: scriptFilterDiagnostic.returnedCount,
     scriptFilterQueryStatus: scriptFilterDiagnostic.queryStatus,
     scriptFilterRowsRead: scriptFilterDiagnostic.rowsRead,
+    scriptFilterRequestStatus: scriptFilterDiagnostic.requestStatus,
     unfilteredReturnedCount: unfilteredDiagnostic.returnedCount,
     unfilteredQueryStatus: unfilteredDiagnostic.queryStatus,
-    unfilteredRowsRead: unfilteredDiagnostic.rowsRead
+    unfilteredRowsRead: unfilteredDiagnostic.rowsRead,
+    unfilteredRequestStatus: unfilteredDiagnostic.requestStatus
   };
   log(JSON.stringify(evidence));
   return evidence;
