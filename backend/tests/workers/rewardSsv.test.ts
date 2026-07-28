@@ -13,6 +13,8 @@ const NOW_ISO = '2026-07-26T16:00:00.000Z';
 const NOW_MS = Date.parse(NOW_ISO);
 const AD_UNIT = 'ca-app-pub-3940256099942544/5224354917';
 const TRANSACTION_ID = '18fa792de1bca816048293fc71035638';
+const ADMOB_VERIFICATION_IDENTIFIER = 'admob-ssv-verification';
+const ADMOB_VERIFICATION_USER_ID = 'admob-verify-33333333-3333-4333-8333-333333333333';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -358,6 +360,87 @@ describe('rewarded access SSV routes', () => {
     await expect(replay.json()).resolves.toMatchObject({
       error: { code: 'TRANSACTION_REPLAY' }
     });
+  });
+
+  it('accepts a signed panel callback with a placeholder ad unit only for the explicit verification challenge', async () => {
+    const { db, rows } = createRewardDb();
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    rows.set(CHALLENGE_ID, {
+      id: CHALLENGE_ID,
+      user_id: ADMOB_VERIFICATION_USER_ID,
+      reward_type: 'daily',
+      identifier: ADMOB_VERIFICATION_IDENTIFIER,
+      status: 'pending',
+      transaction_id: null,
+      ad_unit: null,
+      callback_timestamp_ms: null,
+      created_at: NOW_ISO,
+      expires_at: new Date(NOW_MS + 15 * 60 * 1_000).toISOString(),
+      verified_at: null,
+      consumed_at: null,
+      entitlement_expires_at: null
+    });
+    const app = testApp({
+      verifyCallback: async () =>
+        verifiedCallback(
+          CHALLENGE_ID,
+          TRANSACTION_ID,
+          ADMOB_VERIFICATION_USER_ID,
+          'panel-placeholder-ad-unit'
+        )
+    });
+
+    const response = await app.request('/api/v1/rewards/ssv?panel-test', {}, env);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, duplicate: false });
+    expect(rows.get(CHALLENGE_ID)?.status).toBe('verified');
+  });
+
+  it('keeps ad-unit enforcement when either verification namespace marker is absent', async () => {
+    for (const row of [
+      {
+        userId: ADMOB_VERIFICATION_USER_ID,
+        identifier: '2026-07-26'
+      },
+      {
+        userId: 'ordinary-user',
+        identifier: ADMOB_VERIFICATION_IDENTIFIER
+      },
+      {
+        userId: 'admob-verify-not-a-uuid',
+        identifier: ADMOB_VERIFICATION_IDENTIFIER
+      }
+    ]) {
+      const { db, rows } = createRewardDb();
+      const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+      rows.set(CHALLENGE_ID, {
+        id: CHALLENGE_ID,
+        user_id: row.userId,
+        reward_type: 'daily',
+        identifier: row.identifier,
+        status: 'pending',
+        transaction_id: null,
+        ad_unit: null,
+        callback_timestamp_ms: null,
+        created_at: NOW_ISO,
+        expires_at: new Date(NOW_MS + 15 * 60 * 1_000).toISOString(),
+        verified_at: null,
+        consumed_at: null,
+        entitlement_expires_at: null
+      });
+      const app = testApp({
+        verifyCallback: async () =>
+          verifiedCallback(CHALLENGE_ID, TRANSACTION_ID, row.userId, 'panel-placeholder-ad-unit')
+      });
+
+      const response = await app.request('/api/v1/rewards/ssv?not-panel-test', {}, env);
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'REWARD_AD_UNIT_MISMATCH' }
+      });
+    }
   });
 
   it('rejects expired, user-mismatched, and ad-unit-mismatched callbacks', async () => {

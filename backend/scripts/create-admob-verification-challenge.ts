@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 const DATABASE_NAME = 'astrology-db';
 const CONFIG_FILE = 'wrangler.transition.toml';
 const VERIFICATION_USER_PREFIX = 'admob-verify-';
+const VERIFICATION_IDENTIFIER = 'admob-ssv-verification';
 const CHALLENGE_TTL_MS = 15 * 60_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -92,7 +93,7 @@ export function createVerificationChallengeValues(options: {
   return {
     challengeId,
     userId,
-    identifier: now.toISOString().slice(0, 10),
+    identifier: VERIFICATION_IDENTIFIER,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString()
   };
@@ -112,7 +113,7 @@ export function createSuppliedVerificationChallengeValues(options: {
   return {
     challengeId,
     userId,
-    identifier: now.toISOString().slice(0, 10),
+    identifier: VERIFICATION_IDENTIFIER,
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString()
   };

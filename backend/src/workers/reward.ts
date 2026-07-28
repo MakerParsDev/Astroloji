@@ -13,6 +13,9 @@ import type { BindingsFor, RewardChallengeRow, RewardEnv, RewardType } from '@/t
 import { validateRewardClaimBody, validateRewardPrepareBody } from '@/utils/validators';
 
 const CHALLENGE_TTL_MS = 10 * 60 * 1_000;
+const ADMOB_VERIFICATION_USER_PATTERN =
+  /^admob-verify-[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ADMOB_VERIFICATION_IDENTIFIER = 'admob-ssv-verification';
 const CALLBACK_PAST_SKEW_MS = 15 * 60 * 1_000;
 const CALLBACK_FUTURE_SKEW_MS = 5 * 60 * 1_000;
 const DAILY_ENTITLEMENT_TTL_MS = 48 * 60 * 60 * 1_000;
@@ -37,6 +40,13 @@ function iso(ms: number): string {
 function normalizeAdUnitId(value: string): string {
   const separator = value.lastIndexOf('/');
   return separator >= 0 ? value.slice(separator + 1) : value;
+}
+
+function isAdmobPanelVerificationChallenge(challenge: RewardChallengeRow): boolean {
+  return (
+    ADMOB_VERIFICATION_USER_PATTERN.test(challenge.user_id) &&
+    challenge.identifier === ADMOB_VERIFICATION_IDENTIFIER
+  );
 }
 
 function entitlementTtlMs(rewardType: RewardType): number {
@@ -203,7 +213,10 @@ export function registerRewardRoutes<E extends RewardEnv>(
       logRewardResult('user_mismatch');
       return jsonError(400, 'REWARD_USER_MISMATCH', 'Reward callback user does not match.');
     }
-    if (normalizeAdUnitId(callback.fields.adUnit) !== normalizeAdUnitId(c.env.ADMOB_REWARDED_ID)) {
+    if (
+      !isAdmobPanelVerificationChallenge(challenge) &&
+      normalizeAdUnitId(callback.fields.adUnit) !== normalizeAdUnitId(c.env.ADMOB_REWARDED_ID)
+    ) {
       logRewardResult('ad_unit_mismatch');
       return jsonError(400, 'REWARD_AD_UNIT_MISMATCH', 'Reward callback ad unit does not match.');
     }
