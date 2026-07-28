@@ -8,12 +8,12 @@ import {
 
 const workerName = 'astrology-ssv-transition';
 
-function telemetry(events: unknown[]) {
-  return { events: { events } };
+function telemetry(events: unknown[], count = events.length) {
+  return { events: { count, events } };
 }
 
 describe('AdMob SSV observability inspection', () => {
-  it('builds a bounded marker telemetry query', () => {
+  it('builds a bounded Worker service telemetry query', () => {
     expect(buildWorkerSsvTelemetryQuery(workerName, 360, 20, 1_800_000_000_000)).toEqual({
       queryId: 'astrology-worker-ssv-results',
       timeframe: { from: 1_799_978_400_000, to: 1_800_000_000_000 },
@@ -21,7 +21,15 @@ describe('AdMob SSV observability inspection', () => {
       limit: 20,
       parameters: {
         datasets: ['cloudflare-workers'],
-        needle: { value: 'reward_ssv_result', isRegex: false, matchCase: true },
+        filterCombination: 'and',
+        filters: [
+          {
+            key: '$metadata.service',
+            operation: 'eq',
+            type: 'string',
+            value: workerName
+          }
+        ],
         view: 'events'
       }
     });
@@ -152,16 +160,35 @@ describe('AdMob SSV observability inspection', () => {
   });
 
   it('queries Cloudflare with scoped credentials and logs redacted evidence only', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          success: true,
-          result: telemetry([]),
-          errors: []
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } }
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: telemetry([], 0),
+            errors: []
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
       )
-    );
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: [
+              {
+                dataset: 'cloudflare-workers',
+                key: '$metadata.service',
+                type: 'string',
+                value: workerName
+              }
+            ],
+            errors: []
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      );
     const log = vi.fn();
 
     const evidence = await executeWorkerSsvInspection({
@@ -182,9 +209,12 @@ describe('AdMob SSV observability inspection', () => {
       scriptName: workerName,
       outcome: null,
       verifierCode: null,
-      scriptVersion: null
+      scriptVersion: null,
+      telemetryCount: 0,
+      returnedCount: 0,
+      workerServiceSeen: true
     });
-    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
       'https://api.cloudflare.com/client/v4/accounts/account-id/workers/observability/telemetry/query'
@@ -195,9 +225,107 @@ describe('AdMob SSV observability inspection', () => {
     });
     expect(init.signal).toBeInstanceOf(AbortSignal);
     expect(init.signal?.aborted).toBe(false);
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      parameters: {
+        filters: [
+          {
+            key: '$metadata.service',
+            operation: 'eq',
+            type: 'string',
+            value: workerName
+          }
+        ]
+      }
+    });
+
+    const [valuesUrl, valuesInit] = fetchImpl.mock.calls[1] as [string, RequestInit];
+    expect(valuesUrl).toBe(
+      'https://api.cloudflare.com/client/v4/accounts/account-id/workers/observability/telemetry/values'
+    );
+    expect(JSON.parse(String(valuesInit.body))).toEqual({
+      datasets: ['cloudflare-workers'],
+      key: '$metadata.service',
+      timeframe: { from: 1_799_978_400_000, to: 1_800_000_000_000 },
+      type: 'string'
+    });
+    expect(valuesInit.signal).toBeInstanceOf(AbortSignal);
+    expect(valuesInit.signal?.aborted).toBe(false);
     expect(JSON.stringify(log.mock.calls)).not.toContain('cf-secret-token');
   });
 
+
+  it.each([
+    {
+      label: 'network failure',
+      secondResponse: () => Promise.reject(new Error('values socket closed'))
+    },
+    {
+      label: 'invalid JSON',
+      secondResponse: () =>
+        Promise.resolve(
+          new Response('<html>bad gateway</html>', {
+            status: 502,
+            headers: { 'content-type': 'text/html' }
+          })
+        )
+    },
+    {
+      label: 'unsuccessful payload',
+      secondResponse: () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({ success: false, errors: [{ message: 'values denied' }] }),
+            {
+              status: 403,
+              headers: { 'content-type': 'application/json' }
+            }
+          )
+        )
+    }
+  ])('keeps primary evidence when the values lookup has a $label', async ({ secondResponse }) => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: telemetry([], 0),
+            errors: []
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+      .mockImplementationOnce(secondResponse);
+    const log = vi.fn();
+
+    await expect(
+      executeWorkerSsvInspection({
+        env: {
+          CLOUDFLARE_API_TOKEN: 'token',
+          CLOUDFLARE_ACCOUNT_ID: 'account-id',
+          SSV_WORKER_NAME: workerName
+        },
+        fetchImpl,
+        nowMs: 1_800_000_000_000,
+        log
+      })
+    ).resolves.toEqual({
+      operation: 'callback',
+      status: 'no_events',
+      timestamp: null,
+      scriptName: workerName,
+      outcome: null,
+      verifierCode: null,
+      scriptVersion: null,
+      telemetryCount: 0,
+      returnedCount: 0,
+      workerServiceSeen: null
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('values socket closed');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('values denied');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('bad gateway');
+  });
 
   it('normalizes network and non-JSON failures into the telemetry error context', async () => {
     const networkFailure = vi.fn().mockRejectedValue(new Error('socket closed'));
