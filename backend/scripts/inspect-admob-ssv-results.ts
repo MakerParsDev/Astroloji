@@ -121,7 +121,7 @@ export function buildWorkerSsvTelemetryQuery(
   return {
     queryId: 'astrology-worker-ssv-results',
     timeframe: { from: nowMs - lookbackMinutes * 60_000, to: nowMs },
-    dry: false,
+    dry: true,
     limit,
     parameters: {
       datasets: ['cloudflare-workers'],

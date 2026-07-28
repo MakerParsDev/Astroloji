@@ -17,7 +17,7 @@ describe('AdMob SSV observability inspection', () => {
     expect(buildWorkerSsvTelemetryQuery(workerName, 360, 20, 1_800_000_000_000)).toEqual({
       queryId: 'astrology-worker-ssv-results',
       timeframe: { from: 1_799_978_400_000, to: 1_800_000_000_000 },
-      dry: false,
+      dry: true,
       limit: 20,
       parameters: {
         datasets: ['cloudflare-workers'],
