@@ -166,7 +166,11 @@ describe('AdMob SSV observability inspection', () => {
         new Response(
           JSON.stringify({
             success: true,
-            result: telemetry([], 0),
+            result: {
+              ...telemetry([], 0),
+              run: { status: 'COMPLETED' },
+              statistics: { rows_read: 42 }
+            },
             errors: []
           }),
           { status: 200, headers: { 'content-type': 'application/json' } }
@@ -212,7 +216,9 @@ describe('AdMob SSV observability inspection', () => {
       scriptVersion: null,
       telemetryCount: 0,
       returnedCount: 0,
-      workerServiceSeen: true
+      workerServiceSeen: true,
+      queryStatus: 'COMPLETED',
+      rowsRead: 42
     });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
@@ -319,7 +325,9 @@ describe('AdMob SSV observability inspection', () => {
       scriptVersion: null,
       telemetryCount: 0,
       returnedCount: 0,
-      workerServiceSeen: null
+      workerServiceSeen: null,
+      queryStatus: null,
+      rowsRead: null
     });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(log.mock.calls)).not.toContain('values socket closed');

@@ -46,6 +46,8 @@ export interface WorkerSsvInspectionEvidence extends WorkerSsvEvidence {
   telemetryCount: number | null;
   returnedCount: number;
   workerServiceSeen: boolean | null;
+  queryStatus: 'STARTED' | 'COMPLETED' | null;
+  rowsRead: number | null;
 }
 
 export interface ExecuteWorkerSsvInspectionOptions {
@@ -157,6 +159,22 @@ function includesWorkerService(value: unknown, workerName: string): boolean {
       entry.type === 'string' &&
       entry.value === workerName
   );
+}
+
+function queryDiagnostics(value: unknown): {
+  queryStatus: 'STARTED' | 'COMPLETED' | null;
+  rowsRead: number | null;
+} {
+  const root = record(value);
+  const status = record(root.run).status;
+  const rowsRead = record(root.statistics).rows_read;
+  return {
+    queryStatus: status === 'STARTED' || status === 'COMPLETED' ? status : null,
+    rowsRead:
+      typeof rowsRead === 'number' && Number.isFinite(rowsRead) && rowsRead >= 0
+        ? rowsRead
+        : null
+  };
 }
 
 function workerEnvelope(event: UnknownRecord, source: UnknownRecord): UnknownRecord {
@@ -275,6 +293,7 @@ export async function executeWorkerSsvInspection({
   }
   const parsedEvidence = parseWorkerSsvTelemetry(payload.result, workerName, limit);
   const stats = telemetryStats(payload.result);
+  const diagnostics = queryDiagnostics(payload.result);
   let workerServiceSeen: boolean | null = null;
 
   if (parsedEvidence.status === 'no_events') {
@@ -313,7 +332,8 @@ export async function executeWorkerSsvInspection({
   const evidence: WorkerSsvInspectionEvidence = {
     ...parsedEvidence,
     ...stats,
-    workerServiceSeen
+    workerServiceSeen,
+    ...diagnostics
   };
   log(JSON.stringify(evidence));
   return evidence;
