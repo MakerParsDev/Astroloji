@@ -203,7 +203,7 @@ jobs:
             create: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
             inspect: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
             delete: ['operation', 'deletedChallengePrefix'],
-            callback: ['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'verifierCode', 'scriptVersion']
+            callback: ['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'verifierCode', 'scriptVersion', 'telemetryCount', 'returnedCount', 'workerServiceSeen']
           };
           const allowed = allowedByOperation[evidence.operation];
           if (!allowed) throw new Error('Unexpected redacted evidence operation.');

@@ -42,6 +42,12 @@ export interface WorkerSsvEvidence {
   scriptVersion: string | null;
 }
 
+export interface WorkerSsvInspectionEvidence extends WorkerSsvEvidence {
+  telemetryCount: number | null;
+  returnedCount: number;
+  workerServiceSeen: boolean | null;
+}
+
 export interface ExecuteWorkerSsvInspectionOptions {
   env: Record<string, string | undefined>;
   fetchImpl?: typeof fetch;
@@ -117,10 +123,40 @@ export function buildWorkerSsvTelemetryQuery(
     limit,
     parameters: {
       datasets: ['cloudflare-workers'],
-      needle: { value: SSV_EVENT, isRegex: false, matchCase: true },
+      filterCombination: 'and',
+      filters: [
+        {
+          key: '$metadata.service',
+          operation: 'eq',
+          type: 'string',
+          value: workerName
+        }
+      ],
       view: 'events'
     }
   };
+}
+
+function telemetryStats(value: unknown): {
+  telemetryCount: number | null;
+  returnedCount: number;
+} {
+  const container = record(record(value).events);
+  const count = container.count;
+  return {
+    telemetryCount:
+      typeof count === 'number' && Number.isFinite(count) && count >= 0 ? count : null,
+    returnedCount: records(container.events).length
+  };
+}
+
+function includesWorkerService(value: unknown, workerName: string): boolean {
+  return records(value).some(
+    (entry) =>
+      entry.key === '$metadata.service' &&
+      entry.type === 'string' &&
+      entry.value === workerName
+  );
 }
 
 function workerEnvelope(event: UnknownRecord, source: UnknownRecord): UnknownRecord {
@@ -189,7 +225,7 @@ export async function executeWorkerSsvInspection({
   fetchImpl = fetch,
   nowMs = Date.now(),
   log = console.log
-}: ExecuteWorkerSsvInspectionOptions): Promise<WorkerSsvEvidence> {
+}: ExecuteWorkerSsvInspectionOptions): Promise<WorkerSsvInspectionEvidence> {
   const apiToken = requireEnv(env, 'CLOUDFLARE_API_TOKEN');
   const accountId = requireEnv(env, 'CLOUDFLARE_ACCOUNT_ID');
   const workerName = env.SSV_WORKER_NAME?.trim() || DEFAULT_WORKER;
@@ -237,7 +273,60 @@ export async function executeWorkerSsvInspection({
       `Cloudflare telemetry query failed: ${payload.errors?.[0]?.message ?? response.status}`
     );
   }
-  const evidence = parseWorkerSsvTelemetry(payload.result, workerName, limit);
+  const parsedEvidence = parseWorkerSsvTelemetry(payload.result, workerName, limit);
+  const stats = telemetryStats(payload.result);
+  let workerServiceSeen: boolean | null = null;
+
+  if (parsedEvidence.status === 'no_events') {
+    let valuesResponse: Response;
+    try {
+      valuesResponse = await fetchImpl(
+        `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/values`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            datasets: ['cloudflare-workers'],
+            key: '$metadata.service',
+            timeframe: query.timeframe,
+            type: 'string'
+          }),
+          signal: AbortSignal.timeout(requestTimeoutMs)
+        }
+      );
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : 'request failed';
+      throw new Error(`Cloudflare telemetry values lookup failed: ${reason}`);
+    }
+
+    let valuesPayload: {
+      success?: boolean;
+      result?: unknown;
+      errors?: Array<{ message?: string }>;
+    };
+    try {
+      valuesPayload = (await valuesResponse.json()) as typeof valuesPayload;
+    } catch {
+      throw new Error(
+        `Cloudflare telemetry values lookup failed: invalid JSON response (${valuesResponse.status})`
+      );
+    }
+    if (!valuesResponse.ok || valuesPayload.success !== true) {
+      throw new Error(
+        `Cloudflare telemetry values lookup failed: ${valuesPayload.errors?.[0]?.message ?? valuesResponse.status}`
+      );
+    }
+    workerServiceSeen = includesWorkerService(valuesPayload.result, workerName);
+  }
+
+  const evidence: WorkerSsvInspectionEvidence = {
+    ...parsedEvidence,
+    ...stats,
+    workerServiceSeen
+  };
   log(JSON.stringify(evidence));
   return evidence;
 }
