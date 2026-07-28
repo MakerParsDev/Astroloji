@@ -10,10 +10,37 @@ export type AdmobSsvErrorCode =
   | 'UNKNOWN_KEY'
   | 'KEY_FETCH_FAILED';
 
+export type AdmobSsvVerifierReason =
+  | 'QUERY_STRING_MISSING'
+  | 'SIGNATURE_SECTION_MISSING'
+  | 'SIGNATURE_ORDER_INVALID'
+  | 'SIGNATURE_VALUES_EMPTY'
+  | 'SIGNATURE_ENCODING_INVALID'
+  | 'PARAMETER_CARDINALITY_INVALID'
+  | 'PERCENT_ENCODING_INVALID'
+  | 'INTEGER_FORMAT_INVALID'
+  | 'INTEGER_RANGE_INVALID'
+  | 'TRANSACTION_ID_FORMAT_INVALID';
+
+export type AdmobSsvVerifierField =
+  | 'query'
+  | 'signature'
+  | 'key_id'
+  | 'ad_network'
+  | 'ad_unit'
+  | 'custom_data'
+  | 'reward_amount'
+  | 'reward_item'
+  | 'timestamp'
+  | 'transaction_id'
+  | 'user_id';
+
 export class AdmobSsvVerificationError extends Error {
   constructor(
     readonly code: AdmobSsvErrorCode,
-    message: string
+    message: string,
+    readonly reason: AdmobSsvVerifierReason | null = null,
+    readonly field: AdmobSsvVerifierField | null = null
   ) {
     super(message);
     this.name = 'AdmobSsvVerificationError';
@@ -66,8 +93,12 @@ const defaultKeyCache: AdmobKeyCache = {
   keys: new Map()
 };
 
-function malformed(message: string): never {
-  throw new AdmobSsvVerificationError('MALFORMED_CALLBACK', message);
+function malformed(
+  reason: AdmobSsvVerifierReason,
+  field: AdmobSsvVerifierField,
+  message: string
+): never {
+  throw new AdmobSsvVerificationError('MALFORMED_CALLBACK', message, reason, field);
 }
 
 function decodeBase64(value: string): Uint8Array {
@@ -75,7 +106,7 @@ function decodeBase64(value: string): Uint8Array {
     const decoded = atob(value.replace(/\s+/g, ''));
     return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
   } catch {
-    malformed('Callback contains invalid base64 data.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'Callback contains invalid base64 data.');
   }
 }
 
@@ -95,7 +126,7 @@ function decodeBase64Url(value: string): Uint8Array {
 function readDerLength(bytes: Uint8Array, offset: number): { length: number; nextOffset: number } {
   const first = bytes[offset];
   if (first === undefined) {
-    malformed('ECDSA signature has a truncated DER length.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'ECDSA signature has a truncated DER length.');
   }
   if ((first & 0x80) === 0) {
     return { length: first, nextOffset: offset + 1 };
@@ -103,7 +134,7 @@ function readDerLength(bytes: Uint8Array, offset: number): { length: number; nex
 
   const byteCount = first & 0x7f;
   if (byteCount < 1 || byteCount > 2 || offset + byteCount >= bytes.length) {
-    malformed('ECDSA signature has an unsupported DER length.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'ECDSA signature has an unsupported DER length.');
   }
 
   let length = 0;
@@ -118,40 +149,40 @@ function readDerInteger(
   offset: number
 ): { value: Uint8Array; nextOffset: number } {
   if (bytes[offset] !== 0x02) {
-    malformed('ECDSA signature is missing a DER integer.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'ECDSA signature is missing a DER integer.');
   }
   const length = readDerLength(bytes, offset + 1);
   const end = length.nextOffset + length.length;
   if (length.length < 1 || end > bytes.length) {
-    malformed('ECDSA signature contains a truncated DER integer.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'ECDSA signature contains a truncated DER integer.');
   }
 
   let value = bytes.slice(length.nextOffset, end);
   if ((value[0] ?? 0) & 0x80) {
-    malformed('ECDSA signature contains a negative DER integer.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'ECDSA signature contains a negative DER integer.');
   }
   while (value.length > 1 && value[0] === 0) {
     value = value.slice(1);
   }
   if (value.length > P256_COMPONENT_SIZE) {
-    malformed('ECDSA signature integer exceeds the P-256 component size.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'ECDSA signature integer exceeds the P-256 component size.');
   }
   return { value, nextOffset: end };
 }
 
 export function derEcdsaSignatureToP1363(signature: Uint8Array): Uint8Array {
   if (signature[0] !== 0x30) {
-    malformed('ECDSA signature is not a DER sequence.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'ECDSA signature is not a DER sequence.');
   }
   const sequence = readDerLength(signature, 1);
   if (sequence.nextOffset + sequence.length !== signature.length) {
-    malformed('ECDSA signature DER sequence length is invalid.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'ECDSA signature DER sequence length is invalid.');
   }
 
   const r = readDerInteger(signature, sequence.nextOffset);
   const s = readDerInteger(signature, r.nextOffset);
   if (s.nextOffset !== signature.length) {
-    malformed('ECDSA signature contains trailing DER data.');
+    malformed('SIGNATURE_ENCODING_INVALID', 'signature', 'ECDSA signature contains trailing DER data.');
   }
 
   const output = new Uint8Array(P256_COMPONENT_SIZE * 2);
@@ -160,10 +191,10 @@ export function derEcdsaSignatureToP1363(signature: Uint8Array): Uint8Array {
   return output;
 }
 
-function requiredSingleValue(params: URLSearchParams, name: string): string {
+function requiredSingleValue(params: URLSearchParams, name: AdmobSsvVerifierField): string {
   const values = params.getAll(name);
   if (values.length !== 1 || !values[0]) {
-    malformed(`Callback requires exactly one ${name} parameter.`);
+    malformed('PARAMETER_CARDINALITY_INVALID', name, `Callback requires exactly one ${name} parameter.`);
   }
   return values[0];
 }
@@ -174,17 +205,17 @@ function decodeSignedContent(value: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
-    malformed('Callback query contains invalid percent-encoding.');
+    malformed('PERCENT_ENCODING_INVALID', 'query', 'Callback query contains invalid percent-encoding.');
   }
 }
 
-function parsePositiveInteger(value: string, name: string): number {
+function parsePositiveInteger(value: string, name: AdmobSsvVerifierField): number {
   if (!/^\d+$/.test(value)) {
-    malformed(`Callback ${name} must be an integer.`);
+    malformed('INTEGER_FORMAT_INVALID', name, `Callback ${name} must be an integer.`);
   }
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed < 1) {
-    malformed(`Callback ${name} is outside the supported range.`);
+    malformed('INTEGER_RANGE_INVALID', name, `Callback ${name} is outside the supported range.`);
   }
   return parsed;
 }
@@ -192,33 +223,33 @@ function parsePositiveInteger(value: string, name: string): number {
 export function parseAdmobSsvCallback(callbackUrl: string): ParsedAdmobSsvCallback {
   const queryStart = callbackUrl.indexOf('?');
   if (queryStart < 0 || queryStart === callbackUrl.length - 1) {
-    malformed('Callback URL does not contain a query string.');
+    malformed('QUERY_STRING_MISSING', 'query', 'Callback URL does not contain a query string.');
   }
 
   const rawQuery = callbackUrl.slice(queryStart + 1);
   const signatureMarker = '&signature=';
   const signatureIndex = rawQuery.lastIndexOf(signatureMarker);
   if (signatureIndex <= 0) {
-    malformed('Callback requires signature and signed content parameters.');
+    malformed('SIGNATURE_SECTION_MISSING', 'signature', 'Callback requires signature and signed content parameters.');
   }
 
   const signedContent = rawQuery.slice(0, signatureIndex);
   const terminal = rawQuery.slice(signatureIndex + 1);
   const terminalMatch = /^signature=([^&]+)&key_id=(\d+)$/.exec(terminal);
   if (!terminalMatch || signedContent.includes('&signature=') || signedContent.includes('&key_id=')) {
-    malformed('Callback signature and key_id must be the final ordered parameters.');
+    malformed('SIGNATURE_ORDER_INVALID', 'signature', 'Callback signature and key_id must be the final ordered parameters.');
   }
 
   const signature = terminalMatch[1] ?? '';
   const keyId = terminalMatch[2] ?? '';
   if (!signature || !keyId) {
-    malformed('Callback signature parameters must not be empty.');
+    malformed('SIGNATURE_VALUES_EMPTY', 'signature', 'Callback signature parameters must not be empty.');
   }
 
   const params = new URLSearchParams(signedContent);
   const transactionId = requiredSingleValue(params, 'transaction_id');
   if (!/^[a-fA-F0-9]{16,128}$/.test(transactionId)) {
-    malformed('Callback transaction_id must be a hexadecimal identifier.');
+    malformed('TRANSACTION_ID_FORMAT_INVALID', 'transaction_id', 'Callback transaction_id must be a hexadecimal identifier.');
   }
 
   return {

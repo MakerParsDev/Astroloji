@@ -30,9 +30,38 @@ const VERIFIER_CODES = [
   'KEY_FETCH_FAILED'
 ] as const;
 
+const VERIFIER_REASONS = [
+  'QUERY_STRING_MISSING',
+  'SIGNATURE_SECTION_MISSING',
+  'SIGNATURE_ORDER_INVALID',
+  'SIGNATURE_VALUES_EMPTY',
+  'SIGNATURE_ENCODING_INVALID',
+  'PARAMETER_CARDINALITY_INVALID',
+  'PERCENT_ENCODING_INVALID',
+  'INTEGER_FORMAT_INVALID',
+  'INTEGER_RANGE_INVALID',
+  'TRANSACTION_ID_FORMAT_INVALID'
+] as const;
+
+const VERIFIER_FIELDS = [
+  'query',
+  'signature',
+  'key_id',
+  'ad_network',
+  'ad_unit',
+  'custom_data',
+  'reward_amount',
+  'reward_item',
+  'timestamp',
+  'transaction_id',
+  'user_id'
+] as const;
+
 type UnknownRecord = Record<string, unknown>;
 type SsvOutcome = (typeof OUTCOMES)[number];
 type VerifierCode = (typeof VERIFIER_CODES)[number];
+type VerifierReason = (typeof VERIFIER_REASONS)[number];
+type VerifierField = (typeof VERIFIER_FIELDS)[number];
 type DiagnosticRequestStatus =
   | 'ok'
   | 'http_error'
@@ -54,6 +83,8 @@ export interface WorkerSsvEvidence {
   scriptName: string;
   outcome: SsvOutcome | null;
   verifierCode: VerifierCode | null;
+  verifierReason?: VerifierReason;
+  verifierField?: VerifierField;
   scriptVersion: string | null;
 }
 
@@ -281,11 +312,15 @@ export function parseWorkerSsvTelemetry(
       const date = new Date(timestamp);
       if (!Number.isFinite(date.getTime())) return null;
       const version = string(record(workers.scriptVersion).id);
+      const verifierReason = enumValue(source.verifierReason, VERIFIER_REASONS);
+      const verifierField = enumValue(source.verifierField, VERIFIER_FIELDS);
       return {
         timestamp: date.toISOString(),
         scriptName: expectedWorkerName,
         outcome,
         verifierCode: enumValue(source.verifierCode, VERIFIER_CODES),
+        ...(verifierReason ? { verifierReason } : {}),
+        ...(verifierField ? { verifierField } : {}),
         scriptVersion: version && UUID_PATTERN.test(version) ? version : null
       };
     })

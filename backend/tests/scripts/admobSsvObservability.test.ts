@@ -159,6 +159,8 @@ describe('AdMob SSV observability inspection', () => {
             event: 'reward_ssv_result',
             outcome: 'signature_rejected',
             verifierCode: 'MALFORMED_CALLBACK',
+            verifierReason: 'TRANSACTION_ID_FORMAT_INVALID',
+            verifierField: 'transaction_id',
             url: 'https://example.invalid/?signature=secret',
             requestId: 'secret-request',
             userId: 'secret-user',
@@ -181,6 +183,8 @@ describe('AdMob SSV observability inspection', () => {
       scriptName: workerName,
       outcome: 'signature_rejected',
       verifierCode: 'MALFORMED_CALLBACK',
+      verifierReason: 'TRANSACTION_ID_FORMAT_INVALID',
+      verifierField: 'transaction_id',
       scriptVersion: '33333333-3333-4333-8333-333333333333'
     });
     const serialized = JSON.stringify(parsed);

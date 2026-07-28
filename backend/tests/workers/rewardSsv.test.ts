@@ -462,6 +462,45 @@ describe('rewarded access SSV routes', () => {
     }
   });
 
+  it('logs only allowlisted malformed callback diagnostics', async () => {
+    const { db } = createRewardDb();
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const app = testApp({
+      verifyCallback: async () => {
+        throw new AdmobSsvVerificationError(
+          'MALFORMED_CALLBACK',
+          'Callback requires exactly one custom_data parameter.',
+          'PARAMETER_CARDINALITY_INVALID',
+          'custom_data'
+        );
+      }
+    });
+
+    const response = await app.request('/api/v1/rewards/ssv?secret-query', {}, env);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'MALFORMED_CALLBACK' }
+    });
+    expect(log).toHaveBeenCalledWith({
+      event: 'reward_ssv_result',
+      outcome: 'signature_rejected',
+      verifierCode: 'MALFORMED_CALLBACK',
+      verifierReason: 'PARAMETER_CARDINALITY_INVALID',
+      verifierField: 'custom_data'
+    });
+    const serialized = JSON.stringify(log.mock.calls.at(-1));
+    for (const forbidden of [
+      'Callback requires exactly one custom_data parameter.',
+      'secret-query',
+      'requestId',
+      'signature=',
+      'userId'
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
+  });
+
   it('redacts request identifiers when the verification update fails', async () => {
     const { db } = createRewardDb({ failVerifyUpdate: true });
     const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
