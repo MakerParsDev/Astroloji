@@ -4,6 +4,8 @@ import { enforceRateLimit } from '@/services/cache';
 import {
   AdmobSsvVerificationError,
   type AdmobSsvErrorCode,
+  type AdmobSsvVerifierField,
+  type AdmobSsvVerifierReason,
   type ParsedAdmobSsvCallback,
   verifyAdmobSsvCallback
 } from '@/services/admobSsv';
@@ -58,11 +60,18 @@ async function getChallengeByTransaction(
     .first()) as RewardChallengeRow | null;
 }
 
-function logRewardResult(outcome: string, verifierCode?: AdmobSsvErrorCode): void {
+function logRewardResult(
+  outcome: string,
+  verifierCode?: AdmobSsvErrorCode,
+  verifierReason?: AdmobSsvVerifierReason,
+  verifierField?: AdmobSsvVerifierField
+): void {
   console.log({
     event: 'reward_ssv_result',
     outcome,
-    ...(verifierCode ? { verifierCode } : {})
+    ...(verifierCode ? { verifierCode } : {}),
+    ...(verifierReason ? { verifierReason } : {}),
+    ...(verifierField ? { verifierField } : {})
   });
 }
 
@@ -159,7 +168,11 @@ export function registerRewardRoutes<E extends RewardEnv>(
       callback = await verifyCallback(c.req.url);
     } catch (error) {
       const verifierCode = error instanceof AdmobSsvVerificationError ? error.code : undefined;
-      logRewardResult('signature_rejected', verifierCode);
+      const verifierReason =
+        error instanceof AdmobSsvVerificationError ? error.reason ?? undefined : undefined;
+      const verifierField =
+        error instanceof AdmobSsvVerificationError ? error.field ?? undefined : undefined;
+      logRewardResult('signature_rejected', verifierCode, verifierReason, verifierField);
       return callbackError(error);
     }
 

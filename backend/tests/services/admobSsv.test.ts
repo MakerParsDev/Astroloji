@@ -195,7 +195,9 @@ describe('AdMob SSV verification', () => {
     });
 
     await expect(verify(malformedUrl)).rejects.toMatchObject({
-      code: 'MALFORMED_CALLBACK'
+      code: 'MALFORMED_CALLBACK',
+      reason: 'PERCENT_ENCODING_INVALID',
+      field: 'query'
     });
   });
 
@@ -205,7 +207,21 @@ describe('AdMob SSV verification', () => {
 
     expect(() => parseAdmobSsvCallback(url)).toThrowError(
       expect.objectContaining<Partial<AdmobSsvVerificationError>>({
-        code: 'MALFORMED_CALLBACK'
+        code: 'MALFORMED_CALLBACK',
+        reason: 'SIGNATURE_ORDER_INVALID',
+        field: 'signature'
+      })
+    );
+  });
+
+  it('classifies an invalid transaction identifier without exposing its value', async () => {
+    const callback = await createSignedCallback({ transaction_id: 'not-a-hex-id' });
+
+    expect(() => parseAdmobSsvCallback(callback.url)).toThrowError(
+      expect.objectContaining<Partial<AdmobSsvVerificationError>>({
+        code: 'MALFORMED_CALLBACK',
+        reason: 'TRANSACTION_ID_FORMAT_INVALID',
+        field: 'transaction_id'
       })
     );
   });
