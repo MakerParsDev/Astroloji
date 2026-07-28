@@ -220,6 +220,17 @@ function parsePositiveInteger(value: string, name: AdmobSsvVerifierField): numbe
   return parsed;
 }
 
+function validateTransactionId(value: string): string {
+  if (value.length > 256 || /[\u0000-\u001F\u007F]/u.test(value)) {
+    malformed(
+      'TRANSACTION_ID_FORMAT_INVALID',
+      'transaction_id',
+      'Callback transaction_id contains unsupported characters or length.'
+    );
+  }
+  return value;
+}
+
 export function parseAdmobSsvCallback(callbackUrl: string): ParsedAdmobSsvCallback {
   const queryStart = callbackUrl.indexOf('?');
   if (queryStart < 0 || queryStart === callbackUrl.length - 1) {
@@ -247,10 +258,7 @@ export function parseAdmobSsvCallback(callbackUrl: string): ParsedAdmobSsvCallba
   }
 
   const params = new URLSearchParams(signedContent);
-  const transactionId = requiredSingleValue(params, 'transaction_id');
-  if (!/^[a-fA-F0-9]{16,128}$/.test(transactionId)) {
-    malformed('TRANSACTION_ID_FORMAT_INVALID', 'transaction_id', 'Callback transaction_id must be a hexadecimal identifier.');
-  }
+  const transactionId = validateTransactionId(requiredSingleValue(params, 'transaction_id'));
 
   return {
     signedContent,
