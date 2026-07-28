@@ -123,7 +123,7 @@ test('callback inspection publishes only bounded redacted telemetry fields', () 
   assert.match(callbackBlock, /SSV_LOOKBACK_MINUTES: '360'/);
   assert.match(callbackBlock, /SSV_RESULT_LIMIT: '20'/);
   assert.match(callbackBlock, /transition:callback:inspect/);
-  assert.match(workflow, /callback: \['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'verifierCode', 'scriptVersion', 'telemetryCount', 'returnedCount', 'workerServiceSeen', 'queryStatus', 'rowsRead'\]/);
+  assert.match(workflow, /callback: \['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'verifierCode', 'scriptVersion', 'telemetryCount', 'returnedCount', 'workerServiceSeen', 'queryStatus', 'rowsRead', 'scriptFilterReturnedCount', 'scriptFilterQueryStatus', 'scriptFilterRowsRead', 'scriptFilterRequestStatus', 'unfilteredReturnedCount', 'unfilteredQueryStatus', 'unfilteredRowsRead', 'unfilteredRequestStatus'\]/);
   for (const forbidden of ['signature', 'requestId', 'userId', 'customData', 'url']) {
     assert.doesNotMatch(callbackBlock, new RegExp(`console\\.log[^\\n]*${forbidden}`, 'i'));
   }

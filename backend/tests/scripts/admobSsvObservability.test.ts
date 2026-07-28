@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  buildWorkerSsvDiagnosticQueries,
   buildWorkerSsvTelemetryQuery,
   executeWorkerSsvInspection,
   parseWorkerSsvTelemetry
@@ -13,6 +14,35 @@ function telemetry(events: unknown[], count = events.length) {
 }
 
 describe('AdMob SSV observability inspection', () => {
+  it('builds bounded alternate filter and unfiltered diagnostic queries', () => {
+    expect(buildWorkerSsvDiagnosticQueries(workerName, 15, 1, 1_800_000_000_000)).toEqual({
+      scriptFilter: {
+        queryId: 'astrology-worker-ssv-script-filter-diagnostic',
+        timeframe: { from: 1_799_999_100_000, to: 1_800_000_000_000 },
+        dry: true,
+        limit: 1,
+        parameters: {
+          datasets: ['cloudflare-workers'],
+          filterCombination: 'and',
+          filters: [{ key: '$workers.scriptName', operation: 'eq', type: 'string', value: workerName }],
+          view: 'events'
+        }
+      },
+      unfiltered: {
+        queryId: 'astrology-worker-ssv-unfiltered-diagnostic',
+        timeframe: { from: 1_799_999_100_000, to: 1_800_000_000_000 },
+        dry: true,
+        limit: 1,
+        parameters: {
+          datasets: ['cloudflare-workers'],
+          filterCombination: 'and',
+          filters: [],
+          view: 'events'
+        }
+      }
+    });
+  });
+
   it('builds a bounded Worker service telemetry query', () => {
     expect(buildWorkerSsvTelemetryQuery(workerName, 360, 20, 1_800_000_000_000)).toEqual({
       queryId: 'astrology-worker-ssv-results',
@@ -192,6 +222,32 @@ describe('AdMob SSV observability inspection', () => {
           }),
           { status: 200, headers: { 'content-type': 'application/json' } }
         )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: {
+              ...telemetry([{}], 1),
+              run: { status: 'COMPLETED' },
+              statistics: { rows_read: 7 }
+            }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: {
+              ...telemetry([{}], 1),
+              run: { status: 'COMPLETED' },
+              statistics: { rows_read: 9 }
+            }
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
       );
     const log = vi.fn();
 
@@ -218,9 +274,17 @@ describe('AdMob SSV observability inspection', () => {
       returnedCount: 0,
       workerServiceSeen: true,
       queryStatus: 'COMPLETED',
-      rowsRead: 42
+      rowsRead: 42,
+      scriptFilterReturnedCount: 1,
+      scriptFilterQueryStatus: 'COMPLETED',
+      scriptFilterRowsRead: 7,
+      scriptFilterRequestStatus: 'ok',
+      unfilteredReturnedCount: 1,
+      unfilteredQueryStatus: 'COMPLETED',
+      unfilteredRowsRead: 9,
+      unfilteredRequestStatus: 'ok'
     });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
     const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(
       'https://api.cloudflare.com/client/v4/accounts/account-id/workers/observability/telemetry/query'
@@ -256,6 +320,21 @@ describe('AdMob SSV observability inspection', () => {
     });
     expect(valuesInit.signal).toBeInstanceOf(AbortSignal);
     expect(valuesInit.signal?.aborted).toBe(false);
+
+    const [, scriptFilterInit] = fetchImpl.mock.calls[2] as [string, RequestInit];
+    expect(JSON.parse(String(scriptFilterInit.body))).toMatchObject({
+      timeframe: { from: 1_799_999_100_000, to: 1_800_000_000_000 },
+      limit: 1,
+      parameters: {
+        filters: [{ key: '$workers.scriptName', value: workerName }]
+      }
+    });
+    const [, unfilteredInit] = fetchImpl.mock.calls[3] as [string, RequestInit];
+    expect(JSON.parse(String(unfilteredInit.body))).toMatchObject({
+      timeframe: { from: 1_799_999_100_000, to: 1_800_000_000_000 },
+      limit: 1,
+      parameters: { filters: [] }
+    });
     expect(JSON.stringify(log.mock.calls)).not.toContain('cf-secret-token');
   });
 
@@ -327,12 +406,112 @@ describe('AdMob SSV observability inspection', () => {
       returnedCount: 0,
       workerServiceSeen: null,
       queryStatus: null,
-      rowsRead: null
+      rowsRead: null,
+      scriptFilterReturnedCount: null,
+      scriptFilterQueryStatus: null,
+      scriptFilterRowsRead: null,
+      scriptFilterRequestStatus: 'request_error',
+      unfilteredReturnedCount: null,
+      unfilteredQueryStatus: null,
+      unfilteredRowsRead: null,
+      unfilteredRequestStatus: 'request_error'
     });
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
     expect(JSON.stringify(log.mock.calls)).not.toContain('values socket closed');
     expect(JSON.stringify(log.mock.calls)).not.toContain('values denied');
     expect(JSON.stringify(log.mock.calls)).not.toContain('bad gateway');
+  });
+
+  it('classifies diagnostic HTTP and API failures without exposing response details', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: telemetry([], 0) }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('diagnostic upstream secret', { status: 503 })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ success: false, errors: [{ message: 'diagnostic denied secret' }] }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      );
+    const log = vi.fn();
+
+    const evidence = await executeWorkerSsvInspection({
+      env: {
+        CLOUDFLARE_API_TOKEN: 'token',
+        CLOUDFLARE_ACCOUNT_ID: 'account-id',
+        SSV_WORKER_NAME: workerName
+      },
+      fetchImpl,
+      nowMs: 1_800_000_000_000,
+      log
+    });
+
+    expect(evidence.scriptFilterRequestStatus).toBe('http_error');
+    expect(evidence.unfilteredRequestStatus).toBe('api_error');
+    expect(evidence.scriptFilterReturnedCount).toBeNull();
+    expect(evidence.unfilteredReturnedCount).toBeNull();
+    const serialized = JSON.stringify({ evidence, log: log.mock.calls });
+    expect(serialized).not.toContain('diagnostic upstream secret');
+    expect(serialized).not.toContain('diagnostic denied secret');
+  });
+
+  it('classifies diagnostic JSON and request failures without exposing exception details', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: telemetry([], 0) }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, result: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response('<html>diagnostic private body</html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' }
+        })
+      )
+      .mockRejectedValueOnce(new Error('diagnostic socket private detail'));
+    const log = vi.fn();
+
+    const evidence = await executeWorkerSsvInspection({
+      env: {
+        CLOUDFLARE_API_TOKEN: 'token',
+        CLOUDFLARE_ACCOUNT_ID: 'account-id',
+        SSV_WORKER_NAME: workerName
+      },
+      fetchImpl,
+      nowMs: 1_800_000_000_000,
+      log
+    });
+
+    expect(evidence.scriptFilterRequestStatus).toBe('invalid_json');
+    expect(evidence.unfilteredRequestStatus).toBe('request_error');
+    expect(evidence.scriptFilterReturnedCount).toBeNull();
+    expect(evidence.unfilteredReturnedCount).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(log).toHaveBeenCalledTimes(1);
+    const serialized = JSON.stringify({ evidence, log: log.mock.calls });
+    expect(serialized).not.toContain('diagnostic private body');
+    expect(serialized).not.toContain('diagnostic socket private detail');
   });
 
   it('normalizes network and non-JSON failures into the telemetry error context', async () => {

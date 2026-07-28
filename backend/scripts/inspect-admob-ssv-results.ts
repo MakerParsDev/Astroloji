@@ -5,6 +5,8 @@ const DEFAULT_WORKER = 'astrology-ssv-transition';
 const DEFAULT_LOOKBACK_MINUTES = 360;
 const DEFAULT_LIMIT = 20;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+const DIAGNOSTIC_LOOKBACK_MINUTES = 15;
+const DIAGNOSTIC_LIMIT = 1;
 const WORKER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -31,6 +33,19 @@ const VERIFIER_CODES = [
 type UnknownRecord = Record<string, unknown>;
 type SsvOutcome = (typeof OUTCOMES)[number];
 type VerifierCode = (typeof VERIFIER_CODES)[number];
+type DiagnosticRequestStatus =
+  | 'ok'
+  | 'http_error'
+  | 'api_error'
+  | 'invalid_json'
+  | 'request_error';
+
+interface DiagnosticQueryResult {
+  returnedCount: number | null;
+  queryStatus: 'STARTED' | 'COMPLETED' | null;
+  rowsRead: number | null;
+  requestStatus: DiagnosticRequestStatus | null;
+}
 
 export interface WorkerSsvEvidence {
   operation: 'callback';
@@ -48,6 +63,14 @@ export interface WorkerSsvInspectionEvidence extends WorkerSsvEvidence {
   workerServiceSeen: boolean | null;
   queryStatus: 'STARTED' | 'COMPLETED' | null;
   rowsRead: number | null;
+  scriptFilterReturnedCount: number | null;
+  scriptFilterQueryStatus: 'STARTED' | 'COMPLETED' | null;
+  scriptFilterRowsRead: number | null;
+  scriptFilterRequestStatus: DiagnosticRequestStatus | null;
+  unfilteredReturnedCount: number | null;
+  unfilteredQueryStatus: 'STARTED' | 'COMPLETED' | null;
+  unfilteredRowsRead: number | null;
+  unfilteredRequestStatus: DiagnosticRequestStatus | null;
 }
 
 export interface ExecuteWorkerSsvInspectionOptions {
@@ -102,12 +125,11 @@ function parseInteger(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
-/** Builds a bounded Cloudflare Workers telemetry query for redacted SSV result events. */
-export function buildWorkerSsvTelemetryQuery(
+function validateTelemetryBounds(
   workerName: string,
   lookbackMinutes: number,
   limit: number,
-  nowMs = Date.now()
+  nowMs: number
 ) {
   if (!WORKER_PATTERN.test(workerName)) throw new Error('Worker script name is invalid.');
   if (!Number.isInteger(lookbackMinutes) || lookbackMinutes < 1 || lookbackMinutes > 3600) {
@@ -117,26 +139,74 @@ export function buildWorkerSsvTelemetryQuery(
     throw new Error('Telemetry limit must be an integer from 1 to 50.');
   }
   if (!Number.isFinite(nowMs) || nowMs < 0) throw new Error('Telemetry clock is invalid.');
+}
 
+function buildTelemetryQuery(
+  queryId: string,
+  workerName: string,
+  filterKey: '$metadata.service' | '$workers.scriptName' | null,
+  lookbackMinutes: number,
+  limit: number,
+  nowMs: number
+) {
+  validateTelemetryBounds(workerName, lookbackMinutes, limit, nowMs);
   return {
-    queryId: 'astrology-worker-ssv-results',
+    queryId,
     timeframe: { from: nowMs - lookbackMinutes * 60_000, to: nowMs },
     dry: true,
     limit,
     parameters: {
       datasets: ['cloudflare-workers'],
       filterCombination: 'and',
-      filters: [
-        {
-          key: '$metadata.service',
-          operation: 'eq',
-          type: 'string',
-          value: workerName
-        }
-      ],
+      filters: filterKey
+        ? [{ key: filterKey, operation: 'eq', type: 'string', value: workerName }]
+        : [],
       view: 'events'
     }
   };
+}
+
+export function buildWorkerSsvDiagnosticQueries(
+  workerName: string,
+  lookbackMinutes: number,
+  limit: number,
+  nowMs = Date.now()
+) {
+  return {
+    scriptFilter: buildTelemetryQuery(
+      'astrology-worker-ssv-script-filter-diagnostic',
+      workerName,
+      '$workers.scriptName',
+      lookbackMinutes,
+      limit,
+      nowMs
+    ),
+    unfiltered: buildTelemetryQuery(
+      'astrology-worker-ssv-unfiltered-diagnostic',
+      workerName,
+      null,
+      lookbackMinutes,
+      limit,
+      nowMs
+    )
+  };
+}
+
+/** Builds a bounded Cloudflare Workers telemetry query for redacted SSV result events. */
+export function buildWorkerSsvTelemetryQuery(
+  workerName: string,
+  lookbackMinutes: number,
+  limit: number,
+  nowMs = Date.now()
+) {
+  return buildTelemetryQuery(
+    'astrology-worker-ssv-results',
+    workerName,
+    '$metadata.service',
+    lookbackMinutes,
+    limit,
+    nowMs
+  );
 }
 
 function telemetryStats(value: unknown): {
@@ -237,6 +307,80 @@ export function parseWorkerSsvTelemetry(
       };
 }
 
+function postTelemetryRequest(
+  fetchImpl: typeof fetch,
+  url: string,
+  apiToken: string,
+  requestTimeoutMs: number,
+  body: unknown
+): Promise<Response> {
+  return fetchImpl(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(requestTimeoutMs)
+  });
+}
+
+function failedDiagnostic(requestStatus: Exclude<DiagnosticRequestStatus, 'ok'>): DiagnosticQueryResult {
+  return {
+    returnedCount: null,
+    queryStatus: null,
+    rowsRead: null,
+    requestStatus
+  };
+}
+
+async function executeDiagnosticQuery(
+  fetchImpl: typeof fetch,
+  url: string,
+  apiToken: string,
+  requestTimeoutMs: number,
+  query: ReturnType<typeof buildWorkerSsvTelemetryQuery>
+): Promise<DiagnosticQueryResult> {
+  let response: Response;
+  try {
+    response = await postTelemetryRequest(
+      fetchImpl,
+      url,
+      apiToken,
+      requestTimeoutMs,
+      query
+    );
+  } catch {
+    return failedDiagnostic('request_error');
+  }
+  if (
+    response === null ||
+    typeof response !== 'object' ||
+    typeof response.ok !== 'boolean' ||
+    typeof response.json !== 'function'
+  ) {
+    return failedDiagnostic('request_error');
+  }
+  if (!response.ok) return failedDiagnostic('http_error');
+
+  let payload: { success?: boolean; result?: unknown };
+  try {
+    payload = (await response.json()) as typeof payload;
+  } catch {
+    return failedDiagnostic('invalid_json');
+  }
+  if (payload.success !== true) return failedDiagnostic('api_error');
+
+  const stats = telemetryStats(payload.result);
+  const diagnostics = queryDiagnostics(payload.result);
+  return {
+    returnedCount: stats.returnedCount,
+    queryStatus: diagnostics.queryStatus,
+    rowsRead: diagnostics.rowsRead,
+    requestStatus: 'ok'
+  };
+}
+
 /** Queries Cloudflare telemetry and emits only strict redacted callback evidence. */
 export async function executeWorkerSsvInspection({
   env,
@@ -259,17 +403,12 @@ export async function executeWorkerSsvInspection({
   const query = buildWorkerSsvTelemetryQuery(workerName, lookbackMinutes, limit, nowMs);
   let response: Response;
   try {
-    response = await fetchImpl(
+    response = await postTelemetryRequest(
+      fetchImpl,
       `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/query`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(query),
-        signal: AbortSignal.timeout(requestTimeoutMs)
-      }
+      apiToken,
+      requestTimeoutMs,
+      query
     );
   } catch (error: unknown) {
     const reason = error instanceof Error ? error.message : 'request failed';
@@ -295,24 +434,31 @@ export async function executeWorkerSsvInspection({
   const stats = telemetryStats(payload.result);
   const diagnostics = queryDiagnostics(payload.result);
   let workerServiceSeen: boolean | null = null;
+  let scriptFilterDiagnostic: DiagnosticQueryResult = {
+    returnedCount: null,
+    queryStatus: null,
+    rowsRead: null,
+    requestStatus: null
+  };
+  let unfilteredDiagnostic: DiagnosticQueryResult = {
+    returnedCount: null,
+    queryStatus: null,
+    rowsRead: null,
+    requestStatus: null
+  };
 
   if (parsedEvidence.status === 'no_events') {
     try {
-      const valuesResponse = await fetchImpl(
+      const valuesResponse = await postTelemetryRequest(
+        fetchImpl,
         `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/values`,
+        apiToken,
+        requestTimeoutMs,
         {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            datasets: ['cloudflare-workers'],
-            key: '$metadata.service',
-            timeframe: query.timeframe,
-            type: 'string'
-          }),
-          signal: AbortSignal.timeout(requestTimeoutMs)
+          datasets: ['cloudflare-workers'],
+          key: '$metadata.service',
+          timeframe: query.timeframe,
+          type: 'string'
         }
       );
       if (valuesResponse.ok) {
@@ -327,13 +473,31 @@ export async function executeWorkerSsvInspection({
     } catch {
       workerServiceSeen = null;
     }
+
+    const diagnosticQueries = buildWorkerSsvDiagnosticQueries(
+      workerName,
+      DIAGNOSTIC_LOOKBACK_MINUTES,
+      DIAGNOSTIC_LIMIT,
+      nowMs
+    );
+    const queryUrl = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/query`;
+    scriptFilterDiagnostic = await executeDiagnosticQuery(fetchImpl, queryUrl, apiToken, requestTimeoutMs, diagnosticQueries.scriptFilter);
+    unfilteredDiagnostic = await executeDiagnosticQuery(fetchImpl, queryUrl, apiToken, requestTimeoutMs, diagnosticQueries.unfiltered);
   }
 
   const evidence: WorkerSsvInspectionEvidence = {
     ...parsedEvidence,
     ...stats,
     workerServiceSeen,
-    ...diagnostics
+    ...diagnostics,
+    scriptFilterReturnedCount: scriptFilterDiagnostic.returnedCount,
+    scriptFilterQueryStatus: scriptFilterDiagnostic.queryStatus,
+    scriptFilterRowsRead: scriptFilterDiagnostic.rowsRead,
+    scriptFilterRequestStatus: scriptFilterDiagnostic.requestStatus,
+    unfilteredReturnedCount: unfilteredDiagnostic.returnedCount,
+    unfilteredQueryStatus: unfilteredDiagnostic.queryStatus,
+    unfilteredRowsRead: unfilteredDiagnostic.rowsRead,
+    unfilteredRequestStatus: unfilteredDiagnostic.requestStatus
   };
   log(JSON.stringify(evidence));
   return evidence;
