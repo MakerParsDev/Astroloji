@@ -214,17 +214,28 @@ describe('AdMob SSV verification', () => {
     );
   });
 
-  it('classifies an invalid transaction identifier without exposing its value', async () => {
-    const callback = await createSignedCallback({ transaction_id: 'not-a-hex-id' });
+  it('accepts a signed opaque transaction identifier from the AdMob verification tool', async () => {
+    const callback = await createSignedCallback({ transaction_id: 'test-transaction-id_1234' });
 
-    expect(() => parseAdmobSsvCallback(callback.url)).toThrowError(
-      expect.objectContaining<Partial<AdmobSsvVerificationError>>({
-        code: 'MALFORMED_CALLBACK',
-        reason: 'TRANSACTION_ID_FORMAT_INVALID',
-        field: 'transaction_id'
-      })
+    expect(parseAdmobSsvCallback(callback.url).fields.transactionId).toBe(
+      'test-transaction-id_1234'
     );
   });
+
+  it.each(['bad%00transaction', 'x'.repeat(257)])(
+    'rejects an unsafe transaction identifier without exposing its value',
+    async (transactionId) => {
+      const callback = await createSignedCallback({ transaction_id: transactionId });
+
+      expect(() => parseAdmobSsvCallback(callback.url)).toThrowError(
+        expect.objectContaining<Partial<AdmobSsvVerificationError>>({
+          code: 'MALFORMED_CALLBACK',
+          reason: 'TRANSACTION_ID_FORMAT_INVALID',
+          field: 'transaction_id'
+        })
+      );
+    }
+  );
 
   it('rejects an unknown key without repeatedly refetching during the miss cooldown', async () => {
     const callback = await createSignedCallback();
