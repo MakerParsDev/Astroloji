@@ -278,9 +278,8 @@ export async function executeWorkerSsvInspection({
   let workerServiceSeen: boolean | null = null;
 
   if (parsedEvidence.status === 'no_events') {
-    let valuesResponse: Response;
     try {
-      valuesResponse = await fetchImpl(
+      const valuesResponse = await fetchImpl(
         `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/workers/observability/telemetry/values`,
         {
           method: 'POST',
@@ -297,29 +296,18 @@ export async function executeWorkerSsvInspection({
           signal: AbortSignal.timeout(requestTimeoutMs)
         }
       );
-    } catch (error: unknown) {
-      const reason = error instanceof Error ? error.message : 'request failed';
-      throw new Error(`Cloudflare telemetry values lookup failed: ${reason}`);
-    }
-
-    let valuesPayload: {
-      success?: boolean;
-      result?: unknown;
-      errors?: Array<{ message?: string }>;
-    };
-    try {
-      valuesPayload = (await valuesResponse.json()) as typeof valuesPayload;
+      if (valuesResponse.ok) {
+        const valuesPayload = (await valuesResponse.json()) as {
+          success?: boolean;
+          result?: unknown;
+        };
+        if (valuesPayload.success === true) {
+          workerServiceSeen = includesWorkerService(valuesPayload.result, workerName);
+        }
+      }
     } catch {
-      throw new Error(
-        `Cloudflare telemetry values lookup failed: invalid JSON response (${valuesResponse.status})`
-      );
+      workerServiceSeen = null;
     }
-    if (!valuesResponse.ok || valuesPayload.success !== true) {
-      throw new Error(
-        `Cloudflare telemetry values lookup failed: ${valuesPayload.errors?.[0]?.message ?? valuesResponse.status}`
-      );
-    }
-    workerServiceSeen = includesWorkerService(valuesPayload.result, workerName);
   }
 
   const evidence: WorkerSsvInspectionEvidence = {

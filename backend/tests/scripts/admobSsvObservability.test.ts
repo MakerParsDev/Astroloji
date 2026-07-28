@@ -254,6 +254,79 @@ describe('AdMob SSV observability inspection', () => {
   });
 
 
+  it.each([
+    {
+      label: 'network failure',
+      secondResponse: () => Promise.reject(new Error('values socket closed'))
+    },
+    {
+      label: 'invalid JSON',
+      secondResponse: () =>
+        Promise.resolve(
+          new Response('<html>bad gateway</html>', {
+            status: 502,
+            headers: { 'content-type': 'text/html' }
+          })
+        )
+    },
+    {
+      label: 'unsuccessful payload',
+      secondResponse: () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({ success: false, errors: [{ message: 'values denied' }] }),
+            {
+              status: 403,
+              headers: { 'content-type': 'application/json' }
+            }
+          )
+        )
+    }
+  ])('keeps primary evidence when the values lookup has a $label', async ({ secondResponse }) => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            result: telemetry([], 0),
+            errors: []
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } }
+        )
+      )
+      .mockImplementationOnce(secondResponse);
+    const log = vi.fn();
+
+    await expect(
+      executeWorkerSsvInspection({
+        env: {
+          CLOUDFLARE_API_TOKEN: 'token',
+          CLOUDFLARE_ACCOUNT_ID: 'account-id',
+          SSV_WORKER_NAME: workerName
+        },
+        fetchImpl,
+        nowMs: 1_800_000_000_000,
+        log
+      })
+    ).resolves.toEqual({
+      operation: 'callback',
+      status: 'no_events',
+      timestamp: null,
+      scriptName: workerName,
+      outcome: null,
+      verifierCode: null,
+      scriptVersion: null,
+      telemetryCount: 0,
+      returnedCount: 0,
+      workerServiceSeen: null
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('values socket closed');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('values denied');
+    expect(JSON.stringify(log.mock.calls)).not.toContain('bad gateway');
+  });
+
   it('normalizes network and non-JSON failures into the telemetry error context', async () => {
     const networkFailure = vi.fn().mockRejectedValue(new Error('socket closed'));
     await expect(
