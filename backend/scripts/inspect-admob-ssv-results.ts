@@ -154,14 +154,14 @@ function buildTelemetryQuery(
     queryId,
     timeframe: { from: nowMs - lookbackMinutes * 60_000, to: nowMs },
     dry: true,
+    limit,
+    view: 'events',
     parameters: {
       datasets: ['cloudflare-workers'],
-      limit,
       filterCombination: 'and',
       filters: filterKey
         ? [{ key: filterKey, operation: 'eq', type: 'string', value: workerName }]
-        : [],
-      view: 'events'
+        : []
     }
   };
 }
