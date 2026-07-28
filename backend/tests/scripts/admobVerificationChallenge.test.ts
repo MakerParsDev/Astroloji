@@ -33,7 +33,7 @@ describe('supplied AdMob verification values', () => {
     ).toEqual({
       challengeId,
       userId,
-      identifier: '2026-07-27',
+      identifier: 'admob-ssv-verification',
       createdAt: '2026-07-27T10:00:00.000Z',
       expiresAt: '2026-07-27T10:15:00.000Z'
     });

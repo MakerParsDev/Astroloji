@@ -206,7 +206,7 @@ describe('AdMob verification challenge helpers', () => {
     expect(values).toEqual({
       challengeId: '11111111-1111-4111-8111-111111111111',
       userId: 'admob-verify-22222222-2222-4222-8222-222222222222',
-      identifier: '2026-07-26',
+      identifier: 'admob-ssv-verification',
       createdAt: '2026-07-26T20:00:00.000Z',
       expiresAt: '2026-07-26T20:15:00.000Z'
     });
@@ -236,7 +236,7 @@ describe('AdMob verification challenge helpers', () => {
     const sql = buildInsertVerificationChallengeSql({
       challengeId: '11111111-1111-4111-8111-111111111111',
       userId: 'admob-verify-22222222-2222-4222-8222-222222222222',
-      identifier: '2026-07-26',
+      identifier: 'admob-ssv-verification',
       createdAt: '2026-07-26T20:00:00.000Z',
       expiresAt: '2026-07-26T20:15:00.000Z'
     });
@@ -245,7 +245,7 @@ describe('AdMob verification challenge helpers', () => {
     expect(sql.indexOf('INSERT OR IGNORE INTO users')).toBeLessThan(
       sql.indexOf('INSERT INTO reward_challenges')
     );
-    expect(sql).toContain("'daily', '2026-07-26', 'pending'");
+    expect(sql).toContain("'daily', 'admob-ssv-verification', 'pending'");
     expect(sql).toContain("'2026-07-26T20:15:00.000Z'");
     expect(sql).toContain('NULL, NULL, NULL');
   });
