@@ -20,9 +20,9 @@ describe('AdMob SSV observability inspection', () => {
         queryId: 'astrology-worker-ssv-script-filter-diagnostic',
         timeframe: { from: 1_799_999_100_000, to: 1_800_000_000_000 },
         dry: true,
-        limit: 1,
         parameters: {
           datasets: ['cloudflare-workers'],
+          limit: 1,
           filterCombination: 'and',
           filters: [{ key: '$workers.scriptName', operation: 'eq', type: 'string', value: workerName }],
           view: 'events'
@@ -32,9 +32,9 @@ describe('AdMob SSV observability inspection', () => {
         queryId: 'astrology-worker-ssv-unfiltered-diagnostic',
         timeframe: { from: 1_799_999_100_000, to: 1_800_000_000_000 },
         dry: true,
-        limit: 1,
         parameters: {
           datasets: ['cloudflare-workers'],
+          limit: 1,
           filterCombination: 'and',
           filters: [],
           view: 'events'
@@ -48,9 +48,9 @@ describe('AdMob SSV observability inspection', () => {
       queryId: 'astrology-worker-ssv-results',
       timeframe: { from: 1_799_978_400_000, to: 1_800_000_000_000 },
       dry: true,
-      limit: 20,
       parameters: {
         datasets: ['cloudflare-workers'],
+        limit: 20,
         filterCombination: 'and',
         filters: [
           {
@@ -324,16 +324,15 @@ describe('AdMob SSV observability inspection', () => {
     const [, scriptFilterInit] = fetchImpl.mock.calls[2] as [string, RequestInit];
     expect(JSON.parse(String(scriptFilterInit.body))).toMatchObject({
       timeframe: { from: 1_799_999_100_000, to: 1_800_000_000_000 },
-      limit: 1,
       parameters: {
+        limit: 1,
         filters: [{ key: '$workers.scriptName', value: workerName }]
       }
     });
     const [, unfilteredInit] = fetchImpl.mock.calls[3] as [string, RequestInit];
     expect(JSON.parse(String(unfilteredInit.body))).toMatchObject({
       timeframe: { from: 1_799_999_100_000, to: 1_800_000_000_000 },
-      limit: 1,
-      parameters: { filters: [] }
+      parameters: { limit: 1, filters: [] }
     });
     expect(JSON.stringify(log.mock.calls)).not.toContain('cf-secret-token');
   });
