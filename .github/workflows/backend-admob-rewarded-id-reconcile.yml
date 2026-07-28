@@ -1,0 +1,124 @@
+name: backend-admob-rewarded-id-reconcile
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RECONCILE_ADMOB_REWARDED_ID to set the canonical production rewarded ad unit in Doppler."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-admob-rewarded-id-reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'RECONCILE_ADMOB_REWARDED_ID'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      ENABLE_PRODUCTION_RELEASE: ${{ vars.ENABLE_PRODUCTION_RELEASE }}
+      EXPECTED_ADMOB_REWARDED_ID: ca-app-pub-3312485084079132/6423931059
+      DOPPLER_VERSION: 3.76.1
+      DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2
+
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Validate production reconciliation gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in DOPPLER_PROJECT DOPPLER_CONFIG; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required production setting: $name"
+              missing=1
+            fi
+          done
+          if [ "${ENABLE_PRODUCTION_RELEASE:-}" != "false" ]; then
+            echo "ENABLE_PRODUCTION_RELEASE must remain false during rewarded ID reconciliation."
+            missing=1
+          fi
+          if [ "$EXPECTED_ADMOB_REWARDED_ID" != "ca-app-pub-3312485084079132/6423931059" ]; then
+            echo 'Canonical rewarded ad unit guard failed.'
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Install pinned Doppler CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/${archive}"
+          curl --fail --silent --show-error --location "$url" --output "$RUNNER_TEMP/$archive"
+          echo "$DOPPLER_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/doppler-bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/doppler-bin" doppler
+          chmod 0755 "$RUNNER_TEMP/doppler-bin/doppler"
+          echo "$RUNNER_TEMP/doppler-bin" >> "$GITHUB_PATH"
+
+      - name: Reconcile canonical rewarded ID in Doppler
+        id: reconcile
+        shell: bash
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOPPLER_TOKEN:-}" ]; then
+            echo 'DOPPLER_TOKEN is required.'
+            exit 1
+          fi
+
+          current="$(doppler secrets get ADMOB_REWARDED_ID --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
+          if [ -z "$current" ]; then
+            echo 'ADMOB_REWARDED_ID is missing in Doppler.'
+            exit 1
+          fi
+          echo "::add-mask::$current"
+          echo "::add-mask::$EXPECTED_ADMOB_REWARDED_ID"
+
+          changed=false
+          if [ "$current" != "$EXPECTED_ADMOB_REWARDED_ID" ]; then
+            printf '%s' "$EXPECTED_ADMOB_REWARDED_ID" | doppler secrets set ADMOB_REWARDED_ID \
+              --project "$DOPPLER_PROJECT" \
+              --config "$DOPPLER_CONFIG" \
+              --no-interactive \
+              --visibility masked \
+              --silent
+            changed=true
+          fi
+
+          verified="$(doppler secrets get ADMOB_REWARDED_ID --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
+          echo "::add-mask::$verified"
+          [ "$verified" = "$EXPECTED_ADMOB_REWARDED_ID" ] || {
+            echo 'Doppler rewarded ID read-back verification failed.'
+            exit 1
+          }
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Publish bounded reconciliation evidence
+        shell: bash
+        run: |
+          result='already correct'
+          if [ "${{ steps.reconcile.outputs.changed }}" = 'true' ]; then
+            result='updated and verified'
+          fi
+          {
+            echo '## Rewarded ID reconciliation'
+            echo
+            echo '- Secret: ADMOB_REWARDED_ID'
+            echo '- Canonical ad unit suffix: 6423931059'
+            echo "- Result: $result"
+            echo '- Production release remained disabled'
+          } >> "$GITHUB_STEP_SUMMARY"
