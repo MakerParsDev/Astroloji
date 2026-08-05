@@ -93,6 +93,7 @@
     <string name="compatibility_love_score">Love</string>
     <string name="compatibility_friendship_score">Friendship</string>
     <string name="compatibility_work_score">Work</string>
+    <string name="compatibility_score_locked">🔒 Premium</string>
     <string name="compatibility_overall_score">Overall</string>
     <string name="compatibility_strengths_title">Strengths</string>
     <string name="compatibility_challenges_title">Challenges</string>
