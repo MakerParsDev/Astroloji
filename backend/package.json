@@ -28,6 +28,7 @@
     "transition:callback:inspect": "tsx scripts/inspect-admob-ssv-results.ts"
   },
   "dependencies": {
+    "astronomy-engine": "2.1.19",
     "hono": "4.13.0",
     "jose": "6.1.0",
     "zod": "4.1.5"

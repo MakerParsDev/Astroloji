@@ -9,6 +9,7 @@ import {
   SUBSCRIPTION_PRODUCTS,
   USER_EVENT_TYPES,
   type Language,
+  type NatalChartRequest,
   type NotificationRequest,
   type RewardClaimRequest,
   type RewardPrepareRequest,
@@ -113,6 +114,18 @@ const optionalBooleanSchema = z.preprocess((value) => {
   return value;
 }, z.boolean().optional());
 
+const utcTimestampSchema = z
+  .string()
+  .regex(
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/,
+    'timestamp must be an ISO 8601 UTC timestamp.'
+  );
+
+export const natalChartSchema = z.object({
+  timestamp: utcTimestampSchema,
+  time_certainty: z.enum(['exact', 'approximate', 'unknown'])
+});
+
 export const contentBackfillSchema = z.object({
   seed_date: optionalSeedDateSchema,
   daily_days: z.coerce.number().int().min(1).max(31).optional().default(14),
@@ -157,6 +170,10 @@ export function validateRewardPrepareBody(payload: unknown): RewardPrepareReques
 
 export function validateRewardClaimBody(payload: unknown): RewardClaimRequest {
   return rewardClaimSchema.parse(payload);
+}
+
+export function validateNatalChartBody(payload: unknown): NatalChartRequest {
+  return natalChartSchema.parse(payload);
 }
 
 export function validateContentBackfillBody(payload: unknown): ContentBackfillRequest {

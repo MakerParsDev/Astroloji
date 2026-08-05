@@ -1,0 +1,20 @@
+{
+  "source": "NASA/JPL Horizons API observer quantity 31",
+  "apiSignatureVersion": "1.2",
+  "retrievedAt": "2026-08-05T10:58:00.000Z",
+  "timestamp": "2026-08-05T00:00:00.000Z",
+  "center": "500@399 (Earth geocenter)",
+  "quantities": "31 (observer apparent ecliptic longitude/latitude)",
+  "positions": [
+    { "body": "sun", "longitude": 132.6164949, "latitude": 0.0001663 },
+    { "body": "moon", "longitude": 28.5276216, "latitude": 4.4972472 },
+    { "body": "mercury", "longitude": 113.5038562, "latitude": -1.1210137 },
+    { "body": "venus", "longitude": 178.173712, "latitude": -0.3742205 },
+    { "body": "mars", "longitude": 85.7615834, "latitude": 0.1473339 },
+    { "body": "jupiter", "longitude": 127.8464782, "latitude": 0.4828495 },
+    { "body": "saturn", "longitude": 14.6782182, "latitude": -2.5440522 },
+    { "body": "uranus", "longitude": 65.1342422, "latitude": -0.1547479 },
+    { "body": "neptune", "longitude": 4.2044998, "latitude": -1.3958074 },
+    { "body": "pluto", "longitude": 304.0823341, "latitude": -4.2833822 }
+  ]
+}

@@ -12,6 +12,7 @@ import { enforceRateLimit } from '@/services/cache';
 import type { AppBindings } from '@/types';
 import type { RewardRouteDependencies } from '@/workers/reward';
 import { validateTrackEventBody } from '@/utils/validators';
+import { registerChartRoutes } from '@/workers/chart';
 import { registerContentAdminRoutes, registerContentRoutes } from '@/workers/content';
 import { handleCron } from '@/workers/cron';
 import { registerNotificationRoutes } from '@/workers/notification';
@@ -96,6 +97,7 @@ export function createApp(options: CreateAppOptions = {}) {
   apiRoutes.use('/users/refresh-token', jwtAuthMiddleware);
   apiRoutes.use('/rewards/prepare', jwtAuthMiddleware);
   apiRoutes.use('/rewards/claim', jwtAuthMiddleware);
+  apiRoutes.use('/chart/*', jwtAuthMiddleware);
   apiRoutes.use('/content/*', jwtAuthMiddleware);
   apiRoutes.use('/content/*', contentCacheBypassMiddleware);
   apiRoutes.use('/content/*', async (c, next) => {
@@ -110,11 +112,24 @@ export function createApp(options: CreateAppOptions = {}) {
     }
     await next();
   });
+  apiRoutes.use('/chart/*', async (c, next) => {
+    const allowed = await enforceRateLimit(
+      c.env,
+      `chart:${c.get('auth').userId}`,
+      30,
+      60
+    );
+    if (!allowed) {
+      return jsonError(429, 'RATE_LIMITED', 'Too many chart requests.');
+    }
+    await next();
+  });
   apiRoutes.use('/subscriptions/verify', jwtAuthMiddleware);
   apiRoutes.use('/subscriptions/restore', jwtAuthMiddleware);
   apiRoutes.use('/events/track', jwtAuthMiddleware);
 
   registerUserRoutes(apiRoutes);
+  registerChartRoutes(apiRoutes);
   registerRewardRoutes(apiRoutes, options.reward);
   registerContentRoutes(apiRoutes);
   registerSubscriptionRoutes(apiRoutes);

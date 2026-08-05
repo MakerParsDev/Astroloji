@@ -356,6 +356,13 @@ export interface RewardClaimRequest {
   challenge_id: string;
 }
 
+export type BirthTimeCertainty = 'exact' | 'approximate' | 'unknown';
+
+export interface NatalChartRequest {
+  timestamp: string;
+  time_certainty: BirthTimeCertainty;
+}
+
 export interface ContentBackfillRequest {
   seed_date?: string;
   daily_days: number;
