@@ -33,8 +33,8 @@
 
 Run:
 
-```sh
-cd backend
+```powershell
+Set-Location backend
 npm ci
 npm audit --audit-level=high
 ```
@@ -49,8 +49,8 @@ Set `hono` to the first audited safe compatible version and `wrangler` to the au
 
 Run:
 
-```sh
-cd backend
+```powershell
+Set-Location backend
 npm audit --audit-level=high
 npm run build
 npm test
@@ -64,7 +64,7 @@ Expected: all commands succeed.
 ### Task 2: Android Session Runtime Diagnosis
 
 **Files:**
-- Temporary only: `/tmp/astro-installed-resources.txt`
+- Temporary only: `$env:TEMP\astro-installed-resources.txt`
 - Temporary only: `Astroloji/app/google-services.json`
 - No production source file unless a new defect is proven.
 
@@ -74,7 +74,7 @@ Expected: all commands succeed.
 
 - [ ] **Step 1: Attempt an isolated emulator, then use the bounded fallback if unavailable**
 
-Install a temporary Android 32 Google APIs system image under `/tmp`, create an AVD, and boot it without using the physical phone. If the host lacks a reliable emulator path, use the installed APK only to extract public Firebase client resources and run an ephemeral anonymous Firebase/backend smoke account that is deleted before the command exits.
+Install a temporary Android 32 Google APIs system image under `$env:TEMP`, create an AVD, and boot it without using the physical phone. If the host lacks a reliable emulator path, use the installed APK only to extract public Firebase client resources and run an ephemeral anonymous Firebase/backend smoke account. Wrap account creation and every assertion in `try/finally` (plus an interruption handler where the runner supports it). The cleanup path must attempt backend deletion when a backend JWT exists, always attempt Firebase deletion when its account still exists, verify both deletion responses, and report success only after both disposable accounts are confirmed deleted.
 
 - [ ] **Step 2: Reconstruct temporary Firebase client config**
 
@@ -84,9 +84,9 @@ Extract `google_app_id`, `google_api_key`, `gcm_defaultSenderId`, `project_id`, 
 
 Run:
 
-```sh
-cd Astroloji
-./gradlew :app:assembleDebug
+```powershell
+Set-Location Astroloji
+.\gradlew.bat :app:assembleDebug
 adb -s <emulator> install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
@@ -94,7 +94,7 @@ Expected: build and installation succeed.
 
 - [ ] **Step 4: Exercise and classify session recovery**
 
-Launch the isolated app when possible. In all cases, verify anonymous Firebase signup, backend registration without an FCM token, profile load, content load, JWT refresh, refreshed profile load, and account cleanup. Compare any failing production response with the current validator and route tests to distinguish an Android defect from production deployment drift.
+Launch the isolated app when possible. In all cases, verify anonymous Firebase signup, backend registration without an FCM token, profile load, content load, JWT refresh, and refreshed profile load inside the cleanup-guarded smoke flow. Treat the smoke as failed unless the finalizer confirms deletion of both the backend user and Firebase account. Compare any failing production response with the current validator and route tests to distinguish an Android defect from production deployment drift.
 
 - [ ] **Step 5: Apply TDD only if runtime evidence proves a current-source defect**
 
@@ -124,7 +124,7 @@ Merge only after all checks pass, then dispatch `backend-production-deploy.yml` 
 
 - [ ] **Step 4: Verify the fixed production contract**
 
-Repeat the disposable Firebase/backend smoke without `fcm_token`. Require HTTP 200 for registration and refresh, then delete both backend and Firebase accounts. Relaunch the physical app without clearing data and test the existing retry action.
+Repeat the cleanup-guarded disposable Firebase/backend smoke without `fcm_token`. Require HTTP 200 for registration and refresh, and require the finalizer to confirm deletion of both backend and Firebase accounts before reporting success. Relaunch the physical app without clearing data and test the existing retry action.
 
 ### Task 4: Full Verification and Delivery
 
@@ -137,9 +137,9 @@ Repeat the disposable Firebase/backend smoke without `fcm_token`. Require HTTP 2
 
 - [ ] **Step 1: Run Android verification**
 
-```sh
-cd Astroloji
-./gradlew :app:detekt :app:ktlintCheck :app:testDebugUnitTest :app:assembleDebug :app:bundleRelease
+```powershell
+Set-Location Astroloji
+.\gradlew.bat :app:detekt :app:ktlintCheck :app:testDebugUnitTest :app:assembleDebug :app:bundleRelease
 ```
 
 Expected: success with zero test failures.
@@ -150,4 +150,4 @@ Confirm temporary Firebase files, APKs, AABs, secrets, and emulator state are no
 
 - [ ] **Step 3: Commit the verified remediation**
 
-Commit only dependency, lockfile, documentation, and any test-first root-cause fix. Preserve the physical device installation and report any upstream authentication limitation honestly.
+Verify the final staged file list, then commit only dependency manifests, the lockfile, `backend/worker-configuration.d.ts`, documentation, and any test-first root-cause fix. Preserve the physical device installation and report any upstream authentication limitation honestly.
