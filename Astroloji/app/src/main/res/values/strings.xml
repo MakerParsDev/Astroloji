@@ -253,4 +253,26 @@
     <string name="settings_delete_dialog_confirm">Delete permanently</string>
     <string name="settings_delete_dialog_cancel">Cancel</string>
     <string name="rewarded_ad_unavailable">Rewarded ad is not ready. Please try again.</string>
+    <string name="chart_settings_title">Personal Guidance Beta</string>
+    <string name="chart_settings_body">Get three date-based reflection signals from verified planetary positions. Birth data is not saved.</string>
+    <string name="chart_settings_cta">Open personal guidance</string>
+    <string name="chart_title">Personal Guidance</string>
+    <string name="chart_beta_label">Date-based beta</string>
+    <string name="chart_intro">Choose your birth date to calculate three traceable reflection signals for the current sky.</string>
+    <string name="chart_privacy_title">Private by design</string>
+    <string name="chart_privacy_body">Your birth date is sent only when you request a calculation. This app does not save it to your account, device preferences, analytics, or content history.</string>
+    <string name="chart_limit_title">Current precision</string>
+    <string name="chart_limit_body">Birth time and place are not collected in this beta. The Moon, ascendant, and houses are excluded rather than estimated.</string>
+    <string name="chart_birthdate_label">Birth date</string>
+    <string name="chart_birthdate_placeholder">Select your birth date</string>
+    <string name="chart_birthdate_action">Choose date</string>
+    <string name="chart_calculate">Calculate my guidance</string>
+    <string name="chart_calculating">Calculating…</string>
+    <string name="chart_clear">Clear birth data and result</string>
+    <string name="chart_future_date_error">Birth date cannot be in the future.</string>
+    <string name="chart_results_title">Your three strongest signals</string>
+    <string name="chart_action_title">Reflection prompt</string>
+    <string name="chart_evidence_orb">Calculation evidence · %1$.2f° orb</string>
+    <string name="chart_back">Back to profile</string>
+    <string name="chart_disclaimer_title">Important note</string>
 </resources>

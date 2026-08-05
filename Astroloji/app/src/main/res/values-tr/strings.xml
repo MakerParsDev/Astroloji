@@ -253,4 +253,26 @@
     <string name="settings_delete_dialog_confirm">Kalıcı olarak sil</string>
     <string name="settings_delete_dialog_cancel">Vazgeç</string>
     <string name="rewarded_ad_unavailable">Ödüllü reklam henüz hazır değil. Lütfen tekrar deneyin.</string>
+    <string name="chart_settings_title">Kişisel Rehber Beta</string>
+    <string name="chart_settings_body">Doğrulanmış gezegen konumlarından doğum tarihine göre üç öz değerlendirme sinyali al. Doğum verin kaydedilmez.</string>
+    <string name="chart_settings_cta">Kişisel rehberi aç</string>
+    <string name="chart_title">Kişisel Rehber</string>
+    <string name="chart_beta_label">Doğum tarihine göre beta</string>
+    <string name="chart_intro">Güncel gökyüzüne göre üç izlenebilir öz değerlendirme sinyali hesaplamak için doğum tarihini seç.</string>
+    <string name="chart_privacy_title">Gizlilik temel tasarımın parçası</string>
+    <string name="chart_privacy_body">Doğum tarihin yalnızca hesaplama istediğinde gönderilir. Uygulama bu tarihi hesabına, cihaz tercihlerine, analitiğe veya içerik geçmişine kaydetmez.</string>
+    <string name="chart_limit_title">Mevcut hassasiyet</string>
+    <string name="chart_limit_body">Bu beta doğum saati ve doğum yeri toplamaz. Ay, yükselen ve evler tahmin edilmek yerine hesaplamanın dışında bırakılır.</string>
+    <string name="chart_birthdate_label">Doğum tarihi</string>
+    <string name="chart_birthdate_placeholder">Doğum tarihini seç</string>
+    <string name="chart_birthdate_action">Tarih seç</string>
+    <string name="chart_calculate">Kişisel rehberimi hesapla</string>
+    <string name="chart_calculating">Hesaplanıyor…</string>
+    <string name="chart_clear">Doğum verisini ve sonucu temizle</string>
+    <string name="chart_future_date_error">Doğum tarihi gelecekte olamaz.</string>
+    <string name="chart_results_title">En güçlü üç sinyalin</string>
+    <string name="chart_action_title">Öz değerlendirme adımı</string>
+    <string name="chart_evidence_orb">Hesaplama kanıtı · %1$.2f° orb</string>
+    <string name="chart_back">Profile dön</string>
+    <string name="chart_disclaimer_title">Önemli not</string>
 </resources>

@@ -32,6 +32,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.feature.chart.PersonalGuidanceScreen
 import com.parsfilo.astrology.feature.compatibility.CompatibilityScreen
 import com.parsfilo.astrology.feature.daily.DailyScreen
 import com.parsfilo.astrology.feature.home.HomeScreen
@@ -174,12 +175,24 @@ fun AstrologyAppRoot(
                         androidx.compose.ui.Modifier
                             .padding(padding),
                     onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.PROFILE_UPGRADE)) },
+                    onOpenPersonalGuidance = { navController.navigate(PersonalGuidanceRoute) },
                     onAccountDeleted = {
                         navController.navigate(OnboardingRoute) {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
                             launchSingleTop = true
                         }
                     },
+                )
+            }
+            composable<PersonalGuidanceRoute>(
+                enterTransition = { fadeIn(animationSpec = tween(300)) },
+                exitTransition = { fadeOut(animationSpec = tween(200)) },
+            ) {
+                PersonalGuidanceScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    modifier =
+                        androidx.compose.ui.Modifier
+                            .padding(padding),
                 )
             }
             composable<PremiumRoute>(

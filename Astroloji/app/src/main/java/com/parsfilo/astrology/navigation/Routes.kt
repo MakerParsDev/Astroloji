@@ -10,6 +10,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable object SettingsRoute
 
+@Serializable object PersonalGuidanceRoute
+
 @Serializable
 enum class PaywallSource(
     val analyticsValue: String,

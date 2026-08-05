@@ -48,6 +48,7 @@ import com.parsfilo.astrology.core.util.ZodiacSign
 @Composable
 fun SettingsScreen(
     onOpenPremium: () -> Unit,
+    onOpenPersonalGuidance: () -> Unit,
     onAccountDeleted: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -146,6 +147,25 @@ fun SettingsScreen(
                             )
                         }
                     }
+                }
+            }
+
+            AstrologyCard {
+                Text(
+                    text = stringResource(R.string.chart_settings_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.chart_settings_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = onOpenPersonalGuidance,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.chart_settings_cta))
                 }
             }
 

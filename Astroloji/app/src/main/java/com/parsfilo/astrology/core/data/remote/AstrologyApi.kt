@@ -203,6 +203,46 @@ data class TrackEventRequest(
 )
 
 @Serializable
+data class PersonalGuidanceRequest(
+    @SerialName("natal_timestamp") val natalTimestamp: String,
+    @SerialName("natal_time_certainty") val natalTimeCertainty: String,
+    @SerialName("target_timestamp") val targetTimestamp: String,
+    val language: String,
+)
+
+@Serializable
+data class PersonalGuidanceResponse(
+    val version: String,
+    val calculationVersion: String,
+    val generatedAt: String,
+    val targetTimestamp: String,
+    val language: String,
+    val signals: List<GuidanceSignalResponse>,
+    val limitations: List<String>,
+    val disclaimer: String,
+)
+
+@Serializable
+data class GuidanceSignalResponse(
+    val id: String,
+    val priority: Int,
+    val domain: String,
+    val title: String,
+    val summary: String,
+    val actionPrompt: String,
+    val evidence: GuidanceEvidenceResponse,
+)
+
+@Serializable
+data class GuidanceEvidenceResponse(
+    val transitBody: String,
+    val natalBody: String,
+    val aspect: String,
+    val orb: Double,
+    val maximumOrb: Double,
+)
+
+@Serializable
 data class TrackEventResponse(
     val ok: Boolean,
 )
@@ -292,6 +332,11 @@ interface AstrologyApi {
     suspend fun claimReward(
         @Body body: RewardClaimRequest,
     ): Response<RewardClaimResponse>
+
+    @POST("api/v1/chart/guidance")
+    suspend fun getPersonalGuidance(
+        @Body body: PersonalGuidanceRequest,
+    ): Response<PersonalGuidanceResponse>
 
     @POST("api/v1/events/track")
     suspend fun trackEvent(
