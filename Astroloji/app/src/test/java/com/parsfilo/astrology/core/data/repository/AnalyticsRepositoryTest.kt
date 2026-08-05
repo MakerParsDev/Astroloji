@@ -7,6 +7,7 @@ import io.mockk.coEvery
 import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -78,6 +79,42 @@ class AnalyticsRepositoryTest {
                     any(),
                 )
             }
+        }
+
+    @Test
+    fun `drops non allowlisted analytics metadata before network and queue delivery`() =
+        runTest {
+            val requestSlot = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            val queuedSlot = slot<com.parsfilo.astrology.core.data.local.QueuedEventEntity>()
+            coEvery { api.trackEvent(capture(requestSlot)) } throws IOException("offline")
+            coJustRun { queuedEventDao.enqueueBounded(capture(queuedSlot), any(), any()) }
+
+            repository.track(
+                AnalyticsEvents.ONBOARDING_COMPLETED,
+                mapOf(
+                    "sign" to "aries",
+                    "locale" to "tr",
+                    "sign1" to "aries",
+                    "sign2" to "leo",
+                    "email" to "person@example.com",
+                    "birth_date" to "1990-01-01",
+                    "free_text" to "private journal entry",
+                ),
+            )
+
+            assert(
+                requestSlot.captured.meta ==
+                    mapOf(
+                        "sign" to "aries",
+                        "locale" to "tr",
+                        "sign1" to "aries",
+                        "sign2" to "leo",
+                    ),
+            )
+            assert(
+                queuedSlot.captured.payload ==
+                    "{\"sign\":\"aries\",\"locale\":\"tr\",\"sign1\":\"aries\",\"sign2\":\"leo\"}",
+            )
         }
 
     private companion object {
