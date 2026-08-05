@@ -223,6 +223,9 @@ export interface ContentDocumentMetadata {
   calculation_version?: string;
   editorial_status?: string;
   source_signals?: string[];
+  approved_by?: string;
+  approval_reference?: string;
+  approved_at?: string;
 }
 
 export interface DailySignContent {
@@ -382,6 +385,9 @@ export interface ContentBackfillRequest {
   seed_date?: string;
   daily_days: number;
   skip_static_content: boolean;
+  editorial_status: 'approved';
+  approved_by: string;
+  approval_reference: string;
 }
 
 export interface RegisterResponse {

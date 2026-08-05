@@ -40,8 +40,19 @@ export async function backfillContentDocuments(
     skipStaticContent: request.skip_static_content
   });
   assertSeedQuality(uploads);
+  const approvedAt = new Date().toISOString();
+  const approvedUploads = uploads.map((item) => ({
+    ...item,
+    payload: {
+      ...(item.payload as Record<string, unknown>),
+      editorial_status: request.editorial_status,
+      approved_by: request.approved_by,
+      approval_reference: request.approval_reference,
+      approved_at: approvedAt
+    }
+  }));
 
-  for (const item of uploads) {
+  for (const item of approvedUploads) {
     await env.CONTENT.put(item.key, JSON.stringify(item.payload, null, 2), {
       httpMetadata: {
         contentType: 'application/json; charset=utf-8'
@@ -49,7 +60,7 @@ export async function backfillContentDocuments(
     });
   }
 
-  return uploads;
+  return approvedUploads;
 }
 
 export function filterDailyContent(content: DailySignContent, isPremium: boolean) {
@@ -254,6 +265,9 @@ export function registerContentAdminRoutes(app: Hono<AppBindings>) {
       seed_date: request.seed_date ?? null,
       daily_days: request.daily_days,
       skip_static_content: request.skip_static_content,
+      editorial_status: request.editorial_status,
+      approved_by: request.approved_by,
+      approval_reference: request.approval_reference,
       sample_keys: uploads.slice(0, 5).map((item) => item.key)
     });
   });

@@ -191,6 +191,37 @@ describe('content filters', () => {
     });
   });
 
+  it('rejects content backfill without explicit editorial approval before R2 writes', async () => {
+    const puts: string[] = [];
+    const env = createTestEnv({
+      CONTENT: {
+        async head() { return { size: 1 } as R2Object; },
+        async get() { return null; },
+        async put(key: string) { puts.push(key); }
+      } as unknown as R2Bucket
+    });
+
+    const response = await createApp().request(
+      '/api/v1/admin/content/backfill',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-admin-secret': 'admin-secret'
+        },
+        body: JSON.stringify({
+          seed_date: '2026-04-10',
+          daily_days: 1,
+          skip_static_content: true
+        })
+      },
+      env
+    );
+
+    expect(response.status).toBe(400);
+    expect(puts).toEqual([]);
+  });
+
   it('uploads future content documents through the admin backfill route', async () => {
     const puts: string[] = [];
     const env = createTestEnv({
@@ -219,7 +250,10 @@ describe('content filters', () => {
         body: JSON.stringify({
           seed_date: '2026-04-10',
           daily_days: 2,
-          skip_static_content: true
+          skip_static_content: true,
+          editorial_status: 'approved',
+          approved_by: 'test-editor',
+          approval_reference: 'test:content-backfill'
         })
       },
       env
@@ -229,7 +263,10 @@ describe('content filters', () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
       daily_days: 2,
-      skip_static_content: true
+      skip_static_content: true,
+      editorial_status: 'approved',
+      approved_by: 'test-editor',
+      approval_reference: 'test:content-backfill'
     });
     expect(puts.some((key) => key.startsWith('content/daily/tr/2026-04-10'))).toBe(true);
     expect(puts.some((key) => key.startsWith('content/weekly/tr/'))).toBe(true);
@@ -237,7 +274,7 @@ describe('content filters', () => {
   });
 
   it('uploads documents directly with worker bindings', async () => {
-    const puts: string[] = [];
+    const puts: Array<{ key: string; payload: Record<string, unknown> }> = [];
     const env = createTestEnv({
       CONTENT: {
         async head() {
@@ -246,8 +283,8 @@ describe('content filters', () => {
         async get() {
           return null;
         },
-        async put(key: string) {
-          puts.push(key);
+        async put(key: string, value: string | ReadableStream | ArrayBuffer | ArrayBufferView) {
+          puts.push({ key, payload: JSON.parse(String(value)) as Record<string, unknown> });
         }
       } as unknown as R2Bucket
     });
@@ -255,11 +292,20 @@ describe('content filters', () => {
     const uploads = await backfillContentDocuments(env, {
       seed_date: '2026-04-10',
       daily_days: 1,
-      skip_static_content: true
+      skip_static_content: true,
+      editorial_status: 'approved',
+      approved_by: 'test-editor',
+      approval_reference: 'test:content-backfill'
     });
 
     expect(uploads).not.toHaveLength(0);
     expect(puts).toHaveLength(uploads.length);
+    expect(puts.every(({ payload }) =>
+      payload.editorial_status === 'approved' &&
+      payload.approved_by === 'test-editor' &&
+      payload.approval_reference === 'test:content-backfill' &&
+      typeof payload.approved_at === 'string'
+    )).toBe(true);
   });
 
   it('fails before the first R2 write when generated content violates quality rules', async () => {
@@ -284,7 +330,10 @@ describe('content filters', () => {
         {
           seed_date: '2026-04-10',
           daily_days: 1,
-          skip_static_content: true
+          skip_static_content: true,
+          editorial_status: 'approved',
+          approved_by: 'test-editor',
+          approval_reference: 'test:content-backfill'
         },
         () => [
           {

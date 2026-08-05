@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   normalizeCompatibilityPair,
   sanitizeNotificationData,
+  validateContentBackfillBody,
   validateRegisterBody,
   validateUpdateUserBody,
   validateLanguage,
@@ -65,6 +66,30 @@ describe('validators', () => {
         platform: 'android'
       })
     ).toThrow('Provide either fcm_token or firebase_installation_id, not both.');
+  });
+
+
+  it('requires explicit editorial approval for content backfill', () => {
+    expect(() =>
+      validateContentBackfillBody({
+        daily_days: 14,
+        skip_static_content: true
+      })
+    ).toThrow();
+
+    expect(
+      validateContentBackfillBody({
+        daily_days: 14,
+        skip_static_content: true,
+        editorial_status: 'approved',
+        approved_by: 'github-actions',
+        approval_reference: 'workflow:content-backfill'
+      })
+    ).toMatchObject({
+      editorial_status: 'approved',
+      approved_by: 'github-actions',
+      approval_reference: 'workflow:content-backfill'
+    });
   });
 
   it('accepts supported mobile platforms on register and update payloads', () => {

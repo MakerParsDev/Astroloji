@@ -158,10 +158,20 @@ export const personalGuidanceSchema = transitChartSchema.extend({
   language: languageSchema
 });
 
+const approvalIdentifierSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(96)
+  .regex(/^[A-Za-z0-9._:-]+$/, 'Approval identifiers must be opaque and URL-safe.');
+
 export const contentBackfillSchema = z.object({
   seed_date: optionalSeedDateSchema,
   daily_days: z.coerce.number().int().min(1).max(31).optional().default(14),
-  skip_static_content: optionalBooleanSchema.default(true)
+  skip_static_content: optionalBooleanSchema.default(true),
+  editorial_status: z.literal('approved'),
+  approved_by: approvalIdentifierSchema,
+  approval_reference: approvalIdentifierSchema
 });
 
 export const notificationSchema = z.object({

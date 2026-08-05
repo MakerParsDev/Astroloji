@@ -41,6 +41,8 @@ jobs:
       SEED_DATE: ${{ github.event.inputs.seed_date || '' }}
       SEED_DAILY_DAYS: ${{ github.event.inputs.daily_days || '14' }}
       SEED_SKIP_STATIC_CONTENT: ${{ github.event.inputs.skip_static_content || 'true' }}
+      SEED_APPROVED_BY: github:${{ github.actor }}
+      SEED_APPROVAL_REFERENCE: github-run:${{ github.run_id }}
     steps:
       - uses: actions/checkout@v6
 
@@ -76,7 +78,7 @@ jobs:
       - name: Trigger content backfill
         run: |
           payload="$(
-            python -c "import json, os; payload = {'daily_days': int(os.environ['SEED_DAILY_DAYS']), 'skip_static_content': os.environ['SEED_SKIP_STATIC_CONTENT'].strip().lower() in {'1', 'true'}}; seed_date = os.environ.get('SEED_DATE', '').strip(); payload.update({'seed_date': seed_date} if seed_date else {}); print(json.dumps(payload))"
+            python -c "import json, os; payload = {'daily_days': int(os.environ['SEED_DAILY_DAYS']), 'skip_static_content': os.environ['SEED_SKIP_STATIC_CONTENT'].strip().lower() in {'1', 'true'}, 'editorial_status': 'approved', 'approved_by': os.environ['SEED_APPROVED_BY'], 'approval_reference': os.environ['SEED_APPROVAL_REFERENCE']}; seed_date = os.environ.get('SEED_DATE', '').strip(); payload.update({'seed_date': seed_date} if seed_date else {}); print(json.dumps(payload))"
           )"
 
           curl --fail-with-body --silent --show-error \
