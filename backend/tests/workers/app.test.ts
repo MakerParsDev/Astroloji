@@ -27,7 +27,7 @@ describe('app routes', () => {
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
     expect(html).toContain(heading);
     expect(html).toContain('info@parsfilo.com');
-    expect(html).toContain('20 July 2026');
+    expect(html).toContain('5 August 2026');
   });
 
   it('serves public account deletion instructions', async () => {
@@ -42,7 +42,7 @@ describe('app routes', () => {
     expect(html).toContain('Account and Data Deletion');
     expect(html).toContain('Google Play');
     expect(html).toContain('info@parsfilo.com');
-    expect(html).toContain('20 July 2026');
+    expect(html).toContain('5 August 2026');
   });
 
   it('requires firebase authorization for user registration', async () => {
@@ -95,4 +95,27 @@ describe('app routes', () => {
       }
     });
   });
+
+  it('keeps privacy disclosures aligned with transient chart, feedback, and share behavior', async () => {
+    const response = await createApp().request('/privacy', {}, createTestEnv());
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain('geçici (ephemeral) olarak');
+    expect(html).toContain('kalıcı depolamaya yazılmaz');
+    expect(html).toContain('yapılandırılmış günlük geri bildirim');
+    expect(html.toLowerCase()).toContain('anonim paylaşım bağlantıları');
+    expect(html).toContain('Personal Guidance');
+    expect(html).not.toContain('Sunucuya gönderilen profil verisi doğum');
+  });
+
+  it('describes local feedback deletion and chart limitations in public legal pages', async () => {
+    const deletion = await (await createApp().request('/delete-account', {}, createTestEnv())).text();
+    const terms = await (await createApp().request('/terms', {}, createTestEnv())).text();
+
+    expect(deletion).toContain('son günlük geri bildirim kategorisi');
+    expect(terms).toContain('doğum tarihi tabanlı kişisel rehber');
+    expect(terms).toContain('yükselen ve ev hesaplaması içermez');
+  });
+
 });
