@@ -28,10 +28,11 @@ CALISMA PRENSIPLERI
 | Coil / Lottie / Timber | 3.5.0 / 6.7.1 / 5.0.1 | UI medya/logging katmani icin mevcut pinler korunuyor; yeni kutuphane eklenmedi. |
 | Detekt / ktlint Gradle / Play Publisher | 1.23.8 / 14.2.0 / 4.0.0 | Statik analiz ve release otomasyonu icin resmi plugin sayfalari kontrol edildi; gorevler lokal olarak tanimli. |
 | JUnit / MockK / Turbine / Truth / Robolectric | 4.13.2 / 1.14.11 / 1.2.1 / 1.4.5 / 4.16.1 | Android unit test zinciri bu kombinasyonla gecerli. |
-| Hono / jose / zod | 4.12.31 / 6.1.0 / 4.1.5 | Backend runtime kutuphaneleri exact pin ile tutulur; mevcut Worker davranisi ve npm lockfile ile uyumlu. |
+| Hono / jose / zod | 4.13.0 / 6.1.0 / 4.1.5 | Backend runtime kutuphaneleri exact pin ile tutulur; Hono 4.13.0 CORS ReDoS guvenlik duzeltmesini icerir ve mevcut Worker davranisi ile dogrulanir. |
 | TypeScript / tsx / Vitest | 5.9.2 / 4.20.5 / 3.2.7 | Backend build, node test lane ve Workers runtime smoke lane bu kombinasyonla yesil. |
-| Wrangler / generated runtime types | 4.112.0 / worker-configuration.d.ts | Cloudflare Workers resmi dokumani kontrol edildi; generated binding types, compatibility date ve deploy config bu pin ile dogrulandi. |
+| Wrangler / generated runtime types | 4.118.0 / worker-configuration.d.ts | Cloudflare Workers araci latest exact pin ile tutulur; generated binding types, compatibility date, dry-run ve runtime smoke testleriyle dogrulanir. |
 | picomatch (override) | 4.0.4 | GitHub Dependabot GHSA-3v7f-55p6-f55p uyarisi icin transitif override ile guvenli yama surumu sabitlendi. |
+| postcss / undici (overrides) | 8.5.23 / 7.29.0 | Vite ve Miniflare transitif pinleri upstream yamayi beklerken npm audit bulgularini kapatmak icin ayni major icindeki guvenli surumler sabitlendi. |
 
-Not: 2026-07-23 tarihinde resmi kaynaklar kontrol edildi. Mevcut pinler lokal build/test ile dogrulanan calisan baz cizgi olarak korundu.
+Not: 2026-08-05 tarihinde npm audit ve paket manifestleri kontrol edildi. Mevcut pinler lokal build/test ile dogrulanan calisan baz cizgi olarak korundu.
 
