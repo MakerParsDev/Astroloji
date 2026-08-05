@@ -70,6 +70,7 @@
     <string name="premium_feature_ad_free">Reklamsız deneyim</string>
     <string name="premium_feature_share_cards">Paylaşılabilir özel kartlar</string>
     <string name="premium_plan_title">Planını seç</string>
+    <string name="premium_benefits_title">Premium ile açılanlar</string>
     <string name="premium_monthly_label">Aylık</string>
     <string name="premium_yearly_label">Yıllık</string>
     <string name="premium_most_popular">En Popüler</string>
@@ -78,6 +79,14 @@
     <string name="premium_price_loading">Fiyat yükleniyor…</string>
     <string name="premium_trial_days">%1$d gün ücretsiz deneme</string>
     <string name="premium_start_cta">Hemen Başla</string>
+    <string name="premium_start_trial_cta">%1$d günlük ücretsiz denemeyi başlat</string>
+    <string name="premium_continue_with_price">%1$s ile devam et</string>
+    <string name="premium_continue_free">Ücretsiz planla devam et</string>
+    <string name="premium_catalog_loading">Güvenli fiyat bilgisi Google Play’den yükleniyor. Henüz satın alma başlatılamaz.</string>
+    <string name="premium_billing_disclosure">%1$s, %2$s olarak faturalandırılır. Yenileme tarihinden önce Google Play’den iptal edilmezse otomatik yenilenir.</string>
+    <string name="premium_billing_disclosure_trial">%1$d gün ücretsiz deneme, ardından %2$s, %3$s olarak faturalandırılır. Yenileme tarihinden önce Google Play’den iptal edilmezse otomatik yenilenir.</string>
+    <string name="premium_period_monthly">aylık</string>
+    <string name="premium_period_yearly">yıllık</string>
     <string name="premium_restore">Satın almaları geri yükle</string>
     <string name="premium_already_active">Premium zaten aktif</string>
     <string name="premium_expires_on">Yenileme veya bitiş tarihi: %1$s</string>

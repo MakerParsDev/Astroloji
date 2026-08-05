@@ -70,6 +70,7 @@
     <string name="premium_feature_ad_free">Ad-free experience</string>
     <string name="premium_feature_share_cards">Special shareable cosmic cards</string>
     <string name="premium_plan_title">Choose your plan</string>
+    <string name="premium_benefits_title">Everything included</string>
     <string name="premium_monthly_label">Monthly</string>
     <string name="premium_yearly_label">Yearly</string>
     <string name="premium_most_popular">Most Popular</string>
@@ -78,6 +79,14 @@
     <string name="premium_price_loading">Loading price…</string>
     <string name="premium_trial_days">%1$d-day free trial</string>
     <string name="premium_start_cta">Start now</string>
+    <string name="premium_start_trial_cta">Start %1$d-day free trial</string>
+    <string name="premium_continue_with_price">Continue with %1$s</string>
+    <string name="premium_continue_free">Continue with the free plan</string>
+    <string name="premium_catalog_loading">Secure price information is loading from Google Play. No purchase can start yet.</string>
+    <string name="premium_billing_disclosure">%1$s billed %2$s. Renews automatically unless canceled in Google Play before the renewal date.</string>
+    <string name="premium_billing_disclosure_trial">%1$d-day free trial, then %2$s billed %3$s. Renews automatically unless canceled in Google Play before the renewal date.</string>
+    <string name="premium_period_monthly">monthly</string>
+    <string name="premium_period_yearly">yearly</string>
     <string name="premium_restore">Restore purchases</string>
     <string name="premium_already_active">Premium is already active</string>
     <string name="premium_expires_on">Renews or expires on %1$s</string>

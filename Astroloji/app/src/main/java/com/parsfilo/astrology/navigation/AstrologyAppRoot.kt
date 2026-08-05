@@ -189,6 +189,11 @@ fun AstrologyAppRoot(
                 val route = backStackEntry.toRoute<PremiumRoute>()
                 PremiumScreen(
                     source = route.source.analyticsValue,
+                    onContinueFree = {
+                        if (!navController.popBackStack()) {
+                            navController.navigate(HomeRoute) { launchSingleTop = true }
+                        }
+                    },
                     modifier =
                         androidx.compose.ui.Modifier
                             .padding(padding),
