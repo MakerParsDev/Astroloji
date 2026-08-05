@@ -9,34 +9,34 @@ class RegisterUserRequestSerializationTest {
     private val json = AppModules.provideJson()
 
     @Test
-    fun `omits the FCM field when no real token is available`() {
+    fun `omits the installation ID field when no real token is available`() {
         val payload =
             json.encodeToString(
                 RegisterUserRequest(
                     sign = "aries",
                     language = "tr",
-                    fcmToken = null,
+                    firebaseInstallationId = null,
                     notificationHour = 9,
                     utcOffset = 3,
                 ),
             )
 
-        assertThat(payload).doesNotContain("fcm_token")
+        assertThat(payload).doesNotContain("firebase_installation_id")
     }
 
     @Test
-    fun `includes the FCM field when a real token is available`() {
+    fun `includes the installation ID field when a real token is available`() {
         val payload =
             json.encodeToString(
                 RegisterUserRequest(
                     sign = "aries",
                     language = "tr",
-                    fcmToken = "real-token",
+                    firebaseInstallationId = "fid-123",
                     notificationHour = 9,
                     utcOffset = 3,
                 ),
             )
 
-        assertThat(payload).contains("\"fcm_token\":\"real-token\"")
+        assertThat(payload).contains("\"firebase_installation_id\":\"fid-123\"")
     }
 }

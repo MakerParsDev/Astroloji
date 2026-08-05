@@ -2,7 +2,16 @@ import { Hono } from 'hono';
 
 import { enforceRateLimit } from '@/services/cache';
 import { deleteFirebaseUser, isFirebaseAccountDeletionError } from '@/services/firebaseAuth';
-import type { AppBindings, FcmTokenRow, Platform, UserProfileResponse, UserRow } from '@/types';
+import type {
+  AppBindings,
+  FcmTokenRow,
+  NotificationTargetType,
+  Platform,
+  RegisterRequest,
+  UpdateUserRequest,
+  UserProfileResponse,
+  UserRow
+} from '@/types';
 import { signAppJwt, verifyFirebaseIdToken } from '@/utils/jwt';
 import {
   validateRegisterBody,
@@ -31,20 +40,41 @@ async function getUserToken(db: D1Database, userId: string): Promise<FcmTokenRow
     .first()) as FcmTokenRow | null;
 }
 
-async function upsertFcmToken(
+function resolveNotificationTarget(
+  body: Pick<RegisterRequest | UpdateUserRequest, 'fcm_token' | 'firebase_installation_id'>
+): { value: string; type: NotificationTargetType } | null {
+  if (body.firebase_installation_id) {
+    return { value: body.firebase_installation_id, type: 'fid' };
+  }
+  if (body.fcm_token) {
+    return { value: body.fcm_token, type: 'token' };
+  }
+  return null;
+}
+
+async function upsertNotificationTarget(
   db: D1Database,
   args: {
     userId: string;
-    token: string;
+    value: string;
+    targetType: NotificationTargetType;
     notificationEnabled?: boolean;
     notificationHour: number;
     platform: Platform;
   }
 ) {
   const now = new Date().toISOString();
+  await db
+    .prepare(
+      `DELETE FROM fcm_tokens
+       WHERE user_id = ? AND platform = ? AND target_type <> ?`
+    )
+    .bind(args.userId, args.platform, args.targetType)
+    .run();
+
   const existing = (await db
-    .prepare('SELECT id FROM fcm_tokens WHERE token = ?')
-    .bind(args.token)
+    .prepare('SELECT id FROM fcm_tokens WHERE token = ? AND target_type = ?')
+    .bind(args.value, args.targetType)
     .first()) as { id: string } | null;
 
   if (existing) {
@@ -68,13 +98,14 @@ async function upsertFcmToken(
 
   await db
     .prepare(
-      `INSERT INTO fcm_tokens (id, user_id, token, platform, notification_enabled, notification_hour, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO fcm_tokens (id, user_id, token, target_type, platform, notification_enabled, notification_hour, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       crypto.randomUUID(),
       args.userId,
-      args.token,
+      args.value,
+      args.targetType,
       args.platform,
       typeof args.notificationEnabled === 'boolean' ? Number(args.notificationEnabled) : 1,
       args.notificationHour,
@@ -175,10 +206,12 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
       return jsonError(500, 'USER_SYNC_FAILED', 'Unable to create or load user.');
     }
 
-    if (body.fcm_token) {
-      await upsertFcmToken(c.env.DB, {
+    const registrationTarget = resolveNotificationTarget(body);
+    if (registrationTarget) {
+      await upsertNotificationTarget(c.env.DB, {
         userId: user.id,
-        token: body.fcm_token,
+        value: registrationTarget.value,
+        targetType: registrationTarget.type,
         notificationHour: body.notification_hour ?? 9,
         platform: body.platform
       });
@@ -253,10 +286,12 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
       )
       .run();
 
-    if (body.fcm_token) {
-      await upsertFcmToken(c.env.DB, {
+    const updateTarget = resolveNotificationTarget(body);
+    if (updateTarget) {
+      await upsertNotificationTarget(c.env.DB, {
         userId: user.id,
-        token: body.fcm_token,
+        value: updateTarget.value,
+        targetType: updateTarget.type,
         notificationEnabled: body.notification_enabled,
         notificationHour: body.notification_hour ?? 9,
         platform: body.platform ?? 'android'

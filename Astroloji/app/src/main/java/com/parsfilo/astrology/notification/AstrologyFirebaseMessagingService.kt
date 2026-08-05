@@ -23,7 +23,22 @@ class AstrologyFirebaseMessagingService : FirebaseMessagingService() {
         private val notificationIdCounter = AtomicInteger(1000)
     }
 
+    override fun onRegistered(installationId: String) {
+        if (installationId.isBlank()) return
+        enqueuePushRegistrationRefresh()
+    }
+
+    @Deprecated(
+        message = "Compatibility callback for Android Lint; FID registration is handled by onRegistered.",
+    )
     override fun onNewToken(token: String) {
+        if (token.isBlank()) return
+        // Android Lint still requires the legacy callback. The token is used only as a refresh signal;
+        // registration uploads the Firebase installation ID through PushRegistrationManager.
+        enqueuePushRegistrationRefresh()
+    }
+
+    private fun enqueuePushRegistrationRefresh() {
         WorkManager
             .getInstance(applicationContext)
             .enqueue(OneTimeWorkRequestBuilder<TokenRefreshWorker>().build())

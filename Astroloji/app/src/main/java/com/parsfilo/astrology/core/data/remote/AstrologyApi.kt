@@ -15,7 +15,7 @@ import retrofit2.http.Query
 data class RegisterUserRequest(
     val sign: String,
     val language: String,
-    @SerialName("fcm_token") val fcmToken: String? = null,
+    @SerialName("firebase_installation_id") val firebaseInstallationId: String? = null,
     @SerialName("notification_hour") val notificationHour: Int,
     @SerialName("utc_offset") val utcOffset: Int,
     val platform: String = "android",
@@ -47,7 +47,7 @@ data class UserProfileResponse(
 data class UpdateUserRequest(
     val sign: String? = null,
     val language: String? = null,
-    @SerialName("fcm_token") val fcmToken: String? = null,
+    @SerialName("firebase_installation_id") val firebaseInstallationId: String? = null,
     @SerialName("notification_enabled") val notificationEnabled: Boolean? = null,
     @SerialName("notification_hour") val notificationHour: Int? = null,
     @SerialName("utc_offset") val utcOffset: Int? = null,

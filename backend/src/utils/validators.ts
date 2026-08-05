@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   type ContentBackfillRequest,
   LANGUAGES,
+  NOTIFICATION_TARGET_TYPES,
   PLATFORMS,
   REWARD_TYPES,
   SIGNS,
@@ -32,20 +33,36 @@ const eventTypeSchema = z.enum(USER_EVENT_TYPES);
 const notificationHourSchema = z.number().int().min(0).max(23);
 const utcOffsetSchema = z.number().int().min(-12).max(14);
 
-export const registerSchema = z.object({
-  sign: signSchema,
-  language: languageSchema.default('tr'),
-  fcm_token: z.string().min(1).optional(),
-  notification_hour: notificationHourSchema.optional().default(9),
-  utc_offset: utcOffsetSchema,
-  platform: platformSchema.default('android')
-});
+function requireSingleNotificationTarget(
+  value: { fcm_token?: string; firebase_installation_id?: string },
+  context: z.RefinementCtx
+) {
+  if (value.fcm_token && value.firebase_installation_id) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Provide either fcm_token or firebase_installation_id, not both.'
+    });
+  }
+}
+
+export const registerSchema = z
+  .object({
+    sign: signSchema,
+    language: languageSchema.default('tr'),
+    fcm_token: z.string().min(1).optional(),
+    firebase_installation_id: z.string().min(1).optional(),
+    notification_hour: notificationHourSchema.optional().default(9),
+    utc_offset: utcOffsetSchema,
+    platform: platformSchema.default('android')
+  })
+  .superRefine(requireSingleNotificationTarget);
 
 export const updateUserSchema = z
   .object({
     sign: signSchema.optional(),
     language: languageSchema.optional(),
     fcm_token: z.string().min(1).optional(),
+    firebase_installation_id: z.string().min(1).optional(),
     notification_enabled: z.boolean().optional(),
     notification_hour: notificationHourSchema.optional(),
     utc_offset: utcOffsetSchema.optional(),
@@ -54,7 +71,8 @@ export const updateUserSchema = z
   .refine(
     (value) => Object.keys(value).length > 0,
     'At least one field must be provided.'
-  );
+  )
+  .superRefine(requireSingleNotificationTarget);
 
 export const subscriptionVerifySchema = z.object({
   purchase_token: z.string().min(1),

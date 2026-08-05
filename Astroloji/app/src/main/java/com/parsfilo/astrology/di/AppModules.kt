@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Room
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.installations.FirebaseInstallations
+import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.parsfilo.astrology.BuildConfig
 import com.parsfilo.astrology.core.data.local.AstrologyDatabase
@@ -77,6 +79,14 @@ object AppModules {
     @Provides
     @Singleton
     fun provideFirebaseAuth(): FirebaseAuth = FirebaseAuth.getInstance()
+
+    @Provides
+    @Singleton
+    fun provideFirebaseMessaging(): FirebaseMessaging = FirebaseMessaging.getInstance()
+
+    @Provides
+    @Singleton
+    fun provideFirebaseInstallations(): FirebaseInstallations = FirebaseInstallations.getInstance()
 
     @Provides
     @Singleton

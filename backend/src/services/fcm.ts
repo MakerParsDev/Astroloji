@@ -1,4 +1,4 @@
-import type { Env, FcmBatchResult } from '@/types';
+import type { Env, FcmBatchResult, NotificationTarget } from '@/types';
 import { createGoogleAccessToken } from '@/utils/jwt';
 
 const FCM_SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
@@ -12,20 +12,30 @@ function getProjectId(env: Env): string {
   return parsed.project_id;
 }
 
-function isUnregisteredTokenError(payload: unknown): boolean {
+function isUnregisteredTargetError(payload: unknown): boolean {
   const serialized = JSON.stringify(payload);
-  return serialized.includes('registration-token-not-registered') || serialized.includes('UNREGISTERED');
+  return (
+    serialized.includes('registration-token-not-registered') ||
+    serialized.includes('UNREGISTERED') ||
+    serialized.includes('FID_NOT_FOUND')
+  );
 }
 
-async function removeToken(env: Env, token: string): Promise<void> {
-  await env.DB.prepare('DELETE FROM fcm_tokens WHERE token = ?').bind(token).run();
+async function removeTarget(env: Env, target: NotificationTarget): Promise<void> {
+  await env.DB.prepare('DELETE FROM fcm_tokens WHERE token = ? AND target_type = ?')
+    .bind(target.value, target.type)
+    .run();
+}
+
+function buildTargetPayload(target: NotificationTarget): { token: string } | { fid: string } {
+  return target.type === 'fid' ? { fid: target.value } : { token: target.value };
 }
 
 async function fcmFetch(
   accessToken: string,
   projectId: string,
   env: Env,
-  token: string,
+  target: NotificationTarget,
   title: string,
   body: string,
   data: Record<string, string> = {}
@@ -40,7 +50,7 @@ async function fcmFetch(
       },
       body: JSON.stringify({
         message: {
-          token,
+          ...buildTargetPayload(target),
           notification: { title, body },
           data
         }
@@ -53,26 +63,26 @@ async function fcmFetch(
   }
 
   const errorPayload = await response.json().catch(() => ({}));
-  if (isUnregisteredTokenError(errorPayload)) {
-    await removeToken(env, token);
+  if (isUnregisteredTargetError(errorPayload)) {
+    await removeTarget(env, target);
   }
   return false;
 }
 
 export async function sendNotification(
   env: Env,
-  fcmToken: string,
+  target: NotificationTarget,
   title: string,
   body: string,
   data: Record<string, string> = {}
 ): Promise<boolean> {
   const accessToken = await createGoogleAccessToken(env.FIREBASE_SERVICE_ACCOUNT_JSON, FCM_SCOPE);
-  return fcmFetch(accessToken, getProjectId(env), env, fcmToken, title, body, data);
+  return fcmFetch(accessToken, getProjectId(env), env, target, title, body, data);
 }
 
 export async function sendBatchNotifications(
   env: Env,
-  tokens: string[],
+  targets: NotificationTarget[],
   title: string,
   body: string,
   data: Record<string, string> = {}
@@ -85,12 +95,12 @@ export async function sendBatchNotifications(
     failedTokens: []
   };
 
-  for (let index = 0; index < tokens.length; index += MAX_BATCH_SIZE) {
-    const chunk = tokens.slice(index, index + MAX_BATCH_SIZE);
+  for (let index = 0; index < targets.length; index += MAX_BATCH_SIZE) {
+    const chunk = targets.slice(index, index + MAX_BATCH_SIZE);
     const responses = await Promise.all(
-      chunk.map(async (token) => ({
-        token,
-        ok: await fcmFetch(accessToken, projectId, env, token, title, body, data)
+      chunk.map(async (target) => ({
+        target,
+        ok: await fcmFetch(accessToken, projectId, env, target, title, body, data)
       }))
     );
 
@@ -99,7 +109,7 @@ export async function sendBatchNotifications(
         result.success += 1;
       } else {
         result.failed += 1;
-        result.failedTokens.push(response.token);
+        result.failedTokens.push(response.target.value);
       }
     }
   }

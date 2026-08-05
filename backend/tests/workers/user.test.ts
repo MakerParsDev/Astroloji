@@ -157,6 +157,87 @@ describe('user routes', () => {
     expect(executedSql.some((sql) => sql.includes('fcm_tokens'))).toBe(false);
   });
 
+  it('registers a Firebase installation ID and replaces the legacy target for the same platform', async () => {
+    const user = {
+      id: 'user-1',
+      firebase_uid: 'firebase-1',
+      sign: 'aries',
+      language: 'tr',
+      utc_offset: 3,
+      is_premium: 0,
+      subscription_state: 'none',
+      premium_expires_at: null,
+      created_at: '2026-07-26T00:00:00.000Z',
+      last_seen_at: '2026-07-26T00:00:00.000Z'
+    };
+    const executed: Array<{ sql: string; bindings: unknown[] }> = [];
+    const env = createTestEnv({
+      DB: {
+        prepare(sql: string) {
+          const statement = {
+            bindings: [] as unknown[],
+            bind(...bindings: unknown[]) {
+              statement.bindings = bindings;
+              return statement;
+            },
+            async first() {
+              if (sql.includes('SELECT * FROM users WHERE firebase_uid = ?')) return user;
+              if (sql.includes('SELECT * FROM users WHERE id = ?')) return user;
+              return null;
+            },
+            async all() {
+              return { results: [] };
+            },
+            async run() {
+              executed.push({ sql: sql.replace(/\s+/g, ' ').trim(), bindings: statement.bindings });
+              return { success: true, meta: {} };
+            }
+          };
+          return statement;
+        },
+        async batch() {
+          return [];
+        }
+      } as unknown as D1Database
+    });
+
+    const response = await createApp().request(
+      '/api/v1/users/register',
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer [REDACTED]',
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          sign: 'aries',
+          language: 'tr',
+          firebase_installation_id: 'fid-123',
+          notification_hour: 9,
+          utc_offset: 3,
+          platform: 'android'
+        })
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    expect(executed).toContainEqual({
+      sql: 'DELETE FROM fcm_tokens WHERE user_id = ? AND platform = ? AND target_type <> ?',
+      bindings: ['user-1', 'android', 'fid']
+    });
+    expect(executed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sql: expect.stringContaining(
+            'INSERT INTO fcm_tokens (id, user_id, token, target_type, platform'
+          ),
+          bindings: expect.arrayContaining(['user-1', 'fid-123', 'fid', 'android'])
+        })
+      ])
+    );
+  });
+
   it('refreshes the app JWT with the latest premium flag', async () => {
     const user = {
       id: 'user-1',

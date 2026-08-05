@@ -71,7 +71,7 @@ Android uygulamasının kişisel veri işleme uygulamalarını açıklar. Gizlil
   <li><strong>Hesap ve oturum bilgileri:</strong> Firebase kullanıcı kimliği, uygulama içi kullanıcı kimliği
     ve oturum belirteçleri.</li>
   <li><strong>Tercihler:</strong> seçilen burç, uygulama dili, saat dilimi farkı, bildirim tercihi ve saati.</li>
-  <li><strong>Bildirim verileri:</strong> Firebase Cloud Messaging cihaz belirteci ve platform bilgisi.</li>
+  <li><strong>Bildirim verileri:</strong> Firebase installation ID, platform bilgisi ve geçiş süresince eski uygulama sürümlerinden gelebilen FCM registration token.</li>
   <li><strong>Kullanım, yapılandırılmış geri bildirim ve analiz verileri:</strong> açılan ekranlar, içerik
     etkileşimleri, paylaşım düğmesi tıklamaları, reklam gösterimi, abonelik akışı ve günlük yorum için seçilen
     <em>uydu / kısmen / bugün değil</em> kategorisi gibi uygulama içi olaylar ile bunlara ilişkin sınırlı metadata.
@@ -149,7 +149,7 @@ sayfada yayımlanır ve üst bölümdeki tarih değiştirilir.</p>
 
 <h2>English summary</h2>
 <p>ParsFilo operates the Astroloji Android app. We process account/session identifiers, zodiac and language
-preferences, time-zone and notification settings, FCM tokens, bounded app-interaction analytics, structured
+preferences, time-zone and notification settings, Firebase installation IDs, transitional legacy FCM tokens, bounded app-interaction analytics, structured
 daily feedback categories, subscription records, and diagnostic/device/ad data needed to operate, secure,
 improve and monetize the app. When a user explicitly requests Personal Guidance, the date of birth is transmitted
 to the backend and processed ephemerally in memory for that real-time calculation; this feature does not write it

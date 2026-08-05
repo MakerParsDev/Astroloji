@@ -41,6 +41,32 @@ describe('validators', () => {
     expect(body.fcm_token).toBeUndefined();
   });
 
+
+  it('accepts FIDs and rejects ambiguous dual notification targets', () => {
+    expect(
+      validateRegisterBody({
+        sign: 'aries',
+        language: 'tr',
+        firebase_installation_id: 'fid-123',
+        notification_hour: 9,
+        utc_offset: 3,
+        platform: 'android'
+      }).firebase_installation_id
+    ).toBe('fid-123');
+
+    expect(() =>
+      validateRegisterBody({
+        sign: 'aries',
+        language: 'tr',
+        fcm_token: 'legacy-token',
+        firebase_installation_id: 'fid-123',
+        notification_hour: 9,
+        utc_offset: 3,
+        platform: 'android'
+      })
+    ).toThrow('Provide either fcm_token or firebase_installation_id, not both.');
+  });
+
   it('accepts supported mobile platforms on register and update payloads', () => {
     expect(
       validateRegisterBody({

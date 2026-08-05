@@ -17,6 +17,7 @@ export const SIGNS = [
 
 export const LANGUAGES = ['tr', 'en'] as const;
 export const PLATFORMS = ['android', 'ios'] as const;
+export const NOTIFICATION_TARGET_TYPES = ['token', 'fid'] as const;
 export const SUBSCRIPTION_PRODUCTS = ['premium_monthly', 'premium_yearly'] as const;
 export const SUBSCRIPTION_STATUSES = [
   'none',
@@ -77,6 +78,7 @@ export const REWARD_TYPES = ['daily', 'weekly'] as const;
 export type Sign = (typeof SIGNS)[number];
 export type Language = (typeof LANGUAGES)[number];
 export type Platform = (typeof PLATFORMS)[number];
+export type NotificationTargetType = (typeof NOTIFICATION_TARGET_TYPES)[number];
 export type SubscriptionProductId = (typeof SUBSCRIPTION_PRODUCTS)[number];
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
@@ -175,6 +177,7 @@ export interface FcmTokenRow {
   id: string;
   user_id: string;
   token: string;
+  target_type: NotificationTargetType;
   platform: string;
   notification_enabled: number;
   notification_hour: number;
@@ -314,6 +317,7 @@ export interface RegisterRequest {
   sign: Sign;
   language: Language;
   fcm_token?: string;
+  firebase_installation_id?: string;
   notification_hour?: number;
   utc_offset: number;
   platform: Platform;
@@ -323,6 +327,7 @@ export interface UpdateUserRequest {
   sign?: Sign;
   language?: Language;
   fcm_token?: string;
+  firebase_installation_id?: string;
   notification_enabled?: boolean;
   notification_hour?: number;
   utc_offset?: number;
@@ -444,12 +449,18 @@ export interface FcmBatchResult {
   failedTokens: string[];
 }
 
+export interface NotificationTarget {
+  type: NotificationTargetType;
+  value: string;
+}
+
 export interface NotificationTargetRow {
   user_id: string;
   sign: Sign;
   language: Language;
   utc_offset: number;
   token: string;
+  target_type: NotificationTargetType;
   notification_hour: number;
 }
 
