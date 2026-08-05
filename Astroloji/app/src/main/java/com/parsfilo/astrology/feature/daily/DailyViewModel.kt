@@ -17,6 +17,19 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class DailyFeedback(
+    val analyticsValue: String,
+) {
+    RESONATED("resonated"),
+    PARTLY("partly"),
+    NOT_TODAY("not_today"),
+    ;
+
+    companion object {
+        fun fromAnalyticsValue(value: String?): DailyFeedback? = entries.firstOrNull { it.analyticsValue == value }
+    }
+}
+
 data class DailyUiState(
     val isLoading: Boolean = true,
     val horoscope: DailyHoroscope? = null,
@@ -24,6 +37,7 @@ data class DailyUiState(
     val isRefreshing: Boolean = false,
     val showBannerAd: Boolean = false,
     val canUnlockWithReward: Boolean = false,
+    val feedback: DailyFeedback? = null,
 )
 
 sealed interface DailyUiEvent {
@@ -37,6 +51,10 @@ sealed interface DailyUiEvent {
 
     data class RewardEarned(
         val challengeId: String,
+    ) : DailyUiEvent
+
+    data class SubmitFeedback(
+        val feedback: DailyFeedback,
     ) : DailyUiEvent
 }
 
@@ -94,6 +112,24 @@ class DailyViewModel
                         }
                     }
                 }
+                is DailyUiEvent.SubmitFeedback -> submitFeedback(event.feedback)
+            }
+        }
+
+        private fun submitFeedback(feedback: DailyFeedback) {
+            if (state.value.feedback != null) return
+            val horoscope = state.value.horoscope ?: return
+            setState { copy(feedback = feedback) }
+            viewModelScope.launch {
+                analyticsRepository.track(
+                    AnalyticsEvents.DAILY_FEEDBACK_SUBMITTED,
+                    mapOf(
+                        "source" to "daily",
+                        "result" to feedback.analyticsValue,
+                        "sign" to horoscope.sign,
+                    ),
+                )
+                preferencesRepository.updateDailyFeedback(horoscope.date, feedback.analyticsValue)
             }
         }
 
@@ -116,7 +152,14 @@ class DailyViewModel
                         forceRefresh = refresh,
                     )
             ) {
-                is AppResult.Success ->
+                is AppResult.Success -> {
+                    val persistedFeedback =
+                        DailyFeedback
+                            .fromAnalyticsValue(prefs.lastDailyFeedbackValue)
+                            .takeIf { prefs.lastDailyFeedbackDate == result.data.date }
+                    val retainedFeedback =
+                        state.value.feedback.takeIf { state.value.horoscope?.date == result.data.date }
+                            ?: persistedFeedback
                     setState {
                         copy(
                             isLoading = false,
@@ -124,8 +167,10 @@ class DailyViewModel
                             horoscope = result.data,
                             showBannerAd = canShowBannerAd,
                             canUnlockWithReward = result.data.full == null && canShowRewarded,
+                            feedback = retainedFeedback,
                         )
                     }
+                }
                 is AppResult.Error ->
                     setState {
                         copy(

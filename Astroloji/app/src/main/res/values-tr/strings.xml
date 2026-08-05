@@ -275,4 +275,10 @@
     <string name="chart_evidence_orb">Hesaplama kanıtı · %1$.2f° orb</string>
     <string name="chart_back">Profile dön</string>
     <string name="chart_disclaimer_title">Önemli not</string>
+    <string name="daily_feedback_title">Bu yorum bugün sana ne kadar uydu?</string>
+    <string name="daily_feedback_body">Son kategori seçimin tekrar sorulmaması için bu cihazda tutulur ve içerik kalitesini geliştirmek amacıyla ölçülür. Günlük metni veya kişisel not toplanmaz.</string>
+    <string name="daily_feedback_resonated">Bana uydu</string>
+    <string name="daily_feedback_partly">Kısmen</string>
+    <string name="daily_feedback_not_today">Bugün değil</string>
+    <string name="daily_feedback_thanks">Teşekkürler — yapılandırılmış geri bildirimin kaydedildi.</string>
 </resources>

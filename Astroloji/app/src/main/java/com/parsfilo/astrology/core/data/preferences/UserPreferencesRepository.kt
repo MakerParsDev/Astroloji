@@ -35,6 +35,8 @@ object PreferencesKeys {
     val LAST_INTERSTITIAL_SHOWN = longPreferencesKey("last_interstitial_shown")
     val INTERSTITIAL_COUNT_TODAY = intPreferencesKey("interstitial_count_today")
     val INTERSTITIAL_COUNT_DATE = stringPreferencesKey("interstitial_count_date")
+    val LAST_DAILY_FEEDBACK_DATE = stringPreferencesKey("last_daily_feedback_date")
+    val LAST_DAILY_FEEDBACK_VALUE = stringPreferencesKey("last_daily_feedback_value")
     val CONSENT_STATUS = intPreferencesKey("consent_status")
 }
 
@@ -147,6 +149,16 @@ class UserPreferencesRepository
             }
         }
 
+        suspend fun updateDailyFeedback(
+            date: String,
+            value: String,
+        ) {
+            dataStore.edit {
+                it[PreferencesKeys.LAST_DAILY_FEEDBACK_DATE] = date
+                it[PreferencesKeys.LAST_DAILY_FEEDBACK_VALUE] = value
+            }
+        }
+
         suspend fun incrementAppOpenCount() {
             dataStore.edit {
                 val current = it[PreferencesKeys.APP_OPEN_COUNT] ?: 0
@@ -195,6 +207,8 @@ class UserPreferencesRepository
                 lastInterstitialShown = preferences[PreferencesKeys.LAST_INTERSTITIAL_SHOWN] ?: 0L,
                 interstitialCountToday = preferences[PreferencesKeys.INTERSTITIAL_COUNT_TODAY] ?: 0,
                 interstitialCountDate = preferences[PreferencesKeys.INTERSTITIAL_COUNT_DATE],
+                lastDailyFeedbackDate = preferences[PreferencesKeys.LAST_DAILY_FEEDBACK_DATE],
+                lastDailyFeedbackValue = preferences[PreferencesKeys.LAST_DAILY_FEEDBACK_VALUE],
                 consentStatus = preferences[PreferencesKeys.CONSENT_STATUS] ?: 0,
             )
     }

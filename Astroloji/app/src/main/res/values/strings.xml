@@ -275,4 +275,10 @@
     <string name="chart_evidence_orb">Calculation evidence · %1$.2f° orb</string>
     <string name="chart_back">Back to profile</string>
     <string name="chart_disclaimer_title">Important note</string>
+    <string name="daily_feedback_title">How well did this reading fit today?</string>
+    <string name="daily_feedback_body">Your last category is kept on this device to prevent duplicate prompts and is measured to improve content quality. No journal text or personal note is collected.</string>
+    <string name="daily_feedback_resonated">It resonated</string>
+    <string name="daily_feedback_partly">Partly</string>
+    <string name="daily_feedback_not_today">Not today</string>
+    <string name="daily_feedback_thanks">Thanks — your structured feedback was recorded.</string>
 </resources>

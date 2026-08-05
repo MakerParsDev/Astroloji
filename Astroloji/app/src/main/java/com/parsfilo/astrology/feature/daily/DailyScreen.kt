@@ -243,6 +243,10 @@ fun DailyScreen(
                             onOpenPremium = onOpenPremium,
                         )
                     }
+                    DailyFeedbackCard(
+                        feedback = uiState.feedback,
+                        onFeedback = { viewModel.onEvent(DailyUiEvent.SubmitFeedback(it)) },
+                    )
                 }
 
                 if (uiState.showBannerAd) {
