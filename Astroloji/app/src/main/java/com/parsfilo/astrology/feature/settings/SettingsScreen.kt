@@ -43,6 +43,7 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
+import java.util.Locale
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "FunctionNaming")
 @Composable
@@ -269,7 +270,7 @@ fun SettingsScreen(
                             onClick = { viewModel.onEvent(SettingsUiEvent.ChangeNotificationHour(hour)) },
                         ) {
                             Text(
-                                text = String.format("%02d:00", hour),
+                                text = String.format(Locale.ROOT, "%02d:00", hour),
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                                 style = MaterialTheme.typography.labelLarge,
                             )

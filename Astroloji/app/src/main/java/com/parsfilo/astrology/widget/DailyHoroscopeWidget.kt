@@ -6,6 +6,7 @@ import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.Preferences
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.GlanceTheme
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -38,11 +39,13 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
     ) {
         val snapshot = loadSnapshot(context)
         provideContent {
-            WidgetContent(
-                title = snapshot.title,
-                body = snapshot.body,
-                energy = snapshot.energy,
-            )
+            GlanceTheme {
+                WidgetContent(
+                    title = snapshot.title,
+                    body = snapshot.body,
+                    energy = snapshot.energy,
+                )
+            }
         }
     }
 
@@ -93,7 +96,7 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
             modifier =
                 GlanceModifier
                     .fillMaxSize()
-                    .background(androidx.glance.unit.ColorProvider(android.graphics.Color.parseColor("#16162A")))
+                    .background(GlanceTheme.colors.widgetBackground)
                     .padding(12.dp)
                     .clickable(actionStartActivity<MainActivity>()),
         ) {

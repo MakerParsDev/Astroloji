@@ -77,6 +77,7 @@ fun OnboardingScreen(
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val missingSignMessage = stringResource(R.string.onboarding_error_missing_sign)
 
     LaunchedEffect(pagerState.currentPage) {
         viewModel.trackStep(OnboardingStep.fromPage(pagerState.currentPage))
@@ -146,7 +147,7 @@ fun OnboardingScreen(
                         if (pagerState.currentPage == 1 && uiState.selectedSign == null) {
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar(
-                                    message = context.getString(R.string.onboarding_error_missing_sign),
+                                    message = missingSignMessage,
                                 )
                             }
                             return@Button

@@ -1,5 +1,6 @@
 package com.parsfilo.astrology.navigation
 
+import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
 @Serializable object OnboardingRoute
@@ -12,6 +13,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable object PersonalGuidanceRoute
 
+@Keep
 @Serializable
 enum class PaywallSource(
     val analyticsValue: String,

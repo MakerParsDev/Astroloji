@@ -10,6 +10,7 @@ import android.graphics.Shader
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.FileProvider
+import androidx.core.graphics.createBitmap
 import com.parsfilo.astrology.core.domain.model.DailyHoroscope
 import java.io.File
 import java.io.FileOutputStream
@@ -23,7 +24,7 @@ object HoroscopeCardRenderer {
         val sign = ZodiacSign.fromKey(horoscope.sign)
         val width = 1080
         val height = 1920
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(width, height)
         val canvas = Canvas(bitmap)
 
         val startColor = sign.element.color

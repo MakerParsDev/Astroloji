@@ -54,7 +54,7 @@ internal fun PremiumBenefitsCard() {
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
         )
-        PremiumFeatureStrings().forEach { feature ->
+        premiumFeatureStrings().forEach { feature ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -93,7 +93,7 @@ internal fun PremiumSuccessCard(onDismiss: () -> Unit) {
 }
 
 @Composable
-internal fun PlaceholderPremiumPlans(): List<PremiumPlanUi> =
+internal fun placeholderPremiumPlans(): List<PremiumPlanUi> =
     listOf(
         PremiumPlanUi(
             planId = "premium_monthly:base:default",
@@ -112,7 +112,7 @@ internal fun PlaceholderPremiumPlans(): List<PremiumPlanUi> =
     )
 
 @Composable
-private fun PremiumFeatureStrings(): List<String> =
+private fun premiumFeatureStrings(): List<String> =
     listOf(
         stringResource(R.string.premium_feature_daily),
         stringResource(R.string.premium_feature_life_areas),

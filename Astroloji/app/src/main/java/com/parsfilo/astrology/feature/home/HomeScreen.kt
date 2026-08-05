@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -306,11 +307,23 @@ fun HomeScreen(
                         Text(
                             text =
                                 if (uiState.streakCount >= 30) {
-                                    stringResource(R.string.home_streak_month_message, uiState.streakCount)
+                                    pluralStringResource(
+                                        R.plurals.home_streak_month_message,
+                                        uiState.streakCount,
+                                        uiState.streakCount,
+                                    )
                                 } else if (uiState.streakCount >= 7) {
-                                    stringResource(R.string.home_streak_week_message, uiState.streakCount)
+                                    pluralStringResource(
+                                        R.plurals.home_streak_week_message,
+                                        uiState.streakCount,
+                                        uiState.streakCount,
+                                    )
                                 } else {
-                                    stringResource(R.string.home_streak_message, uiState.streakCount)
+                                    pluralStringResource(
+                                        R.plurals.home_streak_message,
+                                        uiState.streakCount,
+                                        uiState.streakCount,
+                                    )
                                 },
                             style = MaterialTheme.typography.bodyLarge,
                         )

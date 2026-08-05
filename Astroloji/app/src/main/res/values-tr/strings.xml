@@ -6,22 +6,13 @@
     <string name="greeting_afternoon">İyi günler</string>
     <string name="greeting_evening">İyi akşamlar</string>
     <string name="home_greeting_format">%1$s, %2$s</string>
-    <string name="home_cosmic_eyebrow">Bugünün gök günlüğü</string>
     <string name="home_premium_badge">Premium</string>
     <string name="home_brand">ASTROLOJİ</string>
-    <string name="home_daily_energy">Günlük Enerji</string>
     <string name="home_energy_label">Enerji</string>
-    <string name="home_energy_value">Enerji: %1$d</string>
     <string name="home_money_label">Para</string>
     <string name="home_health_label">Sağlık</string>
-    <string name="home_scores_value">Aşk: %1$d  Kariyer: %2$d</string>
-    <string name="home_lucky_value">Şanslı sayı: %1$d  Renk: %2$s</string>
     <string name="home_lucky_number_title">Şanslı Sayı</string>
     <string name="home_lucky_color_title">Şanslı Renk</string>
-    <string name="home_love_chip">Aşk %1$d</string>
-    <string name="home_career_chip">Kariyer %1$d</string>
-    <string name="home_lucky_number_chip">Şanslı #%1$d</string>
-    <string name="home_lucky_color_chip">Renk %1$s</string>
     <string name="home_today_commentary">Bugünün Yorumu</string>
     <string name="home_unlock_caption">Aşkı, parayı ve sağlığı kapsayan tam yorumu açarak bugünün rehberliğini derinleştir.</string>
     <string name="home_unlock_cta">Tam yorumu aç</string>
@@ -29,15 +20,23 @@
     <string name="home_view_details">Detayları gör</string>
     <string name="home_do_this_today">Bugün şunu yap</string>
     <string name="home_streak_title">Seri</string>
-    <string name="home_streak_message">%1$d gündür üst üste buradasın.</string>
-    <string name="home_streak_week_message">🔥 %1$d gün oldu. Yıldızlar seni ezberlemeye başladı.</string>
-    <string name="home_streak_month_message">⭐ %1$d gün. Artık bu tam bir kozmik ritüel.</string>
+    <plurals name="home_streak_message">
+        <item quantity="one">%1$d gündür üst üste buradasın.</item>
+        <item quantity="other">%1$d gündür üst üste buradasın.</item>
+    </plurals>
+    <plurals name="home_streak_week_message">
+        <item quantity="one">🔥 %1$d gün oldu. Yıldızlar seni ezberlemeye başladı.</item>
+        <item quantity="other">🔥 %1$d gün oldu. Yıldızlar seni ezberlemeye başladı.</item>
+    </plurals>
+    <plurals name="home_streak_month_message">
+        <item quantity="one">⭐ %1$d gün. Artık bu tam bir kozmik ritüel.</item>
+        <item quantity="other">⭐ %1$d gün. Artık bu tam bir kozmik ritüel.</item>
+    </plurals>
     <string name="home_weekly_summary">Haftalık Özet</string>
     <string name="home_weekly_button">Haftalık</string>
     <string name="home_monthly_button">Aylık</string>
     <string name="home_personality_button">Kişilik</string>
     <string name="home_favorite_signs">Favori Burçlar</string>
-    <string name="home_banner_placeholder">Banner reklam alanı</string>
     <string name="onboarding_continue">Devam</string>
     <string name="onboarding_start">Başla</string>
     <string name="onboarding_intro_title">Evren Seni Bekliyor</string>
@@ -59,7 +58,10 @@
     <string name="onboarding_notifications_title">Her sabah seni uyaralım</string>
     <string name="onboarding_notifications_body">Bildirim saatini seç. Sonradan ayarlardan değiştirebilirsin.</string>
     <string name="onboarding_save_hour">Saati kaydet</string>
-    <string name="streak_badge_format">%1$d günlük seri</string>
+    <plurals name="streak_badge_format">
+        <item quantity="one">%1$d günlük seri</item>
+        <item quantity="other">%1$d günlük seri</item>
+    </plurals>
     <string name="premium_title">Sınırsız Astroloji</string>
     <string name="premium_subtitle">Daha derin yorumlar, daha zengin uyum raporları ve reklamsız bir kozmik deneyim aç.</string>
     <string name="premium_feature_daily">Detaylı günlük analiz</string>
@@ -74,11 +76,9 @@
     <string name="premium_monthly_label">Aylık</string>
     <string name="premium_yearly_label">Yıllık</string>
     <string name="premium_most_popular">En Popüler</string>
-    <string name="premium_yearly_savings">Yıllık ödemeyle %%40 oranında tasarruf et</string>
     <string name="premium_yearly_savings_percent">Yıllık ödemeyle %1$d%% tasarruf et</string>
     <string name="premium_price_loading">Fiyat yükleniyor…</string>
     <string name="premium_trial_days">%1$d gün ücretsiz deneme</string>
-    <string name="premium_start_cta">Hemen Başla</string>
     <string name="premium_start_trial_cta">%1$d günlük ücretsiz denemeyi başlat</string>
     <string name="premium_continue_with_price">%1$s ile devam et</string>
     <string name="premium_continue_free">Ücretsiz planla devam et</string>
@@ -90,9 +90,7 @@
     <string name="premium_restore">Satın almaları geri yükle</string>
     <string name="premium_already_active">Premium zaten aktif</string>
     <string name="premium_expires_on">Yenileme veya bitiş tarihi: %1$s</string>
-    <string name="premium_manage_subscription">Aboneliği yönet</string>
     <string name="premium_manage_in_play_store">Play Store\'da yönet</string>
-    <string name="premium_grace_period_warning">Premium erişiminin kesilmemesi için ödeme sorununu çöz.</string>
     <string name="premium_success_title">Premium aktif</string>
     <string name="premium_success_body">Hesabın artık tam erişim modunda.</string>
     <string name="compatibility_title">Uyum Analizi</string>
@@ -147,7 +145,6 @@
     <string name="nav_premium">Premium</string>
     <string name="common_open_premium">Premium aç</string>
     <string name="onboarding_error_missing_sign">Doğum tarihini seçip burcunu belirlemen gerekiyor.</string>
-    <string name="onboarding_sign_required_error">Doğum tarihini seçip burcunu belirlemen gerekiyor.</string>
     <string name="session_error_open_failed_after_register">Kayıt tamamlandı ama oturum açılamadı.</string>
     <string name="notification_channel_daily_name">Günlük Burç Yorumu</string>
     <string name="notification_channel_daily_description">Günlük astroloji bildirimleri</string>
@@ -155,7 +152,6 @@
     <string name="widget_daily_body">Yıldızlar seninle hizalanıyor.</string>
     <string name="widget_daily_energy">Enerji: %1$d</string>
     <string name="daily_title">Günlük yorum</string>
-    <string name="daily_scores_line">Enerji %1$d | Aşk %2$d | Kariyer %3$d</string>
     <string name="daily_premium_locked">Detaylı yorum premium ile açılır.</string>
     <string name="daily_love_locked">Aşk yorumu premium</string>
     <string name="daily_career_locked">Kariyer yorumu premium</string>
@@ -186,10 +182,6 @@
     <string name="monthly_calendar_title">Takvim görünümü</string>
     <string name="favorites_add">Favorilere ekle</string>
     <string name="favorites_remove">Kaldır</string>
-    <string name="watch_ad_unlock">Bugünü açmak için reklam izle</string>
-    <string name="watch_ad_tarot">Tarot kartını açmak için reklam izle</string>
-    <string name="watch_ad_compatibility">Uyum detayını açmak için reklam izle</string>
-    <string name="ad_reward_claimed_today">Bu dönem için ücretsiz açma hakkını zaten kullandın.</string>
     <string name="reward_unlock_daily">Bugünü açmak için reklam izle</string>
     <string name="reward_unlock_weekly">Bu haftayı açmak için reklam izle</string>
     <string name="home_subscription_grace_period_warning">Aboneliğin ödemesiz döneminde. Premium erişimin kesilmemesi için ödeme yöntemini güncelle.</string>

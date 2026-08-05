@@ -1,5 +1,3 @@
-@file:Suppress("FunctionNaming")
-
 package com.parsfilo.astrology.feature.premium
 
 import androidx.compose.runtime.Composable
@@ -8,14 +6,14 @@ import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 
 @Composable
-internal fun PremiumCadenceLabel(plan: PremiumPlanUi): String =
+internal fun premiumCadenceLabel(plan: PremiumPlanUi): String =
     when (premiumBillingCadence(plan)) {
         PremiumBillingCadence.MONTHLY -> stringResource(R.string.premium_monthly_label)
         PremiumBillingCadence.YEARLY -> stringResource(R.string.premium_yearly_label)
     }
 
 @Composable
-internal fun PremiumPeriodLabel(plan: PremiumPlanUi): String =
+internal fun premiumPeriodLabel(plan: PremiumPlanUi): String =
     when (premiumBillingCadence(plan)) {
         PremiumBillingCadence.MONTHLY -> stringResource(R.string.premium_period_monthly)
         PremiumBillingCadence.YEARLY -> stringResource(R.string.premium_period_yearly)

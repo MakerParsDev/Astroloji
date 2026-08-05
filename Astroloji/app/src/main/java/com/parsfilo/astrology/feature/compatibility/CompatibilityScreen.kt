@@ -351,29 +351,30 @@ fun CompatibilityScreen(
                     }
                 }
 
+                val shareLink = compatibilityShareLandingUrl(uiState.mySign, uiState.selectedSign)
+                val shareText =
+                    shareLink?.let { link ->
+                        stringResource(
+                            R.string.compatibility_share_message,
+                            mySign.localizedName(appLanguage),
+                            selectedSign.localizedName(appLanguage),
+                            report.overallScore,
+                            link,
+                        )
+                    }
+                val shareChooserTitle = stringResource(R.string.compatibility_share_cta)
                 Button(
                     onClick = {
-                        val shareLink =
-                            compatibilityShareLandingUrl(uiState.mySign, uiState.selectedSign)
-                                ?: return@Button
+                        val resolvedShareText = shareText ?: return@Button
                         viewModel.onEvent(CompatibilityUiEvent.ShareClicked)
-                        val shareText =
-                            context.getString(
-                                R.string.compatibility_share_message,
-                                mySign.localizedName(appLanguage),
-                                selectedSign.localizedName(appLanguage),
-                                report.overallScore,
-                                shareLink,
-                            )
                         val intent =
                             Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                putExtra(Intent.EXTRA_TEXT, resolvedShareText)
                             }
-                        context.startActivity(
-                            Intent.createChooser(intent, context.getString(R.string.compatibility_share_cta)),
-                        )
+                        context.startActivity(Intent.createChooser(intent, shareChooserTitle))
                     },
+                    enabled = shareText != null,
                     modifier = Modifier.fillMaxWidth(),
                     colors =
                         ButtonDefaults.buttonColors(

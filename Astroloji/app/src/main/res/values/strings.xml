@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:locale="en">
     <string name="app_name">Astrology</string>
     <string name="notification_default_title">Daily Horoscope</string>
     <string name="notification_default_body">Your stars are ready for today.</string>
@@ -6,22 +6,13 @@
     <string name="greeting_afternoon">Good afternoon</string>
     <string name="greeting_evening">Good evening</string>
     <string name="home_greeting_format">%1$s, %2$s</string>
-    <string name="home_cosmic_eyebrow">Today\'s celestial mood</string>
     <string name="home_premium_badge">Premium</string>
     <string name="home_brand">ASTROLOJI</string>
-    <string name="home_daily_energy">Daily Energy</string>
     <string name="home_energy_label">Energy</string>
-    <string name="home_energy_value">Energy: %1$d</string>
     <string name="home_money_label">Money</string>
     <string name="home_health_label">Health</string>
-    <string name="home_scores_value">Love: %1$d  Career: %2$d</string>
-    <string name="home_lucky_value">Lucky number: %1$d  Color: %2$s</string>
     <string name="home_lucky_number_title">Lucky Number</string>
     <string name="home_lucky_color_title">Lucky Color</string>
-    <string name="home_love_chip">Love %1$d</string>
-    <string name="home_career_chip">Career %1$d</string>
-    <string name="home_lucky_number_chip">Lucky #%1$d</string>
-    <string name="home_lucky_color_chip">Color %1$s</string>
     <string name="home_today_commentary">Today’s Horoscope</string>
     <string name="home_unlock_caption">Unlock the full reading with love, money, and health guidance crafted for today.</string>
     <string name="home_unlock_cta">Unlock full reading</string>
@@ -29,15 +20,23 @@
     <string name="home_view_details">View details</string>
     <string name="home_do_this_today">Do this today</string>
     <string name="home_streak_title">Your streak</string>
-    <string name="home_streak_message">You have checked in for %1$d days in a row.</string>
-    <string name="home_streak_week_message">🔥 %1$d days strong. The stars are clearly getting used to you.</string>
-    <string name="home_streak_month_message">⭐ %1$d days. That is a full cosmic ritual now.</string>
+    <plurals name="home_streak_message">
+        <item quantity="one">You have checked in for %1$d day in a row.</item>
+        <item quantity="other">You have checked in for %1$d days in a row.</item>
+    </plurals>
+    <plurals name="home_streak_week_message">
+        <item quantity="one">🔥 %1$d day strong. The stars are clearly getting used to you.</item>
+        <item quantity="other">🔥 %1$d days strong. The stars are clearly getting used to you.</item>
+    </plurals>
+    <plurals name="home_streak_month_message">
+        <item quantity="one">⭐ %1$d day. That is a full cosmic ritual now.</item>
+        <item quantity="other">⭐ %1$d days. That is a full cosmic ritual now.</item>
+    </plurals>
     <string name="home_weekly_summary">Weekly Summary</string>
     <string name="home_weekly_button">Weekly</string>
     <string name="home_monthly_button">Monthly</string>
     <string name="home_personality_button">Personality</string>
     <string name="home_favorite_signs">Favorite Signs</string>
-    <string name="home_banner_placeholder">Banner ad area</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_start">Start</string>
     <string name="onboarding_intro_title">The Universe Awaits You</string>
@@ -59,7 +58,10 @@
     <string name="onboarding_notifications_title">Let us nudge you each morning</string>
     <string name="onboarding_notifications_body">Pick a notification hour. You can change it later in settings.</string>
     <string name="onboarding_save_hour">Save hour</string>
-    <string name="streak_badge_format">%1$d day streak</string>
+    <plurals name="streak_badge_format">
+        <item quantity="one">%1$d day streak</item>
+        <item quantity="other">%1$d day streak</item>
+    </plurals>
     <string name="premium_title">Unlimited Astrology</string>
     <string name="premium_subtitle">Unlock deeper guidance, richer compatibility readings, and an ad-free cosmic ritual.</string>
     <string name="premium_feature_daily">Detailed daily analysis</string>
@@ -74,11 +76,9 @@
     <string name="premium_monthly_label">Monthly</string>
     <string name="premium_yearly_label">Yearly</string>
     <string name="premium_most_popular">Most Popular</string>
-    <string name="premium_yearly_savings">Save up to 40%% with annual billing</string>
     <string name="premium_yearly_savings_percent">Save %1$d%% with annual billing</string>
     <string name="premium_price_loading">Loading price…</string>
     <string name="premium_trial_days">%1$d-day free trial</string>
-    <string name="premium_start_cta">Start now</string>
     <string name="premium_start_trial_cta">Start %1$d-day free trial</string>
     <string name="premium_continue_with_price">Continue with %1$s</string>
     <string name="premium_continue_free">Continue with the free plan</string>
@@ -90,9 +90,7 @@
     <string name="premium_restore">Restore purchases</string>
     <string name="premium_already_active">Premium is already active</string>
     <string name="premium_expires_on">Renews or expires on %1$s</string>
-    <string name="premium_manage_subscription">Manage subscription</string>
     <string name="premium_manage_in_play_store">Manage in Play Store</string>
-    <string name="premium_grace_period_warning">Resolve your billing issue to keep premium access uninterrupted.</string>
     <string name="premium_success_title">Premium is active</string>
     <string name="premium_success_body">Your account is now in full-access mode.</string>
     <string name="compatibility_title">Compatibility Reading</string>
@@ -147,7 +145,6 @@
     <string name="nav_premium">Premium</string>
     <string name="common_open_premium">Open premium</string>
     <string name="onboarding_error_missing_sign">Select your birth date to determine your sign.</string>
-    <string name="onboarding_sign_required_error">Select your birth date to determine your sign.</string>
     <string name="session_error_open_failed_after_register">Registration completed, but the session could not be opened.</string>
     <string name="notification_channel_daily_name">Daily Horoscope</string>
     <string name="notification_channel_daily_description">Daily astrology notifications</string>
@@ -155,7 +152,6 @@
     <string name="widget_daily_body">The stars are aligned with you.</string>
     <string name="widget_daily_energy">Energy: %1$d</string>
     <string name="daily_title">Daily reading</string>
-    <string name="daily_scores_line">Energy %1$d | Love %2$d | Career %3$d</string>
     <string name="daily_premium_locked">The detailed reading unlocks with premium.</string>
     <string name="daily_love_locked">Love reading is premium</string>
     <string name="daily_career_locked">Career reading is premium</string>
@@ -186,10 +182,6 @@
     <string name="monthly_calendar_title">Calendar view</string>
     <string name="favorites_add">Add to favorites</string>
     <string name="favorites_remove">Remove</string>
-    <string name="watch_ad_unlock">Watch an ad to unlock today</string>
-    <string name="watch_ad_tarot">Watch an ad to reveal the tarot card</string>
-    <string name="watch_ad_compatibility">Watch an ad to unlock compatibility details</string>
-    <string name="ad_reward_claimed_today">You already used your free unlock for this period.</string>
     <string name="reward_unlock_daily">Watch an ad to unlock today</string>
     <string name="reward_unlock_weekly">Watch an ad to unlock this week</string>
     <string name="home_subscription_grace_period_warning">Your subscription is in grace period. Update your payment method to keep premium access uninterrupted.</string>

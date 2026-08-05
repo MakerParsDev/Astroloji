@@ -120,7 +120,7 @@ internal fun PremiumOfferCard(
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
         ) {
-            Text(PremiumCtaLabel(uiState, selected, purchaseReady))
+            Text(premiumCtaLabel(uiState, selected, purchaseReady))
         }
         PremiumBillingDisclosure(uiState, selected, purchaseReady)
         OutlinedButton(
@@ -195,7 +195,7 @@ private fun PremiumPlanOption(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = PremiumCadenceLabel(plan),
+                text = premiumCadenceLabel(plan),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -267,7 +267,7 @@ private fun PremiumOfferSummary(
 }
 
 @Composable
-private fun PremiumCtaLabel(
+private fun premiumCtaLabel(
     uiState: PremiumUiState,
     selected: PremiumPlanUi,
     purchaseReady: Boolean,
@@ -289,7 +289,7 @@ private fun PremiumBillingDisclosure(
         if (!purchaseReady) {
             stringResource(R.string.premium_catalog_loading)
         } else {
-            PremiumBillingDisclosureText(uiState, selected)
+            premiumBillingDisclosureText(uiState, selected)
         }
     Text(
         text = text,
@@ -301,11 +301,11 @@ private fun PremiumBillingDisclosure(
 }
 
 @Composable
-private fun PremiumBillingDisclosureText(
+private fun premiumBillingDisclosureText(
     uiState: PremiumUiState,
     selected: PremiumPlanUi,
 ): String {
-    val period = PremiumPeriodLabel(selected)
+    val period = premiumPeriodLabel(selected)
     return if (selected.hasFreeTrial && uiState.trialDays > 0) {
         stringResource(
             R.string.premium_billing_disclosure_trial,

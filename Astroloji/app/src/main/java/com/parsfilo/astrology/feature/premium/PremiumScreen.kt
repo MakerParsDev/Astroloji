@@ -25,9 +25,9 @@ import com.parsfilo.astrology.core.util.openSubscriptionManagement
 
 @Composable
 fun PremiumScreen(
+    modifier: Modifier = Modifier,
     source: String = "nav",
     onContinueFree: () -> Unit = {},
-    modifier: Modifier = Modifier,
     viewModel: PremiumViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.state.collectAsStateWithLifecycle()
@@ -43,7 +43,7 @@ fun PremiumScreen(
         return
     }
 
-    val displayPlans = uiState.plans.ifEmpty { PlaceholderPremiumPlans() }
+    val displayPlans = uiState.plans.ifEmpty { placeholderPremiumPlans() }
     val selected = displayPlans.firstOrNull { it.planId == uiState.selectedPlanId } ?: displayPlans.first()
     val purchasablePlan = uiState.plans.firstOrNull { it.planId == uiState.selectedPlanId }
     val callbacks =

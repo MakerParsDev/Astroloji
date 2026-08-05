@@ -75,6 +75,8 @@ jobs:
         run: ./gradlew :app:detekt
       - name: ktlint
         run: ./gradlew :app:ktlintCheck
+      - name: Android Lint
+        run: ./gradlew :app:lintDebug
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
       - name: Assemble debug

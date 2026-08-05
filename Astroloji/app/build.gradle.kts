@@ -241,6 +241,12 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = true
+        warningsAsErrors = true
+    }
 }
 kotlin {
     compilerOptions {
@@ -276,8 +282,8 @@ tasks.matching { it.name == "uploadCrashlyticsMappingFileRelease" }.configureEac
     onlyIf { stringConfig("CRASHLYTICS_MAPPING_UPLOAD_ENABLED", "true").toBoolean() }
 }
 
-val prepareDebugGoogleServices by
-    tasks.registering {
+val prepareDebugGoogleServices =
+    tasks.register("prepareDebugGoogleServices") {
         description = "Copies the example google-services config for local debug/test verification."
         val sourceFile = layout.projectDirectory.file("google-services.example.json")
         val targetFile = layout.projectDirectory.file("google-services.json")

@@ -62,12 +62,13 @@ fun DailyScreen(
     val activity = context as? Activity
     val shareScope = rememberCoroutineScope()
     val rewardedAdManager = adsEntryPoint(context).rewardedAdManager()
+    val rewardedAdUnavailableMessage = stringResource(R.string.rewarded_ad_unavailable)
 
-    LaunchedEffect(viewModel, activity) {
+    LaunchedEffect(viewModel, activity, rewardedAdUnavailableMessage) {
         viewModel.effects.collect { effect ->
             when (effect) {
                 is DailyUiEffect.ShowRewardAd -> {
-                    val unavailableMessage = context.getString(R.string.rewarded_ad_unavailable)
+                    val unavailableMessage = rewardedAdUnavailableMessage
                     val hostActivity =
                         activity ?: run {
                             viewModel.onEvent(DailyUiEvent.RewardAdUnavailable(unavailableMessage))
@@ -123,42 +124,41 @@ fun DailyScreen(
                         eyebrow = TimeUtils.displayDate(horoscope.language),
                     )
 
-                    if (activity != null) {
+                    val shareLink = dailyShareLandingUrl(horoscope.sign)
+                    val signName =
+                        ZodiacSign
+                            .fromKey(horoscope.sign)
+                            .localizedName(horoscope.language)
+                    val shareMessage =
+                        shareLink?.let { link ->
+                            stringResource(
+                                R.string.daily_share_message,
+                                signName,
+                                horoscope.short,
+                                link,
+                            )
+                        }
+                    val shareChooserTitle = stringResource(R.string.daily_share_card)
+                    if (activity != null && shareMessage != null) {
                         OutlinedButton(
                             onClick = {
                                 viewModel.onEvent(DailyUiEvent.ShareClicked)
                                 shareScope.launch {
                                     runCatching {
-                                        val shareLink =
-                                            dailyShareLandingUrl(horoscope.sign)
-                                                ?: error("Unsupported zodiac sign for sharing.")
                                         val shareUri =
                                             withContext(Dispatchers.IO) {
                                                 HoroscopeCardRenderer.renderDailyCard(activity, horoscope)
                                             }
-                                        val signName =
-                                            ZodiacSign
-                                                .fromKey(horoscope.sign)
-                                                .localizedName(horoscope.language)
                                         val intent =
                                             ShareCompat
                                                 .IntentBuilder(activity)
                                                 .setType("image/png")
                                                 .setStream(shareUri)
-                                                .setText(
-                                                    activity.getString(
-                                                        R.string.daily_share_message,
-                                                        signName,
-                                                        horoscope.short,
-                                                        shareLink,
-                                                    ),
-                                                ).intent
+                                                .setText(shareMessage)
+                                                .intent
                                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         activity.startActivity(
-                                            Intent.createChooser(
-                                                intent,
-                                                activity.getString(R.string.daily_share_card),
-                                            ),
+                                            Intent.createChooser(intent, shareChooserTitle),
                                         )
                                     }.onFailure {
                                         Toast
@@ -168,7 +168,7 @@ fun DailyScreen(
                                 }
                             },
                         ) {
-                            Text(stringResource(R.string.daily_share_card))
+                            Text(shareChooserTitle)
                         }
                     }
 
