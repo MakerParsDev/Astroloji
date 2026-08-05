@@ -7,6 +7,14 @@ on:
         description: "Type PREFLIGHT to validate Android internal-release credentials without publishing."
         required: true
         type: string
+      version_code:
+        description: "Monotonic version code for the signed smoke-test APK."
+        required: true
+        type: string
+      version_name:
+        description: "Version name for the signed smoke-test APK."
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -156,8 +164,8 @@ jobs:
           DOPPLER_SECRETS_JSON_PATH: ${{ runner.temp }}/doppler-secrets.json
           PLAY_TRACK: internal
           PLAY_RELEASE_STATUS: COMPLETED
-          VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 1.0.${{ github.run_number }}-preflight
+          VERSION_CODE: ${{ inputs.version_code }}
+          VERSION_NAME: ${{ inputs.version_name }}
           CRASHLYTICS_MAPPING_UPLOAD_ENABLED: false
           REQUIRE_ANDROID_SIGNING: true
           REQUIRE_GOOGLE_SERVICES_JSON: true
@@ -221,8 +229,8 @@ jobs:
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
 
-      - name: Build signed release bundle without publishing
-        run: ./gradlew :app:bundleRelease
+      - name: Build signed release bundle and APK without publishing
+        run: ./gradlew :app:bundleRelease :app:assembleRelease
 
       - name: Verify bundle signature
         run: |
@@ -230,6 +238,23 @@ jobs:
           test -n "$bundle"
           jarsigner -verify "$bundle"
           echo "Signed AAB verified: $(basename "$bundle")"
+
+      - name: Verify APK signature
+        run: |
+          apk="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          apksigner="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner -print | sort -V | tail -n 1)"
+          test -n "$apk"
+          test -x "$apksigner"
+          "$apksigner" verify --verbose --print-certs "$apk"
+          echo "Signed APK verified: $(basename "$apk")"
+
+      - name: Upload signed APK for device smoke testing
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-signed-apk-${{ inputs.version_code }}
+          path: Astroloji/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Publish preflight summary
         run: |
@@ -245,6 +270,8 @@ jobs:
             echo '- Production AdMob IDs: passed'
             echo '- Keystore alias/password verification: passed'
             echo '- Signed release AAB build: passed'
+            echo '- Signed release APK build and verification: passed'
+            echo "- APK artifact: android-signed-apk-${{ inputs.version_code }} (retained for 1 day)"
             echo '- Google Play upload: not performed'
             echo "- Git SHA: ${{ github.sha }}"
           } >> "$GITHUB_STEP_SUMMARY"
