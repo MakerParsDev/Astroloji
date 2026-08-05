@@ -369,6 +369,10 @@ export interface TransitChartRequest {
   target_timestamp: string;
 }
 
+export interface PersonalGuidanceRequest extends TransitChartRequest {
+  language: Language;
+}
+
 export interface ContentBackfillRequest {
   seed_date?: string;
   daily_days: number;

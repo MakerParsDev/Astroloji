@@ -11,6 +11,7 @@ import {
   type Language,
   type NatalChartRequest,
   type NotificationRequest,
+  type PersonalGuidanceRequest,
   type RewardClaimRequest,
   type RewardPrepareRequest,
   type RewardType,
@@ -135,6 +136,10 @@ export const transitChartSchema = z.object({
   target_timestamp: utcTimestampSchema
 });
 
+export const personalGuidanceSchema = transitChartSchema.extend({
+  language: languageSchema
+});
+
 export const contentBackfillSchema = z.object({
   seed_date: optionalSeedDateSchema,
   daily_days: z.coerce.number().int().min(1).max(31).optional().default(14),
@@ -187,6 +192,10 @@ export function validateNatalChartBody(payload: unknown): NatalChartRequest {
 
 export function validateTransitChartBody(payload: unknown): TransitChartRequest {
   return transitChartSchema.parse(payload);
+}
+
+export function validatePersonalGuidanceBody(payload: unknown): PersonalGuidanceRequest {
+  return personalGuidanceSchema.parse(payload);
 }
 
 export function validateContentBackfillBody(payload: unknown): ContentBackfillRequest {

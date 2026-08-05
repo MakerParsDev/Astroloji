@@ -151,4 +151,54 @@ describe('chart routes', () => {
     expect(writeStatements).toBe(0);
   });
 
+
+  it('returns localized personal guidance without database writes', async () => {
+    let writeStatements = 0;
+    const env = createTestEnv({
+      DB: {
+        prepare(sql: string) {
+          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
+          const statement = {
+            bind() { return statement; },
+            async first() { return null; },
+            async all() { return { results: [] }; },
+            async run() { return { success: true, meta: {} }; }
+          };
+          return statement;
+        }
+      } as unknown as D1Database
+    });
+    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
+
+    const response = await createApp().request(
+      '/api/v1/chart/guidance',
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${jwt}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          natal_timestamp: '1990-01-15T12:00:00.000Z',
+          natal_time_certainty: 'unknown',
+          target_timestamp: '2026-08-05T00:00:00.000Z',
+          language: 'tr'
+        })
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      version: string;
+      language: string;
+      signals: Array<{ evidence: { natalBody: string } }>;
+    };
+    expect(body.version).toBe('personal-guidance-v1');
+    expect(body.language).toBe('tr');
+    expect(body.signals).toHaveLength(3);
+    expect(body.signals.every((signal) => typeof signal.evidence.natalBody === 'string')).toBe(true);
+    expect(writeStatements).toBe(0);
+  });
+
 });

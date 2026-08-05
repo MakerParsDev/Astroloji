@@ -1,9 +1,14 @@
 import { Hono } from 'hono';
 
 import { createNatalChart } from '@/chart-engine/natalChart';
+import { createPersonalGuidance } from '@/chart-engine/personalGuidance';
 import { createTransitSnapshot } from '@/chart-engine/transitSnapshot';
 import type { AppBindings } from '@/types';
-import { validateNatalChartBody, validateTransitChartBody } from '@/utils/validators';
+import {
+  validateNatalChartBody,
+  validatePersonalGuidanceBody,
+  validateTransitChartBody
+} from '@/utils/validators';
 
 export function registerChartRoutes(app: Hono<AppBindings>) {
   app.post('/chart/natal', async (context) => {
@@ -23,6 +28,18 @@ export function registerChartRoutes(app: Hono<AppBindings>) {
         natalTimestamp: request.natal_timestamp,
         natalTimeCertainty: request.natal_time_certainty,
         targetTimestamp: request.target_timestamp
+      })
+    );
+  });
+
+  app.post('/chart/guidance', async (context) => {
+    const request = validatePersonalGuidanceBody(await context.req.json());
+    return context.json(
+      createPersonalGuidance({
+        natalTimestamp: request.natal_timestamp,
+        natalTimeCertainty: request.natal_time_certainty,
+        targetTimestamp: request.target_timestamp,
+        language: request.language
       })
     );
   });
