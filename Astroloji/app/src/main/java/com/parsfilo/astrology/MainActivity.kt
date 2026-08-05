@@ -22,6 +22,7 @@ import com.parsfilo.astrology.core.ads.NativeAdvancedAdManager
 import com.parsfilo.astrology.core.ads.RewardedAdManager
 import com.parsfilo.astrology.core.ads.RewardedInterstitialAdManager
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.repository.RemoteConfigDefaults
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.navigation.AppDeepLink
 import com.parsfilo.astrology.navigation.AstrologyAppRoot
@@ -64,7 +65,8 @@ class MainActivity : AppCompatActivity() {
 
     private var skipNextAppOpen = true
     private var lastStoppedAtMs = 0L
-    private var appOpenMinBackgroundDurationMs = 15_000L
+    private var appOpenMinBackgroundDurationMs = RemoteConfigDefaults.APP_OPEN_MIN_BACKGROUND_MS
+    private var appOpenCount = 0
     private var pendingDeepLink by mutableStateOf<AppDeepLink?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -101,6 +103,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun launchStartupWork() {
         lifecycleScope.launch {
+            val preferences = preferencesRepository.current()
+            appOpenCount =
+                resolveNextAppOpenCount(
+                    onboardingCompleted = preferences.onboardingCompleted,
+                    persistedCount = preferences.appOpenCount,
+                )
+            if (appOpenCount > 0) {
+                preferencesRepository.incrementAppOpenCount()
+            }
             val flags = remoteConfigRepository.fetchFlags()
             appOpenMinBackgroundDurationMs = flags.appOpenMinBackgroundMs
             consentManager.gatherConsent(this@MainActivity)
@@ -124,6 +135,7 @@ class MainActivity : AppCompatActivity() {
                         skipNextAppOpen = skipNextAppOpen,
                         lastStoppedAtMs = lastStoppedAtMs,
                         nowMs = SystemClock.elapsedRealtime(),
+                        appOpenCount = appOpenCount,
                         minBackgroundDurationMs = appOpenMinBackgroundDurationMs,
                     ),
                 )
@@ -206,12 +218,17 @@ internal data class AdPreloadPlan(
 
 internal fun resolveAdPreloadPlan(policy: AdPreloadPolicy): AdPreloadPlan =
     AdPreloadPlan(
-        preloadAppOpen = true,
+        preloadAppOpen = !policy.isPremium,
         preloadInterstitial = !policy.isPremium,
-        preloadRewarded = policy.canShowRewarded,
+        preloadRewarded = !policy.isPremium && policy.canShowRewarded,
         preloadRewardedInterstitial = false,
         preloadNative = !policy.isPremium,
     )
+
+internal fun resolveNextAppOpenCount(
+    onboardingCompleted: Boolean,
+    persistedCount: Int,
+): Int = if (onboardingCompleted) persistedCount + 1 else 0
 
 internal data class AppOpenAdPolicy(
     val isDebug: Boolean,
@@ -221,7 +238,9 @@ internal data class AppOpenAdPolicy(
     val skipNextAppOpen: Boolean,
     val lastStoppedAtMs: Long,
     val nowMs: Long,
-    val minBackgroundDurationMs: Long = 15_000L,
+    val appOpenCount: Int,
+    val minBackgroundDurationMs: Long = RemoteConfigDefaults.APP_OPEN_MIN_BACKGROUND_MS,
+    val minimumAppOpenCount: Int = 4,
 )
 
 internal fun shouldShowAppOpenAd(
@@ -232,7 +251,8 @@ internal fun shouldShowAppOpenAd(
             policy.onboardingCompleted &&
             !policy.isPremium &&
             policy.canRequestAds &&
-            !policy.skipNextAppOpen
+            !policy.skipNextAppOpen &&
+            policy.appOpenCount >= policy.minimumAppOpenCount
     val hasValidBackgroundTimestamp =
         policy.lastStoppedAtMs > 0L &&
             policy.nowMs > policy.lastStoppedAtMs

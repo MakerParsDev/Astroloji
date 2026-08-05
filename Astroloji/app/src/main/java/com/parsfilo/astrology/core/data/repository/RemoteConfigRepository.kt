@@ -2,6 +2,7 @@ package com.parsfilo.astrology.core.data.repository
 
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
+import com.parsfilo.astrology.core.domain.model.RemoteFlagDefaults
 import com.parsfilo.astrology.core.domain.model.RemoteFlags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -9,6 +10,13 @@ import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
+
+object RemoteConfigDefaults {
+    const val INTERSTITIAL_FREQUENCY = RemoteFlagDefaults.INTERSTITIAL_FREQUENCY
+    const val INTERSTITIAL_DAILY_LIMIT = RemoteFlagDefaults.INTERSTITIAL_DAILY_LIMIT
+    const val INTERSTITIAL_COOLDOWN_MINUTES = RemoteFlagDefaults.INTERSTITIAL_COOLDOWN_MINUTES
+    const val APP_OPEN_MIN_BACKGROUND_MS = RemoteFlagDefaults.APP_OPEN_MIN_BACKGROUND_MS
+}
 
 object RemoteConfigKeys {
     const val SHOW_PREMIUM_BANNER = "show_premium_banner"
@@ -42,12 +50,14 @@ class RemoteConfigRepository
                         mapOf(
                             RemoteConfigKeys.SHOW_PREMIUM_BANNER to true,
                             RemoteConfigKeys.SHOW_BANNER_ADS to true,
-                            RemoteConfigKeys.INTERSTITIAL_FREQUENCY to 5L,
-                            RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT to 3L,
-                            RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES to 5L,
+                            RemoteConfigKeys.INTERSTITIAL_FREQUENCY to RemoteConfigDefaults.INTERSTITIAL_FREQUENCY,
+                            RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT to RemoteConfigDefaults.INTERSTITIAL_DAILY_LIMIT,
+                            RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES to
+                                RemoteConfigDefaults.INTERSTITIAL_COOLDOWN_MINUTES,
                             RemoteConfigKeys.PREMIUM_TRIAL_DAYS to 0L,
                             RemoteConfigKeys.REWARDED_DAILY_UNLOCK_LIMIT to 1L,
-                            RemoteConfigKeys.APP_OPEN_MIN_BACKGROUND_MS to 15_000L,
+                            RemoteConfigKeys.APP_OPEN_MIN_BACKGROUND_MS to
+                                RemoteConfigDefaults.APP_OPEN_MIN_BACKGROUND_MS,
                             RemoteConfigKeys.FORCE_UPDATE_VERSION to 0L,
                         ),
                     ).await()

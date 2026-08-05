@@ -84,14 +84,21 @@ data class SubscriptionStatus(
     val productId: String,
 )
 
+object RemoteFlagDefaults {
+    const val INTERSTITIAL_FREQUENCY = 5L
+    const val INTERSTITIAL_DAILY_LIMIT = 1L
+    const val INTERSTITIAL_COOLDOWN_MINUTES = 30L
+    const val APP_OPEN_MIN_BACKGROUND_MS = 14_400_000L
+}
+
 data class RemoteFlags(
     val showPremiumBanner: Boolean = true,
     val showBannerAds: Boolean = true,
-    val interstitialFrequency: Int = 5,
-    val interstitialDailyLimit: Int = 3,
-    val interstitialCooldownMinutes: Int = 5,
+    val interstitialFrequency: Int = RemoteFlagDefaults.INTERSTITIAL_FREQUENCY.toInt(),
+    val interstitialDailyLimit: Int = RemoteFlagDefaults.INTERSTITIAL_DAILY_LIMIT.toInt(),
+    val interstitialCooldownMinutes: Int = RemoteFlagDefaults.INTERSTITIAL_COOLDOWN_MINUTES.toInt(),
     val rewardedDailyUnlockLimit: Int = 1,
     val premiumTrialDays: Int = 0,
-    val appOpenMinBackgroundMs: Long = 15_000L,
+    val appOpenMinBackgroundMs: Long = RemoteFlagDefaults.APP_OPEN_MIN_BACKGROUND_MS,
     val forceUpdateVersion: Long = 0,
 )
