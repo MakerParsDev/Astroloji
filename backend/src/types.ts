@@ -214,6 +214,14 @@ export interface RewardChallengeRow {
   entitlement_expires_at: string | null;
 }
 
+export interface ContentDocumentMetadata {
+  content_version?: string;
+  generated_at?: string;
+  calculation_version?: string;
+  editorial_status?: string;
+  source_signals?: string[];
+}
+
 export interface DailySignContent {
   short: string;
   full: string;
@@ -231,7 +239,7 @@ export interface DailySignContent {
   daily_tip: string;
 }
 
-export interface DailyContentDocument {
+export interface DailyContentDocument extends ContentDocumentMetadata {
   date: string;
   language: Language;
   signs: Record<Sign, DailySignContent>;
@@ -246,7 +254,7 @@ export interface WeeklySignContent {
   warning: string;
 }
 
-export interface WeeklyContentDocument {
+export interface WeeklyContentDocument extends ContentDocumentMetadata {
   week: string;
   week_start: string;
   week_end: string;
@@ -263,7 +271,7 @@ export interface MonthlySignContent {
   warning: string;
 }
 
-export interface MonthlyContentDocument {
+export interface MonthlyContentDocument extends ContentDocumentMetadata {
   month: string;
   month_start: string;
   month_end: string;
@@ -271,7 +279,7 @@ export interface MonthlyContentDocument {
   signs: Record<Sign, MonthlySignContent>;
 }
 
-export interface CompatibilityContentDocument {
+export interface CompatibilityContentDocument extends ContentDocumentMetadata {
   sign1: Sign;
   sign2: Sign;
   language: Language;
@@ -286,7 +294,7 @@ export interface CompatibilityContentDocument {
   famous_couples: string[];
 }
 
-export interface PersonalityContentDocument {
+export interface PersonalityContentDocument extends ContentDocumentMetadata {
   sign: Sign;
   language: Language;
   title: string;

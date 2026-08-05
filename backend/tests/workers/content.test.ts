@@ -261,4 +261,47 @@ describe('content filters', () => {
     expect(uploads).not.toHaveLength(0);
     expect(puts).toHaveLength(uploads.length);
   });
+
+  it('fails before the first R2 write when generated content violates quality rules', async () => {
+    const puts: string[] = [];
+    const env = createTestEnv({
+      CONTENT: {
+        async head() {
+          return { size: 1 } as R2Object;
+        },
+        async get() {
+          return null;
+        },
+        async put(key: string) {
+          puts.push(key);
+        }
+      } as unknown as R2Bucket
+    });
+
+    await expect(
+      backfillContentDocuments(
+        env,
+        {
+          seed_date: '2026-04-10',
+          daily_days: 1,
+          skip_static_content: true
+        },
+        () => [
+          {
+            key: 'content/daily/en/2026-04-10.json',
+            payload: {
+              signs: Object.fromEntries(
+                Array.from({ length: 12 }, (_, index) => [
+                  `sign-${index}`,
+                  { short: 'Same generic sentence.' }
+                ])
+              )
+            }
+          }
+        ]
+      )
+    ).rejects.toThrow(/unique daily summaries/i);
+    expect(puts).toEqual([]);
+  });
+
 });

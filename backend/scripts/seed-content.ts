@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { buildDocumentsForSeed } from '@/utils/contentSeed';
+import { assertSeedQuality, buildDocumentsForSeed } from '@/utils/contentSeed';
 
 function readBucketName(): string {
   const wranglerToml = readFileSync(path.resolve('wrangler.toml'), 'utf8');
@@ -46,11 +46,14 @@ function main() {
     process.env.SEED_SKIP_STATIC_CONTENT?.toLowerCase() === 'true';
 
   try {
-    for (const item of buildDocumentsForSeed({
+    const uploads = buildDocumentsForSeed({
       seedDate: process.env.SEED_DATE,
       dailyDays,
       skipStaticContent
-    })) {
+    });
+    assertSeedQuality(uploads);
+
+    for (const item of uploads) {
       const safeName = item.key.replace(/[\\/]/g, '__');
       const filePath = path.join(tempDir, safeName);
       writeFileSync(filePath, JSON.stringify(item.payload, null, 2), 'utf8');
