@@ -20,6 +20,7 @@ import com.parsfilo.astrology.core.data.remote.VerifySubscriptionRequest
 import com.parsfilo.astrology.core.domain.model.SubscriptionStatus
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
+import com.parsfilo.astrology.core.util.BillingFailureReason
 import com.parsfilo.astrology.core.util.StringsProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -245,7 +246,12 @@ class BillingManager
                 }
                 BillingResponseCode.USER_CANCELED -> {
                     _purchaseState.value =
-                        AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_purchase_cancelled)))
+                        AppResult.Error(
+                            AppException.BillingException(
+                                message = stringsProvider.get(R.string.billing_purchase_cancelled),
+                                reason = BillingFailureReason.USER_CANCELLED,
+                            ),
+                        )
                 }
                 else -> {
                     _purchaseState.value =

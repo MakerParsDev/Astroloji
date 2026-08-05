@@ -10,7 +10,23 @@ import kotlinx.serialization.Serializable
 
 @Serializable object SettingsRoute
 
-@Serializable object PremiumRoute
+@Serializable
+enum class PaywallSource(
+    val analyticsValue: String,
+) {
+    NAV("nav"),
+    DAILY_LOCK("daily_lock"),
+    WEEKLY_LOCK("weekly_lock"),
+    MONTHLY_LOCK("monthly_lock"),
+    COMPATIBILITY_LOCK("compat_lock"),
+    PERSONALITY_LOCK("personality_lock"),
+    PROFILE_UPGRADE("profile_upgrade"),
+}
+
+@Serializable
+data class PremiumRoute(
+    val source: PaywallSource = PaywallSource.NAV,
+)
 
 @Serializable data class DailyDetailRoute(
     val sign: String,

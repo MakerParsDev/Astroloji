@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,14 +48,20 @@ import com.parsfilo.astrology.ui.theme.DarkBackground
 import com.parsfilo.astrology.ui.theme.DarkPrimary
 import com.parsfilo.astrology.ui.theme.DarkSecondary
 
+@Suppress("LongMethod", "CyclomaticComplexMethod", "FunctionNaming")
 @Composable
 fun PremiumScreen(
+    source: String = "nav",
     modifier: Modifier = Modifier,
     viewModel: PremiumViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity
+
+    LaunchedEffect(source) {
+        viewModel.onEvent(PremiumUiEvent.ScreenViewed(source = source))
+    }
 
     if (uiState.isLoading) {
         LoadingState()
