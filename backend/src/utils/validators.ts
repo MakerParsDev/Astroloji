@@ -18,6 +18,7 @@ import {
   type Sign,
   type SubscriptionVerifyRequest,
   type TrackEventRequest,
+  type TransitChartRequest,
   type UpdateUserRequest
 } from '@/types';
 
@@ -121,9 +122,17 @@ const utcTimestampSchema = z
     'timestamp must be an ISO 8601 UTC timestamp.'
   );
 
+const birthTimeCertaintySchema = z.enum(['exact', 'approximate', 'unknown']);
+
 export const natalChartSchema = z.object({
   timestamp: utcTimestampSchema,
-  time_certainty: z.enum(['exact', 'approximate', 'unknown'])
+  time_certainty: birthTimeCertaintySchema
+});
+
+export const transitChartSchema = z.object({
+  natal_timestamp: utcTimestampSchema,
+  natal_time_certainty: birthTimeCertaintySchema,
+  target_timestamp: utcTimestampSchema
 });
 
 export const contentBackfillSchema = z.object({
@@ -174,6 +183,10 @@ export function validateRewardClaimBody(payload: unknown): RewardClaimRequest {
 
 export function validateNatalChartBody(payload: unknown): NatalChartRequest {
   return natalChartSchema.parse(payload);
+}
+
+export function validateTransitChartBody(payload: unknown): TransitChartRequest {
+  return transitChartSchema.parse(payload);
 }
 
 export function validateContentBackfillBody(payload: unknown): ContentBackfillRequest {

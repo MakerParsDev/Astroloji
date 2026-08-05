@@ -363,6 +363,12 @@ export interface NatalChartRequest {
   time_certainty: BirthTimeCertainty;
 }
 
+export interface TransitChartRequest {
+  natal_timestamp: string;
+  natal_time_certainty: BirthTimeCertainty;
+  target_timestamp: string;
+}
+
 export interface ContentBackfillRequest {
   seed_date?: string;
   daily_days: number;

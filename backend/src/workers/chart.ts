@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
 
 import { createNatalChart } from '@/chart-engine/natalChart';
+import { createTransitSnapshot } from '@/chart-engine/transitSnapshot';
 import type { AppBindings } from '@/types';
-import { validateNatalChartBody } from '@/utils/validators';
+import { validateNatalChartBody, validateTransitChartBody } from '@/utils/validators';
 
 export function registerChartRoutes(app: Hono<AppBindings>) {
   app.post('/chart/natal', async (context) => {
@@ -11,6 +12,17 @@ export function registerChartRoutes(app: Hono<AppBindings>) {
       createNatalChart({
         timestamp: request.timestamp,
         timeCertainty: request.time_certainty
+      })
+    );
+  });
+
+  app.post('/chart/transits', async (context) => {
+    const request = validateTransitChartBody(await context.req.json());
+    return context.json(
+      createTransitSnapshot({
+        natalTimestamp: request.natal_timestamp,
+        natalTimeCertainty: request.natal_time_certainty,
+        targetTimestamp: request.target_timestamp
       })
     );
   });
