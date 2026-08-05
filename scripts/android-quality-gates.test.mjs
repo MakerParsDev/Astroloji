@@ -4,6 +4,18 @@ import test from 'node:test';
 
 const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const build = readFileSync(new URL('../Astroloji/app/build.gradle.kts', import.meta.url), 'utf8');
+const manifest = readFileSync(
+  new URL('../Astroloji/app/src/main/AndroidManifest.xml', import.meta.url),
+  'utf8',
+);
+const unitTestManifest = readFileSync(
+  new URL('../Astroloji/app/src/test/AndroidManifest.xml', import.meta.url),
+  'utf8',
+);
+const debugUnitTestManifest = readFileSync(
+  new URL('../Astroloji/app/src/testDebug/AndroidManifest.xml', import.meta.url),
+  'utf8',
+);
 const defaultStrings = readFileSync(
   new URL('../Astroloji/app/src/main/res/values/strings.xml', import.meta.url),
   'utf8',
@@ -30,4 +42,14 @@ test('default English locale is explicit without a partial values-en overlay', (
 test('cloud backup and device transfer exclude private application storage', () => {
   assert.match(extractionRules, /<cloud-backup>[\s\S]*?<exclude domain="sharedpref" path="\." \/>/);
   assert.match(extractionRules, /<device-transfer>[\s\S]*?<exclude domain="database" path="\." \/>/);
+});
+
+test('custom WorkManager initialization is removed cleanly from app and unit-test manifests', () => {
+  assert.match(
+    manifest,
+    /android:name="androidx\.work\.WorkManagerInitializer"[\s\S]*tools:node="remove"/,
+  );
+  assert.doesNotMatch(manifest, /tools:selector=/);
+  assert.match(unitTestManifest, /android:name="androidx\.work\.WorkManagerInitializer"/);
+  assert.match(debugUnitTestManifest, /android:name="androidx\.work\.WorkManagerInitializer"[\s\S]*tools:node="remove"/);
 });

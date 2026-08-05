@@ -25,3 +25,7 @@ ANDROID_KEYSTORE_PATH=
 ANDROID_KEYSTORE_PASSWORD=
 ANDROID_KEY_ALIAS=
 ANDROID_KEY_PASSWORD=
+
+# Enables the isolated Compose preview screenshot source set.
+android.experimental.enableScreenshotTest=true
+android.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE
