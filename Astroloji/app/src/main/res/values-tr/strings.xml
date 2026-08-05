@@ -111,7 +111,7 @@
     <string name="compatibility_unlock_cta">Tavsiyeleri aç</string>
     <string name="compatibility_famous_couples">Ünlü çiftler</string>
     <string name="compatibility_share_cta">Uyum kartını paylaş</string>
-    <string name="compatibility_share_message">%1$s ve %2$s, Astrology uygulamasında %% %3$d uyumlu görünüyor.</string>
+    <string name="compatibility_share_message">%1$s ve %2$s, Astrology uygulamasında %% %3$d uyumlu görünüyor. %4$s</string>
     <string name="settings_title">Profil</string>
     <string name="settings_change_sign">Değiştir</string>
     <string name="settings_sign_range">%1$s</string>
@@ -168,7 +168,8 @@
     <string name="daily_section_health">Sağlık</string>
     <string name="daily_section_tip">Günlük İpucu</string>
     <string name="daily_share_card">Bugünün kartını paylaş</string>
-    <string name="daily_share_message">%1$s diyor ki: %2$s</string>
+    <string name="daily_share_message">%1$s diyor ki: %2$s
+%3$s</string>
     <string name="daily_share_error">Paylaşım kartı oluşturulamadı.</string>
     <string name="weekly_tab_overview">Genel</string>
     <string name="weekly_tab_love">Aşk</string>

@@ -34,6 +34,8 @@ sealed interface CompatibilityUiEvent {
     data object Load : CompatibilityUiEvent
 
     data object ToggleFavorite : CompatibilityUiEvent
+
+    data object ShareClicked : CompatibilityUiEvent
 }
 
 @HiltViewModel
@@ -63,54 +65,75 @@ class CompatibilityViewModel
 
         override fun onEvent(event: CompatibilityUiEvent) {
             when (event) {
-                is CompatibilityUiEvent.SelectSign -> {
-                    setState { copy(selectedSign = event.sign) }
-                    onEvent(CompatibilityUiEvent.Load)
-                }
-                CompatibilityUiEvent.ToggleFavorite -> {
-                    viewModelScope.launch {
-                        favoritesRepository.toggle(state.value.selectedSign)
-                        val favorites = favoritesRepository.getFavorites().toSet()
-                        setState { copy(favorites = favorites) }
-                    }
-                }
-                CompatibilityUiEvent.Load -> {
-                    viewModelScope.launch {
-                        val prefs = preferencesRepository.current()
-                        val flags = remoteConfigRepository.fetchFlags()
-                        val canShowBannerAd = flags.showBannerAds && adEligibilityChecker.canShowBannerAds()
-                        setState { copy(isLoading = true, error = null) }
-                        analyticsRepository.track(
-                            AnalyticsEvents.COMPAT_CHECKED,
-                            mapOf("sign1" to state.value.mySign, "sign2" to state.value.selectedSign),
+                is CompatibilityUiEvent.SelectSign -> selectSign(event.sign)
+                CompatibilityUiEvent.ToggleFavorite -> toggleFavorite()
+                CompatibilityUiEvent.ShareClicked -> trackShareClicked()
+                CompatibilityUiEvent.Load -> loadCompatibility()
+            }
+        }
+
+        private fun selectSign(sign: String) {
+            setState { copy(selectedSign = sign) }
+            loadCompatibility()
+        }
+
+        private fun toggleFavorite() {
+            viewModelScope.launch {
+                favoritesRepository.toggle(state.value.selectedSign)
+                val favorites = favoritesRepository.getFavorites().toSet()
+                setState { copy(favorites = favorites) }
+            }
+        }
+
+        private fun trackShareClicked() {
+            viewModelScope.launch {
+                analyticsRepository.track(
+                    AnalyticsEvents.SHARE_CLICKED,
+                    mapOf(
+                        "source" to "compatibility",
+                        "sign1" to state.value.mySign,
+                        "sign2" to state.value.selectedSign,
+                        "format" to "text_link",
+                    ),
+                )
+            }
+        }
+
+        private fun loadCompatibility() {
+            viewModelScope.launch {
+                val prefs = preferencesRepository.current()
+                val flags = remoteConfigRepository.fetchFlags()
+                val canShowBannerAd = flags.showBannerAds && adEligibilityChecker.canShowBannerAds()
+                setState { copy(isLoading = true, error = null) }
+                analyticsRepository.track(
+                    AnalyticsEvents.COMPAT_CHECKED,
+                    mapOf("sign1" to state.value.mySign, "sign2" to state.value.selectedSign),
+                )
+                when (
+                    val result =
+                        contentRepository.getCompatibility(
+                            state.value.mySign,
+                            state.value.selectedSign,
+                            prefs.language,
                         )
-                        when (
-                            val result =
-                                contentRepository.getCompatibility(
-                                    state.value.mySign,
-                                    state.value.selectedSign,
-                                    prefs.language,
-                                )
-                        ) {
-                            is AppResult.Success ->
-                                setState {
-                                    copy(
-                                        isLoading = false,
-                                        report = result.data,
-                                        showBannerAd = canShowBannerAd,
-                                    )
-                                }
-                            is AppResult.Error ->
-                                setState {
-                                    copy(
-                                        isLoading = false,
-                                        showBannerAd = canShowBannerAd,
-                                        error = result.exception.message,
-                                    )
-                                }
-                            AppResult.Loading -> Unit
+                ) {
+                    is AppResult.Success ->
+                        setState {
+                            copy(
+                                isLoading = false,
+                                report = result.data,
+                                showBannerAd = canShowBannerAd,
+                            )
                         }
-                    }
+                    is AppResult.Error ->
+                        setState {
+                            copy(
+                                isLoading = false,
+                                showBannerAd = canShowBannerAd,
+                                error = result.exception.message,
+                            )
+                        }
+                    AppResult.Loading -> Unit
                 }
             }
         }

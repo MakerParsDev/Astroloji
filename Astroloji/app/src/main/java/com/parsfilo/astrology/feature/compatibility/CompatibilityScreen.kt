@@ -48,6 +48,7 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
+import com.parsfilo.astrology.navigation.compatibilityShareLandingUrl
 
 @Composable
 fun CompatibilityScreen(
@@ -352,12 +353,17 @@ fun CompatibilityScreen(
 
                 Button(
                     onClick = {
+                        val shareLink =
+                            compatibilityShareLandingUrl(uiState.mySign, uiState.selectedSign)
+                                ?: return@Button
+                        viewModel.onEvent(CompatibilityUiEvent.ShareClicked)
                         val shareText =
                             context.getString(
                                 R.string.compatibility_share_message,
                                 mySign.localizedName(appLanguage),
                                 selectedSign.localizedName(appLanguage),
                                 report.overallScore,
+                                shareLink,
                             )
                         val intent =
                             Intent(Intent.ACTION_SEND).apply {

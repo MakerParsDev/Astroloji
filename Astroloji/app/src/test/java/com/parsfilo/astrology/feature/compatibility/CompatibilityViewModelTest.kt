@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.ads.AdEligibilityChecker
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.ContentRepository
 import com.parsfilo.astrology.core.data.repository.FavoritesRepository
@@ -96,5 +97,60 @@ class CompatibilityViewModelTest {
 
             coVerify { favoritesRepository.toggle("leo") }
             assertThat(viewModel.state.value.favorites).containsExactly("leo")
+        }
+
+    @Test
+    fun `compatibility share click emits pair analytics without claiming completion`() =
+        runTest {
+            val preferences = UserPreferences(selectedSign = "aries", language = "en", userId = "user")
+            val report =
+                CompatibilityReport(
+                    sign1 = "aries",
+                    sign2 = "leo",
+                    language = "en",
+                    overallScore = 78,
+                    loveScore = null,
+                    friendshipScore = null,
+                    workScore = null,
+                    summary = "A balanced pair.",
+                    strengths = emptyList(),
+                    challenges = emptyList(),
+                    advice = null,
+                    famousCouples = emptyList(),
+                )
+            coEvery { preferencesRepository.current() } returns preferences
+            coEvery { contentRepository.getCompatibility(any(), any(), any()) } returns AppResult.Success(report)
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { favoritesRepository.getFavorites() } returns emptyList()
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            val viewModel =
+                CompatibilityViewModel(
+                    preferencesRepository = preferencesRepository,
+                    contentRepository = contentRepository,
+                    analyticsRepository = analyticsRepository,
+                    favoritesRepository = favoritesRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            viewModel.onEvent(CompatibilityUiEvent.ShareClicked)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                analyticsRepository.track(
+                    AnalyticsEvents.SHARE_CLICKED,
+                    mapOf(
+                        "source" to "compatibility",
+                        "sign1" to "aries",
+                        "sign2" to "leo",
+                        "format" to "text_link",
+                    ),
+                )
+            }
+            coVerify(exactly = 0) {
+                analyticsRepository.track(AnalyticsEvents.SHARE_COMPLETED, any())
+            }
         }
 }

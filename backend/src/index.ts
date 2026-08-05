@@ -8,6 +8,7 @@ import {
 } from '@/middleware/auth';
 import { corsMiddleware } from '@/middleware/cors';
 import { renderAccountDeletion, renderPrivacyPolicy, renderTermsOfUse } from '@/pages/legal';
+import { parseShareSign, renderCompatibilityShare, renderDailyShare } from '@/pages/share';
 import { enforceRateLimit } from '@/services/cache';
 import type { AppBindings } from '@/types';
 import type { RewardRouteDependencies } from '@/workers/reward';
@@ -60,7 +61,7 @@ export function createApp(options: CreateAppOptions = {}) {
     return jsonError(500, 'INTERNAL_ERROR', 'An unexpected server error occurred.');
   });
 
-  const renderLegalPage = (html: string) => {
+  const renderHtmlPage = (html: string) => {
     const headers = new Headers({
       'cache-control': 'public, max-age=3600',
       'content-security-policy':
@@ -72,9 +73,23 @@ export function createApp(options: CreateAppOptions = {}) {
     return new Response(html, { status: 200, headers });
   };
 
-  app.get('/privacy', () => renderLegalPage(renderPrivacyPolicy()));
-  app.get('/terms', () => renderLegalPage(renderTermsOfUse()));
-  app.get('/delete-account', () => renderLegalPage(renderAccountDeletion()));
+  app.get('/privacy', () => renderHtmlPage(renderPrivacyPolicy()));
+  app.get('/terms', () => renderHtmlPage(renderTermsOfUse()));
+  app.get('/delete-account', () => renderHtmlPage(renderAccountDeletion()));
+  app.get('/share/daily/:sign', (context) => {
+    const sign = parseShareSign(context.req.param('sign'));
+    return sign ? renderHtmlPage(renderDailyShare(sign)) : context.notFound();
+  });
+  app.get('/share/compat/:first/:second', (context) => {
+    const first = parseShareSign(context.req.param('first'));
+    const second = parseShareSign(context.req.param('second'));
+    if (!first || !second) return context.notFound();
+    const canonical = [first, second].sort();
+    if (first !== canonical[0] || second !== canonical[1]) {
+      return context.redirect(`/share/compat/${canonical[0]}/${canonical[1]}`, 308);
+    }
+    return renderHtmlPage(renderCompatibilityShare(first, second));
+  });
 
   app.get('/api/v1/health', async (c) => {
     await c.env.DB.prepare('SELECT 1 AS ok').first();

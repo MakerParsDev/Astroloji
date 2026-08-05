@@ -1,7 +1,6 @@
 package com.parsfilo.astrology
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.activity.compose.setContent
@@ -24,8 +23,10 @@ import com.parsfilo.astrology.core.ads.RewardedInterstitialAdManager
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.RemoteConfigDefaults
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
+import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.navigation.AppDeepLink
 import com.parsfilo.astrology.navigation.AstrologyAppRoot
+import com.parsfilo.astrology.navigation.parseAppDeepLink
 import com.parsfilo.astrology.ui.theme.AstrolojiTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -183,24 +184,17 @@ class MainActivity : AppCompatActivity() {
 private fun Intent?.toAppDeepLink(): AppDeepLink? {
     val intent = this ?: return null
     val typeFromExtras = intent.getStringExtra("deeplink_type")
-    val signFromExtras = intent.getStringExtra("deeplink_sign")
-    if (!typeFromExtras.isNullOrBlank()) {
-        return AppDeepLink(type = typeFromExtras, sign = signFromExtras)
+    val signFromExtras =
+        intent
+            .getStringExtra("deeplink_sign")
+            ?.trim()
+            ?.lowercase()
+            ?.let(ZodiacSign::fromKeyOrNull)
+            ?.key
+    if (typeFromExtras == "daily" && signFromExtras != null) {
+        return AppDeepLink(type = "daily", sign = signFromExtras)
     }
-
-    val data: Uri = intent.data ?: return null
-    if (data.scheme != "astrology") {
-        return null
-    }
-    val pathSegments = data.pathSegments
-    val type = data.host ?: pathSegments.firstOrNull() ?: return null
-    val sign =
-        when {
-            pathSegments.size >= 2 -> pathSegments[1]
-            pathSegments.size == 1 && data.host != null -> pathSegments[0]
-            else -> null
-        }
-    return AppDeepLink(type = type, sign = sign)
+    return parseAppDeepLink(intent.data)
 }
 
 internal data class AdPreloadPolicy(

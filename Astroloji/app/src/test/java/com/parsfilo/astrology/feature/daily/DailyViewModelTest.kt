@@ -370,6 +370,38 @@ class DailyViewModelTest {
             coVerify(exactly = 0) { preferencesRepository.updateDailyFeedback(any(), any()) }
         }
 
+    @Test
+    fun `daily share click emits bounded analytics before the chooser`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(selectedSign = "aries", language = "tr", userId = "user-1")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(DailyUiEvent.ShareClicked)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                analyticsRepository.track(
+                    AnalyticsEvents.SHARE_CLICKED,
+                    mapOf(
+                        "source" to "daily",
+                        "sign" to "aries",
+                        "format" to "image_link",
+                    ),
+                )
+            }
+            coVerify(exactly = 0) {
+                analyticsRepository.track(AnalyticsEvents.SHARE_COMPLETED, any())
+            }
+        }
+
     private fun createViewModel(): DailyViewModel =
         DailyViewModel(
             savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),

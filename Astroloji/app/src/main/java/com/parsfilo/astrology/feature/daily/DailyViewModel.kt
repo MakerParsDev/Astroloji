@@ -56,6 +56,8 @@ sealed interface DailyUiEvent {
     data class SubmitFeedback(
         val feedback: DailyFeedback,
     ) : DailyUiEvent
+
+    data object ShareClicked : DailyUiEvent
 }
 
 sealed interface DailyUiEffect {
@@ -85,34 +87,53 @@ class DailyViewModel
 
         override fun onEvent(event: DailyUiEvent) {
             when (event) {
-                DailyUiEvent.Refresh -> {
-                    viewModelScope.launch {
-                        load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
-                    }
-                }
-                DailyUiEvent.UnlockWithReward -> {
-                    viewModelScope.launch {
-                        val identifier = TimeUtils.dateIdentifier()
-                        when (val prepareResult = contentRepository.prepareRewardUnlock("daily", identifier)) {
-                            is AppResult.Success -> sendEffect { DailyUiEffect.ShowRewardAd(prepareResult.data) }
-                            is AppResult.Error -> setState { copy(error = prepareResult.exception.message) }
-                            AppResult.Loading -> Unit
-                        }
-                    }
-                }
-                is DailyUiEvent.RewardAdUnavailable -> {
-                    setState { copy(error = event.message) }
-                }
-                is DailyUiEvent.RewardEarned -> {
-                    viewModelScope.launch {
-                        when (val claimResult = contentRepository.claimRewardUnlock(event.challengeId)) {
-                            is AppResult.Success -> load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
-                            is AppResult.Error -> setState { copy(error = claimResult.exception.message) }
-                            AppResult.Loading -> Unit
-                        }
-                    }
-                }
+                DailyUiEvent.Refresh -> refresh()
+                DailyUiEvent.UnlockWithReward -> prepareRewardUnlock()
+                is DailyUiEvent.RewardAdUnavailable -> setState { copy(error = event.message) }
+                is DailyUiEvent.RewardEarned -> claimRewardUnlock(event.challengeId)
                 is DailyUiEvent.SubmitFeedback -> submitFeedback(event.feedback)
+                DailyUiEvent.ShareClicked -> trackShareClicked()
+            }
+        }
+
+        private fun refresh() {
+            viewModelScope.launch {
+                load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
+            }
+        }
+
+        private fun prepareRewardUnlock() {
+            viewModelScope.launch {
+                val identifier = TimeUtils.dateIdentifier()
+                when (val result = contentRepository.prepareRewardUnlock("daily", identifier)) {
+                    is AppResult.Success -> sendEffect { DailyUiEffect.ShowRewardAd(result.data) }
+                    is AppResult.Error -> setState { copy(error = result.exception.message) }
+                    AppResult.Loading -> Unit
+                }
+            }
+        }
+
+        private fun claimRewardUnlock(challengeId: String) {
+            viewModelScope.launch {
+                when (val result = contentRepository.claimRewardUnlock(challengeId)) {
+                    is AppResult.Success -> load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
+                    is AppResult.Error -> setState { copy(error = result.exception.message) }
+                    AppResult.Loading -> Unit
+                }
+            }
+        }
+
+        private fun trackShareClicked() {
+            val sign = state.value.horoscope?.sign ?: signFromArgs ?: return
+            viewModelScope.launch {
+                analyticsRepository.track(
+                    AnalyticsEvents.SHARE_CLICKED,
+                    mapOf(
+                        "source" to "daily",
+                        "sign" to sign,
+                        "format" to "image_link",
+                    ),
+                )
             }
         }
 

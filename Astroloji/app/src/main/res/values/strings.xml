@@ -111,7 +111,7 @@
     <string name="compatibility_unlock_cta">Unlock advice</string>
     <string name="compatibility_famous_couples">Famous couples</string>
     <string name="compatibility_share_cta">Share compatibility card</string>
-    <string name="compatibility_share_message">%1$s and %2$s are %3$d%% compatible on Astrology.</string>
+    <string name="compatibility_share_message">%1$s and %2$s are %3$d%% compatible on Astrology. %4$s</string>
     <string name="settings_title">Profile</string>
     <string name="settings_change_sign">Change</string>
     <string name="settings_sign_range">%1$s</string>
@@ -168,7 +168,8 @@
     <string name="daily_section_health">Health</string>
     <string name="daily_section_tip">Daily Tip</string>
     <string name="daily_share_card">Share today\'s card</string>
-    <string name="daily_share_message">%1$s says: %2$s</string>
+    <string name="daily_share_message">%1$s says: %2$s
+%3$s</string>
     <string name="daily_share_error">The share card could not be created.</string>
     <string name="weekly_tab_overview">Overview</string>
     <string name="weekly_tab_love">Love</string>

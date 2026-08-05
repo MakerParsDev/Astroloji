@@ -45,6 +45,7 @@ import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.HoroscopeCardRenderer
 import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
+import com.parsfilo.astrology.navigation.dailyShareLandingUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -125,8 +126,12 @@ fun DailyScreen(
                     if (activity != null) {
                         OutlinedButton(
                             onClick = {
+                                viewModel.onEvent(DailyUiEvent.ShareClicked)
                                 shareScope.launch {
                                     runCatching {
+                                        val shareLink =
+                                            dailyShareLandingUrl(horoscope.sign)
+                                                ?: error("Unsupported zodiac sign for sharing.")
                                         val shareUri =
                                             withContext(Dispatchers.IO) {
                                                 HoroscopeCardRenderer.renderDailyCard(activity, horoscope)
@@ -145,6 +150,7 @@ fun DailyScreen(
                                                         R.string.daily_share_message,
                                                         signName,
                                                         horoscope.short,
+                                                        shareLink,
                                                     ),
                                                 ).intent
                                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

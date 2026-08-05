@@ -12,7 +12,8 @@
     <string name="daily_section_health">Health</string>
     <string name="daily_section_tip">Daily Tip</string>
     <string name="daily_share_card">Share today\'s card</string>
-    <string name="daily_share_message">%1$s says: %2$s</string>
+    <string name="daily_share_message">%1$s says: %2$s
+%3$s</string>
     <string name="daily_share_error">The share card could not be created.</string>
     <string name="watch_ad_unlock">Watch an ad to unlock today</string>
     <string name="watch_ad_tarot">Watch an ad to reveal the tarot card</string>
