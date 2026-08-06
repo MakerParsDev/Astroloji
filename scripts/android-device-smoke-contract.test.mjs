@@ -86,6 +86,10 @@ test('live smoke emits structured instrumentation evidence without relying on st
   assert.match(liveTest, /sendStatus\(/);
   assert.match(liveTest, /device_smoke_stage/);
   assert.match(liveTest, /device_smoke_result/);
+  assert.match(liveTest, /recoverCleanupJwt/);
+  assert.match(liveTest, /user\.delete\(\)\.await\(\)/);
+  assert.match(liveTest, /cleanupFailure/);
+  assert.doesNotMatch(liveTest, /runCatching \{ client\.delete\(jwt\) \} \}/);
   assert.doesNotMatch(liveTest, /println\(/);
   assert.match(script, /SMOKE_TEST_CLASS=/);
   assert.match(script, /-e class "\$SMOKE_TEST_CLASS"/);
