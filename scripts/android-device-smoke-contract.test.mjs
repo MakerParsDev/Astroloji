@@ -17,12 +17,28 @@ test('device smoke runner is exact-targeted and preserves the owner app', () => 
   assert.match(script, /owner_version_before/);
   assert.match(script, /owner_version_after/);
   assert.match(script, /aapt2 dump resources/);
+  for (const resource of ['google_api_key', 'google_app_id', 'project_id', 'gcm_defaultSenderId']) {
+    assert.match(script, new RegExp(`extract_resource \"${resource}\"`));
+  }
   assert.match(script, /firebaseApiKey/);
+  assert.match(script, /firebaseAppId/);
+  assert.match(script, /firebaseProjectId/);
+  assert.match(script, /firebaseSenderId/);
+  assert.match(script, /instrumentation_log/);
+  assert.match(script, /chmod 600 \"\$instrumentation_log\"/);
+  assert.match(script, /owner_cert_before/);
+  assert.match(script, /owner_cert_after/);
+  assert.match(script, /adb -s \"\$SERIAL\" install -r \"\$smoke_apk\"/);
+  assert.match(script, /adb -s \"\$SERIAL\" install -r \"\$smoke_test_apk\"/);
+  assert.match(script, /\$SMOKE_TEST_PACKAGE\/androidx\.test\.runner\.AndroidJUnitRunner/);
+  assert.match(script, /DEVICE_SMOKE_PASS/);
+  assert.match(script, /DEVICE_SMOKE_FAIL/);
 
   assert.doesNotMatch(script, /pm clear\s+com\.parsfilo\.astrology/);
   assert.doesNotMatch(script, /pm uninstall\s+com\.parsfilo\.astrology(?:\s|$)/);
   assert.doesNotMatch(script, /run-as\s+com\.parsfilo\.astrology/);
   assert.doesNotMatch(script, /\/data\/user\/0\/com\.parsfilo\.astrology/);
+  assert.doesNotMatch(script, /install[^\n]*\$OWNER_PACKAGE/);
 });
 
 test('device smoke module is isolated and compile-only', () => {
