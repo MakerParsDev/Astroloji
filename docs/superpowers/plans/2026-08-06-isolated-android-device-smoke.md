@@ -1,6 +1,6 @@
 # Isolated Android Device Smoke Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add and execute a repeatable physical-device smoke test that validates anonymous Firebase authentication, a real Firebase installation ID, production backend registration and JWT refresh, profile authorization, and complete temporary-account deletion without modifying the installed production app or its owner data.
 
@@ -30,7 +30,7 @@
 - Consumes: exact ADB serial as argument 1; optional repository root derived from script location.
 - Produces: exit code `0` only after a passing instrumentation run and owner-package preservation check.
 
-- [ ] **Step 1: Write the failing contract test**
+- [x] **Step 1: Write the failing contract test**
 
 Create a Node test that reads `scripts/run-android-device-smoke.sh` and requires these literal safety properties:
 
@@ -50,7 +50,7 @@ assert.match(script, /owner_version_before/);
 assert.match(script, /owner_version_after/);
 ```
 
-- [ ] **Step 2: Run the test and verify RED**
+- [x] **Step 2: Run the test and verify RED**
 
 Run:
 
@@ -60,15 +60,15 @@ node --test scripts/android-device-smoke-contract.test.mjs
 
 Expected: FAIL because `scripts/run-android-device-smoke.sh` does not exist.
 
-- [ ] **Step 3: Add the minimal runner skeleton**
+- [x] **Step 3: Add the minimal runner skeleton**
 
 Create an executable shell script with strict mode, exact serial validation, constants for the owner and smoke packages, a mode-700 temporary directory, a cleanup trap that uninstalls only the two smoke packages, and owner version snapshots. Do not build or run instrumentation yet.
 
-- [ ] **Step 4: Run the contract test and verify GREEN**
+- [x] **Step 4: Run the contract test and verify GREEN**
 
 Run the Node test and `shellcheck` when available. Expected: PASS with no shell syntax errors.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/android-device-smoke-contract.test.mjs scripts/run-android-device-smoke.sh
@@ -88,19 +88,19 @@ git commit -m "test(android): lock device smoke safety contract"
 - Consumes: Firebase and network versions from the version catalog.
 - Produces: packages `com.parsfilo.astrology.devicesmoke` and `com.parsfilo.astrology.devicesmoke.test`.
 
-- [ ] **Step 1: Extend the contract test with module requirements**
+- [x] **Step 1: Extend the contract test with module requirements**
 
 Require `include(":device-smoke")`, application ID `com.parsfilo.astrology.devicesmoke`, `minSdk = 24`, `targetSdk = 37`, AndroidJUnitRunner, and direct `firebase-installations` dependency.
 
-- [ ] **Step 2: Run the contract test and verify RED**
+- [x] **Step 2: Run the contract test and verify RED**
 
 Expected: FAIL because the module is absent.
 
-- [ ] **Step 3: Add the minimal module**
+- [x] **Step 3: Add the minimal module**
 
 Use `com.android.application` and `org.jetbrains.kotlin.plugin.serialization`. Configure namespace/application ID, SDK levels, Java/Kotlin 21, no release signing, `android:allowBackup="false"`, and no launcher activity. Add implementation dependencies for Firebase Auth, Firebase Installations, OkHttp, Kotlin serialization JSON, and coroutines Play Services. Add androidTest dependencies for AndroidX JUnit, runner, rules, and Truth.
 
-- [ ] **Step 4: Compile the module**
+- [x] **Step 4: Compile the module**
 
 Run:
 
@@ -111,7 +111,7 @@ cd Astroloji
 
 Expected: both APKs are produced.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Astroloji/settings.gradle.kts Astroloji/gradle/libs.versions.toml Astroloji/device-smoke
@@ -134,23 +134,23 @@ git commit -m "test(android): add isolated device smoke module"
 - `BackendSmokeClient.delete(jwt: String): DeleteSnapshot`
 - `BackendSmokeClient.profileStatus(jwt: String): Int`
 
-- [ ] **Step 1: Write failing argument validation tests**
+- [x] **Step 1: Write failing argument validation tests**
 
 Test that missing values, oversized values, non-HTTPS backend URLs, and non-production backend hosts are rejected. Test that valid bounded maps are accepted without exposing their values in `toString()`.
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run `./gradlew :device-smoke:testDebugUnitTest` and confirm unresolved `SmokeArguments` symbols.
 
-- [ ] **Step 3: Implement minimal argument validation**
+- [x] **Step 3: Implement minimal argument validation**
 
 Require non-blank map values with maximum lengths: API key 128, app ID 128, project ID 128, sender ID 32, backend URL 128. Require the exact backend origin `https://astrology.parsfilo.com`. The instrumentation test converts its argument `Bundle` to this map before validation.
 
-- [ ] **Step 4: Implement the backend client**
+- [x] **Step 4: Implement the backend client**
 
 Use one OkHttp client with a 20-second call timeout. Encode requests with kotlinx.serialization. Never log request bodies, response bodies, or authorization headers. On unexpected status, throw `SmokeStageException(stage, statusCode)` with no response body.
 
-- [ ] **Step 5: Implement the live test**
+- [x] **Step 5: Implement the live test**
 
 In one `@Test(timeout = 120_000)` method:
 
@@ -179,11 +179,11 @@ try {
 
 Assert sign/language/profile consistency and non-empty opaque identifiers without printing them.
 
-- [ ] **Step 6: Compile and run static checks**
+- [x] **Step 6: Compile and run static checks**
 
 Run ktlint, detekt where applicable, and both smoke APK assembly tasks. Expected: GREEN.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add Astroloji/device-smoke/src/androidTest
@@ -201,19 +201,19 @@ git commit -m "test(android): exercise live identity lifecycle"
 - Passes values only through `am instrument -e` arguments.
 - Writes a bounded `DEVICE_SMOKE_PASS` or `DEVICE_SMOKE_FAIL stage=<name> class=<type> status=<code>` summary.
 
-- [ ] **Step 1: Add failing contract assertions**
+- [x] **Step 1: Add failing contract assertions**
 
 Require device-state validation, installed owner-package validation, resource-name extraction for `google_api_key`, `google_app_id`, `project_id`, and `gcm_defaultSenderId`, mode-600 instrumentation log, smoke-only install/uninstall, and owner certificate/version comparison.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Expected: FAIL because the runner skeleton lacks the complete flow.
 
-- [ ] **Step 3: Implement public-resource extraction**
+- [x] **Step 3: Implement public-resource extraction**
 
 Pull only the base APK returned by `pm path`. Parse the value immediately following each exact resource declaration from `aapt2 dump resources`. Keep values in shell variables and never echo them.
 
-- [ ] **Step 4: Implement build, install, run, and cleanup**
+- [x] **Step 4: Implement build, install, run, and cleanup**
 
 Build the two debug APKs, uninstall stale smoke packages, install the smoke target and test APKs with exact serial targeting, and run:
 
@@ -229,11 +229,11 @@ adb -s "$SERIAL" shell am instrument -w -r \
 
 Capture output to the private temporary log, require `OK (1 test)`, compare owner version and certificate before/after, print one bounded pass line, and let the trap remove smoke packages and temporary files.
 
-- [ ] **Step 5: Verify contract and dry failure modes**
+- [x] **Step 5: Verify contract and dry failure modes**
 
 Run the Node contract test, call the runner with no serial and an invalid serial, and verify it fails before any install.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/run-android-device-smoke.sh scripts/android-device-smoke-contract.test.mjs
@@ -249,23 +249,23 @@ git commit -m "test(android): run isolated physical device smoke"
 **Interfaces:**
 - CI compiles both smoke APKs but never executes live backend operations.
 
-- [ ] **Step 1: Add a failing root contract**
+- [x] **Step 1: Add a failing root contract**
 
 Require a CI step named `Device smoke APK compile` running `./gradlew :device-smoke:assembleDebug :device-smoke:assembleDebugAndroidTest`.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Expected: root Node contract test fails.
 
-- [ ] **Step 3: Add the CI compile step**
+- [x] **Step 3: Add the CI compile step**
 
 Place it after Android unit tests and before debug assembly. Do not add Firebase credentials, device execution, artifact upload, or production signing.
 
-- [ ] **Step 4: Run root and Android verification**
+- [x] **Step 4: Run root and Android verification**
 
 Run all root Node tests, secret scan, smoke module assembly, app detekt/ktlint/lint/unit tests, screenshot validation, debug APK, and release AAB dry-run with Crashlytics upload disabled.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .github/workflows/ci.yml scripts/android-quality-gates.test.mjs
@@ -279,29 +279,29 @@ git commit -m "ci(android): compile physical device smoke suite"
 - Evidence: `/tmp/astro-device-smoke-evidence.txt` with mode 600 and bounded values only.
 
 **Interfaces:**
-- Device serial: `6bf2d0710005`.
+- Device serial: supplied explicitly at runtime and never stored in the repository.
 - Owner package: `com.parsfilo.astrology`.
 
-- [ ] **Step 1: Snapshot owner state**
+- [x] **Step 1: Snapshot owner state**
 
 Record package version, signing SHA-256, resolved activity, and a UI tree summary without private application data.
 
-- [ ] **Step 2: Run the smoke suite**
+- [x] **Step 2: Run the smoke suite**
 
 ```bash
-scripts/run-android-device-smoke.sh 6bf2d0710005
+scripts/run-android-device-smoke.sh <explicit-adb-serial>
 ```
 
 Expected: `DEVICE_SMOKE_PASS stages=anonymous_auth,fid,register,profile,refresh,delete,post_delete`.
 
-- [ ] **Step 3: Verify cleanup and owner preservation**
+- [x] **Step 3: Verify cleanup and owner preservation**
 
 Require both smoke packages absent, owner version and signing digest unchanged, owner app launchable, no crash/ANR, and no `session expired` screen.
 
-- [ ] **Step 4: Run final repository verification**
+- [x] **Step 4: Run final repository verification**
 
 Run the complete root, backend, Android, screenshot, lint, format, audit, and build gates from a clean tree.
 
-- [ ] **Step 5: Final commit if evidence documentation changed**
+- [x] **Step 5: Final commit if evidence documentation changed**
 
 Do not commit tokens, identifiers, device logs, APKs, test reports, or Firebase values. Commit only durable source/test/docs changes.

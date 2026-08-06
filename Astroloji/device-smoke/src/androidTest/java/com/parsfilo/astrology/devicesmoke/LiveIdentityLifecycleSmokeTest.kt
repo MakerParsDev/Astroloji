@@ -1,5 +1,6 @@
 package com.parsfilo.astrology.devicesmoke
 
+import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
@@ -80,7 +81,7 @@ class LiveIdentityLifecycleSmokeTest {
 
                 stage("post_delete")
                 assertThat(client.profileStatus(refreshedJwt)).isAnyOf(401, 404)
-                println("DEVICE_SMOKE_PASS stages=anonymous_auth,fid,register,profile,refresh,delete,post_delete")
+                reportPass()
             } finally {
                 if (!deleted) {
                     cleanupJwt?.let { jwt -> runCatching { client.delete(jwt) } }
@@ -92,7 +93,13 @@ class LiveIdentityLifecycleSmokeTest {
         }
 
     private fun stage(name: String) {
-        println("DEVICE_SMOKE_STAGE $name")
+        val status = Bundle().apply { putString("device_smoke_stage", name) }
+        InstrumentationRegistry.getInstrumentation().sendStatus(0, status)
+    }
+
+    private fun reportPass() {
+        val status = Bundle().apply { putString("device_smoke_result", "pass") }
+        InstrumentationRegistry.getInstrumentation().sendStatus(0, status)
     }
 
     private companion object {

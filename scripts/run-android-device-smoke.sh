@@ -12,6 +12,7 @@ esac
 OWNER_PACKAGE="com.parsfilo.astrology"
 SMOKE_PACKAGE="com.parsfilo.astrology.devicesmoke"
 SMOKE_TEST_PACKAGE="com.parsfilo.astrology.devicesmoke.test"
+SMOKE_TEST_CLASS="com.parsfilo.astrology.devicesmoke.LiveIdentityLifecycleSmokeTest"
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 ANDROID_PROJECT="$REPO_ROOT/Astroloji"
@@ -139,6 +140,7 @@ adb -s "$SERIAL" install -r "$smoke_test_apk" >/dev/null
 
 set +e
 adb -s "$SERIAL" shell am instrument -w -r \
+  -e class "$SMOKE_TEST_CLASS" \
   -e firebaseApiKey "$firebase_api_key" \
   -e firebaseAppId "$firebase_app_id" \
   -e firebaseProjectId "$firebase_project_id" \
@@ -150,9 +152,9 @@ instrumentation_status=$?
 set -e
 
 if [ "$instrumentation_status" -ne 0 ] ||
-  ! grep -Fq 'DEVICE_SMOKE_PASS stages=anonymous_auth,fid,register,profile,refresh,delete,post_delete' "$instrumentation_log" ||
+  ! grep -Fq 'INSTRUMENTATION_STATUS: device_smoke_result=pass' "$instrumentation_log" ||
   ! grep -Fq 'INSTRUMENTATION_CODE: -1' "$instrumentation_log"; then
-  failed_stage="$(sed -n 's/.*DEVICE_SMOKE_STAGE \([a-z_]*\).*/\1/p' "$instrumentation_log" | tail -1)"
+  failed_stage="$(sed -n 's/.*device_smoke_stage=\([a-z_]*\).*/\1/p' "$instrumentation_log" | tail -1)"
   failed_status="$(sed -n 's/.*status=\([0-9][0-9]*\).*/\1/p' "$instrumentation_log" | tail -1)"
   echo "DEVICE_SMOKE_FAIL stage=${failed_stage:-unknown} status=${failed_status:-unknown}" >&2
   exit 69

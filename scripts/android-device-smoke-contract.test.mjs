@@ -62,3 +62,22 @@ test('device smoke module is isolated and compile-only', () => {
   assert.match(manifest, /android:allowBackup="false"/);
   assert.doesNotMatch(manifest, /android\.intent\.category\.LAUNCHER/);
 });
+
+test('live smoke emits structured instrumentation evidence without relying on stdout', () => {
+  const liveTest = readFileSync(
+    new URL(
+      '../Astroloji/device-smoke/src/androidTest/java/com/parsfilo/astrology/devicesmoke/LiveIdentityLifecycleSmokeTest.kt',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  const script = readFileSync(runnerPath, 'utf8');
+
+  assert.match(liveTest, /sendStatus\(/);
+  assert.match(liveTest, /device_smoke_stage/);
+  assert.match(liveTest, /device_smoke_result/);
+  assert.doesNotMatch(liveTest, /println\(/);
+  assert.match(script, /SMOKE_TEST_CLASS=/);
+  assert.match(script, /-e class "\$SMOKE_TEST_CLASS"/);
+  assert.match(script, /device_smoke_result=pass/);
+});
