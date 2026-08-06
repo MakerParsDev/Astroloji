@@ -68,8 +68,13 @@ class PremiumViewModelTest {
             displayPriority = 1,
         )
 
-    private fun success(plans: List<PremiumPlanUi> = listOf(weeklyPlan, monthlyPlan)) =
-        BillingCatalogueLoadResult.Success(plans = plans, diagnostics = emptyList())
+    private fun success(
+        plans: List<PremiumPlanUi> = listOf(weeklyPlan, monthlyPlan),
+    ): BillingCatalogueLoadResult.Success =
+        BillingCatalogueLoadResult.Success(
+            plans = plans,
+            diagnostics = emptyList(),
+        )
 
     private fun stubDependencies(
         purchaseState: MutableStateFlow<AppResult<SubscriptionStatus>?> = MutableStateFlow(null),

@@ -14,9 +14,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
@@ -43,9 +45,9 @@ fun PremiumScreen(
         return
     }
 
-    val displayPlans = uiState.plans.ifEmpty { placeholderPremiumPlans() }
-    val selected = displayPlans.firstOrNull { it.planId == uiState.selectedPlanId } ?: displayPlans.first()
-    val purchasablePlan = uiState.plans.firstOrNull { it.planId == uiState.selectedPlanId }
+    val selected =
+        uiState.plans.firstOrNull { it.planId == uiState.selectedPlanId }
+            ?: uiState.plans.firstOrNull()
     val callbacks =
         PremiumOfferCallbacks(
             onSelectPlan = { viewModel.onEvent(PremiumUiEvent.SelectPlan(it)) },
@@ -58,13 +60,16 @@ fun PremiumScreen(
         model =
             PremiumContentModel(
                 uiState = uiState,
-                displayPlans = displayPlans,
                 selected = selected,
-                purchaseReady = activity != null && isPremiumOfferReady(purchasablePlan),
+                purchaseReady = activity != null && isPremiumOfferReady(selected),
             ),
-        callbacks = callbacks,
-        onManageSubscription = { openSubscriptionManagement(context) },
-        onDismissSuccess = { viewModel.onEvent(PremiumUiEvent.DismissSuccess) },
+        callbacks =
+            PremiumContentCallbacks(
+                offer = callbacks,
+                onRetryCatalogue = { viewModel.onEvent(PremiumUiEvent.RetryCatalogue) },
+                onManageSubscription = { openSubscriptionManagement(context) },
+                onDismissSuccess = { viewModel.onEvent(PremiumUiEvent.DismissSuccess) },
+            ),
         modifier = modifier,
     )
 }
@@ -72,9 +77,7 @@ fun PremiumScreen(
 @Composable
 private fun PremiumContent(
     model: PremiumContentModel,
-    callbacks: PremiumOfferCallbacks,
-    onManageSubscription: () -> Unit,
-    onDismissSuccess: () -> Unit,
+    callbacks: PremiumContentCallbacks,
     modifier: Modifier = Modifier,
 ) {
     CosmicBackground(modifier = modifier.fillMaxSize()) {
@@ -87,31 +90,54 @@ private fun PremiumContent(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             PremiumHero()
-            if (model.uiState.isAlreadyPremium) {
-                PremiumActiveCard(model.uiState, onManageSubscription)
-            } else {
-                PremiumOfferCard(
-                    uiState = model.uiState,
-                    plans = model.displayPlans,
-                    selected = model.selected,
-                    purchaseReady = model.purchaseReady,
-                    callbacks = callbacks,
-                )
+            when {
+                model.uiState.isAlreadyPremium -> {
+                    PremiumActiveCard(model.uiState, callbacks.onManageSubscription)
+                }
+
+                model.selected != null -> {
+                    PremiumOfferCard(
+                        uiState = model.uiState,
+                        plans = model.uiState.plans,
+                        selected = model.selected,
+                        purchaseReady = model.purchaseReady,
+                        callbacks = callbacks.offer,
+                    )
+                }
+
+                else -> {
+                    ErrorState(
+                        message =
+                            model.uiState.error
+                                ?: stringResource(R.string.billing_catalogue_unavailable),
+                        onRetry = callbacks.onRetryCatalogue,
+                    )
+                }
             }
             PremiumBenefitsCard()
             if (model.uiState.purchaseSuccess) {
-                PremiumSuccessCard(onDismissSuccess)
+                PremiumSuccessCard(callbacks.onDismissSuccess)
             }
-            model.uiState.error?.let { ErrorState(message = it, onRetry = {}) }
+            if (model.selected != null) {
+                model.uiState.error?.let { message ->
+                    ErrorState(message = message, onRetry = {})
+                }
+            }
         }
     }
 }
 
 private data class PremiumContentModel(
     val uiState: PremiumUiState,
-    val displayPlans: List<PremiumPlanUi>,
-    val selected: PremiumPlanUi,
+    val selected: PremiumPlanUi?,
     val purchaseReady: Boolean,
+)
+
+private data class PremiumContentCallbacks(
+    val offer: PremiumOfferCallbacks,
+    val onRetryCatalogue: () -> Unit,
+    val onManageSubscription: () -> Unit,
+    val onDismissSuccess: () -> Unit,
 )
 
 internal data class PremiumOfferCallbacks(

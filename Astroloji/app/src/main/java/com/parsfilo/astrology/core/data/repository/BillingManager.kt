@@ -545,16 +545,6 @@ internal fun extractTrialDays(phases: List<PricingPhaseSummary>): Int? =
         ?.billingPeriod
         ?.let(::billingPeriodDays)
 
-internal fun calculateYearlySavingsPercent(
-    monthlyMicros: Long,
-    yearlyMicros: Long,
-): Int {
-    if (monthlyMicros <= 0L || yearlyMicros <= 0L) return 0
-    val yearlyMonthlyEquivalent = monthlyMicros * 12
-    if (yearlyMonthlyEquivalent <= yearlyMicros) return 0
-    return (((yearlyMonthlyEquivalent - yearlyMicros) * 100) / yearlyMonthlyEquivalent).toInt()
-}
-
 private fun billingPeriodDays(value: String?): Int? {
     if (value.isNullOrBlank() || !value.startsWith("P")) {
         return null

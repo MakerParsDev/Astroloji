@@ -206,15 +206,15 @@ private fun PremiumPlanOption(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
             )
-            if (premiumBillingCadence(plan) == PremiumBillingCadence.YEARLY) {
-                PremiumPopularChip()
+            if (isRecommendedPremiumPlan(plan)) {
+                PremiumRecommendedChip()
             }
         }
     }
 }
 
 @Composable
-private fun PremiumPopularChip() {
+private fun PremiumRecommendedChip() {
     AssistChip(
         onClick = {},
         enabled = false,
@@ -226,7 +226,7 @@ private fun PremiumPopularChip() {
             ),
         label = {
             Text(
-                text = stringResource(R.string.premium_most_popular),
+                text = stringResource(R.string.premium_recommended),
                 style = MaterialTheme.typography.labelSmall,
             )
         },

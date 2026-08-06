@@ -9,12 +9,14 @@ import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 internal fun premiumCadenceLabel(plan: PremiumPlanUi): String =
     when (premiumBillingCadence(plan)) {
         PremiumBillingCadence.MONTHLY -> stringResource(R.string.premium_monthly_label)
-        PremiumBillingCadence.YEARLY -> stringResource(R.string.premium_yearly_label)
+        PremiumBillingCadence.WEEKLY -> stringResource(R.string.premium_weekly_label)
+        PremiumBillingCadence.UNKNOWN -> plan.title
     }
 
 @Composable
 internal fun premiumPeriodLabel(plan: PremiumPlanUi): String =
     when (premiumBillingCadence(plan)) {
         PremiumBillingCadence.MONTHLY -> stringResource(R.string.premium_period_monthly)
-        PremiumBillingCadence.YEARLY -> stringResource(R.string.premium_period_yearly)
+        PremiumBillingCadence.WEEKLY -> stringResource(R.string.premium_period_weekly)
+        PremiumBillingCadence.UNKNOWN -> stringResource(R.string.premium_period_unknown)
     }

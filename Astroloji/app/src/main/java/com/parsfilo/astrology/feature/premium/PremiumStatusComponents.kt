@@ -16,7 +16,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.parsfilo.astrology.R
-import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 
 @Composable
@@ -91,25 +90,6 @@ internal fun PremiumSuccessCard(onDismiss: () -> Unit) {
         }
     }
 }
-
-@Composable
-internal fun placeholderPremiumPlans(): List<PremiumPlanUi> =
-    listOf(
-        PremiumPlanUi(
-            planId = "premium_monthly:base:default",
-            productId = "premium_monthly",
-            title = stringResource(R.string.premium_monthly_label),
-            price = "...",
-            displayPriority = 1,
-        ),
-        PremiumPlanUi(
-            planId = "premium_yearly:base:default",
-            productId = "premium_yearly",
-            title = stringResource(R.string.premium_yearly_label),
-            price = "...",
-            displayPriority = 0,
-        ),
-    )
 
 @Composable
 private fun premiumFeatureStrings(): List<String> =
