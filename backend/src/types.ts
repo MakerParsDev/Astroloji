@@ -17,6 +17,7 @@ export const SIGNS = [
 
 export const LANGUAGES = ['tr', 'en'] as const;
 export const PLATFORMS = ['android', 'ios'] as const;
+export const NOTIFICATION_TARGET_TYPES = ['token', 'fid'] as const;
 export const SUBSCRIPTION_PRODUCTS = ['premium_monthly', 'premium_yearly'] as const;
 export const SUBSCRIPTION_STATUSES = [
   'none',
@@ -51,6 +52,21 @@ export const USER_EVENT_TYPES = [
   'notification_tapped',
   'ad_shown',
   'streak_achieved',
+  'onboarding_started',
+  'onboarding_step_viewed',
+  'onboarding_completed',
+  'notification_permission_result',
+  'paywall_viewed',
+  'paywall_plan_selected',
+  'purchase_started',
+  'purchase_succeeded',
+  'purchase_failed',
+  'purchase_cancelled',
+  'rewarded_ad_started',
+  'rewarded_ad_completed',
+  'rewarded_ad_failed',
+  'share_completed',
+  'daily_feedback_submitted',
   'content_view',
   'compat_check',
   'share',
@@ -62,6 +78,7 @@ export const REWARD_TYPES = ['daily', 'weekly'] as const;
 export type Sign = (typeof SIGNS)[number];
 export type Language = (typeof LANGUAGES)[number];
 export type Platform = (typeof PLATFORMS)[number];
+export type NotificationTargetType = (typeof NOTIFICATION_TARGET_TYPES)[number];
 export type SubscriptionProductId = (typeof SUBSCRIPTION_PRODUCTS)[number];
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
@@ -160,6 +177,7 @@ export interface FcmTokenRow {
   id: string;
   user_id: string;
   token: string;
+  target_type: NotificationTargetType;
   platform: string;
   notification_enabled: number;
   notification_hour: number;
@@ -199,6 +217,17 @@ export interface RewardChallengeRow {
   entitlement_expires_at: string | null;
 }
 
+export interface ContentDocumentMetadata {
+  content_version?: string;
+  generated_at?: string;
+  calculation_version?: string;
+  editorial_status?: string;
+  source_signals?: string[];
+  approved_by?: string;
+  approval_reference?: string;
+  approved_at?: string;
+}
+
 export interface DailySignContent {
   short: string;
   full: string;
@@ -216,7 +245,7 @@ export interface DailySignContent {
   daily_tip: string;
 }
 
-export interface DailyContentDocument {
+export interface DailyContentDocument extends ContentDocumentMetadata {
   date: string;
   language: Language;
   signs: Record<Sign, DailySignContent>;
@@ -231,7 +260,7 @@ export interface WeeklySignContent {
   warning: string;
 }
 
-export interface WeeklyContentDocument {
+export interface WeeklyContentDocument extends ContentDocumentMetadata {
   week: string;
   week_start: string;
   week_end: string;
@@ -248,7 +277,7 @@ export interface MonthlySignContent {
   warning: string;
 }
 
-export interface MonthlyContentDocument {
+export interface MonthlyContentDocument extends ContentDocumentMetadata {
   month: string;
   month_start: string;
   month_end: string;
@@ -256,7 +285,7 @@ export interface MonthlyContentDocument {
   signs: Record<Sign, MonthlySignContent>;
 }
 
-export interface CompatibilityContentDocument {
+export interface CompatibilityContentDocument extends ContentDocumentMetadata {
   sign1: Sign;
   sign2: Sign;
   language: Language;
@@ -271,7 +300,7 @@ export interface CompatibilityContentDocument {
   famous_couples: string[];
 }
 
-export interface PersonalityContentDocument {
+export interface PersonalityContentDocument extends ContentDocumentMetadata {
   sign: Sign;
   language: Language;
   title: string;
@@ -291,6 +320,7 @@ export interface RegisterRequest {
   sign: Sign;
   language: Language;
   fcm_token?: string;
+  firebase_installation_id?: string;
   notification_hour?: number;
   utc_offset: number;
   platform: Platform;
@@ -300,6 +330,7 @@ export interface UpdateUserRequest {
   sign?: Sign;
   language?: Language;
   fcm_token?: string;
+  firebase_installation_id?: string;
   notification_enabled?: boolean;
   notification_hour?: number;
   utc_offset?: number;
@@ -333,10 +364,30 @@ export interface RewardClaimRequest {
   challenge_id: string;
 }
 
+export type BirthTimeCertainty = 'exact' | 'approximate' | 'unknown';
+
+export interface NatalChartRequest {
+  timestamp: string;
+  time_certainty: BirthTimeCertainty;
+}
+
+export interface TransitChartRequest {
+  natal_timestamp: string;
+  natal_time_certainty: BirthTimeCertainty;
+  target_timestamp: string;
+}
+
+export interface PersonalGuidanceRequest extends TransitChartRequest {
+  language: Language;
+}
+
 export interface ContentBackfillRequest {
   seed_date?: string;
   daily_days: number;
   skip_static_content: boolean;
+  editorial_status: 'approved';
+  approved_by: string;
+  approval_reference: string;
 }
 
 export interface RegisterResponse {
@@ -404,12 +455,18 @@ export interface FcmBatchResult {
   failedTokens: string[];
 }
 
+export interface NotificationTarget {
+  type: NotificationTargetType;
+  value: string;
+}
+
 export interface NotificationTargetRow {
   user_id: string;
   sign: Sign;
   language: Language;
   utc_offset: number;
   token: string;
+  target_type: NotificationTargetType;
   notification_hour: number;
 }
 

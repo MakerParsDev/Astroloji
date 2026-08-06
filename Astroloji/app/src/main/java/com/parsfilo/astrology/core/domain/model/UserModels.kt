@@ -32,5 +32,8 @@ data class UserPreferences(
     val lastInterstitialShown: Long = 0L,
     val interstitialCountToday: Int = 0,
     val interstitialCountDate: String? = null,
+    val lastDailyFeedbackDate: String? = null,
+    val lastDailyFeedbackSign: String? = null,
+    val lastDailyFeedbackValue: String? = null,
     val consentStatus: Int = 0,
 )

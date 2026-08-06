@@ -1,16 +1,21 @@
 package com.parsfilo.astrology.notification
 
+import android.Manifest
 import android.app.PendingIntent
 import android.content.Intent
-import android.net.Uri
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.parsfilo.astrology.MainActivity
 import com.parsfilo.astrology.R
+import timber.log.Timber
 import java.util.concurrent.atomic.AtomicInteger
 
 class AstrologyFirebaseMessagingService : FirebaseMessagingService() {
@@ -18,7 +23,22 @@ class AstrologyFirebaseMessagingService : FirebaseMessagingService() {
         private val notificationIdCounter = AtomicInteger(1000)
     }
 
+    override fun onRegistered(installationId: String) {
+        if (installationId.isBlank()) return
+        enqueuePushRegistrationRefresh()
+    }
+
+    @Deprecated(
+        message = "Compatibility callback for Android Lint; FID registration is handled by onRegistered.",
+    )
     override fun onNewToken(token: String) {
+        if (token.isBlank()) return
+        // Android Lint still requires the legacy callback. The token is used only as a refresh signal;
+        // registration uploads the Firebase installation ID through PushRegistrationManager.
+        enqueuePushRegistrationRefresh()
+    }
+
+    private fun enqueuePushRegistrationRefresh() {
         WorkManager
             .getInstance(applicationContext)
             .enqueue(OneTimeWorkRequestBuilder<TokenRefreshWorker>().build())
@@ -31,7 +51,7 @@ class AstrologyFirebaseMessagingService : FirebaseMessagingService() {
             Intent(this, MainActivity::class.java).apply {
                 action = Intent.ACTION_VIEW
                 if (type == "daily" && !sign.isNullOrBlank()) {
-                    data = Uri.parse("astrology://daily/$sign")
+                    data = "astrology://daily/$sign".toUri()
                     putExtra("deeplink_sign", sign)
                     putExtra("deeplink_type", type)
                 }
@@ -52,6 +72,17 @@ class AstrologyFirebaseMessagingService : FirebaseMessagingService() {
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent)
                 .build()
-        NotificationManagerCompat.from(this).notify(notificationIdCounter.getAndIncrement(), notification)
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        try {
+            NotificationManagerCompat.from(this).notify(notificationIdCounter.getAndIncrement(), notification)
+        } catch (exception: SecurityException) {
+            Timber.w(exception, "Notification permission was revoked before delivery.")
+        }
     }
 }

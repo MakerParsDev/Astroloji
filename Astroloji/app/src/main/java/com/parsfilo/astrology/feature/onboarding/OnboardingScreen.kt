@@ -36,6 +36,7 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,10 +77,18 @@ fun OnboardingScreen(
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val missingSignMessage = stringResource(R.string.onboarding_error_missing_sign)
+
+    LaunchedEffect(pagerState.currentPage) {
+        viewModel.trackStep(OnboardingStep.fromPage(pagerState.currentPage))
+    }
     val permissionLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission(),
-        ) { viewModel.complete(onComplete) }
+        ) { granted ->
+            viewModel.recordNotificationPermission(granted)
+            viewModel.complete(onComplete)
+        }
 
     if (uiState.isSubmitting) {
         LoadingState()
@@ -138,7 +147,7 @@ fun OnboardingScreen(
                         if (pagerState.currentPage == 1 && uiState.selectedSign == null) {
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar(
-                                    message = context.getString(R.string.onboarding_error_missing_sign),
+                                    message = missingSignMessage,
                                 )
                             }
                             return@Button
@@ -152,7 +161,10 @@ fun OnboardingScreen(
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
                                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
-                            else -> viewModel.complete(onComplete)
+                            else -> {
+                                viewModel.recordNotificationPermissionNotRequested()
+                                viewModel.complete(onComplete)
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),

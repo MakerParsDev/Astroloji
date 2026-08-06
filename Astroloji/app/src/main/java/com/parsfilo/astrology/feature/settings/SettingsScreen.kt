@@ -43,11 +43,13 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
+import java.util.Locale
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "FunctionNaming")
 @Composable
 fun SettingsScreen(
     onOpenPremium: () -> Unit,
+    onOpenPersonalGuidance: () -> Unit,
     onAccountDeleted: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -151,6 +153,25 @@ fun SettingsScreen(
 
             AstrologyCard {
                 Text(
+                    text = stringResource(R.string.chart_settings_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.chart_settings_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = onOpenPersonalGuidance,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.chart_settings_cta))
+                }
+            }
+
+            AstrologyCard {
+                Text(
                     text = stringResource(R.string.settings_premium_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
@@ -249,7 +270,7 @@ fun SettingsScreen(
                             onClick = { viewModel.onEvent(SettingsUiEvent.ChangeNotificationHour(hour)) },
                         ) {
                             Text(
-                                text = String.format("%02d:00", hour),
+                                text = String.format(Locale.ROOT, "%02d:00", hour),
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                                 style = MaterialTheme.typography.labelLarge,
                             )

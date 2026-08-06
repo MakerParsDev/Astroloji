@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Astroloji"
 include(":app")
+include(":device-smoke")

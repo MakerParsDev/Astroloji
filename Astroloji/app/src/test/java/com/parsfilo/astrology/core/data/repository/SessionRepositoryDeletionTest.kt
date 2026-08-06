@@ -6,6 +6,7 @@ import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.local.AstrologyDatabase
 import com.parsfilo.astrology.core.data.local.UserProfileDao
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.push.PushRegistrationManager
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.DeleteUserResponse
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
@@ -40,6 +41,7 @@ class SessionRepositoryDeletionTest {
     private val database = mockk<AstrologyDatabase>()
     private val stringsProvider = mockk<StringsProvider>()
     private val tokenStore = SessionTokenStore()
+    private val pushRegistrationManager = mockk<PushRegistrationManager>()
 
     @Test
     fun `deleteAccount clears local state only after backend deletion succeeds`() =
@@ -55,6 +57,7 @@ class SessionRepositoryDeletionTest {
             every { firebaseAuth.signOut() } just runs
             every { database.clearAllTables() } just runs
             coJustRun { preferencesRepository.clearAll() }
+            coJustRun { pushRegistrationManager.unregister() }
             tokenStore.update("app-jwt")
             val repository = createRepository()
 
@@ -65,6 +68,7 @@ class SessionRepositoryDeletionTest {
             verify(exactly = 1) { firebaseAuth.signOut() }
             verify(exactly = 1) { database.clearAllTables() }
             coVerify(exactly = 1) { preferencesRepository.clearAll() }
+            coVerify(exactly = 1) { pushRegistrationManager.unregister() }
             assertThat(tokenStore.current()).isNull()
         }
 
@@ -83,6 +87,7 @@ class SessionRepositoryDeletionTest {
             verify(exactly = 0) { firebaseAuth.signOut() }
             verify(exactly = 0) { database.clearAllTables() }
             coVerify(exactly = 0) { preferencesRepository.clearAll() }
+            coVerify(exactly = 0) { pushRegistrationManager.unregister() }
             assertThat(tokenStore.current()).isEqualTo("app-jwt")
         }
 
@@ -105,6 +110,7 @@ class SessionRepositoryDeletionTest {
             verify(exactly = 0) { firebaseAuth.signOut() }
             verify(exactly = 0) { database.clearAllTables() }
             coVerify(exactly = 0) { preferencesRepository.clearAll() }
+            coVerify(exactly = 0) { pushRegistrationManager.unregister() }
             assertThat(tokenStore.current()).isEqualTo("app-jwt")
         }
 
@@ -125,6 +131,7 @@ class SessionRepositoryDeletionTest {
             tokenStore = tokenStore,
             refreshCoordinator = SessionRefreshCoordinator(),
             requestExecutor = AuthenticatedRequestExecutor(),
+            pushRegistrationManager = pushRegistrationManager,
         )
     }
 }

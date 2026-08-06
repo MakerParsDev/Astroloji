@@ -1,5 +1,5 @@
 const SUPPORT_EMAIL = 'info@parsfilo.com';
-const LAST_UPDATED = '20 July 2026';
+const LAST_UPDATED = '5 August 2026';
 
 function escapeHtml(value: string): string {
   return value
@@ -71,22 +71,35 @@ Android uygulamasının kişisel veri işleme uygulamalarını açıklar. Gizlil
   <li><strong>Hesap ve oturum bilgileri:</strong> Firebase kullanıcı kimliği, uygulama içi kullanıcı kimliği
     ve oturum belirteçleri.</li>
   <li><strong>Tercihler:</strong> seçilen burç, uygulama dili, saat dilimi farkı, bildirim tercihi ve saati.</li>
-  <li><strong>Bildirim verileri:</strong> Firebase Cloud Messaging cihaz belirteci ve platform bilgisi.</li>
-  <li><strong>Kullanım ve analiz verileri:</strong> açılan ekranlar, içerik etkileşimleri, paylaşım,
-    reklam gösterimi ve abonelik akışı gibi uygulama içi olaylar ile bunlara ilişkin sınırlı metadata.</li>
+  <li><strong>Bildirim verileri:</strong> Firebase installation ID, platform bilgisi ve geçiş süresince eski uygulama sürümlerinden gelebilen FCM registration token.</li>
+  <li><strong>Kullanım, yapılandırılmış geri bildirim ve analiz verileri:</strong> açılan ekranlar, içerik
+    etkileşimleri, paylaşım düğmesi tıklamaları, reklam gösterimi, abonelik akışı ve günlük yorum için seçilen
+    <em>uydu / kısmen / bugün değil</em> kategorisi gibi uygulama içi olaylar ile bunlara ilişkin sınırlı metadata.
+    Serbest günlük metni veya kişisel not toplanmaz.</li>
   <li><strong>Satın alma ve abonelik verileri:</strong> ürün kimliği, Google Play satın alma belirteci,
     abonelik durumu ve geçerlilik tarihleri. Ödeme kartı bilgilerini ParsFilo toplamaz; ödeme Google Play
     tarafından işlenir.</li>
   <li><strong>Tanılama, cihaz ve reklam verileri:</strong> çökme kayıtları, performans bilgileri, uygulama
     ve cihaz tanımlayıcıları, reklam etkileşimleri ve reklam onay durumu; kullanılan Google/Firebase SDK'ları
     tarafından işlenebilir.</li>
+  <li><strong>İsteğe bağlı doğum tarihi:</strong> Kişisel Rehber Beta özelliğinde, kullanıcı açıkça hesaplama
+    istediğinde doğum tarihi cihazdan API'ye gönderilir. Bu veri yalnızca ilgili gerçek zamanlı hesaplamayı
+    tamamlamak için geçici (ephemeral) olarak bellekte işlenir; bu özellik tarafından D1, R2, analitik, log veya
+    Android tercihleri gibi kalıcı depolamaya yazılmaz. Doğum saati ve doğum yeri bu beta sürümünde toplanmaz.</li>
+  <li><strong>Anonim paylaşım bağlantıları:</strong> günlük burç veya burç çifti içeren herkese açık bağlantılar
+    oluşturulabilir. Bu bağlantılar hesap kimliği, kullanıcı kimliği, skor geçmişi, alıcı kimliği veya reklam
+    takip parametresi içermez.</li>
 </ul>
-<p>Doğum tarihi, burç hesaplamak için cihaz üzerinde kullanılabilir. Sunucuya gönderilen profil verisi doğum
-sayısını değil, seçilen veya hesaplanan burcu içerir.</p>
+<p>Normal profil ve onboarding akışında sunucuya seçilen veya hesaplanan burç gönderilir. Doğum tarihi yalnızca
+kullanıcının Kişisel Rehber hesaplamasını ayrı olarak başlatması halinde yukarıdaki geçici işlem için gönderilir.</p>
 
 <h2>2. Verileri hangi amaçlarla kullanıyoruz?</h2>
 <ul>
   <li>Uygulamayı çalıştırmak, oturum oluşturmak ve kişiselleştirilmiş burç içeriği sunmak.</li>
+  <li>Kullanıcının isteği üzerine doğum tarihi tabanlı, sürümlü ve sınırlamaları açık bir kişisel rehber
+    hesaplamak; doğum tarihini bu gerçek zamanlı istek sonrasında kalıcı olarak saklamamak.</li>
+  <li>Yapılandırılmış günlük geri bildirim ve paylaşım tıklamalarını içerik kalitesi ile ürün deneyimini
+    geliştirmek amacıyla ölçmek.</li>
   <li>Bildirim tercihlerini uygulamak ve istenen bildirimleri göndermek.</li>
   <li>Premium abonelikleri doğrulamak, geri yüklemek ve kötüye kullanımı önlemek.</li>
   <li>Uygulama kararlılığını, güvenliğini, performansını ve kullanıcı deneyimini geliştirmek.</li>
@@ -107,8 +120,10 @@ aktarımı, kullanılan hizmetlerin altyapısı ve uygulanabilir veri koruma kur
 
 <h2>4. Saklama, güvenlik ve silme</h2>
 <p>Verileri hizmeti sunmak, güvenliği sağlamak, abonelikleri doğrulamak ve yasal yükümlülükleri yerine getirmek
-için gerekli olduğu sürece saklarız. Cihazdaki yerel tercihler ve önbellek, uygulama verileri temizlendiğinde veya
-uygulama kaldırıldığında silinebilir. Sunucu tarafındaki hesap ve ilişkili verileri uygulamadaki Ayarlar ekranından silebilir veya
+için gerekli olduğu sürece saklarız. Kişisel Rehber doğum tarihi yalnızca gerçek zamanlı istek belleğinde tutulur
+ve bu özellik tarafından kalıcı depolamaya yazılmaz. Son yapılandırılmış günlük geri bildirim tarihi ve kategorisi,
+aynı sorunun tekrar gösterilmemesi için cihazda tutulur; uygulama verileri temizlendiğinde veya uygulama
+kaldırıldığında silinir. Diğer cihaz tercihleri ve önbellek de aynı şekilde yerel veri temizliğiyle silinebilir. Sunucu tarafındaki hesap ve ilişkili verileri uygulamadaki Ayarlar ekranından silebilir veya
 <a href="/delete-account">hesap ve veri silme sayfasındaki</a> adımları izleyebilirsiniz. Uygulamaya erişemiyorsanız
 <a href="mailto:${SUPPORT_EMAIL}?subject=Astroloji%20veri%20silme%20talebi">${SUPPORT_EMAIL}</a> adresine yazabilirsiniz. Kimliğinizi ve hesabın size ait olduğunu doğrulamak için
 sınırlı ek bilgi isteyebiliriz.</p>
@@ -119,6 +134,8 @@ sağlayıcı güvenlik kontrollerinden yararlanırız. Hiçbir elektronik sistem
 <ul>
   <li>Bildirim iznini ve bildirim tercihlerini cihaz veya uygulama ayarlarından değiştirebilirsiniz.</li>
   <li>Uygulamadaki gizlilik seçeneklerinden reklam onay tercihlerinizi yönetebilirsiniz.</li>
+  <li>Kişisel Rehber özelliğini kullanmama, seçili doğum tarihini ve sonucu ekrandaki temizleme düğmesiyle anında
+    kaldırma seçeneğiniz vardır.</li>
   <li>Verilerinize erişim, düzeltme, silme, işleme itirazı veya diğer uygulanabilir haklarınız için bize yazabilirsiniz.</li>
 </ul>
 
@@ -132,11 +149,15 @@ sayfada yayımlanır ve üst bölümdeki tarih değiştirilir.</p>
 
 <h2>English summary</h2>
 <p>ParsFilo operates the Astroloji Android app. We process account/session identifiers, zodiac and language
-preferences, time-zone and notification settings, FCM tokens, app interaction analytics, subscription records,
-and diagnostic/device/ad data needed to operate, secure, improve and monetize the app. Google/Firebase,
-Google Play, Google Mobile Ads/UMP and Cloudflare may process data as service providers. Payment card details
-are handled by Google Play, not by ParsFilo. Contact <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>
-for privacy questions, access/correction requests or deletion of your server-side account data.`
+preferences, time-zone and notification settings, Firebase installation IDs, transitional legacy FCM tokens, bounded app-interaction analytics, structured
+daily feedback categories, subscription records, and diagnostic/device/ad data needed to operate, secure,
+improve and monetize the app. When a user explicitly requests Personal Guidance, the date of birth is transmitted
+to the backend and processed ephemerally in memory for that real-time calculation; this feature does not write it
+to persistent storage, analytics or logs. Anonymous share links contain a zodiac sign or canonical sign pair, not
+an account ID or recipient identity. Google/Firebase, Google Play, Google Mobile Ads/UMP and Cloudflare may
+process data as service providers. Payment card details are handled by Google Play, not by ParsFilo. Contact
+<a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a> for privacy questions, access/correction requests or
+deletion of your server-side account data.`
   );
 }
 
@@ -167,7 +188,8 @@ alınamaz.</p>
   <li>FCM bildirim belirteçleri ve cihazla ilişkilendirilmiş bildirim ayarları.</li>
   <li>Satın alma belirteciyle ilişkilendirilmiş uygulama abonelik kayıtları ve abonelik olayları.</li>
   <li>Hesaba bağlı uygulama kullanım olayları ve ödül hakediş kayıtları.</li>
-  <li>Cihazdaki yerel profil, favoriler, bekleyen olaylar, oturum ve onboarding tercihleri.</li>
+  <li>Cihazdaki yerel profil, favoriler, son günlük geri bildirim kategorisi, bekleyen olaylar, oturum ve
+    onboarding tercihleri.</li>
 </ul>
 
 <h2>Google Play aboneliği</h2>
@@ -190,7 +212,8 @@ istatistikler kişisel hesap verisi olarak tutulmaz.</p>
 <h2>Account and Data Deletion</h2>
 <p>Open Astroloji, go to <strong>Profile / Settings</strong>, choose <strong>Account and data</strong>, then
 confirm <strong>Delete account and data</strong>. This permanently removes the Firebase identity, application
-profile, notification token, user-linked subscription records, events, reward records, and local app data.
+profile, notification token, user-linked subscription records, events, reward records, last local daily feedback
+category, and other local app data. Personal Guidance birth dates are not retained by the chart feature.
 Deleting the Astroloji account does not automatically cancel an active Google Play subscription; manage it
 separately in Google Play. If you cannot access the app, contact
 <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.</p>`
@@ -209,8 +232,10 @@ Koşulları kabul etmiyorsanız uygulamayı kullanmayın. Sorular için
 
 <h2>1. Hizmetin kapsamı</h2>
 <p>Astroloji; günlük, haftalık ve aylık burç yorumları, kişilik ve uyumluluk içerikleri, bildirimler,
-reklam destekli özellikler ve isteğe bağlı premium abonelikler sunar. İçerikler eğlence ve genel bilgilendirme
-amaçlıdır; tıbbi, hukuki, finansal, psikolojik veya diğer profesyonel tavsiye değildir.</p>
+reklam destekli özellikler, doğum tarihi tabanlı kişisel rehber beta özelliği ve isteğe bağlı premium abonelikler
+sunar. Kişisel rehber beta doğum saati veya konum toplamaz; yükselen ve ev hesaplaması içermez ve belirsiz saatten
+etkilenen Ay sinyallerini dışarıda bırakır. Tüm içerikler eğlence ve genel bilgilendirme/öz değerlendirme amaçlıdır;
+tıbbi, hukuki, finansal, psikolojik veya diğer profesyonel tavsiye değildir.</p>
 
 <h2>2. Uygun kullanım</h2>
 <p>Uygulamayı yürürlükteki kurallara uygun kullanmayı; hizmete, diğer kullanıcılara veya altyapıya zarar
@@ -259,8 +284,10 @@ sona erdirebilirsiniz; hesap ve verilerinizi silmek için <a href="/delete-accou
 <p>Bu koşullar ürün veya mevzuat değişikliklerine göre güncellenebilir. Güncel sürüm bu sayfada yayımlanır.</p>
 
 <h2>English summary</h2>
-<p>Astroloji provides entertainment and general-information astrology content, ad-supported features and
-optional Google Play subscriptions. It is not professional medical, legal, financial or psychological advice.
+<p>Astroloji provides entertainment and general-information astrology content, a date-of-birth based Personal
+Guidance beta, ad-supported features and optional Google Play subscriptions. The beta does not calculate houses
+or an ascendant and explicitly carries birth-time limitations. It is not professional medical, legal, financial
+or psychological advice.
 Use must be lawful and must not compromise the service. Purchases, renewals, cancellations and refunds are
 handled through Google Play. The app and content are provided subject to mandatory consumer rights and the
 limitations permitted by applicable law. Contact <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>

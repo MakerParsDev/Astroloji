@@ -2,7 +2,7 @@ package com.parsfilo.astrology.core.util
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 
 fun openSubscriptionManagement(
     context: Context,
@@ -11,7 +11,7 @@ fun openSubscriptionManagement(
     val intent =
         Intent(
             Intent.ACTION_VIEW,
-            Uri.parse("https://play.google.com/store/account/subscriptions?package=$packageName"),
+            "https://play.google.com/store/account/subscriptions?package=$packageName".toUri(),
         )
     context.startActivity(intent)
 }

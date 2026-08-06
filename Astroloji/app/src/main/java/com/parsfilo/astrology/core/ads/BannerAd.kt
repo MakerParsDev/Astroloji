@@ -28,7 +28,7 @@ fun AdaptiveBannerAd(modifier: Modifier = Modifier) {
         val adWidth = maxWidth.value.toInt().coerceAtLeast(320)
         val adSize =
             remember(adWidth) {
-                AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(activity, adWidth)
+                AdSize.getLargeAnchoredAdaptiveBannerAdSize(activity, adWidth)
             }
         val adView =
             remember(adWidth) {

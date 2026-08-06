@@ -12,6 +12,13 @@ sealed class AppResult<out T> {
     data object Loading : AppResult<Nothing>()
 }
 
+enum class BillingFailureReason(
+    val analyticsValue: String,
+) {
+    USER_CANCELLED("user_cancelled"),
+    UNKNOWN("unknown"),
+}
+
 sealed class AppException(
     message: String,
     cause: Throwable? = null,
@@ -29,6 +36,7 @@ sealed class AppException(
 
     class BillingException(
         message: String,
+        val reason: BillingFailureReason = BillingFailureReason.UNKNOWN,
     ) : AppException(message)
 
     class ValidationException(

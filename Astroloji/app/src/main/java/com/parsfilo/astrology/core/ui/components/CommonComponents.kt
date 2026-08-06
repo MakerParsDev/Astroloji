@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -205,11 +206,12 @@ fun LoadingState(modifier: Modifier = Modifier) {
     }
 }
 
+@Suppress("FunctionNaming")
 @Composable
 fun AstroSectionTitle(
     title: String,
-    eyebrow: String? = null,
     modifier: Modifier = Modifier,
+    eyebrow: String? = null,
 ) {
     Column(
         modifier = modifier,
@@ -255,7 +257,7 @@ fun StreakBadge(
         Text(
             text =
                 androidx.compose.ui.res
-                    .stringResource(R.string.streak_badge_format, count),
+                    .pluralStringResource(R.plurals.streak_badge_format, count, count),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
         )

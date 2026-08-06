@@ -35,7 +35,42 @@ object AnalyticsEvents {
     const val NOTIFICATION_TAPPED = "notification_tapped"
     const val AD_SHOWN = "ad_shown"
     const val STREAK_ACHIEVED = "streak_achieved"
+    const val ONBOARDING_STARTED = "onboarding_started"
+    const val ONBOARDING_STEP_VIEWED = "onboarding_step_viewed"
+    const val ONBOARDING_COMPLETED = "onboarding_completed"
+    const val NOTIFICATION_PERMISSION_RESULT = "notification_permission_result"
+    const val PAYWALL_VIEWED = "paywall_viewed"
+    const val PAYWALL_PLAN_SELECTED = "paywall_plan_selected"
+    const val PURCHASE_STARTED = "purchase_started"
+    const val PURCHASE_SUCCEEDED = "purchase_succeeded"
+    const val PURCHASE_FAILED = "purchase_failed"
+    const val PURCHASE_CANCELLED = "purchase_cancelled"
+    const val REWARDED_AD_STARTED = "rewarded_ad_started"
+    const val REWARDED_AD_COMPLETED = "rewarded_ad_completed"
+    const val REWARDED_AD_FAILED = "rewarded_ad_failed"
+    const val SHARE_COMPLETED = "share_completed"
+    const val DAILY_FEEDBACK_SUBMITTED = "daily_feedback_submitted"
 }
+
+private val ALLOWED_ANALYTICS_META_KEYS =
+    setOf(
+        "source",
+        "step",
+        "result",
+        "plan",
+        "product",
+        "placement",
+        "sign",
+        "sign1",
+        "sign2",
+        "locale",
+        "reason",
+        "format",
+    )
+
+internal fun sanitizeAnalyticsMeta(
+    meta: Map<String, String>,
+): Map<String, String> = meta.filterKeys(ALLOWED_ANALYTICS_META_KEYS::contains)
 
 @Singleton
 class AnalyticsRepository
@@ -46,30 +81,47 @@ class AnalyticsRepository
         private val queuedEventDao: QueuedEventDao,
         private val json: Json,
     ) {
+        suspend fun enqueue(
+            eventType: String,
+            meta: Map<String, String> = emptyMap(),
+        ) = withContext(Dispatchers.IO) {
+            val safeMeta = sanitizeAnalyticsMeta(meta)
+            logFirebaseEvent(eventType, safeMeta)
+            queueEvent(eventType, safeMeta)
+        }
+
         suspend fun track(
             eventType: String,
             meta: Map<String, String> = emptyMap(),
         ) = withContext(Dispatchers.IO) {
+            val safeMeta = sanitizeAnalyticsMeta(meta)
+            logFirebaseEvent(eventType, safeMeta)
+            try {
+                val response = api.trackEvent(TrackEventRequest(eventType = eventType, meta = safeMeta))
+                when (classifyAnalyticsResponse(response.code())) {
+                    AnalyticsDeliveryDisposition.DELIVERED -> Unit
+                    AnalyticsDeliveryDisposition.PERMANENT_FAILURE ->
+                        Timber.w("Dropping permanently rejected analytics event: %s (%d)", eventType, response.code())
+                    AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, safeMeta)
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: IOException) {
+                Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
+                queueEvent(eventType, safeMeta)
+            }
+        }
+
+        private fun logFirebaseEvent(
+            eventType: String,
+            meta: Map<String, String>,
+        ) {
             firebaseAnalytics.logEvent(
                 eventType,
                 Bundle().apply {
                     meta.forEach { (key, value) -> putString(key, value) }
                 },
             )
-            try {
-                val response = api.trackEvent(TrackEventRequest(eventType = eventType, meta = meta))
-                when (classifyAnalyticsResponse(response.code())) {
-                    AnalyticsDeliveryDisposition.DELIVERED -> Unit
-                    AnalyticsDeliveryDisposition.PERMANENT_FAILURE ->
-                        Timber.w("Dropping permanently rejected analytics event: %s (%d)", eventType, response.code())
-                    AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, meta)
-                }
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: IOException) {
-                Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
-                queueEvent(eventType, meta)
-            }
         }
 
         private suspend fun queueEvent(

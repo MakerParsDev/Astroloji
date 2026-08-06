@@ -17,6 +17,19 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class DailyFeedback(
+    val analyticsValue: String,
+) {
+    RESONATED("resonated"),
+    PARTLY("partly"),
+    NOT_TODAY("not_today"),
+    ;
+
+    companion object {
+        fun fromAnalyticsValue(value: String?): DailyFeedback? = entries.firstOrNull { it.analyticsValue == value }
+    }
+}
+
 data class DailyUiState(
     val isLoading: Boolean = true,
     val horoscope: DailyHoroscope? = null,
@@ -24,6 +37,7 @@ data class DailyUiState(
     val isRefreshing: Boolean = false,
     val showBannerAd: Boolean = false,
     val canUnlockWithReward: Boolean = false,
+    val feedback: DailyFeedback? = null,
 )
 
 sealed interface DailyUiEvent {
@@ -38,6 +52,12 @@ sealed interface DailyUiEvent {
     data class RewardEarned(
         val challengeId: String,
     ) : DailyUiEvent
+
+    data class SubmitFeedback(
+        val feedback: DailyFeedback,
+    ) : DailyUiEvent
+
+    data object ShareClicked : DailyUiEvent
 }
 
 sealed interface DailyUiEffect {
@@ -67,33 +87,70 @@ class DailyViewModel
 
         override fun onEvent(event: DailyUiEvent) {
             when (event) {
-                DailyUiEvent.Refresh -> {
-                    viewModelScope.launch {
-                        load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
-                    }
+                DailyUiEvent.Refresh -> refresh()
+                DailyUiEvent.UnlockWithReward -> prepareRewardUnlock()
+                is DailyUiEvent.RewardAdUnavailable -> setState { copy(error = event.message) }
+                is DailyUiEvent.RewardEarned -> claimRewardUnlock(event.challengeId)
+                is DailyUiEvent.SubmitFeedback -> submitFeedback(event.feedback)
+                DailyUiEvent.ShareClicked -> trackShareClicked()
+            }
+        }
+
+        private fun refresh() {
+            viewModelScope.launch {
+                load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
+            }
+        }
+
+        private fun prepareRewardUnlock() {
+            viewModelScope.launch {
+                val identifier = TimeUtils.dateIdentifier()
+                when (val result = contentRepository.prepareRewardUnlock("daily", identifier)) {
+                    is AppResult.Success -> sendEffect { DailyUiEffect.ShowRewardAd(result.data) }
+                    is AppResult.Error -> setState { copy(error = result.exception.message) }
+                    AppResult.Loading -> Unit
                 }
-                DailyUiEvent.UnlockWithReward -> {
-                    viewModelScope.launch {
-                        val identifier = TimeUtils.dateIdentifier()
-                        when (val prepareResult = contentRepository.prepareRewardUnlock("daily", identifier)) {
-                            is AppResult.Success -> sendEffect { DailyUiEffect.ShowRewardAd(prepareResult.data) }
-                            is AppResult.Error -> setState { copy(error = prepareResult.exception.message) }
-                            AppResult.Loading -> Unit
-                        }
-                    }
+            }
+        }
+
+        private fun claimRewardUnlock(challengeId: String) {
+            viewModelScope.launch {
+                when (val result = contentRepository.claimRewardUnlock(challengeId)) {
+                    is AppResult.Success -> load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
+                    is AppResult.Error -> setState { copy(error = result.exception.message) }
+                    AppResult.Loading -> Unit
                 }
-                is DailyUiEvent.RewardAdUnavailable -> {
-                    setState { copy(error = event.message) }
-                }
-                is DailyUiEvent.RewardEarned -> {
-                    viewModelScope.launch {
-                        when (val claimResult = contentRepository.claimRewardUnlock(event.challengeId)) {
-                            is AppResult.Success -> load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
-                            is AppResult.Error -> setState { copy(error = claimResult.exception.message) }
-                            AppResult.Loading -> Unit
-                        }
-                    }
-                }
+            }
+        }
+
+        private fun trackShareClicked() {
+            val sign = state.value.horoscope?.sign ?: signFromArgs ?: return
+            viewModelScope.launch {
+                analyticsRepository.track(
+                    AnalyticsEvents.SHARE_CLICKED,
+                    mapOf(
+                        "source" to "daily",
+                        "sign" to sign,
+                        "format" to "image_link",
+                    ),
+                )
+            }
+        }
+
+        private fun submitFeedback(feedback: DailyFeedback) {
+            if (state.value.feedback != null) return
+            val horoscope = state.value.horoscope ?: return
+            setState { copy(feedback = feedback) }
+            viewModelScope.launch {
+                analyticsRepository.track(
+                    AnalyticsEvents.DAILY_FEEDBACK_SUBMITTED,
+                    mapOf(
+                        "source" to "daily",
+                        "result" to feedback.analyticsValue,
+                        "sign" to horoscope.sign,
+                    ),
+                )
+                preferencesRepository.updateDailyFeedback(horoscope.date, horoscope.sign, feedback.analyticsValue)
             }
         }
 
@@ -116,7 +173,20 @@ class DailyViewModel
                         forceRefresh = refresh,
                     )
             ) {
-                is AppResult.Success ->
+                is AppResult.Success -> {
+                    val persistedFeedback =
+                        DailyFeedback
+                            .fromAnalyticsValue(prefs.lastDailyFeedbackValue)
+                            .takeIf {
+                                prefs.lastDailyFeedbackDate == result.data.date &&
+                                    prefs.lastDailyFeedbackSign == result.data.sign
+                            }
+                    val retainedFeedback =
+                        state.value.feedback.takeIf {
+                            state.value.horoscope?.date == result.data.date &&
+                                state.value.horoscope?.sign == result.data.sign
+                        }
+                            ?: persistedFeedback
                     setState {
                         copy(
                             isLoading = false,
@@ -124,8 +194,10 @@ class DailyViewModel
                             horoscope = result.data,
                             showBannerAd = canShowBannerAd,
                             canUnlockWithReward = result.data.full == null && canShowRewarded,
+                            feedback = retainedFeedback,
                         )
                     }
+                }
                 is AppResult.Error ->
                     setState {
                         copy(

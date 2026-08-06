@@ -48,6 +48,7 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
+import com.parsfilo.astrology.navigation.compatibilityShareLandingUrl
 
 @Composable
 fun CompatibilityScreen(
@@ -202,7 +203,7 @@ fun CompatibilityScreen(
                     CompatibilityScoreCard(
                         modifier = Modifier.weight(1f),
                         title = stringResource(R.string.compatibility_love_score),
-                        value = report.loveScore ?: 0,
+                        value = report.loveScore,
                         language = appLanguage,
                         brush =
                             Brush.horizontalGradient(
@@ -215,7 +216,7 @@ fun CompatibilityScreen(
                     CompatibilityScoreCard(
                         modifier = Modifier.weight(1f),
                         title = stringResource(R.string.compatibility_friendship_score),
-                        value = report.friendshipScore ?: 0,
+                        value = report.friendshipScore,
                         language = appLanguage,
                         brush =
                             Brush.horizontalGradient(
@@ -228,7 +229,7 @@ fun CompatibilityScreen(
                     CompatibilityScoreCard(
                         modifier = Modifier.weight(1f),
                         title = stringResource(R.string.compatibility_work_score),
-                        value = report.workScore ?: 0,
+                        value = report.workScore,
                         language = appLanguage,
                         brush =
                             Brush.horizontalGradient(
@@ -253,23 +254,31 @@ fun CompatibilityScreen(
                     )
                 }
 
-                AstrologyCard {
-                    Text(
-                        text = stringResource(R.string.compatibility_strengths_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    report.strengths.forEach { item ->
-                        DetailChip(text = item)
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = stringResource(R.string.compatibility_challenges_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    report.challenges.forEach { item ->
-                        DetailChip(text = item)
+                if (report.strengths.isNotEmpty() || report.challenges.isNotEmpty()) {
+                    AstrologyCard {
+                        if (report.strengths.isNotEmpty()) {
+                            Text(
+                                text = stringResource(R.string.compatibility_strengths_title),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            report.strengths.forEach { item ->
+                                DetailChip(text = item)
+                            }
+                        }
+                        if (report.challenges.isNotEmpty()) {
+                            if (report.strengths.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                            }
+                            Text(
+                                text = stringResource(R.string.compatibility_challenges_title),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            report.challenges.forEach { item ->
+                                DetailChip(text = item)
+                            }
+                        }
                     }
                 }
 
@@ -342,24 +351,30 @@ fun CompatibilityScreen(
                     }
                 }
 
+                val shareLink = compatibilityShareLandingUrl(uiState.mySign, uiState.selectedSign)
+                val shareText =
+                    shareLink?.let { link ->
+                        stringResource(
+                            R.string.compatibility_share_message,
+                            mySign.localizedName(appLanguage),
+                            selectedSign.localizedName(appLanguage),
+                            report.overallScore,
+                            link,
+                        )
+                    }
+                val shareChooserTitle = stringResource(R.string.compatibility_share_cta)
                 Button(
                     onClick = {
-                        val shareText =
-                            context.getString(
-                                R.string.compatibility_share_message,
-                                mySign.localizedName(appLanguage),
-                                selectedSign.localizedName(appLanguage),
-                                report.overallScore,
-                            )
+                        val resolvedShareText = shareText ?: return@Button
+                        viewModel.onEvent(CompatibilityUiEvent.ShareClicked)
                         val intent =
                             Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, shareText)
+                                putExtra(Intent.EXTRA_TEXT, resolvedShareText)
                             }
-                        context.startActivity(
-                            Intent.createChooser(intent, context.getString(R.string.compatibility_share_cta)),
-                        )
+                        context.startActivity(Intent.createChooser(intent, shareChooserTitle))
                     },
+                    enabled = shareText != null,
                     modifier = Modifier.fillMaxWidth(),
                     colors =
                         ButtonDefaults.buttonColors(
@@ -430,11 +445,17 @@ private fun CompatibilitySignBubble(
     }
 }
 
+internal fun compatibilityScoreLabel(
+    value: Int?,
+    language: String,
+    lockedLabel: String,
+): String = value?.let { TimeUtils.formatPercentage(it, language) } ?: lockedLabel
+
 @Suppress("FunctionNaming")
 @Composable
 private fun CompatibilityScoreCard(
     title: String,
-    value: Int,
+    value: Int?,
     brush: Brush,
     language: String,
     modifier: Modifier = Modifier,
@@ -458,27 +479,29 @@ private fun CompatibilityScoreCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = TimeUtils.formatPercentage(value, language),
+                text = compatibilityScoreLabel(value, language, stringResource(R.string.compatibility_score_locked)),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                            shape = RoundedCornerShape(999.dp),
-                        ),
-            ) {
+            value?.let { availableValue ->
                 Box(
                     modifier =
                         Modifier
-                            .fillMaxWidth(value.coerceIn(0, 100) / 100f)
+                            .fillMaxWidth()
                             .height(8.dp)
-                            .background(brush, shape = RoundedCornerShape(999.dp)),
-                )
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                shape = RoundedCornerShape(999.dp),
+                            ),
+                ) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth(availableValue.coerceIn(0, 100) / 100f)
+                                .height(8.dp)
+                                .background(brush, shape = RoundedCornerShape(999.dp)),
+                    )
+                }
             }
         }
     }

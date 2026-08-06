@@ -32,6 +32,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.feature.chart.PersonalGuidanceScreen
 import com.parsfilo.astrology.feature.compatibility.CompatibilityScreen
 import com.parsfilo.astrology.feature.daily.DailyScreen
 import com.parsfilo.astrology.feature.home.HomeScreen
@@ -88,7 +89,11 @@ fun AstrologyAppRoot(
                                 Icons.Outlined.AutoAwesome,
                             ),
                             BottomItem(SettingsRoute, stringResource(com.parsfilo.astrology.R.string.nav_profile), Icons.Outlined.Person),
-                            BottomItem(PremiumRoute, stringResource(com.parsfilo.astrology.R.string.nav_premium), Icons.Outlined.Star),
+                            BottomItem(
+                                PremiumRoute(PaywallSource.NAV),
+                                stringResource(com.parsfilo.astrology.R.string.nav_premium),
+                                Icons.Outlined.Star,
+                            ),
                         )
                     items.forEach { item ->
                         NavigationBarItem(
@@ -147,7 +152,7 @@ fun AstrologyAppRoot(
                     onOpenWeekly = { navController.navigate(WeeklyRoute(it)) },
                     onOpenMonthly = { navController.navigate(MonthlyRoute(it)) },
                     onOpenPersonality = { navController.navigate(PersonalityRoute(it)) },
-                    onOpenPremium = { navController.navigate(PremiumRoute) },
+                    onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.DAILY_LOCK)) },
                 )
             }
             composable<CompatibilityRoute>(
@@ -158,7 +163,7 @@ fun AstrologyAppRoot(
                     modifier =
                         androidx.compose.ui.Modifier
                             .padding(padding),
-                    onOpenPremium = { navController.navigate(PremiumRoute) },
+                    onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.COMPATIBILITY_LOCK)) },
                 )
             }
             composable<SettingsRoute>(
@@ -169,7 +174,8 @@ fun AstrologyAppRoot(
                     modifier =
                         androidx.compose.ui.Modifier
                             .padding(padding),
-                    onOpenPremium = { navController.navigate(PremiumRoute) },
+                    onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.PROFILE_UPGRADE)) },
+                    onOpenPersonalGuidance = { navController.navigate(PersonalGuidanceRoute) },
                     onAccountDeleted = {
                         navController.navigate(OnboardingRoute) {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
@@ -178,11 +184,29 @@ fun AstrologyAppRoot(
                     },
                 )
             }
-            composable<PremiumRoute>(
+            composable<PersonalGuidanceRoute>(
                 enterTransition = { fadeIn(animationSpec = tween(300)) },
                 exitTransition = { fadeOut(animationSpec = tween(200)) },
             ) {
+                PersonalGuidanceScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    modifier =
+                        androidx.compose.ui.Modifier
+                            .padding(padding),
+                )
+            }
+            composable<PremiumRoute>(
+                enterTransition = { fadeIn(animationSpec = tween(300)) },
+                exitTransition = { fadeOut(animationSpec = tween(200)) },
+            ) { backStackEntry ->
+                val route = backStackEntry.toRoute<PremiumRoute>()
                 PremiumScreen(
+                    source = route.source.analyticsValue,
+                    onContinueFree = {
+                        if (!navController.popBackStack()) {
+                            navController.navigate(HomeRoute) { launchSingleTop = true }
+                        }
+                    },
                     modifier =
                         androidx.compose.ui.Modifier
                             .padding(padding),
@@ -197,7 +221,7 @@ fun AstrologyAppRoot(
                         androidx.compose.ui.Modifier
                             .padding(padding),
                     sign = it.toRoute<DailyDetailRoute>().sign,
-                    onOpenPremium = { navController.navigate(PremiumRoute) },
+                    onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.DAILY_LOCK)) },
                 )
             }
             composable<WeeklyRoute>(
@@ -209,7 +233,7 @@ fun AstrologyAppRoot(
                         androidx.compose.ui.Modifier
                             .padding(padding),
                     sign = it.toRoute<WeeklyRoute>().sign,
-                    onOpenPremium = { navController.navigate(PremiumRoute) },
+                    onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.WEEKLY_LOCK)) },
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
@@ -222,7 +246,7 @@ fun AstrologyAppRoot(
                         androidx.compose.ui.Modifier
                             .padding(padding),
                     sign = it.toRoute<MonthlyRoute>().sign,
-                    onOpenPremium = { navController.navigate(PremiumRoute) },
+                    onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.MONTHLY_LOCK)) },
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
@@ -235,7 +259,7 @@ fun AstrologyAppRoot(
                         androidx.compose.ui.Modifier
                             .padding(padding),
                     sign = it.toRoute<PersonalityRoute>().sign,
-                    onOpenPremium = { navController.navigate(PremiumRoute) },
+                    onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.PERSONALITY_LOCK)) },
                 )
             }
         }

@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 
 import { getCachedJsonContent } from '@/services/cache';
-import { buildDocumentsForSeed } from '@/utils/contentSeed';
+import { assertSeedQuality, buildDocumentsForSeed } from '@/utils/contentSeed';
+import type { ContentSeedOptions, ContentSeedUpload } from '@/utils/contentSeed';
 import type {
   AppBindings,
   CompatibilityContentDocument,
@@ -30,15 +31,28 @@ function jsonError(status: number, code: string, message: string) {
 
 export async function backfillContentDocuments(
   env: AppBindings['Bindings'],
-  request: ContentBackfillRequest
+  request: ContentBackfillRequest,
+  buildDocuments: (options: ContentSeedOptions) => ContentSeedUpload[] = buildDocumentsForSeed
 ) {
-  const uploads = buildDocumentsForSeed({
+  const uploads = buildDocuments({
     seedDate: request.seed_date,
     dailyDays: request.daily_days,
     skipStaticContent: request.skip_static_content
   });
+  assertSeedQuality(uploads);
+  const approvedAt = new Date().toISOString();
+  const approvedUploads = uploads.map((item) => ({
+    ...item,
+    payload: {
+      ...(item.payload as Record<string, unknown>),
+      editorial_status: request.editorial_status,
+      approved_by: request.approved_by,
+      approval_reference: request.approval_reference,
+      approved_at: approvedAt
+    }
+  }));
 
-  for (const item of uploads) {
+  for (const item of approvedUploads) {
     await env.CONTENT.put(item.key, JSON.stringify(item.payload, null, 2), {
       httpMetadata: {
         contentType: 'application/json; charset=utf-8'
@@ -46,7 +60,7 @@ export async function backfillContentDocuments(
     });
   }
 
-  return uploads;
+  return approvedUploads;
 }
 
 export function filterDailyContent(content: DailySignContent, isPremium: boolean) {
@@ -251,6 +265,9 @@ export function registerContentAdminRoutes(app: Hono<AppBindings>) {
       seed_date: request.seed_date ?? null,
       daily_days: request.daily_days,
       skip_static_content: request.skip_static_content,
+      editorial_status: request.editorial_status,
+      approved_by: request.approved_by,
+      approval_reference: request.approval_reference,
       sample_keys: uploads.slice(0, 5).map((item) => item.key)
     });
   });

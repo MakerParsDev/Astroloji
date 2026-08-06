@@ -66,6 +66,7 @@ describe('cron worker', () => {
                       language: 'tr',
                       utc_offset: 0,
                       token: `token-${index + 1}`,
+                      target_type: 'token',
                       notification_hour: 9
                     }))
                   };
@@ -79,7 +80,8 @@ describe('cron worker', () => {
                         sign: 'aries',
                         language: 'tr',
                         utc_offset: 0,
-                        token: 'token-3',
+                        token: 'fid-3',
+                        target_type: 'fid',
                         notification_hour: 9
                       }
                     ]
@@ -156,7 +158,13 @@ describe('cron worker', () => {
     expect(sendBatchNotifications).toHaveBeenCalledTimes(1);
     expect(sendBatchNotifications).toHaveBeenCalledWith(
       env,
-      [...Array.from({ length: 500 }, (_, index) => `token-${index + 1}`), 'token-3'],
+      [
+        ...Array.from({ length: 500 }, (_, index) => ({
+          type: 'token',
+          value: `token-${index + 1}`
+        })),
+        { type: 'fid', value: 'fid-3' }
+      ],
       'Koç Burcu Bugün',
       'Bugün enerjin yüksek.',
       {

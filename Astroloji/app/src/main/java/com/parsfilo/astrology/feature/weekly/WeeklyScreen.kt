@@ -51,12 +51,13 @@ fun WeeklyScreen(
     val adsEntryPoint = adsEntryPoint(context)
     val rewardedAdManager = adsEntryPoint.rewardedAdManager()
     val scope = rememberCoroutineScope()
+    val rewardedAdUnavailableMessage = stringResource(R.string.rewarded_ad_unavailable)
 
-    LaunchedEffect(viewModel, activity) {
+    LaunchedEffect(viewModel, activity, rewardedAdUnavailableMessage) {
         viewModel.effects.collect { effect ->
             when (effect) {
                 is WeeklyUiEffect.ShowRewardAd -> {
-                    val unavailableMessage = context.getString(R.string.rewarded_ad_unavailable)
+                    val unavailableMessage = rewardedAdUnavailableMessage
                     val hostActivity =
                         activity ?: run {
                             viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable(unavailableMessage))

@@ -17,12 +17,16 @@ CREATE TABLE IF NOT EXISTS fcm_tokens (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token TEXT NOT NULL UNIQUE,
+  target_type TEXT NOT NULL DEFAULT 'token' CHECK (target_type IN ('token', 'fid')),
   platform TEXT NOT NULL DEFAULT 'android',
   notification_enabled INTEGER NOT NULL DEFAULT 1,
   notification_hour INTEGER NOT NULL DEFAULT 9 CHECK (notification_hour >= 0 AND notification_hour <= 23),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user_platform_target
+  ON fcm_tokens(user_id, platform, target_type, updated_at);
 
 CREATE TABLE IF NOT EXISTS subscriptions (
   id TEXT PRIMARY KEY,

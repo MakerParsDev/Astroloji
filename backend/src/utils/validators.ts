@@ -3,13 +3,16 @@ import { z } from 'zod';
 import {
   type ContentBackfillRequest,
   LANGUAGES,
+  NOTIFICATION_TARGET_TYPES,
   PLATFORMS,
   REWARD_TYPES,
   SIGNS,
   SUBSCRIPTION_PRODUCTS,
   USER_EVENT_TYPES,
   type Language,
+  type NatalChartRequest,
   type NotificationRequest,
+  type PersonalGuidanceRequest,
   type RewardClaimRequest,
   type RewardPrepareRequest,
   type RewardType,
@@ -17,6 +20,7 @@ import {
   type Sign,
   type SubscriptionVerifyRequest,
   type TrackEventRequest,
+  type TransitChartRequest,
   type UpdateUserRequest
 } from '@/types';
 
@@ -29,20 +33,36 @@ const eventTypeSchema = z.enum(USER_EVENT_TYPES);
 const notificationHourSchema = z.number().int().min(0).max(23);
 const utcOffsetSchema = z.number().int().min(-12).max(14);
 
-export const registerSchema = z.object({
-  sign: signSchema,
-  language: languageSchema.default('tr'),
-  fcm_token: z.string().min(1).optional(),
-  notification_hour: notificationHourSchema.optional().default(9),
-  utc_offset: utcOffsetSchema,
-  platform: platformSchema.default('android')
-});
+function requireSingleNotificationTarget(
+  value: { fcm_token?: string; firebase_installation_id?: string },
+  context: z.RefinementCtx
+) {
+  if (value.fcm_token && value.firebase_installation_id) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Provide either fcm_token or firebase_installation_id, not both.'
+    });
+  }
+}
+
+export const registerSchema = z
+  .object({
+    sign: signSchema,
+    language: languageSchema.default('tr'),
+    fcm_token: z.string().min(1).optional(),
+    firebase_installation_id: z.string().min(1).optional(),
+    notification_hour: notificationHourSchema.optional().default(9),
+    utc_offset: utcOffsetSchema,
+    platform: platformSchema.default('android')
+  })
+  .superRefine(requireSingleNotificationTarget);
 
 export const updateUserSchema = z
   .object({
     sign: signSchema.optional(),
     language: languageSchema.optional(),
     fcm_token: z.string().min(1).optional(),
+    firebase_installation_id: z.string().min(1).optional(),
     notification_enabled: z.boolean().optional(),
     notification_hour: notificationHourSchema.optional(),
     utc_offset: utcOffsetSchema.optional(),
@@ -51,7 +71,8 @@ export const updateUserSchema = z
   .refine(
     (value) => Object.keys(value).length > 0,
     'At least one field must be provided.'
-  );
+  )
+  .superRefine(requireSingleNotificationTarget);
 
 export const subscriptionVerifySchema = z.object({
   purchase_token: z.string().min(1),
@@ -113,10 +134,72 @@ const optionalBooleanSchema = z.preprocess((value) => {
   return value;
 }, z.boolean().optional());
 
+const UTC_TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$/;
+
+function isRealUtcTimestamp(value: string): boolean {
+  const match = UTC_TIMESTAMP_PATTERN.exec(value);
+  if (!match) return false;
+
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, fraction = '0'] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const millisecond = Number(fraction.padEnd(3, '0'));
+  const instant = new Date(0);
+  instant.setUTCFullYear(year, month - 1, day);
+  instant.setUTCHours(hour, minute, second, millisecond);
+
+  return (
+    instant.getUTCFullYear() === year &&
+    instant.getUTCMonth() === month - 1 &&
+    instant.getUTCDate() === day &&
+    instant.getUTCHours() === hour &&
+    instant.getUTCMinutes() === minute &&
+    instant.getUTCSeconds() === second &&
+    instant.getUTCMilliseconds() === millisecond
+  );
+}
+
+const utcTimestampSchema = z
+  .string()
+  .regex(UTC_TIMESTAMP_PATTERN, 'timestamp must be an ISO 8601 UTC timestamp.')
+  .refine(isRealUtcTimestamp, 'timestamp must be a real ISO 8601 UTC instant.');
+
+const birthTimeCertaintySchema = z.enum(['exact', 'approximate', 'unknown']);
+
+export const natalChartSchema = z.object({
+  timestamp: utcTimestampSchema,
+  time_certainty: birthTimeCertaintySchema
+});
+
+export const transitChartSchema = z.object({
+  natal_timestamp: utcTimestampSchema,
+  natal_time_certainty: birthTimeCertaintySchema,
+  target_timestamp: utcTimestampSchema
+});
+
+export const personalGuidanceSchema = transitChartSchema.extend({
+  language: languageSchema
+});
+
+const approvalIdentifierSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(96)
+  .regex(/^[A-Za-z0-9._:-]+$/, 'Approval identifiers must be opaque and URL-safe.');
+
 export const contentBackfillSchema = z.object({
   seed_date: optionalSeedDateSchema,
   daily_days: z.coerce.number().int().min(1).max(31).optional().default(14),
-  skip_static_content: optionalBooleanSchema.default(true)
+  skip_static_content: optionalBooleanSchema.default(true),
+  editorial_status: z.literal('approved'),
+  approved_by: approvalIdentifierSchema,
+  approval_reference: approvalIdentifierSchema
 });
 
 export const notificationSchema = z.object({
@@ -157,6 +240,18 @@ export function validateRewardPrepareBody(payload: unknown): RewardPrepareReques
 
 export function validateRewardClaimBody(payload: unknown): RewardClaimRequest {
   return rewardClaimSchema.parse(payload);
+}
+
+export function validateNatalChartBody(payload: unknown): NatalChartRequest {
+  return natalChartSchema.parse(payload);
+}
+
+export function validateTransitChartBody(payload: unknown): TransitChartRequest {
+  return transitChartSchema.parse(payload);
+}
+
+export function validatePersonalGuidanceBody(payload: unknown): PersonalGuidanceRequest {
+  return personalGuidanceSchema.parse(payload);
 }
 
 export function validateContentBackfillBody(payload: unknown): ContentBackfillRequest {

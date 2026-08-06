@@ -1,11 +1,11 @@
 package com.parsfilo.astrology.core.data.repository
 
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.messaging.FirebaseMessaging
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.local.AstrologyDatabase
 import com.parsfilo.astrology.core.data.local.UserProfileEntity
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.push.PushRegistrationManager
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.RegisterUserRequest
 import com.parsfilo.astrology.core.data.remote.UpdateUserRequest
@@ -42,6 +42,7 @@ class SessionRepository
         private val tokenStore: SessionTokenStore,
         private val refreshCoordinator: SessionRefreshCoordinator,
         private val requestExecutor: AuthenticatedRequestExecutor,
+        private val pushRegistrationManager: PushRegistrationManager,
     ) {
         private val userProfileDao = database.userProfileDao()
 
@@ -226,10 +227,10 @@ class SessionRepository
                         )
                     }
 
-                    runCatching { FirebaseMessaging.getInstance().deleteToken().await() }
+                    runCatching { pushRegistrationManager.unregister() }
                         .onFailure {
                             if (it is CancellationException) throw it
-                            Timber.w(it, "FCM token could not be removed during account deletion.")
+                            Timber.w(it, "Firebase installation could not be removed during account deletion.")
                         }
                     firebaseAuth.signOut()
                     database.clearAllTables()
@@ -379,17 +380,16 @@ class SessionRepository
         ): AppResult<String> =
             runCatching {
                 val firebaseToken = ensureFirebaseIdToken(forceRefreshFirebaseToken)
-                val fcmToken =
+                val firebaseInstallationId =
                     try {
-                        FirebaseMessaging
-                            .getInstance()
-                            .token
-                            .await()
-                            .takeIf { it.isNotBlank() }
+                        pushRegistrationManager.register()
                     } catch (exception: CancellationException) {
                         throw exception
                     } catch (exception: Exception) {
-                        Timber.w(exception, "FCM token could not be retrieved; continuing without push registration.")
+                        Timber.w(
+                            exception,
+                            "Firebase installation could not be registered; continuing without push delivery.",
+                        )
                         null
                     }
                 val response =
@@ -398,7 +398,7 @@ class SessionRepository
                         RegisterUserRequest(
                             sign = preferences.selectedSign,
                             language = preferences.language,
-                            fcmToken = fcmToken,
+                            firebaseInstallationId = firebaseInstallationId,
                             notificationHour = preferences.notificationHour,
                             utcOffset = preferences.utcOffset,
                             platform = "android",

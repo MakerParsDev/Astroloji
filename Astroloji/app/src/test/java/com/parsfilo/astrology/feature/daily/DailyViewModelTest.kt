@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.ads.AdEligibilityChecker
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.ContentRepository
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
@@ -296,6 +297,154 @@ class DailyViewModelTest {
             assertThat(viewModel.state.value.error).isEqualTo("Reklam hazır değil")
             coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
         }
+
+    @Test
+    fun `structured daily feedback is submitted once without free text`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(selectedSign = "aries", language = "tr", userId = "user-1")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coJustRun { preferencesRepository.updateDailyFeedback(any(), any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(DailyUiEvent.SubmitFeedback(DailyFeedback.RESONATED))
+            viewModel.onEvent(DailyUiEvent.SubmitFeedback(DailyFeedback.PARTLY))
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.feedback).isEqualTo(DailyFeedback.RESONATED)
+            coVerify(exactly = 1) {
+                analyticsRepository.track(
+                    AnalyticsEvents.DAILY_FEEDBACK_SUBMITTED,
+                    mapOf(
+                        "source" to "daily",
+                        "result" to "resonated",
+                        "sign" to "aries",
+                    ),
+                )
+            }
+            coVerify(exactly = 1) {
+                preferencesRepository.updateDailyFeedback("2026-07-26", "aries", "resonated")
+            }
+            coVerify(exactly = 0) {
+                analyticsRepository.track(
+                    AnalyticsEvents.DAILY_FEEDBACK_SUBMITTED,
+                    match { it["result"] == "partly" },
+                )
+            }
+        }
+
+    @Test
+    fun `persisted daily feedback is restored without submitting analytics again`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    selectedSign = "aries",
+                    language = "tr",
+                    userId = "user-1",
+                    lastDailyFeedbackDate = "2026-07-26",
+                    lastDailyFeedbackSign = "aries",
+                    lastDailyFeedbackValue = "partly",
+                )
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.feedback).isEqualTo(DailyFeedback.PARTLY)
+            coVerify(exactly = 0) {
+                analyticsRepository.track(
+                    AnalyticsEvents.DAILY_FEEDBACK_SUBMITTED,
+                    any(),
+                )
+            }
+            coVerify(exactly = 0) { preferencesRepository.updateDailyFeedback(any(), any(), any()) }
+        }
+
+    @Test
+    fun `feedback from another sign on the same date is not restored`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    selectedSign = "leo",
+                    language = "tr",
+                    userId = "user-1",
+                    lastDailyFeedbackDate = "2026-07-26",
+                    lastDailyFeedbackSign = "aries",
+                    lastDailyFeedbackValue = "partly",
+                )
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope().copy(sign = "leo"))
+
+            val viewModel =
+                DailyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "leo")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.feedback).isNull()
+        }
+
+    @Test
+    fun `daily share click emits bounded analytics before the chooser`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(selectedSign = "aries", language = "tr", userId = "user-1")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(DailyUiEvent.ShareClicked)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                analyticsRepository.track(
+                    AnalyticsEvents.SHARE_CLICKED,
+                    mapOf(
+                        "source" to "daily",
+                        "sign" to "aries",
+                        "format" to "image_link",
+                    ),
+                )
+            }
+            coVerify(exactly = 0) {
+                analyticsRepository.track(AnalyticsEvents.SHARE_COMPLETED, any())
+            }
+        }
+
+    private fun createViewModel(): DailyViewModel =
+        DailyViewModel(
+            savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+            contentRepository = contentRepository,
+            preferencesRepository = preferencesRepository,
+            analyticsRepository = analyticsRepository,
+            remoteConfigRepository = remoteConfigRepository,
+            adEligibilityChecker = adEligibilityChecker,
+        )
 
     private fun lockedDailyHoroscope(): DailyHoroscope =
         DailyHoroscope(

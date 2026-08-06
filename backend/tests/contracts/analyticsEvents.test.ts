@@ -24,4 +24,26 @@ describe('analytics event contract', () => {
     expect(mobileEvents.length).toBeGreaterThan(0);
     expect(USER_EVENT_TYPES).toEqual(expect.arrayContaining(mobileEvents));
   });
+
+  it('supports the complete activation and monetization funnel taxonomy', () => {
+    expect(USER_EVENT_TYPES).toEqual(
+      expect.arrayContaining([
+        'onboarding_started',
+        'onboarding_step_viewed',
+        'onboarding_completed',
+        'notification_permission_result',
+        'paywall_viewed',
+        'paywall_plan_selected',
+        'purchase_started',
+        'purchase_succeeded',
+        'purchase_failed',
+        'purchase_cancelled',
+        'rewarded_ad_started',
+        'rewarded_ad_completed',
+        'rewarded_ad_failed',
+        'share_completed',
+        'daily_feedback_submitted'
+      ])
+    );
+  });
 });

@@ -4,6 +4,7 @@ import type {
   CronNotificationJob,
   DailyContentDocument,
   Env,
+  NotificationTarget,
   NotificationTargetRow,
   SubscriptionRow
 } from '@/types';
@@ -157,13 +158,13 @@ async function buildNotificationJob(
 }
 
 async function dispatchScheduledNotifications(env: Env, currentUtcHour: number) {
-  const groupedJobs = new Map<string, string[]>();
+  const groupedJobs = new Map<string, NotificationTarget[]>();
   const PAGE_SIZE = 500;
   let offset = 0;
 
   while (true) {
     const targets = await env.DB.prepare(
-      `SELECT u.id AS user_id, u.sign, u.language, u.utc_offset, f.token, f.notification_hour
+      `SELECT u.id AS user_id, u.sign, u.language, u.utc_offset, f.token, f.target_type, f.notification_hour
        FROM users u
        INNER JOIN fcm_tokens f ON f.user_id = u.id
        WHERE f.notification_enabled = 1
@@ -189,9 +190,9 @@ async function dispatchScheduledNotifications(env: Env, currentUtcHour: number) 
       }
 
       const key = JSON.stringify(job);
-      const tokens = groupedJobs.get(key) ?? [];
-      tokens.push(target.token);
-      groupedJobs.set(key, tokens);
+      const targetsForJob = groupedJobs.get(key) ?? [];
+      targetsForJob.push({ type: target.target_type, value: target.token });
+      groupedJobs.set(key, targetsForJob);
     }
 
     offset += PAGE_SIZE;
@@ -200,9 +201,9 @@ async function dispatchScheduledNotifications(env: Env, currentUtcHour: number) 
     }
   }
 
-  for (const [serializedJob, tokens] of groupedJobs.entries()) {
+  for (const [serializedJob, targets] of groupedJobs.entries()) {
     const job = JSON.parse(serializedJob) as CronNotificationJob;
-    await sendBatchNotifications(env, tokens, job.title, job.body, job.data);
+    await sendBatchNotifications(env, targets, job.title, job.body, job.data);
   }
 }
 

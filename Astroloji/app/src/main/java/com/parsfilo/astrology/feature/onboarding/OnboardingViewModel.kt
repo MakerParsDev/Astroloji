@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
+import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.SessionRepository
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.StringsProvider
@@ -16,6 +18,24 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+enum class OnboardingStep(
+    val analyticsValue: String,
+) {
+    INTRO("intro"),
+    BIRTH_PROFILE("birth_profile"),
+    NOTIFICATION_VALUE("notification_value"),
+    ;
+
+    companion object {
+        fun fromPage(page: Int): OnboardingStep =
+            when (page) {
+                0 -> INTRO
+                1 -> BIRTH_PROFILE
+                else -> NOTIFICATION_VALUE
+            }
+    }
+}
 
 data class OnboardingUiState(
     val selectedSign: ZodiacSign? = null,
@@ -34,9 +54,43 @@ class OnboardingViewModel
         private val preferencesRepository: UserPreferencesRepository,
         private val sessionRepository: SessionRepository,
         private val stringsProvider: StringsProvider,
+        private val analyticsRepository: AnalyticsRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(OnboardingUiState())
         val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
+
+        init {
+            viewModelScope.launch {
+                analyticsRepository.track(AnalyticsEvents.ONBOARDING_STARTED)
+            }
+        }
+
+        fun trackStep(step: OnboardingStep) {
+            viewModelScope.launch {
+                analyticsRepository.track(
+                    AnalyticsEvents.ONBOARDING_STEP_VIEWED,
+                    mapOf("step" to step.analyticsValue),
+                )
+            }
+        }
+
+        fun recordNotificationPermission(granted: Boolean) {
+            viewModelScope.launch {
+                analyticsRepository.track(
+                    AnalyticsEvents.NOTIFICATION_PERMISSION_RESULT,
+                    mapOf("result" to if (granted) "granted" else "denied"),
+                )
+            }
+        }
+
+        fun recordNotificationPermissionNotRequested() {
+            viewModelScope.launch {
+                analyticsRepository.track(
+                    AnalyticsEvents.NOTIFICATION_PERMISSION_RESULT,
+                    mapOf("result" to "not_requested"),
+                )
+            }
+        }
 
         fun selectSign(sign: ZodiacSign) {
             _uiState.update { it.copy(selectedSign = sign, error = null) }
@@ -107,6 +161,10 @@ class OnboardingViewModel
                 when (val result = sessionRepository.registerFromPreferences()) {
                     is AppResult.Success -> {
                         preferencesRepository.updateOnboarding(true, sign.key, _uiState.value.language)
+                        analyticsRepository.enqueue(
+                            AnalyticsEvents.ONBOARDING_COMPLETED,
+                            mapOf("sign" to sign.key, "locale" to _uiState.value.language),
+                        )
                         _uiState.update { it.copy(isSubmitting = false) }
                         onSuccess()
                     }

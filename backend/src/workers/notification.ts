@@ -27,7 +27,7 @@ async function getTargets(
 
   const result = await db
     .prepare(
-      `SELECT u.id AS user_id, u.sign, u.language, u.utc_offset, f.token, f.notification_hour
+      `SELECT u.id AS user_id, u.sign, u.language, u.utc_offset, f.token, f.target_type, f.notification_hour
        FROM users u
        INNER JOIN fcm_tokens f ON f.user_id = u.id
        WHERE ${clauses.join(' AND ')}`
@@ -52,7 +52,7 @@ export function registerNotificationRoutes(app: Hono<AppBindings>) {
 
     const result = await sendBatchNotifications(
       c.env,
-      targets.map((target) => target.token),
+      targets.map((target) => ({ type: target.target_type, value: target.token })),
       body.title,
       body.body,
       sanitizeNotificationData(body.data)

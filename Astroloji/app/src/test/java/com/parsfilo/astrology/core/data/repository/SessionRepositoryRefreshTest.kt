@@ -6,10 +6,10 @@ import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GetTokenResult
-import com.google.firebase.messaging.FirebaseMessaging
 import com.parsfilo.astrology.core.data.local.AstrologyDatabase
 import com.parsfilo.astrology.core.data.local.UserProfileDao
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.push.PushRegistrationManager
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.RegisterUserRequest
 import com.parsfilo.astrology.core.data.remote.RegisterUserResponse
@@ -27,16 +27,13 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.slot
-import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
@@ -47,7 +44,7 @@ class SessionRepositoryRefreshTest {
     private val firebaseAuth = mockk<FirebaseAuth>()
     private val firebaseUser = mockk<FirebaseUser>()
     private val tokenResult = mockk<GetTokenResult>()
-    private val messaging = mockk<FirebaseMessaging>()
+    private val pushRegistrationManager = mockk<PushRegistrationManager>()
     private val api = mockk<AstrologyApi>()
     private val preferencesRepository = mockk<UserPreferencesRepository>(relaxed = true)
     private val userProfileDao = mockk<UserProfileDao>()
@@ -57,19 +54,12 @@ class SessionRepositoryRefreshTest {
 
     @Before
     fun setUp() {
-        mockkStatic(FirebaseMessaging::class)
-        every { FirebaseMessaging.getInstance() } returns messaging
-        every { messaging.token } returns Tasks.forResult("fcm-token")
+        coEvery { pushRegistrationManager.register() } returns "fid-123"
         every { database.userProfileDao() } returns userProfileDao
     }
 
-    @After
-    fun tearDown() {
-        unmockkStatic(FirebaseMessaging::class)
-    }
-
     @Test
-    fun `missing FCM token does not generate a placeholder during registration`() =
+    fun `missing FID does not generate a placeholder during registration`() =
         runTest {
             val fresh = jwt(exp = 4_000_000_100)
             val registerRequest = slot<RegisterUserRequest>()
@@ -77,7 +67,7 @@ class SessionRepositoryRefreshTest {
             every { firebaseAuth.currentUser } returns firebaseUser
             every { tokenResult.token } returns "firebase-token"
             every { firebaseUser.getIdToken(true) } returns Tasks.forResult(tokenResult)
-            every { messaging.token } returns Tasks.forException(IOException("FCM unavailable"))
+            coEvery { pushRegistrationManager.register() } throws IOException("FID unavailable")
             coEvery { api.registerUser(any(), capture(registerRequest)) } returns
                 retrofit2.Response.success(
                     RegisterUserResponse(
@@ -106,7 +96,7 @@ class SessionRepositoryRefreshTest {
             val result = repository.refreshSessionToken(forceRefreshFirebaseToken = true)
 
             assertThat(result).isEqualTo(AppResult.Success(fresh))
-            assertThat(registerRequest.captured.fcmToken).isNull()
+            assertThat(registerRequest.captured.firebaseInstallationId).isNull()
         }
 
     @Test
@@ -329,6 +319,7 @@ class SessionRepositoryRefreshTest {
             tokenStore = tokenStore,
             refreshCoordinator = SessionRefreshCoordinator(),
             requestExecutor = AuthenticatedRequestExecutor(),
+            pushRegistrationManager = pushRegistrationManager,
         )
 
     private fun jwt(exp: Long): String {

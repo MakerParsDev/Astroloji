@@ -1,9 +1,11 @@
+import com.android.build.api.dsl.ApplicationExtension
 import com.github.triplet.gradle.androidpublisher.ReleaseStatus
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.compose.screenshot) apply false
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.google.services)
@@ -12,6 +14,16 @@ plugins {
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.play.publisher)
+}
+
+val screenshotTestsEnabled =
+    providers.gradleProperty("android.experimental.enableScreenshotTest").orNull == "true"
+
+if (screenshotTestsEnabled) {
+    extensions.configure<ApplicationExtension> {
+        experimentalProperties["android.experimental.enableScreenshotTest"] = true
+    }
+    apply(plugin = "com.android.compose.screenshot")
 }
 
 fun stringConfig(
@@ -93,6 +105,21 @@ if (releaseLikeBuildRequested && missingReleaseAdMobKeys.isNotEmpty()) {
     error(
         "Release-like builds require AdMob secrets. Missing: ${missingReleaseAdMobKeys.joinToString(", ")}",
     )
+}
+
+val screenshotRuntimeExcludedGroups =
+    setOf(
+        "com.android.billingclient",
+        "com.google.android.gms",
+        "com.google.android.play",
+        "com.google.android.ump",
+        "com.google.firebase",
+    )
+
+configurations.configureEach {
+    if (name.contains("ScreenshotTest", ignoreCase = true)) {
+        screenshotRuntimeExcludedGroups.forEach { group -> exclude(group = group) }
+    }
 }
 
 android {
@@ -241,6 +268,12 @@ android {
             isIncludeAndroidResources = true
         }
     }
+
+    lint {
+        abortOnError = true
+        checkReleaseBuilds = true
+        warningsAsErrors = true
+    }
 }
 kotlin {
     compilerOptions {
@@ -276,8 +309,8 @@ tasks.matching { it.name == "uploadCrashlyticsMappingFileRelease" }.configureEac
     onlyIf { stringConfig("CRASHLYTICS_MAPPING_UPLOAD_ENABLED", "true").toBoolean() }
 }
 
-val prepareDebugGoogleServices by
-    tasks.registering {
+val prepareDebugGoogleServices =
+    tasks.register("prepareDebugGoogleServices") {
         description = "Copies the example google-services config for local debug/test verification."
         val sourceFile = layout.projectDirectory.file("google-services.example.json")
         val targetFile = layout.projectDirectory.file("google-services.json")
@@ -400,6 +433,13 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.androidx.test.core)
     testImplementation(libs.androidx.room.testing)
+
+    // ── Screenshot Testing ────────────────────────────────────────────────────
+    if (screenshotTestsEnabled) {
+        add("screenshotTestImplementation", platform(libs.androidx.compose.bom))
+        add("screenshotTestImplementation", libs.screenshot.validation.api)
+        add("screenshotTestImplementation", libs.androidx.compose.ui.tooling)
+    }
 
     // ── Instrumented Testing ──────────────────────────────────────────────────
     androidTestImplementation(platform(libs.androidx.compose.bom))
