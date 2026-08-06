@@ -105,6 +105,9 @@ jobs:
       - name: Apply rewarded SSV D1 migration
         run: npx wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql
 
+      - name: Reconcile notification target D1 schema
+        run: node scripts/reconcile-notification-targets.mjs
+
       - name: Apply tracked D1 migrations
         run: npx wrangler d1 migrations apply astrology-db --remote
 
