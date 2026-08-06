@@ -252,6 +252,7 @@ class OnboardingViewModelTest {
             runCurrent()
 
             assertThat(completed).isFalse()
+            assertThat(viewModel.uiState.value.isSubmitting).isTrue()
             queueGate.complete(Unit)
             advanceUntilIdle()
             assertThat(completed).isTrue()

@@ -66,9 +66,13 @@ ${migration}`,
   }
 });
 
-test('tracked migration baseline does not replay the pre-ledger ALTER TABLE', () => {
-  assert.match(baseline, /SELECT 1;/);
-  assert.doesNotMatch(baseline, /ALTER TABLE|CREATE INDEX/i);
+test('tracked migration baseline is exactly one no-op statement', () => {
+  const statements = baseline
+    .replace(/--.*$/gm, '')
+    .split(';')
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+  assert.deepEqual(statements, ['SELECT 1']);
 });
 
 test('production applies the notification target migration before deployment', () => {
