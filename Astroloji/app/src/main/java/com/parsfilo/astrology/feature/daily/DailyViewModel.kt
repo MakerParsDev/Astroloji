@@ -150,7 +150,7 @@ class DailyViewModel
                         "sign" to horoscope.sign,
                     ),
                 )
-                preferencesRepository.updateDailyFeedback(horoscope.date, feedback.analyticsValue)
+                preferencesRepository.updateDailyFeedback(horoscope.date, horoscope.sign, feedback.analyticsValue)
             }
         }
 
@@ -177,9 +177,15 @@ class DailyViewModel
                     val persistedFeedback =
                         DailyFeedback
                             .fromAnalyticsValue(prefs.lastDailyFeedbackValue)
-                            .takeIf { prefs.lastDailyFeedbackDate == result.data.date }
+                            .takeIf {
+                                prefs.lastDailyFeedbackDate == result.data.date &&
+                                    prefs.lastDailyFeedbackSign == result.data.sign
+                            }
                     val retainedFeedback =
-                        state.value.feedback.takeIf { state.value.horoscope?.date == result.data.date }
+                        state.value.feedback.takeIf {
+                            state.value.horoscope?.date == result.data.date &&
+                                state.value.horoscope?.sign == result.data.sign
+                        }
                             ?: persistedFeedback
                     setState {
                         copy(

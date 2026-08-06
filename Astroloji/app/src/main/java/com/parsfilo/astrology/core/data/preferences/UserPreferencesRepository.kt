@@ -36,6 +36,7 @@ object PreferencesKeys {
     val INTERSTITIAL_COUNT_TODAY = intPreferencesKey("interstitial_count_today")
     val INTERSTITIAL_COUNT_DATE = stringPreferencesKey("interstitial_count_date")
     val LAST_DAILY_FEEDBACK_DATE = stringPreferencesKey("last_daily_feedback_date")
+    val LAST_DAILY_FEEDBACK_SIGN = stringPreferencesKey("last_daily_feedback_sign")
     val LAST_DAILY_FEEDBACK_VALUE = stringPreferencesKey("last_daily_feedback_value")
     val CONSENT_STATUS = intPreferencesKey("consent_status")
 }
@@ -151,10 +152,12 @@ class UserPreferencesRepository
 
         suspend fun updateDailyFeedback(
             date: String,
+            sign: String,
             value: String,
         ) {
             dataStore.edit {
                 it[PreferencesKeys.LAST_DAILY_FEEDBACK_DATE] = date
+                it[PreferencesKeys.LAST_DAILY_FEEDBACK_SIGN] = sign
                 it[PreferencesKeys.LAST_DAILY_FEEDBACK_VALUE] = value
             }
         }
@@ -208,6 +211,7 @@ class UserPreferencesRepository
                 interstitialCountToday = preferences[PreferencesKeys.INTERSTITIAL_COUNT_TODAY] ?: 0,
                 interstitialCountDate = preferences[PreferencesKeys.INTERSTITIAL_COUNT_DATE],
                 lastDailyFeedbackDate = preferences[PreferencesKeys.LAST_DAILY_FEEDBACK_DATE],
+                lastDailyFeedbackSign = preferences[PreferencesKeys.LAST_DAILY_FEEDBACK_SIGN],
                 lastDailyFeedbackValue = preferences[PreferencesKeys.LAST_DAILY_FEEDBACK_VALUE],
                 consentStatus = preferences[PreferencesKeys.CONSENT_STATUS] ?: 0,
             )
