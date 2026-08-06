@@ -122,7 +122,12 @@ class PersonalGuidanceViewModelTest {
             advanceUntilIdle()
 
             assertThat(viewModel.uiState.value.birthDateMillis).isEqualTo(secondDate)
-            assertThat(viewModel.uiState.value.guidance?.signals?.first()?.id).isEqualTo("new-one")
+            val guidanceId =
+                viewModel.uiState.value.guidance
+                    ?.signals
+                    ?.first()
+                    ?.id
+            assertThat(guidanceId).isEqualTo("new-one")
             assertThat(viewModel.uiState.value.isLoading).isFalse()
         }
 
