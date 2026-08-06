@@ -180,4 +180,4 @@ owner_cert_after="$(certificate_digest "$TMP_DIR/owner-after.apk")"
   exit 71
 }
 
-echo 'DEVICE_SMOKE_PASS stages=anonymous_auth,fid,register,profile,refresh,delete,post_delete owner_preserved=true cleanup=true'
+echo 'DEVICE_SMOKE_PASS stages=anonymous_auth,fid,register,profile,refresh,delete,post_delete,post_delete_write owner_preserved=true cleanup=true'

@@ -292,7 +292,7 @@ Record package version, signing SHA-256, resolved activity, and a UI tree summar
 scripts/run-android-device-smoke.sh <explicit-adb-serial>
 ```
 
-Expected: `DEVICE_SMOKE_PASS stages=anonymous_auth,fid,register,profile,refresh,delete,post_delete`.
+Expected: `DEVICE_SMOKE_PASS stages=anonymous_auth,fid,register,profile,refresh,delete,post_delete,post_delete_write`.
 
 - [x] **Step 3: Verify cleanup and owner preservation**
 

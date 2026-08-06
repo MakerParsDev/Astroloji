@@ -56,6 +56,17 @@ private data class RefreshResponse(
     val jwt: String,
 )
 
+enum class SmokeStatusEndpoint {
+    PROFILE,
+    TRACK_EVENT,
+}
+
+@Serializable
+private data class TrackEventRequest(
+    @SerialName("event_type") val eventType: String = "app_open",
+    val meta: Map<String, String> = emptyMap(),
+)
+
 class BackendSmokeClient(
     baseUrl: String,
     private val client: OkHttpClient =
@@ -131,14 +142,27 @@ class BackendSmokeClient(
         }
     }
 
-    fun profileStatus(jwt: String): Int {
-        val request =
+    fun status(
+        jwt: String,
+        endpoint: SmokeStatusEndpoint,
+    ): Int {
+        val builder =
             Request
                 .Builder()
-                .url("$root/api/v1/users/me")
                 .header("Authorization", "Bearer $jwt")
-                .get()
-                .build()
+        val request =
+            when (endpoint) {
+                SmokeStatusEndpoint.PROFILE ->
+                    builder
+                        .url("$root/api/v1/users/me")
+                        .get()
+                        .build()
+                SmokeStatusEndpoint.TRACK_EVENT ->
+                    builder
+                        .url("$root/api/v1/events/track")
+                        .post(json.encodeToString(TrackEventRequest()).jsonBody())
+                        .build()
+            }
         return client.newCall(request).execute().use { it.code }
     }
 

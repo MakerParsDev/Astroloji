@@ -93,7 +93,9 @@ class LiveIdentityLifecycleSmokeTest {
                     backendDeleted = true
 
                     stage("post_delete")
-                    assertThat(client.profileStatus(refreshedJwt)).isAnyOf(401, 404)
+                    assertThat(client.status(refreshedJwt, SmokeStatusEndpoint.PROFILE)).isAnyOf(401, 404)
+                    stage("post_delete_write")
+                    assertThat(client.status(refreshedJwt, SmokeStatusEndpoint.TRACK_EVENT)).isEqualTo(401)
                 }
 
             val cleanupFailure =

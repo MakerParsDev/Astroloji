@@ -6,7 +6,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 const schema = readFileSync('backend/schema.sql', 'utf8');
-const migration = readFileSync('backend/migrations/0001_notification_targets.sql', 'utf8');
+const migration = readFileSync('backend/scripts/migrate-notification-targets.sql', 'utf8');
+const baseline = readFileSync('backend/migrations/0001_notification_targets_baseline.sql', 'utf8');
 const wrangler = readFileSync('backend/wrangler.toml', 'utf8');
 const workflow = readFileSync('.github/workflows/backend-production-deploy.yml', 'utf8');
 const manifest = readFileSync('Astroloji/app/src/main/AndroidManifest.xml', 'utf8');
@@ -63,6 +64,11 @@ ${migration}`,
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('tracked migration baseline does not replay the pre-ledger ALTER TABLE', () => {
+  assert.match(baseline, /SELECT 1;/);
+  assert.doesNotMatch(baseline, /ALTER TABLE|CREATE INDEX/i);
 });
 
 test('production applies the notification target migration before deployment', () => {

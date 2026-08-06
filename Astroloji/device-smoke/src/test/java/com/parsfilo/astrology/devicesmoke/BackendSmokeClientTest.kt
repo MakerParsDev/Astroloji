@@ -91,6 +91,27 @@ class BackendSmokeClientTest {
     }
 
     @Test
+    fun trackEventStatusUsesWriteEndpointWithBackendJwt() {
+        lateinit var captured: Request
+        val client =
+            BackendSmokeClient(
+                baseUrl = "https://astrology.parsfilo.com",
+                client = clientReturning(code = 401, body = "{}") { captured = it },
+            )
+
+        val dummyJwt = "deleted-user-jwt"
+        val status = client.status(dummyJwt, SmokeStatusEndpoint.TRACK_EVENT)
+
+        assertThat(status).isEqualTo(401)
+        assertThat(captured.method).isEqualTo("POST")
+        assertThat(captured.url.encodedPath).isEqualTo("/api/v1/events/track")
+        assertThat(captured.header("Authorization")).isEqualTo("Bearer $dummyJwt")
+        val body = Json.parseToJsonElement(captured.bodyText()).jsonObject
+        assertThat(body.getValue("event_type").jsonPrimitive.content).isEqualTo("app_open")
+        assertThat(body.getValue("meta").jsonObject).isEmpty()
+    }
+
+    @Test
     fun unexpectedStatusDoesNotExposeResponseBody() {
         val client =
             BackendSmokeClient(
