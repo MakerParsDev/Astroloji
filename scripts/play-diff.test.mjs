@@ -140,3 +140,14 @@ test('canonical loader maps shared icon and singular manifest roles to Play imag
   assert.equal(proposed.listings['en-US'].images.phoneScreenshots.length, 6);
   assert.equal(proposed.listings['tr-TR'].images.phoneScreenshots.length, 6);
 });
+
+test('live state digest ignores capture time and listing order but changes with content', async () => {
+  const { computePlayStateDigest } = await import('./lib/play-diff.mjs');
+  const first = liveFixture();
+  const second = structuredClone(first);
+  second.capturedAt = '2030-01-01T00:00:00.000Z';
+  second.listings.reverse();
+  assert.equal(computePlayStateDigest(first), computePlayStateDigest(second));
+  second.listings[0].title = 'Changed title';
+  assert.notEqual(computePlayStateDigest(first), computePlayStateDigest(second));
+});

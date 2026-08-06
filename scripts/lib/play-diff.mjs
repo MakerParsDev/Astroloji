@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadStoreConfig } from './play-store-config.mjs';
@@ -49,6 +50,58 @@ function imageDiff(beforeImages, afterImages) {
       ? 'UNCHANGED'
       : 'CHANGED';
   return { before, after, status };
+}
+
+
+export function computePlayStateDigest(state) {
+  const listings = [...(state.listings ?? [])]
+    .map((listing) => ({
+      locale: listing.locale,
+      title: normalizeText(listing.title),
+      shortDescription: normalizeText(listing.shortDescription),
+      fullDescription: normalizeText(listing.fullDescription),
+      video: listing.video ?? null,
+      images: Object.fromEntries(
+        IMAGE_TYPES.map((imageType) => [
+          imageType,
+          [...(listing.images?.[imageType] ?? [])]
+            .map((image) => String(image.sha256 ?? image.sha1 ?? image.id ?? ''))
+            .sort(),
+        ]),
+      ),
+    }))
+    .sort((a, b) => a.locale.localeCompare(b.locale));
+
+  const tracks = Object.fromEntries(
+    Object.entries(state.tracks ?? {})
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([trackName, track]) => [
+        trackName,
+        [...(track.releases ?? [])]
+          .map((release) => ({
+            name: release.name ?? null,
+            status: release.status ?? null,
+            userFraction: release.userFraction ?? null,
+            versionCodes: [...(release.versionCodes ?? [])].map(String).sort(),
+            releaseNotes: [...(release.releaseNotes ?? [])]
+              .map((note) => ({
+                language: note.language,
+                text: normalizeText(note.text),
+              }))
+              .sort((a, b) => a.language.localeCompare(b.language)),
+          }))
+          .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+      ]),
+  );
+
+  const subscriptions = subscriptionPairsFromLive(state.subscriptions ?? []);
+  const canonical = {
+    packageName: state.packageName,
+    listings,
+    tracks,
+    subscriptions,
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
 
 export function buildPlayDiff(live, proposed) {
