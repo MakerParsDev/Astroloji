@@ -1,9 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  assertLocaleContract,
+  loadStoreConfig,
+  readAndroidLocales,
+} from './lib/play-store-config.mjs';
 
-const metadataRoot = path.resolve(process.cwd(), 'Astroloji', 'play');
+const repositoryRoot = process.cwd();
+const metadataRoot = path.resolve(repositoryRoot, 'Astroloji', 'play');
 const listingsRoot = path.join(metadataRoot, 'listings');
 const releaseNotesRoot = path.join(metadataRoot, 'release-notes');
+const storeConfig = loadStoreConfig(repositoryRoot);
+const androidLocales = readAndroidLocales(repositoryRoot);
 
 const listingFiles = {
   'title.txt': 30,
@@ -32,6 +40,12 @@ function readTrimmed(filePath) {
   return fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n').trim();
 }
 
+try {
+  assertLocaleContract(storeConfig, androidLocales);
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
+}
+
 if (!fs.existsSync(listingsRoot)) {
   fail(`Missing listings root: ${listingsRoot}`);
 }
@@ -42,6 +56,12 @@ const localeDirs = fs.existsSync(listingsRoot)
 
 if (localeDirs.length === 0) {
   fail('No Play listing locales found. Add Astroloji/play/listings/<locale>/ files.');
+}
+
+const listingLocales = localeDirs.map((entry) => entry.name).sort();
+const expectedLocales = [...storeConfig.locales].sort();
+if (JSON.stringify(listingLocales) !== JSON.stringify(expectedLocales)) {
+  fail(`Listing locale directories must be exactly: ${expectedLocales.join(', ')}`);
 }
 
 for (const localeDir of localeDirs) {
@@ -59,8 +79,8 @@ for (const localeDir of localeDirs) {
       continue;
     }
 
-    if (content.length > maxLength) {
-      fail(`${localeDir.name}/${fileName} exceeds ${maxLength} characters (actual ${content.length})`);
+    if ([...content].length > maxLength) {
+      fail(`${localeDir.name}/${fileName} exceeds ${maxLength} characters (actual ${[...content].length})`);
     }
 
     if ((content.match(/\|/g) ?? []).length >= 4) {
@@ -77,6 +97,11 @@ for (const localeDir of localeDirs) {
 
 if (fs.existsSync(releaseNotesRoot)) {
   const noteLocales = fs.readdirSync(releaseNotesRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory());
+  const noteLocaleNames = noteLocales.map((entry) => entry.name).sort();
+  if (JSON.stringify(noteLocaleNames) !== JSON.stringify(expectedLocales)) {
+    fail(`Release-note locale directories must be exactly: ${expectedLocales.join(', ')}`);
+  }
+
   for (const localeDir of noteLocales) {
     const filePath = path.join(releaseNotesRoot, localeDir.name, 'default.txt');
     if (!fs.existsSync(filePath)) {
@@ -90,8 +115,8 @@ if (fs.existsSync(releaseNotesRoot)) {
       continue;
     }
 
-    if (content.length > 500) {
-      fail(`Release notes for ${localeDir.name} exceed 500 characters (actual ${content.length})`);
+    if ([...content].length > 500) {
+      fail(`Release notes for ${localeDir.name} exceed 500 characters (actual ${[...content].length})`);
     }
   }
 }
@@ -100,4 +125,4 @@ if (process.exitCode && process.exitCode !== 0) {
   process.exit(process.exitCode);
 }
 
-console.log(`Play metadata validation passed for ${localeDirs.length} locale(s).`);
+console.log(`Play metadata validation passed for ${localeDirs.length} supported locale(s): ${expectedLocales.join(', ')}.`);

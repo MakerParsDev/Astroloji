@@ -1,0 +1,21 @@
+{
+  "packageName": "com.parsfilo.astrology",
+  "locales": ["en-US", "tr-TR"],
+  "androidLocaleMap": {
+    "en": "en-US",
+    "tr": "tr-TR"
+  },
+  "support": {
+    "developer": "ParsFilo",
+    "email": "info@parsfilo.com",
+    "website": "https://astrology.parsfilo.com",
+    "privacyPolicy": "https://astrology.parsfilo.com/privacy",
+    "accountDeletion": "https://astrology.parsfilo.com/delete-account"
+  },
+  "assets": {
+    "phoneScreenshotCount": 6,
+    "featureGraphic": { "width": 1024, "height": 500 },
+    "icon": { "width": 512, "height": 512 }
+  },
+  "productionRolloutFraction": 0.1
+}
