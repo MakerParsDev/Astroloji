@@ -53,3 +53,11 @@ test('custom WorkManager initialization is removed cleanly from app and unit-tes
   assert.match(unitTestManifest, /android:name="androidx\.work\.WorkManagerInitializer"/);
   assert.match(debugUnitTestManifest, /android:name="androidx\.work\.WorkManagerInitializer"[\s\S]*tools:node="remove"/);
 });
+
+test('Android CI compiles the isolated physical-device smoke suite without executing it', () => {
+  assert.match(
+    ci,
+    /name:\s*Device smoke APK compile[\s\S]*?\.\/gradlew :device-smoke:assembleDebug :device-smoke:assembleDebugAndroidTest/,
+  );
+  assert.doesNotMatch(ci, /run-android-device-smoke\.sh|am instrument/);
+});

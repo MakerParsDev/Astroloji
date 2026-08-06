@@ -83,6 +83,8 @@ jobs:
         run: ./gradlew :app:validateDebugScreenshotTest
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
+      - name: Device smoke APK compile
+        run: ./gradlew :device-smoke:assembleDebug :device-smoke:assembleDebugAndroidTest
       - name: Assemble debug
         run: ./gradlew :app:assembleDebug
       - name: Bundle release dry-run
