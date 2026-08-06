@@ -218,6 +218,7 @@ class PremiumViewModelTest {
                 )
             advanceUntilIdle()
 
+            assertThat(viewModel.state.value.error).isNull()
             coVerify(exactly = 1) {
                 analyticsRepository.track(
                     AnalyticsEvents.PURCHASE_CANCELLED,

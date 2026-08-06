@@ -138,7 +138,12 @@ class PremiumViewModel
                             val failureReason = billingException?.reason ?: BillingFailureReason.UNKNOWN
                             val isCancelled = failureReason == BillingFailureReason.USER_CANCELLED
                             billingAction = BillingAction.NONE
-                            setState { copy(purchaseSuccess = false, error = purchaseState.exception.message) }
+                            setState {
+                                copy(
+                                    purchaseSuccess = false,
+                                    error = purchaseState.exception.message.takeUnless { isCancelled },
+                                )
+                            }
                             if (failedAction == BillingAction.PURCHASE) {
                                 viewModelScope.launch {
                                     analyticsRepository.track(
