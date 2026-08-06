@@ -1,6 +1,9 @@
 {
   "packageName": "com.parsfilo.astrology",
-  "locales": ["en-US", "tr-TR"],
+  "locales": [
+    "en-US",
+    "tr-TR"
+  ],
   "androidLocaleMap": {
     "en": "en-US",
     "tr": "tr-TR"
@@ -14,8 +17,24 @@
   },
   "assets": {
     "phoneScreenshotCount": 6,
-    "featureGraphic": { "width": 1024, "height": 500 },
-    "icon": { "width": 512, "height": 512 }
+    "featureGraphic": {
+      "width": 1024,
+      "height": 500
+    },
+    "icon": {
+      "width": 512,
+      "height": 512
+    }
   },
-  "productionRolloutFraction": 0.1
+  "productionRolloutFraction": 0.1,
+  "subscriptions": [
+    {
+      "productId": "premium_monthly",
+      "basePlanId": "monthly"
+    },
+    {
+      "productId": "premium_weekly",
+      "basePlanId": "weekly"
+    }
+  ]
 }

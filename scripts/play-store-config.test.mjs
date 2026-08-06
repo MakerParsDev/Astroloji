@@ -41,3 +41,11 @@ test("missing Play locale is rejected", () => {
     /Missing Play locale: tr-TR/,
   );
 });
+
+test('store config owns the canonical monthly and weekly subscription pairs', () => {
+  const config = loadStoreConfig(process.cwd());
+  assert.deepEqual(config.subscriptions, [
+    { productId: 'premium_monthly', basePlanId: 'monthly' },
+    { productId: 'premium_weekly', basePlanId: 'weekly' },
+  ]);
+});
