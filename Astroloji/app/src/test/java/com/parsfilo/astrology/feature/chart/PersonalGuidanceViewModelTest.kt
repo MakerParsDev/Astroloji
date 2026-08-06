@@ -13,8 +13,10 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -93,6 +95,38 @@ class PersonalGuidanceViewModelTest {
         }
 
     @Test
+    fun `older guidance response cannot overwrite a newer birth date request`() =
+        runTest {
+            val firstDate = Instant.parse("1990-01-15T00:00:00.000Z").toEpochMilli()
+            val secondDate = Instant.parse("1991-02-16T00:00:00.000Z").toEpochMilli()
+            val firstResult = CompletableDeferred<AppResult<PersonalGuidance>>()
+            val secondResult = CompletableDeferred<AppResult<PersonalGuidance>>()
+            val pendingResults = ArrayDeque(listOf(firstResult, secondResult))
+            coEvery { preferencesRepository.current() } returns UserPreferences(language = "en")
+            every { chartClock.now() } returns Instant.parse("2026-08-05T11:22:33.987Z")
+            coEvery { chartRepository.getPersonalGuidance(any(), any(), any(), any()) } coAnswers {
+                pendingResults.removeFirst().await()
+            }
+            val viewModel = createViewModel()
+
+            viewModel.selectBirthDate(firstDate)
+            viewModel.loadGuidance()
+            runCurrent()
+            viewModel.selectBirthDate(secondDate)
+            viewModel.loadGuidance()
+            runCurrent()
+
+            secondResult.complete(AppResult.Success(guidance("new-")))
+            runCurrent()
+            firstResult.complete(AppResult.Success(guidance("old-")))
+            advanceUntilIdle()
+
+            assertThat(viewModel.uiState.value.birthDateMillis).isEqualTo(secondDate)
+            assertThat(viewModel.uiState.value.guidance?.signals?.first()?.id).isEqualTo("new-one")
+            assertThat(viewModel.uiState.value.isLoading).isFalse()
+        }
+
+    @Test
     fun `future birth dates are rejected before any network request`() =
         runTest {
             every { chartClock.now() } returns Instant.parse("2026-08-05T11:22:33.987Z")
@@ -114,7 +148,7 @@ class PersonalGuidanceViewModelTest {
             chartClock = chartClock,
         )
 
-    private fun guidance(): PersonalGuidance =
+    private fun guidance(prefix: String = ""): PersonalGuidance =
         PersonalGuidance(
             version = "personal-guidance-v1",
             calculationVersion = "guidance-rules-v1",
@@ -123,9 +157,9 @@ class PersonalGuidanceViewModelTest {
             language = "tr",
             signals =
                 listOf(
-                    signal("one", 94),
-                    signal("two", 84),
-                    signal("three", 82),
+                    signal("${prefix}one", 94),
+                    signal("${prefix}two", 84),
+                    signal("${prefix}three", 82),
                 ),
             limitations = listOf("birth_time_uncertain", "moon_position_time_sensitive"),
             disclaimer = "Eğlence ve öz değerlendirme içindir.",

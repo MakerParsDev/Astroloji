@@ -46,14 +46,17 @@ class PersonalGuidanceViewModel
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(PersonalGuidanceUiState())
         val uiState: StateFlow<PersonalGuidanceUiState> = _uiState.asStateFlow()
+        private var guidanceRequestGeneration = 0
 
         fun selectBirthDate(millis: Long) {
+            guidanceRequestGeneration += 1
             val selectedDate = datePickerMillisToLocalDate(millis)
             val today = chartClock.now().atZone(java.time.ZoneOffset.UTC).toLocalDate()
             if (selectedDate.isAfter(today)) {
                 _uiState.update {
                     it.copy(
                         birthDateMillis = null,
+                        isLoading = false,
                         guidance = null,
                         inputError = ChartInputError.FUTURE_BIRTH_DATE,
                         error = null,
@@ -64,6 +67,7 @@ class PersonalGuidanceViewModel
             _uiState.update {
                 it.copy(
                     birthDateMillis = millis,
+                    isLoading = false,
                     guidance = null,
                     inputError = null,
                     error = null,
@@ -72,12 +76,14 @@ class PersonalGuidanceViewModel
         }
 
         fun clearBirthData() {
+            guidanceRequestGeneration += 1
             _uiState.value = PersonalGuidanceUiState()
         }
 
         fun loadGuidance() {
             val birthDateMillis = _uiState.value.birthDateMillis ?: return
             if (_uiState.value.isLoading) return
+            val requestGeneration = ++guidanceRequestGeneration
 
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true, guidance = null, error = null) }
@@ -89,6 +95,7 @@ class PersonalGuidanceViewModel
                         targetTimestamp = targetTimestamp(chartClock.now()),
                         language = language,
                     )
+                if (requestGeneration != guidanceRequestGeneration) return@launch
                 when (result) {
                     is AppResult.Success ->
                         _uiState.update {
