@@ -2,17 +2,29 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPlayClient } from './lib/play-api-client.mjs';
+import { loadCanonicalPlayState } from './lib/play-diff.mjs';
+import {
+  backupConfirmation,
+  publishPreparedMetadata,
+  readBackupFile,
+  verifySupportedPublishedState,
+} from './lib/play-publication.mjs';
 
 const changesNotSentForReview =
   process.env.PLAY_CHANGES_NOT_SENT_FOR_REVIEW?.toLowerCase() === 'true';
 
+function argument(name) {
+  const equalsPrefix = `--${name}=`;
+  const equalsValue = process.argv.find((value) => value.startsWith(equalsPrefix));
+  if (equalsValue) return equalsValue.slice(equalsPrefix.length);
+  const index = process.argv.indexOf(`--${name}`);
+  return index >= 0 ? process.argv[index + 1] : undefined;
+}
+
 function readLocaleFiles(rootDir) {
   return fs.readdirSync(rootDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => ({
-      locale: entry.name,
-      path: path.join(rootDir, entry.name),
-    }))
+    .map((entry) => ({ locale: entry.name, path: path.join(rootDir, entry.name) }))
     .sort((a, b) => a.locale.localeCompare(b.locale));
 }
 
@@ -20,80 +32,84 @@ function readTrimmed(filePath) {
   return fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n').trim();
 }
 
+function releaseNotesMutation(releaseNotesRoot, releaseNotesTrack) {
+  if (!releaseNotesTrack || !fs.existsSync(releaseNotesRoot)) return async () => {};
+  const releaseNotes = readLocaleFiles(releaseNotesRoot).map(({ locale, path: localePath }) => ({
+    language: locale,
+    text: readTrimmed(path.join(localePath, 'default.txt')),
+  }));
+  return async (client, editId) => {
+    if (releaseNotes.length === 0) return;
+    const track = await client.getTrack(editId, releaseNotesTrack);
+    if (!track.releases?.length) {
+      throw new Error(`Track '${releaseNotesTrack}' has no releases to attach release notes to.`);
+    }
+    const [primaryRelease, ...otherReleases] = track.releases;
+    await client.updateTrack(editId, releaseNotesTrack, {
+      ...track,
+      releases: [{ ...primaryRelease, releaseNotes }, ...otherReleases],
+    });
+  };
+}
+
 export async function publishPlayMetadata({
   packageName = process.env.PLAY_PACKAGE_NAME,
   credentialsPath = process.env.PLAY_SERVICE_ACCOUNT_JSON_PATH,
+  repositoryRoot = process.cwd(),
   metadataRoot = path.resolve(
-    process.cwd(),
+    repositoryRoot,
     process.env.PLAY_METADATA_ROOT ?? path.join('Astroloji', 'play'),
+  ),
+  backupPath = argument('backup') ?? process.env.PLAY_METADATA_BACKUP_PATH,
+  confirmation = argument('confirmation') ?? process.env.PLAY_METADATA_CONFIRMATION,
+  maxAgeMinutes = Number(
+    argument('max-backup-age-minutes') ??
+      process.env.PLAY_METADATA_BACKUP_MAX_AGE_MINUTES ??
+      30,
   ),
   releaseNotesTrack = process.env.PLAY_METADATA_TRACK?.trim(),
   deferReview = changesNotSentForReview,
   fetchImpl = fetch,
+  client: injectedClient,
+  independentReadback,
+  now = new Date(),
 } = {}) {
-  const listingsRoot = path.join(metadataRoot, 'listings');
-  const releaseNotesRoot = path.join(metadataRoot, 'release-notes');
-  if (!fs.existsSync(listingsRoot)) {
-    throw new Error(`Missing listings directory: ${listingsRoot}`);
+  if (!backupPath) throw new Error('Provide a fresh backup with --backup=<absolute-path>.');
+  const resolvedRepositoryRoot = path.resolve(repositoryRoot);
+  const resolvedMetadataRoot = path.resolve(metadataRoot);
+  const expectedMetadataRoot = path.join(resolvedRepositoryRoot, 'Astroloji', 'play');
+  if (resolvedMetadataRoot !== expectedMetadataRoot) {
+    throw new Error(`Metadata root must be canonical: ${expectedMetadataRoot}`);
   }
 
-  const listings = readLocaleFiles(listingsRoot);
-  if (listings.length === 0) {
-    throw new Error(`No listings found under ${listingsRoot}`);
+  const { backup, backupDigest } = readBackupFile(path.resolve(backupPath));
+  const expectedConfirmation = backupConfirmation(backupDigest);
+  if (!confirmation) {
+    throw new Error(`Missing publication confirmation. Expected exactly: ${expectedConfirmation}`);
   }
 
-  const client = createPlayClient({ packageName, credentialsPath, fetchImpl });
-  const edit = await client.createEdit();
-  let committed = false;
-
-  try {
-    for (const listing of listings) {
-      await client.updateListing(edit.id, listing.locale, {
-        language: listing.locale,
-        title: readTrimmed(path.join(listing.path, 'title.txt')),
-        shortDescription: readTrimmed(path.join(listing.path, 'short-description.txt')),
-        fullDescription: readTrimmed(path.join(listing.path, 'full-description.txt')),
-      });
-    }
-
-    if (releaseNotesTrack && fs.existsSync(releaseNotesRoot)) {
-      const releaseNotes = readLocaleFiles(releaseNotesRoot).map(({ locale, path: localePath }) => ({
-        language: locale,
-        text: readTrimmed(path.join(localePath, 'default.txt')),
-      }));
-
-      if (releaseNotes.length > 0) {
-        const track = await client.getTrack(edit.id, releaseNotesTrack);
-        if (!track.releases?.length) {
-          throw new Error(`Track '${releaseNotesTrack}' has no releases to attach release notes to.`);
-        }
-        const [primaryRelease, ...otherReleases] = track.releases;
-        await client.updateTrack(edit.id, releaseNotesTrack, {
-          ...track,
-          releases: [
-            {
-              ...primaryRelease,
-              releaseNotes,
-            },
-            ...otherReleases,
-          ],
-        });
-      }
-    }
-
-    await client.commitEdit(edit.id, { changesNotSentForReview: deferReview });
-    committed = true;
-    console.log(`Published Play metadata edit ${edit.id} for ${listings.length} locale(s).`);
-    return { editId: edit.id, localeCount: listings.length };
-  } finally {
-    if (!committed) {
-      try {
-        await client.deleteEdit(edit.id);
-      } catch {
-        console.error(`Unable to abandon uncommitted Play edit ${edit.id}; inspect it before retrying.`);
-      }
-    }
-  }
+  const proposed = loadCanonicalPlayState(resolvedRepositoryRoot);
+  const client = injectedClient ?? createPlayClient({ packageName, credentialsPath, fetchImpl });
+  const result = await publishPreparedMetadata({
+    client,
+    backup,
+    backupDigest,
+    confirmation,
+    proposed,
+    now,
+    maxAgeMinutes,
+    changesNotSentForReview: deferReview,
+    additionalEditMutation: releaseNotesMutation(
+      path.join(resolvedMetadataRoot, 'release-notes'),
+      releaseNotesTrack,
+    ),
+    independentReadback:
+      independentReadback ?? ((state) => verifySupportedPublishedState(client, state)),
+  });
+  console.log(
+    `Published verified Play metadata edit ${result.editId} for ${proposed.locales.length} supported locale(s).`,
+  );
+  return { ...result, backupDigest };
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';

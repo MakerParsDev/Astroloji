@@ -3,6 +3,7 @@ import fs from 'node:fs';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const API_ROOT = 'https://androidpublisher.googleapis.com/androidpublisher/v3/applications';
+const UPLOAD_ROOT = 'https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications';
 
 function base64Url(input) {
   return Buffer.from(input).toString('base64url');
@@ -88,6 +89,29 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
     return parseJsonResponse(response, `Google Play API ${method} ${relativePath}`);
   }
 
+  async function uploadImage(editId, locale, imageType, filePath) {
+    const token = await accessToken();
+    const extension = filePath.toLowerCase().endsWith('.jpg') || filePath.toLowerCase().endsWith('.jpeg')
+      ? 'image/jpeg'
+      : filePath.toLowerCase().endsWith('.png')
+        ? 'image/png'
+        : null;
+    if (!extension) throw new Error(`Unsupported Play image file type: ${filePath}`);
+    const relativePath =
+      `/edits/${encodeURIComponent(editId)}/listings/${encodeURIComponent(locale)}/${encodeURIComponent(imageType)}`;
+    const response = await fetchImpl(`${UPLOAD_ROOT}/${encodeURIComponent(packageName)}${relativePath}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': extension,
+      },
+      body: fs.readFileSync(filePath),
+    });
+    const body = await parseJsonResponse(response, `Google Play image upload ${locale}/${imageType}`);
+    if (!body.image) throw new Error(`Google Play image upload ${locale}/${imageType} returned no image.`);
+    return body.image;
+  }
+
   return {
     packageName,
     request,
@@ -113,6 +137,12 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
       );
       return body.images ?? [];
     },
+    deleteAllImages: (editId, locale, imageType) =>
+      request(
+        `/edits/${encodeURIComponent(editId)}/listings/${encodeURIComponent(locale)}/${encodeURIComponent(imageType)}`,
+        { method: 'DELETE' },
+      ),
+    uploadImage,
     getTrack: (editId, track) =>
       request(`/edits/${encodeURIComponent(editId)}/tracks/${encodeURIComponent(track)}`),
     updateTrack: (editId, track, value) =>
@@ -124,11 +154,21 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
       const body = await request('/subscriptions');
       return body.subscriptions ?? [];
     },
-    commitEdit(editId, { changesNotSentForReview = false } = {}) {
-      const query = changesNotSentForReview ? '?changesNotSentForReview=true' : '';
-      return request(`/edits/${encodeURIComponent(editId)}:commit${query}`, {
+    commitEdit(
+      editId,
+      {
+        changesNotSentForReview = false,
+        changesInReviewBehavior = 'ERROR_IF_IN_REVIEW',
+      } = {},
+    ) {
+      const query = new URLSearchParams();
+      if (changesNotSentForReview) query.set('changesNotSentForReview', 'true');
+      if (changesInReviewBehavior) {
+        query.set('changesInReviewBehavior', changesInReviewBehavior);
+      }
+      const suffix = query.size > 0 ? `?${query.toString()}` : '';
+      return request(`/edits/${encodeURIComponent(editId)}:commit${suffix}`, {
         method: 'POST',
-        body: {},
       });
     },
     deleteEdit: (editId) => request(`/edits/${encodeURIComponent(editId)}`, { method: 'DELETE' }),

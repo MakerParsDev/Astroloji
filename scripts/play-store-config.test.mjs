@@ -49,3 +49,9 @@ test('store config owns the canonical monthly and weekly subscription pairs', ()
     { productId: 'premium_weekly', basePlanId: 'weekly' },
   ]);
 });
+
+test('store config binds shared assets to the Turkish default listing', () => {
+  const config = loadStoreConfig(process.cwd());
+  assert.equal(config.defaultLocale, 'tr-TR');
+  assert.ok(config.locales.includes(config.defaultLocale));
+});

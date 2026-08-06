@@ -1,5 +1,6 @@
 {
   "packageName": "com.parsfilo.astrology",
+  "defaultLocale": "tr-TR",
   "locales": [
     "en-US",
     "tr-TR"

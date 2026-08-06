@@ -43,6 +43,15 @@ test('Play client exchanges JWT and exposes bounded Android Publisher methods', 
     if (pathname.endsWith('/edits') && (init.method ?? 'GET') === 'POST') return response(200, { id: 'edit-1' });
     if (pathname.endsWith('/listings')) return response(200, { listings: [{ language: 'en-US' }] });
     if (pathname.endsWith('/listings/en-US')) return response(200, { language: 'en-US', title: 'Astrology' });
+    if (String(url).startsWith('https://androidpublisher.googleapis.com/upload/')) {
+      assert.equal(init.method, 'POST');
+      assert.equal(init.headers['Content-Type'], 'image/png');
+      assert.ok(Buffer.isBuffer(init.body));
+      return response(200, { image: { id: 'uploaded-image', sha256: 'uploaded-sha' } });
+    }
+    if (pathname.endsWith('/listings/en-US/phoneScreenshots') && init.method === 'DELETE') {
+      return response(200, { deleted: [{ id: 'old-image' }] });
+    }
     if (pathname.endsWith('/listings/en-US/phoneScreenshots')) return response(200, { images: [{ id: 'image-1' }] });
     if (pathname.endsWith('/tracks/production')) return response(200, { track: 'production', releases: [] });
     if (pathname.endsWith('/subscriptions')) return response(200, { subscriptions: [{ productId: 'premium_monthly' }] });
@@ -61,9 +70,24 @@ test('Play client exchanges JWT and exposes bounded Android Publisher methods', 
   assert.deepEqual(await client.listListings('edit-1'), [{ language: 'en-US' }]);
   assert.equal((await client.getListing('edit-1', 'en-US')).title, 'Astrology');
   assert.deepEqual(await client.listImages('edit-1', 'en-US', 'phoneScreenshots'), [{ id: 'image-1' }]);
+  assert.deepEqual(await client.deleteAllImages('edit-1', 'en-US', 'phoneScreenshots'), {
+    deleted: [{ id: 'old-image' }],
+  });
+  const imagePath = path.join(path.dirname(credentialsFile()), 'upload.png');
+  fs.writeFileSync(imagePath, Buffer.from('png-bytes'));
+  assert.deepEqual(await client.uploadImage('edit-1', 'en-US', 'phoneScreenshots', imagePath), {
+    id: 'uploaded-image',
+    sha256: 'uploaded-sha',
+  });
   assert.equal((await client.getTrack('edit-1', 'production')).track, 'production');
   assert.deepEqual(await client.listSubscriptions(), [{ productId: 'premium_monthly' }]);
-  assert.deepEqual(await client.commitEdit('edit-1', { changesNotSentForReview: false }), { id: 'edit-1' });
+  assert.deepEqual(
+    await client.commitEdit('edit-1', {
+      changesNotSentForReview: false,
+      changesInReviewBehavior: 'ERROR_IF_IN_REVIEW',
+    }),
+    { id: 'edit-1' },
+  );
   await client.deleteEdit('edit-1');
 
   const tokenCall = calls[0];
@@ -71,6 +95,8 @@ test('Play client exchanges JWT and exposes bounded Android Publisher methods', 
   assert.equal(tokenCall.method, 'POST');
   assert.match(String(tokenCall.body), /grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer/);
   const apiCalls = calls.slice(1);
+  const commitCall = apiCalls.find((call) => call.url.includes(':commit'));
+  assert.match(commitCall.url, /changesInReviewBehavior=ERROR_IF_IN_REVIEW/);
   assert.ok(apiCalls.every((call) => !call.url.includes('unit-access-token')));
   assert.ok(apiCalls.every((call) => !String(call.body).includes('PRIVATE KEY')));
 });
