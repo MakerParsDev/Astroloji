@@ -430,7 +430,7 @@ export function registerSubscriptionAdminRoutes(app: Hono<AppBindings>) {
         (await getSubscriptionStatus(
           c.env,
           row.purchase_token,
-          'premium_yearly',
+          'premium_weekly',
           c.env.PACKAGE_NAME
         ));
 
