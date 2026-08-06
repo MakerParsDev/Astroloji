@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { validateAssetManifest } from './lib/play-assets.mjs';
 import { validateListingCopy } from './lib/play-copy-quality.mjs';
 import {
   assertLocaleContract,
@@ -140,6 +141,10 @@ if (fs.existsSync(releaseNotesRoot)) {
       fail(`Release notes for ${localeDir.name} exceed 500 characters (actual ${[...content].length})`);
     }
   }
+}
+
+for (const error of validateAssetManifest(repositoryRoot, storeConfig)) {
+  fail(error);
 }
 
 if (process.exitCode && process.exitCode !== 0) {

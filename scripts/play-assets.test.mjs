@@ -127,3 +127,9 @@ test('unsupported image format is rejected', () => {
   fs.writeFileSync(filePath, Buffer.from('GIF89a'));
   assert.throws(() => readImageInfo(filePath), /unsupported image format/i);
 });
+
+test('main metadata validator enforces the localized asset manifest', () => {
+  const validator = fs.readFileSync('scripts/validate-play-metadata.mjs', 'utf8');
+  assert.match(validator, /validateAssetManifest/);
+  assert.match(validator, /for \(const error of validateAssetManifest\(repositoryRoot, storeConfig\)\)/);
+});

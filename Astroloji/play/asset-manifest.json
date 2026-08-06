@@ -1,4 +1,155 @@
 {
   "version": 1,
-  "assets": []
+  "assets": [
+    {
+      "locale": "shared",
+      "role": "icon",
+      "order": 0,
+      "path": "shared/icon/icon.png",
+      "format": "png",
+      "width": 512,
+      "height": 512,
+      "sha256": "abddb35850979c2d49e90e1a18663a6433c07d0385f033f9a0857fc34326d12e"
+    },
+    {
+      "locale": "en-US",
+      "role": "featureGraphic",
+      "order": 0,
+      "path": "en-US/featureGraphic/feature-graphic.png",
+      "format": "png",
+      "width": 1024,
+      "height": 500,
+      "sha256": "2297cfb7748510cea53db4a4e124002d8603ce7065e49100024f78497e59b262"
+    },
+    {
+      "locale": "en-US",
+      "role": "phoneScreenshot",
+      "order": 1,
+      "path": "en-US/phoneScreenshots/01-daily.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "5cf22d12f091a446341c168e159edb814970c7c6c4ef077bfea43b9b57bbd405"
+    },
+    {
+      "locale": "en-US",
+      "role": "phoneScreenshot",
+      "order": 2,
+      "path": "en-US/phoneScreenshots/02-guidance.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "cfc1badf8ad08b713cc3aa717dde30d454edd64b064d008b2f2b15cebfb84285"
+    },
+    {
+      "locale": "en-US",
+      "role": "phoneScreenshot",
+      "order": 3,
+      "path": "en-US/phoneScreenshots/03-compatibility.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "99b945c7386fde0175ab44998b96c0d337014c34218b5b20154aa214739de68c"
+    },
+    {
+      "locale": "en-US",
+      "role": "phoneScreenshot",
+      "order": 4,
+      "path": "en-US/phoneScreenshots/04-personality.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "e84472253258ac3aa9be4182f9a5f9693b8023d374cd3d9db5fbad9b007a3f5e"
+    },
+    {
+      "locale": "en-US",
+      "role": "phoneScreenshot",
+      "order": 5,
+      "path": "en-US/phoneScreenshots/05-tools.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "c648deb6fc07a32429934d16093c9640a140ba8d0c8d03f6ccc234b7ee96b16d"
+    },
+    {
+      "locale": "en-US",
+      "role": "phoneScreenshot",
+      "order": 6,
+      "path": "en-US/phoneScreenshots/06-premium.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "223eb1b5f9ba6acb9cfb96007201a96218659b7ab267a0b04a4aa83d2f34e817"
+    },
+    {
+      "locale": "tr-TR",
+      "role": "featureGraphic",
+      "order": 0,
+      "path": "tr-TR/featureGraphic/feature-graphic.png",
+      "format": "png",
+      "width": 1024,
+      "height": 500,
+      "sha256": "f0ad4bb2b15a39a1f9cdae22b908e9204049637b3250153b868b43831f2c4b3d"
+    },
+    {
+      "locale": "tr-TR",
+      "role": "phoneScreenshot",
+      "order": 1,
+      "path": "tr-TR/phoneScreenshots/01-daily.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "03767d88d09facd4ea53613ab8aaa97074dac51903cde0624ec30c504595f519"
+    },
+    {
+      "locale": "tr-TR",
+      "role": "phoneScreenshot",
+      "order": 2,
+      "path": "tr-TR/phoneScreenshots/02-guidance.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "5b29f977b5c15560303d49eae20a7e4831274f1987c99eeb8fd5141f1b7700c7"
+    },
+    {
+      "locale": "tr-TR",
+      "role": "phoneScreenshot",
+      "order": 3,
+      "path": "tr-TR/phoneScreenshots/03-compatibility.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "fc821892ff6de009777de8ff64b8eff1b19370ea558b1f5213eb7f53bbb5bd90"
+    },
+    {
+      "locale": "tr-TR",
+      "role": "phoneScreenshot",
+      "order": 4,
+      "path": "tr-TR/phoneScreenshots/04-personality.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "2e060e81a6a463cea5704243e0562abbce86cd86794050a39da32913bf25881c"
+    },
+    {
+      "locale": "tr-TR",
+      "role": "phoneScreenshot",
+      "order": 5,
+      "path": "tr-TR/phoneScreenshots/05-tools.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "717aa70a6f0e2e6aee1c36552faf794a2bbebffeebc1e3d5cafe7b57103d9b5f"
+    },
+    {
+      "locale": "tr-TR",
+      "role": "phoneScreenshot",
+      "order": 6,
+      "path": "tr-TR/phoneScreenshots/06-premium.png",
+      "format": "png",
+      "width": 1080,
+      "height": 1920,
+      "sha256": "dc25c966530f06261a8276b848dfeb7a5387afb57b10fd4d4ffd834d6b81d176"
+    }
+  ]
 }

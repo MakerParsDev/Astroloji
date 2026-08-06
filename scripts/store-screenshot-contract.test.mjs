@@ -33,3 +33,20 @@ test('CI explicitly validates paywall and Play store screenshot suites', () => {
   assert.match(ci, /android\.experimental\.enableScreenshotTest=true/);
   assert.match(ci, /android\.sync\.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE/);
 });
+
+test('feature graphics and shared icon have deterministic Compose previews', () => {
+  const featurePath = 'Astroloji/app/src/screenshotTest/kotlin/com/parsfilo/astrology/store/StoreFeatureGraphicScreenshotTest.kt';
+  assert.ok(fs.existsSync(featurePath), 'Feature graphic screenshot source must exist.');
+  const source = fs.readFileSync(featurePath, 'utf8');
+  for (const preview of [
+    'StoreFeatureGraphicEnglishScreenshot',
+    'StoreFeatureGraphicTurkishScreenshot',
+    'StoreAppIconScreenshot',
+  ]) {
+    assert.match(source, new RegExp(preview));
+  }
+  assert.equal((source.match(/@PreviewTest/g) ?? []).length, 3);
+  assert.match(source, /spec:width=1024dp,height=500dp,dpi=160/);
+  assert.match(source, /spec:width=512dp,height=512dp,dpi=160/);
+  assert.doesNotMatch(source, /rating|award|testimonial|countdown|discount/i);
+});
