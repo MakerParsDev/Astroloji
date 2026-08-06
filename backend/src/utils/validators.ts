@@ -134,12 +134,40 @@ const optionalBooleanSchema = z.preprocess((value) => {
   return value;
 }, z.boolean().optional());
 
+const UTC_TIMESTAMP_PATTERN =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$/;
+
+function isRealUtcTimestamp(value: string): boolean {
+  const match = UTC_TIMESTAMP_PATTERN.exec(value);
+  if (!match) return false;
+
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, fraction = '0'] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const millisecond = Number(fraction.padEnd(3, '0'));
+  const instant = new Date(0);
+  instant.setUTCFullYear(year, month - 1, day);
+  instant.setUTCHours(hour, minute, second, millisecond);
+
+  return (
+    instant.getUTCFullYear() === year &&
+    instant.getUTCMonth() === month - 1 &&
+    instant.getUTCDate() === day &&
+    instant.getUTCHours() === hour &&
+    instant.getUTCMinutes() === minute &&
+    instant.getUTCSeconds() === second &&
+    instant.getUTCMilliseconds() === millisecond
+  );
+}
+
 const utcTimestampSchema = z
   .string()
-  .regex(
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/,
-    'timestamp must be an ISO 8601 UTC timestamp.'
-  );
+  .regex(UTC_TIMESTAMP_PATTERN, 'timestamp must be an ISO 8601 UTC timestamp.')
+  .refine(isRealUtcTimestamp, 'timestamp must be a real ISO 8601 UTC instant.');
 
 const birthTimeCertaintySchema = z.enum(['exact', 'approximate', 'unknown']);
 

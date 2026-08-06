@@ -7,6 +7,7 @@ import {
   validateRegisterBody,
   validateUpdateUserBody,
   validateLanguage,
+  validateNatalChartBody,
   validateSign
 } from '@/utils/validators';
 
@@ -68,6 +69,22 @@ describe('validators', () => {
     ).toThrow('Provide either fcm_token or firebase_installation_id, not both.');
   });
 
+
+  it('rejects impossible UTC calendar timestamps and accepts leap days', () => {
+    expect(() =>
+      validateNatalChartBody({
+        timestamp: '2026-02-31T12:00:00.000Z',
+        time_certainty: 'exact'
+      })
+    ).toThrow('timestamp must be a real ISO 8601 UTC instant.');
+
+    expect(
+      validateNatalChartBody({
+        timestamp: '2024-02-29T12:00:00.000Z',
+        time_certainty: 'exact'
+      }).timestamp
+    ).toBe('2024-02-29T12:00:00.000Z');
+  });
 
   it('requires explicit editorial approval for content backfill', () => {
     expect(() =>
