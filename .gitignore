@@ -32,3 +32,6 @@ Astroloji/.kotlin/errors/errors-1775830128386.log
 Astroloji/.kotlin/errors/errors-1775830129176.log
 
 .worktrees/
+
+# Generated Play asset staging
+Astroloji/play/assets/.tmp/
