@@ -12,7 +12,7 @@ CALISMA PRENSIPLERI
 ## Onayli Bagimliliklar
 | Paket | Versiyon | Neden |
 | ----- | -------- | ----- |
-| Android Gradle Plugin | 9.3.0 | Android Developers AGP release notes kontrol edildi; repo bu pin ile lokal test/build dogruladi. |
+| Android Gradle Plugin | 9.3.1 | Android Developers AGP release notes kontrol edildi; repo bu pin ile lint, screenshot, unit, debug APK ve release AAB dogruladi. |
 | Kotlin + Compose Compiler plugin | 2.4.10 | Kotlin release kanali incelendi; repo pin'i mevcut Compose/Hilt/KSP akisi ile calisiyor. |
 | KSP | 2.3.7 | Kotlin pin'i ile uyumlu repo pin'i korunuyor; kod uretimi lokal build'de dogrulandi. |
 | AndroidX Core / AppCompat / Activity / Lifecycle | 1.19.0 / 1.7.1 / 1.13.0 / 2.11.0 | AndroidX resmi release notlari kontrol edildi; mevcut pinler unit test ve debug compile ile gecerli. |
