@@ -3,7 +3,7 @@ set -eu
 
 SERIAL="${1:?Usage: scripts/run-android-device-smoke.sh <adb-serial>}"
 case "$SERIAL" in
-  ''|'*'|all|current)
+  ''|all|current|*'*'*|*'?'*|*'['*)
     echo 'An exact ADB serial is required.' >&2
     exit 64
     ;;

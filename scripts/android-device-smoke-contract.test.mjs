@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const runnerPath = new URL('./run-android-device-smoke.sh', import.meta.url);
@@ -39,6 +41,14 @@ test('device smoke runner is exact-targeted and preserves the owner app', () => 
   assert.doesNotMatch(script, /run-as\s+com\.parsfilo\.astrology/);
   assert.doesNotMatch(script, /\/data\/user\/0\/com\.parsfilo\.astrology/);
   assert.doesNotMatch(script, /install[^\n]*\$OWNER_PACKAGE/);
+});
+
+test('device smoke runner rejects glob-like serials before invoking ADB', () => {
+  for (const serial of ['emulator-*', 'serial?', 'serial[0]']) {
+    const result = spawnSync('sh', [fileURLToPath(runnerPath), serial], { encoding: 'utf8' });
+    assert.equal(result.status, 64, `${serial} must fail exact-target validation`);
+    assert.match(result.stderr, /exact ADB serial/i);
+  }
 });
 
 test('device smoke module is isolated and compile-only', () => {
