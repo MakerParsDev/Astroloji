@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { validateListingCopy } from './lib/play-copy-quality.mjs';
 import {
   assertLocaleContract,
   loadStoreConfig,
@@ -64,8 +65,11 @@ if (JSON.stringify(listingLocales) !== JSON.stringify(expectedLocales)) {
   fail(`Listing locale directories must be exactly: ${expectedLocales.join(', ')}`);
 }
 
+const listingPayloads = new Map();
 for (const localeDir of localeDirs) {
   const localePath = path.join(listingsRoot, localeDir.name);
+  const payload = {};
+
   for (const [fileName, maxLength] of Object.entries(listingFiles)) {
     const filePath = path.join(localePath, fileName);
     if (!fs.existsSync(filePath)) {
@@ -74,6 +78,7 @@ for (const localeDir of localeDirs) {
     }
 
     const content = readTrimmed(filePath);
+    payload[fileName] = content;
     if (!content) {
       fail(`${localeDir.name}/${fileName} is empty`);
       continue;
@@ -93,6 +98,22 @@ for (const localeDir of localeDirs) {
       }
     }
   }
+
+  if (Object.keys(payload).length === Object.keys(listingFiles).length) {
+    listingPayloads.set(localeDir.name, payload);
+  }
+}
+
+const englishFullDescription = listingPayloads.get('en-US')?.['full-description.txt'];
+for (const [locale, payload] of listingPayloads) {
+  const errors = validateListingCopy({
+    locale,
+    title: payload['title.txt'],
+    shortDescription: payload['short-description.txt'],
+    fullDescription: payload['full-description.txt'],
+    englishFullDescription,
+  });
+  for (const error of errors) fail(error);
 }
 
 if (fs.existsSync(releaseNotesRoot)) {
