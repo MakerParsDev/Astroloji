@@ -81,17 +81,21 @@ class AnalyticsRepository
         private val queuedEventDao: QueuedEventDao,
         private val json: Json,
     ) {
+        suspend fun enqueue(
+            eventType: String,
+            meta: Map<String, String> = emptyMap(),
+        ) = withContext(Dispatchers.IO) {
+            val safeMeta = sanitizeAnalyticsMeta(meta)
+            logFirebaseEvent(eventType, safeMeta)
+            queueEvent(eventType, safeMeta)
+        }
+
         suspend fun track(
             eventType: String,
             meta: Map<String, String> = emptyMap(),
         ) = withContext(Dispatchers.IO) {
             val safeMeta = sanitizeAnalyticsMeta(meta)
-            firebaseAnalytics.logEvent(
-                eventType,
-                Bundle().apply {
-                    safeMeta.forEach { (key, value) -> putString(key, value) }
-                },
-            )
+            logFirebaseEvent(eventType, safeMeta)
             try {
                 val response = api.trackEvent(TrackEventRequest(eventType = eventType, meta = safeMeta))
                 when (classifyAnalyticsResponse(response.code())) {
@@ -106,6 +110,18 @@ class AnalyticsRepository
                 Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
                 queueEvent(eventType, safeMeta)
             }
+        }
+
+        private fun logFirebaseEvent(
+            eventType: String,
+            meta: Map<String, String>,
+        ) {
+            firebaseAnalytics.logEvent(
+                eventType,
+                Bundle().apply {
+                    meta.forEach { (key, value) -> putString(key, value) }
+                },
+            )
         }
 
         private suspend fun queueEvent(

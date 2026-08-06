@@ -161,14 +161,12 @@ class OnboardingViewModel
                 when (val result = sessionRepository.registerFromPreferences()) {
                     is AppResult.Success -> {
                         preferencesRepository.updateOnboarding(true, sign.key, _uiState.value.language)
+                        analyticsRepository.enqueue(
+                            AnalyticsEvents.ONBOARDING_COMPLETED,
+                            mapOf("sign" to sign.key, "locale" to _uiState.value.language),
+                        )
                         _uiState.update { it.copy(isSubmitting = false) }
                         onSuccess()
-                        viewModelScope.launch {
-                            analyticsRepository.track(
-                                AnalyticsEvents.ONBOARDING_COMPLETED,
-                                mapOf("sign" to sign.key, "locale" to _uiState.value.language),
-                            )
-                        }
                     }
                     is AppResult.Error -> {
                         _uiState.update {

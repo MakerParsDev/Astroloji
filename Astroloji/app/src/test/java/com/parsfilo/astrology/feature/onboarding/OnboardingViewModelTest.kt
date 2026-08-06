@@ -39,6 +39,7 @@ class OnboardingViewModelTest {
         runTest {
             coEvery { stringsProvider.get(any()) } returns "Lutfen burcunuzu secin"
             coJustRun { analyticsRepository.track(any(), any()) }
+            coJustRun { analyticsRepository.enqueue(any(), any()) }
 
             val viewModel = createViewModel()
 
@@ -87,6 +88,7 @@ class OnboardingViewModelTest {
 
             coEvery { preferencesRepository.current() } returns basePreferences
             coJustRun { analyticsRepository.track(any(), any()) }
+            coJustRun { analyticsRepository.enqueue(any(), any()) }
             coJustRun { preferencesRepository.updateOnboarding(any(), any(), any()) }
             coJustRun { preferencesRepository.updateNotification(any(), any()) }
             coJustRun {
@@ -196,7 +198,7 @@ class OnboardingViewModelTest {
             advanceUntilIdle()
 
             coVerify(exactly = 1) {
-                analyticsRepository.track(
+                analyticsRepository.enqueue(
                     AnalyticsEvents.ONBOARDING_COMPLETED,
                     mapOf("sign" to "aries", "locale" to "en"),
                 )
@@ -204,7 +206,7 @@ class OnboardingViewModelTest {
         }
 
     @Test
-    fun `slow analytics does not block successful onboarding navigation`() =
+    fun `onboarding completion is queued before successful navigation`() =
         runTest {
             val preferences =
                 UserPreferences(
@@ -227,7 +229,7 @@ class OnboardingViewModelTest {
                     notificationEnabled = true,
                     notificationHour = 9,
                 )
-            val analyticsGate = CompletableDeferred<Unit>()
+            val queueGate = CompletableDeferred<Unit>()
             stubSuccessfulRegistration(preferences, profile)
             coJustRun {
                 analyticsRepository.track(
@@ -236,11 +238,11 @@ class OnboardingViewModelTest {
                 )
             }
             coEvery {
-                analyticsRepository.track(
+                analyticsRepository.enqueue(
                     AnalyticsEvents.ONBOARDING_COMPLETED,
                     any(),
                 )
-            } coAnswers { analyticsGate.await() }
+            } coAnswers { queueGate.await() }
 
             val viewModel = createViewModel()
             viewModel.selectSign(ZodiacSign.ARIES)
@@ -249,10 +251,11 @@ class OnboardingViewModelTest {
             viewModel.complete { completed = true }
             runCurrent()
 
+            assertThat(completed).isFalse()
+            queueGate.complete(Unit)
+            advanceUntilIdle()
             assertThat(completed).isTrue()
             assertThat(viewModel.uiState.value.isSubmitting).isFalse()
-            analyticsGate.complete(Unit)
-            advanceUntilIdle()
         }
 
     private fun createViewModel(): OnboardingViewModel =
@@ -268,6 +271,7 @@ class OnboardingViewModelTest {
         profile: UserProfile,
     ) {
         coEvery { preferencesRepository.current() } returns preferences
+        coJustRun { analyticsRepository.enqueue(any(), any()) }
         coJustRun { preferencesRepository.updateLanguage(any()) }
         coJustRun { preferencesRepository.updateOnboarding(any(), any(), any()) }
         coJustRun { preferencesRepository.updateNotification(any(), any()) }
