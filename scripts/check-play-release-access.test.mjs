@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  assertRequestedVersionCode,
   collectVersionCodes,
   formatGoogleOAuthError,
   parseJsonObject,
+  resolveRequiredVersionCode,
   summarizeVersionCodes,
 } from './check-play-release-access.mjs';
 
@@ -29,6 +31,23 @@ test('summarizeVersionCodes starts at one for a new Play app', () => {
   assert.deepEqual(
     summarizeVersionCodes(),
     { maxVersionCode: 0, recommendedVersionCode: 1, versionCodes: [] },
+  );
+});
+
+test('internal version recommendation respects the sideload floor', () => {
+  assert.equal(resolveRequiredVersionCode(22, 1101), 1101);
+});
+
+test('internal version recommendation advances beyond a higher Play code', () => {
+  assert.equal(resolveRequiredVersionCode(1200, 1101), 1201);
+});
+
+test('requested internal version must meet the computed requirement', () => {
+  assert.equal(assertRequestedVersionCode(1101, 1101), 1101);
+  assert.equal(assertRequestedVersionCode(1205, 1201), 1205);
+  assert.throws(
+    () => assertRequestedVersionCode(1100, 1101),
+    /Requested version code 1100 must be at least 1101/,
   );
 });
 

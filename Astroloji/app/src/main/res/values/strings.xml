@@ -74,9 +74,8 @@
     <string name="premium_plan_title">Choose your plan</string>
     <string name="premium_benefits_title">Everything included</string>
     <string name="premium_monthly_label">Monthly</string>
-    <string name="premium_yearly_label">Yearly</string>
-    <string name="premium_most_popular">Most Popular</string>
-    <string name="premium_yearly_savings_percent">Save %1$d%% with annual billing</string>
+    <string name="premium_weekly_label">Weekly</string>
+    <string name="premium_recommended">Recommended</string>
     <string name="premium_price_loading">Loading price…</string>
     <string name="premium_trial_days">%1$d-day free trial</string>
     <string name="premium_start_trial_cta">Start %1$d-day free trial</string>
@@ -86,7 +85,8 @@
     <string name="premium_billing_disclosure">%1$s billed %2$s. Renews automatically unless canceled in Google Play before the renewal date.</string>
     <string name="premium_billing_disclosure_trial">%1$d-day free trial, then %2$s billed %3$s. Renews automatically unless canceled in Google Play before the renewal date.</string>
     <string name="premium_period_monthly">monthly</string>
-    <string name="premium_period_yearly">yearly</string>
+    <string name="premium_period_weekly">weekly</string>
+    <string name="premium_period_unknown">according to the selected Google Play plan</string>
     <string name="premium_restore">Restore purchases</string>
     <string name="premium_already_active">Premium is already active</string>
     <string name="premium_expires_on">Renews or expires on %1$s</string>
@@ -221,6 +221,7 @@
     <string name="billing_purchase_failed">Purchase failed</string>
     <string name="billing_payment_pending">Payment is pending approval</string>
     <string name="billing_acknowledge_failed">Purchase could not be acknowledged</string>
+    <string name="billing_catalogue_unavailable">Subscription plans could not be loaded from Google Play. Try again.</string>
     <string name="session_error_profile_fetch_failed">Profile could not be loaded.</string>
     <string name="session_error_profile_empty">Profile response was empty.</string>
     <string name="session_error_profile_update_failed">Profile could not be updated.</string>

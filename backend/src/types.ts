@@ -18,7 +18,7 @@ export const SIGNS = [
 export const LANGUAGES = ['tr', 'en'] as const;
 export const PLATFORMS = ['android', 'ios'] as const;
 export const NOTIFICATION_TARGET_TYPES = ['token', 'fid'] as const;
-export const SUBSCRIPTION_PRODUCTS = ['premium_monthly', 'premium_yearly'] as const;
+export const SUBSCRIPTION_PRODUCTS = ['premium_monthly', 'premium_weekly'] as const;
 export const SUBSCRIPTION_STATUSES = [
   'none',
   'active',

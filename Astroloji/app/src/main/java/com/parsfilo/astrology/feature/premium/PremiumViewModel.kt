@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
+import com.parsfilo.astrology.core.data.repository.BillingCatalogueLoadResult
 import com.parsfilo.astrology.core.data.repository.BillingManager
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
+import com.parsfilo.astrology.core.data.repository.defaultPremiumPlan
 import com.parsfilo.astrology.core.ui.MviViewModel
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
@@ -29,7 +31,6 @@ data class PremiumUiState(
     val trialDays: Int = 0,
     val isAlreadyPremium: Boolean = false,
     val premiumExpiresAt: String? = null,
-    val yearlySavingsPercent: Int = 0,
     val error: String? = null,
     val purchaseSuccess: Boolean = false,
     val paywallSource: String = "nav",
@@ -49,6 +50,8 @@ sealed interface PremiumUiEvent {
     ) : PremiumUiEvent
 
     data object Restore : PremiumUiEvent
+
+    data object RetryCatalogue : PremiumUiEvent
 
     data object DismissSuccess : PremiumUiEvent
 }
@@ -70,6 +73,7 @@ class PremiumViewModel
     ) : MviViewModel<PremiumUiState, PremiumUiEvent, Unit>(PremiumUiState()) {
         private var merchandisingTrialDays: Int = 0
         private var billingAction: BillingAction = BillingAction.NONE
+        private var catalogueLoadGeneration: Long = 0
 
         init {
             viewModelScope.launch {
@@ -77,20 +81,13 @@ class PremiumViewModel
                 val preferences = preferencesRepository.current()
                 val flags = remoteConfigRepository.fetchFlags()
                 merchandisingTrialDays = flags.premiumTrialDays
-                billingManager.loadPlans()
-                val plans = billingManager.plans.value
-                val selectedPlan = plans.firstOrNull()
                 setState {
                     copy(
-                        isLoading = false,
-                        plans = plans,
-                        selectedPlanId = selectedPlan?.planId.orEmpty(),
-                        trialDays = resolveTrialDays(selectedPlan, flags.premiumTrialDays),
                         isAlreadyPremium = preferences.isPremium,
                         premiumExpiresAt = formatPremiumExpiration(preferences.premiumExpiresAt, preferences.language),
-                        yearlySavingsPercent = calculateSavings(plans),
                     )
                 }
+                loadCatalogue()
             }
             viewModelScope.launch {
                 billingManager.purchaseState.collectLatest { purchaseState ->
@@ -173,9 +170,45 @@ class PremiumViewModel
                 is PremiumUiEvent.SelectPlan -> handlePlanSelected(event)
                 is PremiumUiEvent.Purchase -> handlePurchase(event)
                 PremiumUiEvent.Restore -> handleRestore()
+                PremiumUiEvent.RetryCatalogue -> loadCatalogue()
                 PremiumUiEvent.DismissSuccess -> {
                     billingManager.clearPurchaseState()
                     setState { copy(purchaseSuccess = false) }
+                }
+            }
+        }
+
+        private fun loadCatalogue() {
+            val generation = ++catalogueLoadGeneration
+            viewModelScope.launch {
+                setState { copy(isLoading = true, error = null) }
+                val result = billingManager.loadPlans()
+                if (generation != catalogueLoadGeneration) return@launch
+
+                when (result) {
+                    is BillingCatalogueLoadResult.Success -> {
+                        val selectedPlan = defaultPremiumPlan(result.plans)
+                        setState {
+                            copy(
+                                isLoading = false,
+                                plans = result.plans,
+                                selectedPlanId = selectedPlan?.planId.orEmpty(),
+                                trialDays = resolveTrialDays(selectedPlan, merchandisingTrialDays),
+                                error = null,
+                            )
+                        }
+                    }
+
+                    is BillingCatalogueLoadResult.Failure ->
+                        setState {
+                            copy(
+                                isLoading = false,
+                                plans = emptyList(),
+                                selectedPlanId = "",
+                                trialDays = 0,
+                                error = result.message,
+                            )
+                        }
                 }
             }
         }
@@ -238,13 +271,6 @@ class PremiumViewModel
                 "plan" to plan.planId,
                 "product" to plan.productId,
             )
-
-        private fun calculateSavings(plans: List<PremiumPlanUi>): Int {
-            val monthly = plans.firstOrNull { it.productId == "premium_monthly" }?.priceAmountMicros ?: 0L
-            val yearly = plans.firstOrNull { it.productId == "premium_yearly" }?.priceAmountMicros ?: 0L
-            return com.parsfilo.astrology.core.data.repository
-                .calculateYearlySavingsPercent(monthly, yearly)
-        }
 
         private fun resolveTrialDays(
             selectedPlan: PremiumPlanUi?,

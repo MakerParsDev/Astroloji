@@ -56,13 +56,38 @@ export function collectVersionCodes({ tracks = [], bundles = [], apks = [] } = {
     .sort((a, b) => a - b);
 }
 
-export function summarizeVersionCodes(sources) {
-  const versionCodes = collectVersionCodes(sources);
-  const maxVersionCode = versionCodes.at(-1) ?? 0;
-  const recommendedVersionCode = maxVersionCode + 1;
-  if (recommendedVersionCode > MAX_PLAY_VERSION_CODE) {
+export function resolveRequiredVersionCode(playMaxVersionCode, minimumVersionCode = 1) {
+  const playMax = Number(playMaxVersionCode);
+  const floor = Number(minimumVersionCode);
+  if (!Number.isSafeInteger(playMax) || playMax < 0 || !Number.isSafeInteger(floor) || floor <= 0) {
+    throw new Error('Google Play version code inputs must be positive safe integers.');
+  }
+  const result = Math.max(playMax + 1, floor);
+  if (!Number.isSafeInteger(result) || result <= 0 || result > MAX_PLAY_VERSION_CODE) {
     throw new Error('No valid Google Play version code remains.');
   }
+  return result;
+}
+
+export function assertRequestedVersionCode(requestedVersionCode, requiredVersionCode) {
+  const requested = Number(requestedVersionCode);
+  const required = Number(requiredVersionCode);
+  if (!Number.isSafeInteger(requested) || requested <= 0 || requested > MAX_PLAY_VERSION_CODE) {
+    throw new Error('Requested version code must be a valid positive Google Play version code.');
+  }
+  if (!Number.isSafeInteger(required) || required <= 0 || required > MAX_PLAY_VERSION_CODE) {
+    throw new Error('Required version code must be a valid positive Google Play version code.');
+  }
+  if (requested < required) {
+    throw new Error(`Requested version code ${requested} must be at least ${required}.`);
+  }
+  return requested;
+}
+
+export function summarizeVersionCodes(sources, minimumVersionCode = 1) {
+  const versionCodes = collectVersionCodes(sources);
+  const maxVersionCode = versionCodes.at(-1) ?? 0;
+  const recommendedVersionCode = resolveRequiredVersionCode(maxVersionCode, minimumVersionCode);
   return { maxVersionCode, recommendedVersionCode, versionCodes };
 }
 
@@ -107,7 +132,7 @@ async function createAccessToken(serviceAccount) {
   return body.access_token;
 }
 
-export async function checkPlayReleaseAccess({ packageName, credentialsPath }) {
+export async function checkPlayReleaseAccess({ packageName, credentialsPath, minimumVersionCode = 1 }) {
   if (!packageName) throw new Error('PLAY_PACKAGE_NAME is required.');
   if (!credentialsPath || !fs.existsSync(credentialsPath)) {
     throw new Error('PLAY_SERVICE_ACCOUNT_JSON_PATH must point to a readable file.');
@@ -134,11 +159,14 @@ export async function checkPlayReleaseAccess({ packageName, credentialsPath }) {
       fetchJson(`${editUrl}/apks`, { headers }),
     ]);
     return {
-      ...summarizeVersionCodes({
-        tracks: trackBody.tracks ?? [],
-        bundles: bundleBody.bundles ?? [],
-        apks: apkBody.apks ?? [],
-      }),
+      ...summarizeVersionCodes(
+        {
+          tracks: trackBody.tracks ?? [],
+          bundles: bundleBody.bundles ?? [],
+          apks: apkBody.apks ?? [],
+        },
+        minimumVersionCode,
+      ),
       trackCount: (trackBody.tracks ?? []).length,
     };
   } catch (error) {
@@ -161,6 +189,7 @@ async function main() {
   const result = await checkPlayReleaseAccess({
     packageName: process.env.PLAY_PACKAGE_NAME,
     credentialsPath: process.env.PLAY_SERVICE_ACCOUNT_JSON_PATH,
+    minimumVersionCode: process.env.MINIMUM_INTERNAL_VERSION_CODE || 1,
   });
   if (process.env.GITHUB_OUTPUT) {
     fs.appendFileSync(

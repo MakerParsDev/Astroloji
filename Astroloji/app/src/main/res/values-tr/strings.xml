@@ -74,9 +74,8 @@
     <string name="premium_plan_title">Planını seç</string>
     <string name="premium_benefits_title">Premium ile açılanlar</string>
     <string name="premium_monthly_label">Aylık</string>
-    <string name="premium_yearly_label">Yıllık</string>
-    <string name="premium_most_popular">En Popüler</string>
-    <string name="premium_yearly_savings_percent">Yıllık ödemeyle %1$d%% tasarruf et</string>
+    <string name="premium_weekly_label">Haftalık</string>
+    <string name="premium_recommended">Önerilen</string>
     <string name="premium_price_loading">Fiyat yükleniyor…</string>
     <string name="premium_trial_days">%1$d gün ücretsiz deneme</string>
     <string name="premium_start_trial_cta">%1$d günlük ücretsiz denemeyi başlat</string>
@@ -86,7 +85,8 @@
     <string name="premium_billing_disclosure">%1$s, %2$s olarak faturalandırılır. Yenileme tarihinden önce Google Play’den iptal edilmezse otomatik yenilenir.</string>
     <string name="premium_billing_disclosure_trial">%1$d gün ücretsiz deneme, ardından %2$s, %3$s olarak faturalandırılır. Yenileme tarihinden önce Google Play’den iptal edilmezse otomatik yenilenir.</string>
     <string name="premium_period_monthly">aylık</string>
-    <string name="premium_period_yearly">yıllık</string>
+    <string name="premium_period_weekly">haftalık</string>
+    <string name="premium_period_unknown">seçilen Google Play planına göre</string>
     <string name="premium_restore">Satın almaları geri yükle</string>
     <string name="premium_already_active">Premium zaten aktif</string>
     <string name="premium_expires_on">Yenileme veya bitiş tarihi: %1$s</string>
@@ -221,6 +221,7 @@
     <string name="billing_purchase_failed">Satın alma başarısız</string>
     <string name="billing_payment_pending">Ödeme onay bekliyor</string>
     <string name="billing_acknowledge_failed">Satın alma onaylanamadı</string>
+    <string name="billing_catalogue_unavailable">Abonelik planları Google Play’den yüklenemedi. Tekrar dene.</string>
     <string name="session_error_profile_fetch_failed">Profil getirilemedi.</string>
     <string name="session_error_profile_empty">Profil yanıtı boş.</string>
     <string name="session_error_profile_update_failed">Profil güncellenemedi.</string>

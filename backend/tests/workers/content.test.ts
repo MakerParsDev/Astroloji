@@ -178,13 +178,13 @@ describe('content filters', () => {
 
   it('creates a typed fallback subscription response for webhook-only updates', () => {
     expect(
-      buildFallbackSubscriptionResponse('premium_yearly', 'purchase-token', '2026-03-18T09:00:00.000Z')
+      buildFallbackSubscriptionResponse('premium_weekly', 'purchase-token', '2026-03-18T09:00:00.000Z')
     ).toEqual({
       linkedPurchaseToken: 'purchase-token',
       startTime: '2026-03-18T09:00:00.000Z',
       lineItems: [
         {
-          productId: 'premium_yearly',
+          productId: 'premium_weekly',
           expiryTime: '2026-03-18T09:00:00.000Z'
         }
       ]

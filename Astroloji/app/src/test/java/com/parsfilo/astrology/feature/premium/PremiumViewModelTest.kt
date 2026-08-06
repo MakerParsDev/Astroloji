@@ -6,6 +6,8 @@ import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
+import com.parsfilo.astrology.core.data.repository.BillingCatalogueDiagnostic
+import com.parsfilo.astrology.core.data.repository.BillingCatalogueLoadResult
 import com.parsfilo.astrology.core.data.repository.BillingManager
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
@@ -43,29 +45,44 @@ class PremiumViewModelTest {
 
     private val monthlyPlan =
         PremiumPlanUi(
-            planId = "premium_monthly:base:default",
+            planId = "premium_monthly:monthly:default",
             productId = "premium_monthly",
+            basePlanId = "monthly",
+            offerToken = "monthly-offer-token",
             title = "Monthly",
-            price = "TRY 89.00",
-            priceAmountMicros = 89_000_000L,
+            price = "TRY 394.99",
+            priceAmountMicros = 394_990_000L,
+            billingPeriod = "P1M",
+            displayPriority = 0,
         )
-    private val yearlyPlan =
+    private val weeklyPlan =
         PremiumPlanUi(
-            planId = "premium_yearly:base:default",
-            productId = "premium_yearly",
-            title = "Yearly",
-            price = "TRY 499.00",
-            priceAmountMicros = 499_000_000L,
+            planId = "premium_weekly:weekly:default",
+            productId = "premium_weekly",
+            basePlanId = "weekly",
+            offerToken = "weekly-offer-token",
+            title = "Weekly",
+            price = "TRY 129.99",
+            priceAmountMicros = 129_990_000L,
+            billingPeriod = "P1W",
+            displayPriority = 1,
+        )
+
+    private fun success(
+        plans: List<PremiumPlanUi> = listOf(weeklyPlan, monthlyPlan),
+    ): BillingCatalogueLoadResult.Success =
+        BillingCatalogueLoadResult.Success(
+            plans = plans,
+            diagnostics = emptyList(),
         )
 
     private fun stubDependencies(
         purchaseState: MutableStateFlow<AppResult<SubscriptionStatus>?> = MutableStateFlow(null),
-        plans: List<PremiumPlanUi> = listOf(monthlyPlan, yearlyPlan),
+        catalogueResult: BillingCatalogueLoadResult = success(),
         preferences: UserPreferences = UserPreferences(language = "tr"),
     ) {
         every { billingManager.purchaseState } returns purchaseState
-        every { billingManager.plans } returns MutableStateFlow(plans)
-        coJustRun { billingManager.loadPlans() }
+        coEvery { billingManager.loadPlans() } returns catalogueResult
         justRun { billingManager.clearPurchaseState() }
         justRun { billingManager.launchPurchase(any(), any()) }
         coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(premiumTrialDays = 7)
@@ -82,7 +99,115 @@ class PremiumViewModelTest {
         )
 
     @Test
-    fun `already premium users get active subscription state and yearly savings`() =
+    fun `monthly plan is selected by default even when Play returns weekly first`() =
+        runTest {
+            stubDependencies(catalogueResult = success(listOf(weeklyPlan, monthlyPlan)))
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.plans).containsExactly(weeklyPlan, monthlyPlan).inOrder()
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
+            assertThat(viewModel.state.value.isLoading).isFalse()
+        }
+
+    @Test
+    fun `weekly only catalogue selects weekly by default`() =
+        runTest {
+            stubDependencies(catalogueResult = success(listOf(weeklyPlan)))
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(weeklyPlan.planId)
+        }
+
+    @Test
+    fun `catalogue failure exposes retryable empty state`() =
+        runTest {
+            stubDependencies(
+                catalogueResult =
+                    BillingCatalogueLoadResult.Failure(
+                        message = "catalogue unavailable",
+                        diagnostics = listOf(BillingCatalogueDiagnostic("premium_weekly", 3)),
+                    ),
+            )
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.isLoading).isFalse()
+            assertThat(viewModel.state.value.plans).isEmpty()
+            assertThat(viewModel.state.value.selectedPlanId).isEmpty()
+            assertThat(viewModel.state.value.error).isEqualTo("catalogue unavailable")
+        }
+
+    @Test
+    fun `retry catalogue clears error shows loading and loads a second time`() =
+        runTest {
+            val retryResult = CompletableDeferred<BillingCatalogueLoadResult>()
+            var loadCalls = 0
+            stubDependencies()
+            coEvery { billingManager.loadPlans() } coAnswers {
+                loadCalls += 1
+                if (loadCalls == 1) {
+                    BillingCatalogueLoadResult.Failure("catalogue unavailable", emptyList())
+                } else {
+                    retryResult.await()
+                }
+            }
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.error).isEqualTo("catalogue unavailable")
+
+            viewModel.onEvent(PremiumUiEvent.RetryCatalogue)
+            runCurrent()
+
+            assertThat(viewModel.state.value.isLoading).isTrue()
+            assertThat(viewModel.state.value.error).isNull()
+            coVerify(exactly = 2) { billingManager.loadPlans() }
+
+            retryResult.complete(success())
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.isLoading).isFalse()
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
+        }
+
+    @Test
+    fun `older catalogue result cannot overwrite a newer successful retry`() =
+        runTest {
+            val firstResult = CompletableDeferred<BillingCatalogueLoadResult>()
+            val secondResult = CompletableDeferred<BillingCatalogueLoadResult>()
+            var loadCalls = 0
+            stubDependencies()
+            coEvery { billingManager.loadPlans() } coAnswers {
+                loadCalls += 1
+                if (loadCalls == 1) firstResult.await() else secondResult.await()
+            }
+
+            val viewModel = createViewModel()
+            runCurrent()
+            assertThat(loadCalls).isEqualTo(1)
+
+            viewModel.onEvent(PremiumUiEvent.RetryCatalogue)
+            runCurrent()
+            assertThat(loadCalls).isEqualTo(2)
+
+            secondResult.complete(success(listOf(weeklyPlan, monthlyPlan)))
+            runCurrent()
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
+            assertThat(viewModel.state.value.error).isNull()
+
+            firstResult.complete(BillingCatalogueLoadResult.Failure("stale failure", emptyList()))
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.plans).containsExactly(weeklyPlan, monthlyPlan).inOrder()
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
+            assertThat(viewModel.state.value.error).isNull()
+        }
+
+    @Test
+    fun `already premium users keep active subscription state`() =
         runTest {
             stubDependencies(
                 preferences =
@@ -102,7 +227,6 @@ class PremiumViewModelTest {
 
             assertThat(viewModel.state.value.isAlreadyPremium).isTrue()
             assertThat(viewModel.state.value.premiumExpiresAt).isNotNull()
-            assertThat(viewModel.state.value.yearlySavingsPercent).isEqualTo(53)
         }
 
     @Test
@@ -118,7 +242,7 @@ class PremiumViewModelTest {
                         ),
                     ),
                 )
-            stubDependencies(purchaseState = purchaseState, plans = emptyList())
+            stubDependencies(purchaseState = purchaseState, catalogueResult = success(emptyList()))
 
             val viewModel = createViewModel()
             advanceUntilIdle()
@@ -130,14 +254,14 @@ class PremiumViewModelTest {
         }
 
     @Test
-    fun `paywall view and plan selection emit bounded funnel events`() =
+    fun `paywall view and weekly selection emit bounded funnel events`() =
         runTest {
             stubDependencies()
             val viewModel = createViewModel()
             advanceUntilIdle()
 
             viewModel.onEvent(PremiumUiEvent.ScreenViewed(source = "nav"))
-            viewModel.onEvent(PremiumUiEvent.SelectPlan(yearlyPlan.planId))
+            viewModel.onEvent(PremiumUiEvent.SelectPlan(weeklyPlan.planId))
             advanceUntilIdle()
 
             coVerify(exactly = 1) {
@@ -151,15 +275,15 @@ class PremiumViewModelTest {
                     AnalyticsEvents.PAYWALL_PLAN_SELECTED,
                     mapOf(
                         "source" to "nav",
-                        "plan" to yearlyPlan.planId,
-                        "product" to yearlyPlan.productId,
+                        "plan" to weeklyPlan.planId,
+                        "product" to weeklyPlan.productId,
                     ),
                 )
             }
         }
 
     @Test
-    fun `purchase start and success emit the selected product funnel`() =
+    fun `weekly purchase start and success emit selected product funnel`() =
         runTest {
             val purchaseState = MutableStateFlow<AppResult<SubscriptionStatus>?>(null)
             stubDependencies(purchaseState = purchaseState)
@@ -168,33 +292,33 @@ class PremiumViewModelTest {
             advanceUntilIdle()
 
             viewModel.onEvent(PremiumUiEvent.ScreenViewed(source = "nav"))
-            viewModel.onEvent(PremiumUiEvent.SelectPlan(yearlyPlan.planId))
+            viewModel.onEvent(PremiumUiEvent.SelectPlan(weeklyPlan.planId))
             viewModel.onEvent(PremiumUiEvent.Purchase(activity))
             purchaseState.value =
                 AppResult.Success(
                     SubscriptionStatus(
                         isPremium = true,
                         premiumExpiresAt = null,
-                        productId = yearlyPlan.productId,
+                        productId = weeklyPlan.productId,
                     ),
                 )
             advanceUntilIdle()
 
-            verify(exactly = 1) { billingManager.launchPurchase(activity, yearlyPlan.planId) }
+            verify(exactly = 1) { billingManager.launchPurchase(activity, weeklyPlan.planId) }
             coVerify(exactly = 1) {
                 analyticsRepository.track(
                     AnalyticsEvents.PURCHASE_STARTED,
                     mapOf(
                         "source" to "nav",
-                        "plan" to yearlyPlan.planId,
-                        "product" to yearlyPlan.productId,
+                        "plan" to weeklyPlan.planId,
+                        "product" to weeklyPlan.productId,
                     ),
                 )
             }
             coVerify(exactly = 1) {
                 analyticsRepository.track(
                     AnalyticsEvents.PURCHASE_SUCCEEDED,
-                    mapOf("source" to "nav", "product" to yearlyPlan.productId),
+                    mapOf("source" to "nav", "product" to weeklyPlan.productId),
                 )
             }
         }

@@ -18,24 +18,26 @@ import com.parsfilo.astrology.ui.theme.AstrolojiTheme
 private val screenshotPlans =
     listOf(
         PremiumPlanUi(
-            planId = "monthly",
+            planId = "premium_monthly:monthly:default",
             productId = "premium_monthly",
+            basePlanId = "monthly",
+            offerToken = "monthly-token",
             title = "Monthly",
-            price = "₺79.99",
-            priceAmountMicros = 79_990_000,
+            price = "₺394,99",
+            priceAmountMicros = 394_990_000,
             billingPeriod = "P1M",
-            displayPriority = 1,
+            displayPriority = 0,
         ),
         PremiumPlanUi(
-            planId = "yearly",
-            productId = "premium_yearly",
-            title = "Yearly",
-            price = "₺599.99",
-            priceAmountMicros = 599_990_000,
-            hasFreeTrial = true,
-            trialDays = 7,
-            billingPeriod = "P1Y",
-            displayPriority = 0,
+            planId = "premium_weekly:weekly:default",
+            productId = "premium_weekly",
+            basePlanId = "weekly",
+            offerToken = "weekly-token",
+            title = "Weekly",
+            price = "₺129,99",
+            priceAmountMicros = 129_990_000,
+            billingPeriod = "P1W",
+            displayPriority = 1,
         ),
     )
 
@@ -43,9 +45,7 @@ private val screenshotState =
     PremiumUiState(
         isLoading = false,
         plans = screenshotPlans,
-        selectedPlanId = "yearly",
-        trialDays = 7,
-        yearlySavingsPercent = 37,
+        selectedPlanId = "premium_monthly:monthly:default",
         paywallSource = "daily_lock",
     )
 
@@ -70,7 +70,7 @@ private fun PremiumOfferGolden() {
             PremiumOfferCard(
                 uiState = screenshotState,
                 plans = screenshotPlans,
-                selected = screenshotPlans.last(),
+                selected = screenshotPlans.first(),
                 purchaseReady = true,
                 callbacks = screenshotCallbacks,
             )

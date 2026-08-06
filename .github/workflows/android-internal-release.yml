@@ -40,6 +40,7 @@ jobs:
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
+      MINIMUM_INTERNAL_VERSION_CODE: "1101"
     steps:
       - uses: actions/checkout@v6
 
@@ -97,6 +98,27 @@ jobs:
           REQUIRE_PLAY_SERVICE_ACCOUNT_JSON: true
         run: |
           node ../scripts/prepare-android-release-assets.mjs
+
+      - name: Verify Google Play package access and version codes
+        id: play_access
+        env:
+          PLAY_PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: node ../scripts/check-play-release-access.mjs
+
+      - name: Validate requested version code
+        env:
+          REQUESTED_VERSION_CODE: ${{ inputs.version_code }}
+          REQUIRED_VERSION_CODE: ${{ steps.play_access.outputs.recommended_version_code }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { assertRequestedVersionCode } from '../scripts/check-play-release-access.mjs';
+          const requested = assertRequestedVersionCode(
+            process.env.REQUESTED_VERSION_CODE,
+            process.env.REQUIRED_VERSION_CODE,
+          );
+          console.log(`Requested version code ${requested} satisfies the Play requirement.`);
+          NODE
 
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew

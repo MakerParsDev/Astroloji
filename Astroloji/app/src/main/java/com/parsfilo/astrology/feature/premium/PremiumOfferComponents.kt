@@ -206,15 +206,15 @@ private fun PremiumPlanOption(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
             )
-            if (premiumBillingCadence(plan) == PremiumBillingCadence.YEARLY) {
-                PremiumPopularChip()
+            if (isRecommendedPremiumPlan(plan)) {
+                PremiumRecommendedChip()
             }
         }
     }
 }
 
 @Composable
-private fun PremiumPopularChip() {
+private fun PremiumRecommendedChip() {
     AssistChip(
         onClick = {},
         enabled = false,
@@ -226,7 +226,7 @@ private fun PremiumPopularChip() {
             ),
         label = {
             Text(
-                text = stringResource(R.string.premium_most_popular),
+                text = stringResource(R.string.premium_recommended),
                 style = MaterialTheme.typography.labelSmall,
             )
         },
@@ -244,13 +244,6 @@ private fun PremiumOfferSummary(
         style = MaterialTheme.typography.headlineLarge,
         fontWeight = FontWeight.Bold,
     )
-    if (premiumBillingCadence(selected) == PremiumBillingCadence.YEARLY && uiState.yearlySavingsPercent > 0) {
-        Text(
-            text = stringResource(R.string.premium_yearly_savings_percent, uiState.yearlySavingsPercent),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.secondary,
-        )
-    }
     if (selected.hasFreeTrial && uiState.trialDays > 0) {
         AssistChip(
             onClick = {},
