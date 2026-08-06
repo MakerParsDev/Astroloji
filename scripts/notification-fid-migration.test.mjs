@@ -6,7 +6,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 const schema = readFileSync('backend/schema.sql', 'utf8');
-const migration = readFileSync('backend/scripts/migrate-notification-targets.sql', 'utf8');
+const migration = readFileSync('backend/migrations/0001_notification_targets.sql', 'utf8');
+const wrangler = readFileSync('backend/wrangler.toml', 'utf8');
 const workflow = readFileSync('.github/workflows/backend-production-deploy.yml', 'utf8');
 const manifest = readFileSync('Astroloji/app/src/main/AndroidManifest.xml', 'utf8');
 const repository = readFileSync(
@@ -65,7 +66,8 @@ ${migration}`,
 });
 
 test('production applies the notification target migration before deployment', () => {
-  const migrationStep = workflow.indexOf('scripts/migrate-notification-targets.sql');
+  assert.match(wrangler, /migrations_dir = \"migrations\"/);
+  const migrationStep = workflow.indexOf('npx wrangler d1 migrations apply astrology-db --remote');
   const deployStep = workflow.indexOf('npm run deploy:doppler');
   assert.notEqual(migrationStep, -1);
   assert.notEqual(deployStep, -1);

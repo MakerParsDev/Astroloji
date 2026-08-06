@@ -14,6 +14,7 @@ custom_domain = true
 binding = "DB"
 database_name = "astrology-db"
 database_id = "ccbbb9fa-56f6-4601-85d7-447288a11056"
+migrations_dir = "migrations"
 
 [[r2_buckets]]
 binding = "CONTENT"
