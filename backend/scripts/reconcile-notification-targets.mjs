@@ -4,11 +4,14 @@ import { pathToFileURL } from 'node:url';
 const DATABASE_NAME = 'astrology-db';
 const TARGET_INDEX = 'idx_fcm_tokens_user_platform_target';
 const SCHEMA_QUERY = `
-PRAGMA table_info(fcm_tokens);
-SELECT name AS index_name
+SELECT sql AS table_sql
 FROM sqlite_master
-WHERE type = 'index' AND name = '${TARGET_INDEX}';
+WHERE type = 'table' AND name = 'fcm_tokens';
+PRAGMA table_info(fcm_tokens);
+PRAGMA index_list(fcm_tokens);
+PRAGMA index_info(${TARGET_INDEX});
 `;
+const TARGET_INDEX_COLUMNS = ['user_id', 'platform', 'target_type', 'updated_at'];
 
 export async function reconcileNotificationTargetSchema({
   readState,
@@ -20,7 +23,10 @@ export async function reconcileNotificationTargetSchema({
     throw new Error('fcm_tokens table is missing; bootstrap schema before deployment.');
   }
 
-  if (before.hasTargetType && before.hasTargetIndex) {
+  if (before.hasTargetType && !before.isTargetTypeCanonical) {
+    throw new Error('target_type definition is not canonical; manual migration is required.');
+  }
+  if (before.isTargetTypeCanonical && before.isTargetIndexCanonical) {
     return 'present';
   }
 
@@ -34,7 +40,13 @@ export async function reconcileNotificationTargetSchema({
   }
 
   const after = await readState();
-  if (!after?.tableExists || !after.hasTargetType || !after.hasTargetIndex) {
+  if (
+    !after?.tableExists ||
+    !after.hasTargetType ||
+    !after.isTargetTypeCanonical ||
+    !after.hasTargetIndex ||
+    !after.isTargetIndexCanonical
+  ) {
     throw new Error('notification target schema reconciliation failed postcondition verification.');
   }
   return outcome;
@@ -44,13 +56,49 @@ export function parseNotificationTargetState(stdout) {
   const payload = JSON.parse(stdout);
   const entries = Array.isArray(payload) ? payload : [payload];
   const rows = entries.flatMap((entry) => (Array.isArray(entry?.results) ? entry.results : []));
-  const columns = rows.filter((row) => Number.isInteger(row?.cid) && typeof row?.name === 'string');
-  const indexes = rows.filter((row) => typeof row?.index_name === 'string');
+  const tableSql = rows.find((row) => typeof row?.table_sql === 'string')?.table_sql ?? '';
+  const columns = rows.filter(
+    (row) => Number.isInteger(row?.cid) && typeof row?.name === 'string' && 'type' in row,
+  );
+  const targetColumn = columns.find((row) => row.name === 'target_type');
+  const targetIndex = rows.find(
+    (row) =>
+      Number.isInteger(row?.seq) &&
+      row?.name === TARGET_INDEX &&
+      Object.hasOwn(row, 'unique') &&
+      Object.hasOwn(row, 'partial'),
+  );
+  const targetIndexColumns = rows
+    .filter((row) => Number.isInteger(row?.seqno) && typeof row?.name === 'string')
+    .sort((left, right) => left.seqno - right.seqno)
+    .map((row) => row.name);
+
+  const normalizedTableSql = tableSql.toLowerCase().replace(/\s+/g, ' ');
+  const hasCanonicalConstraint =
+    /target_type\s+text\s+not\s+null\s+default\s+'token'\s+check\s*\(\s*target_type\s+in\s*\(\s*'token'\s*,\s*'fid'\s*\)\s*\)/.test(
+      normalizedTableSql,
+    );
+  const isTargetTypeCanonical =
+    Boolean(targetColumn) &&
+    String(targetColumn.type).toUpperCase() === 'TEXT' &&
+    Number(targetColumn.notnull) === 1 &&
+    targetColumn.dflt_value === "'token'" &&
+    hasCanonicalConstraint;
+  const hasTargetIndex = Boolean(targetIndex);
+  const isTargetIndexCanonical =
+    hasTargetIndex &&
+    Number(targetIndex.unique) === 0 &&
+    Number(targetIndex.partial) === 0 &&
+    targetIndex.origin === 'c' &&
+    targetIndexColumns.length === TARGET_INDEX_COLUMNS.length &&
+    targetIndexColumns.every((column, index) => column === TARGET_INDEX_COLUMNS[index]);
 
   return {
     tableExists: columns.length > 0,
-    hasTargetType: columns.some((row) => row.name === 'target_type'),
-    hasTargetIndex: indexes.some((row) => row.index_name === TARGET_INDEX),
+    hasTargetType: Boolean(targetColumn),
+    isTargetTypeCanonical,
+    hasTargetIndex,
+    isTargetIndexCanonical,
   };
 }
 
@@ -93,7 +141,7 @@ async function createMissingIndex() {
     'execute',
     DATABASE_NAME,
     '--remote',
-    `--command=CREATE INDEX IF NOT EXISTS ${TARGET_INDEX} ON fcm_tokens(user_id, platform, target_type, updated_at);`,
+    `--command=DROP INDEX IF EXISTS ${TARGET_INDEX}; CREATE INDEX ${TARGET_INDEX} ON fcm_tokens(user_id, platform, target_type, updated_at);`,
   ]);
 }
 
