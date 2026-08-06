@@ -5,6 +5,7 @@ import {
   sanitizeNotificationData,
   validateContentBackfillBody,
   validateRegisterBody,
+  validateSubscriptionBody,
   validateUpdateUserBody,
   validateLanguage,
   validateNatalChartBody,
@@ -108,6 +109,33 @@ describe('validators', () => {
       approval_reference: 'workflow:content-backfill'
     });
   });
+
+  it.each(['premium_monthly', 'premium_weekly'])(
+    'accepts supported subscription product %s',
+    (productId) => {
+      expect(
+        validateSubscriptionBody({
+          purchase_token: 'purchase-token',
+          product_id: productId
+        })
+      ).toEqual({
+        purchase_token: 'purchase-token',
+        product_id: productId
+      });
+    }
+  );
+
+  it.each(['premium_yearly', 'premium_daily', 'unknown'])(
+    'rejects unsupported subscription product %s',
+    (productId) => {
+      expect(() =>
+        validateSubscriptionBody({
+          purchase_token: 'purchase-token',
+          product_id: productId
+        })
+      ).toThrow();
+    }
+  );
 
   it('accepts supported mobile platforms on register and update payloads', () => {
     expect(

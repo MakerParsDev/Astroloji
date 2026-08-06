@@ -28,7 +28,7 @@ id = "12c50600e61447c29ed0bcb122f5cc85"
 ENVIRONMENT = "production"
 PACKAGE_NAME = "com.parsfilo.astrology"
 PREMIUM_MONTHLY_PRODUCT_ID = "premium_monthly"
-PREMIUM_YEARLY_PRODUCT_ID = "premium_yearly"
+PREMIUM_WEEKLY_PRODUCT_ID = "premium_weekly"
 ALLOWED_ORIGINS = "https://astrology.parsfilo.com"
 
 [triggers]

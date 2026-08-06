@@ -46,7 +46,7 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
     ENVIRONMENT: 'test',
     PACKAGE_NAME: 'com.example.astrology',
     PREMIUM_MONTHLY_PRODUCT_ID: 'premium_monthly',
-    PREMIUM_YEARLY_PRODUCT_ID: 'premium_yearly',
+    PREMIUM_WEEKLY_PRODUCT_ID: 'premium_weekly',
     ALLOWED_ORIGINS: 'https://yourdomain.com',
     JWT_SECRET: 'super-secret',
     GOOGLE_SERVICE_ACCOUNT_JSON: JSON.stringify({
