@@ -37,6 +37,7 @@ function createRewardDb(options: { failVerifyUpdate?: boolean } = {}) {
         },
         async first<T>() {
           const query = normalize(sql);
+          if (query.includes('SELECT 1 AS ok FROM users')) return { ok: 1 } as T;
           if (query.includes('FROM reward_challenges WHERE id = ?')) {
             return (rows.get(String(statement.bindings[0])) ?? null) as T | null;
           }

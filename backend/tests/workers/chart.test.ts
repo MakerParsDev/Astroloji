@@ -35,7 +35,7 @@ describe('chart routes', () => {
               return statement;
             },
             async first() {
-              return null;
+              return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null;
             },
             async all() {
               return { results: [] };
@@ -111,7 +111,7 @@ describe('chart routes', () => {
           if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
           const statement = {
             bind() { return statement; },
-            async first() { return null; },
+            async first() { return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null; },
             async all() { return { results: [] }; },
             async run() { return { success: true, meta: {} }; }
           };
@@ -160,7 +160,7 @@ describe('chart routes', () => {
           if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
           const statement = {
             bind() { return statement; },
-            async first() { return null; },
+            async first() { return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null; },
             async all() { return { results: [] }; },
             async run() { return { success: true, meta: {} }; }
           };

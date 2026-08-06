@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createApp } from '@/index';
+import { signAppJwt } from '@/utils/jwt';
 import { createTestEnv } from '../helpers/env';
 
 describe('app routes', () => {
@@ -94,6 +95,49 @@ describe('app routes', () => {
         message: 'Request body must be valid JSON.'
       }
     });
+  });
+
+  it('rejects a signed JWT after its user record has been deleted', async () => {
+    let writes = 0;
+    const env = createTestEnv({
+      DB: {
+        prepare() {
+          const statement = {
+            bind() {
+              return statement;
+            },
+            async first() {
+              return null;
+            },
+            async all() {
+              return { results: [] };
+            },
+            async run() {
+              writes += 1;
+              return { success: true, meta: { changes: 1 } };
+            }
+          };
+          return statement;
+        }
+      } as unknown as D1Database
+    });
+    const jwt = await signAppJwt(env, { userId: 'deleted-user', isPremium: false });
+
+    const response = await createApp().request(
+      '/api/v1/events/track',
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${jwt}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({ event_type: 'app_open', meta: {} })
+      },
+      env
+    );
+
+    expect(response.status).toBe(401);
+    expect(writes).toBe(0);
   });
 
   it('keeps privacy disclosures aligned with transient chart, feedback, and share behavior', async () => {

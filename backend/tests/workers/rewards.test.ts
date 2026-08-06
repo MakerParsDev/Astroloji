@@ -12,6 +12,7 @@ function createEntitlementDb(hasEntitlement: boolean): D1Database {
           return statement;
         },
         async first() {
+          if (sql.includes('SELECT 1 AS ok FROM users')) return { ok: 1 };
           if (sql.includes('FROM reward_challenges') && hasEntitlement) {
             return { id: 'challenge-1' };
           }

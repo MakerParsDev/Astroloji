@@ -9,6 +9,14 @@ function jsonError(c: AppContext, status: number, code: string, message: string)
   return c.json({ error: { code, message } }, { status: status as 401 | 403 });
 }
 
+async function userExists(db: D1Database, userId: string): Promise<boolean> {
+  const row = await db
+    .prepare('SELECT 1 AS ok FROM users WHERE id = ? LIMIT 1')
+    .bind(userId)
+    .first<{ ok: number }>();
+  return row?.ok === 1;
+}
+
 export function getBearerToken(value: string | undefined | null): string | null {
   if (!value) {
     return null;
@@ -30,6 +38,9 @@ export const jwtAuthMiddleware: AppMiddleware = async (c, next: Next) => {
 
   try {
     const claims = await verifyAppJwt(c.env, token);
+    if (!(await userExists(c.env.DB, claims.user_id))) {
+      return jsonError(c, 401, 'INVALID_TOKEN', 'Authorization token is invalid or expired.');
+    }
     c.set('auth', {
       userId: claims.user_id,
       isPremium: claims.is_premium,

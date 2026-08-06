@@ -68,6 +68,7 @@ describe('monetization routes', () => {
               return statement;
             },
             async first() {
+              if (sql.includes('SELECT 1 AS ok FROM users')) return { ok: 1 };
               return sql.includes('FROM reward_challenges') ? { id: 'consumed-challenge' } : null;
             },
             async all() {
