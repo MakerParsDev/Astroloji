@@ -2,9 +2,9 @@
 
 **Date:** 2026-08-06
 **Branch:** `fix/weekly-monthly-subscriptions-20260806`
-**Implementation HEAD verified:** `977f2cd`
+**Implementation HEAD verified:** `ed182f8`
 **Base:** `origin/main` at `4117b59`
-**Result:** Local implementation verification passed; no deployment or Play publication performed.
+**Result:** Local post-review implementation verification passed; no deployment or Play publication performed.
 
 ## Verified Product Contract
 
@@ -102,7 +102,7 @@ Result:
 - ktlint: passed
 - Android Lint: **0 issues**
 - Turkish and English Premium golden tests: **2 passed**
-- Android unit tests: **39 result files, 156 tests passed, 0 failed, 0 skipped**
+- Android unit tests: **39 result files, 159 tests passed, 0 failed, 0 skipped**
 - Device-smoke application and instrumentation APK compilation: passed
 - Debug APK compilation: passed
 - Release AAB dry-run: passed
@@ -112,10 +112,10 @@ Artifacts:
 
 ```text
 Astroloji/app/build/outputs/apk/debug/app-debug.apk
-  33,924,265 bytes
+  34,000,320 bytes
 
 Astroloji/app/build/outputs/bundle/release/app-release.aab
-  15,824,521 bytes
+  15,826,785 bytes
 
 Astroloji/device-smoke/build/outputs/apk/debug/device-smoke-debug.apk
   5,228,815 bytes
@@ -124,7 +124,7 @@ Astroloji/device-smoke/build/outputs/apk/androidTest/debug/device-smoke-debug-an
   1,738,067 bytes
 ```
 
-The complete local verification job ran from `2026-08-06T15:12:42+03:00` to `2026-08-06T15:21:01+03:00` and ended with `exit_code=0`.
+The post-review complete local verification job ran from `2026-08-06T15:58:29+03:00` to `2026-08-06T16:05:09+03:00` and its status file ended with `exit_code=0`. Fresh standalone `git diff --check` and `git status` commands also returned `0`.
 
 ## Google Play Read-Back
 
@@ -163,6 +163,14 @@ The Play catalogue contains exactly these two subscription products.
 - Backend validation rejects yearly and unknown product IDs.
 - Weekly verify, restore, RTDN, persistence, and reconciliation paths are covered.
 - Internal release tooling requires `max(Play max + 1, 1101)` and rejects a lower requested version before build or publish.
+
+## Review-Finding Regression Coverage
+
+The post-review verification additionally proves:
+
+- Cadence is recognized only for the complete Play contract tuples `premium_monthly` + `monthly` + `P1M` and `premium_weekly` + `weekly` + `P1W`; contradictory tuples map to `UNKNOWN`.
+- A stale catalogue request cannot overwrite the result of a newer successful retry.
+- Catalogue failures retain a working retry control, while purchase and restore errors render without a no-op retry action.
 
 ## Actions Deliberately Not Performed
 
