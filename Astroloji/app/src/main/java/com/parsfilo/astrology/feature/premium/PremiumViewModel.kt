@@ -73,6 +73,7 @@ class PremiumViewModel
     ) : MviViewModel<PremiumUiState, PremiumUiEvent, Unit>(PremiumUiState()) {
         private var merchandisingTrialDays: Int = 0
         private var billingAction: BillingAction = BillingAction.NONE
+        private var catalogueLoadGeneration: Long = 0
 
         init {
             viewModelScope.launch {
@@ -178,9 +179,13 @@ class PremiumViewModel
         }
 
         private fun loadCatalogue() {
+            val generation = ++catalogueLoadGeneration
             viewModelScope.launch {
                 setState { copy(isLoading = true, error = null) }
-                when (val result = billingManager.loadPlans()) {
+                val result = billingManager.loadPlans()
+                if (generation != catalogueLoadGeneration) return@launch
+
+                when (result) {
                     is BillingCatalogueLoadResult.Success -> {
                         val selectedPlan = defaultPremiumPlan(result.plans)
                         setState {

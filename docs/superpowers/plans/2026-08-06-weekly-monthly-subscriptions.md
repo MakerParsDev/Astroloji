@@ -12,12 +12,12 @@
 
 - Canonical products are exactly `premium_monthly` and `premium_weekly`.
 - Canonical base plans are `monthly` (`P1M`) and `weekly` (`P1W`).
-- `premium_yearly`, `YEARLY`, yearly labels, and yearly savings logic must not remain in production code or fixtures.
+- `premium_yearly`, `YEARLY`, yearly labels, and yearly savings logic must not remain in production code. The removed identifier may appear only in explicit rejection or `UNKNOWN` regression tests.
 - Monthly is displayed first, selected by default when available, and labelled `Recommended` / `Önerilen`.
 - Weekly is displayed second and must never be presented as a Google Play discount.
 - Prices and billing periods displayed to users come from Google Play `ProductDetails`.
 - Trial copy is shown only when the selected Play offer contains a zero-priced pricing phase.
-- A complete catalogue failure must show a localized retry action; a partial catalogue failure must still display valid plans.
+- A complete catalogue failure must show a localized retry action; a partial catalogue failure must still display valid plans. Purchase/restore errors must not render a no-op retry control, and stale catalogue requests must not overwrite newer results.
 - Diagnostics may include response codes, safe debug messages, product IDs, unfetched status codes, and valid-plan counts, but never purchase tokens, account identifiers, OAuth tokens, Firebase tokens, or secrets.
 - The next internal-test version code must be at least `1101` and greater than every version code currently known to Play.
 - Do not archive/delete Play products, deploy backend production, publish production, or make a real charge as part of implementation.
@@ -97,6 +97,8 @@ it.each(['premium_yearly', 'premium_daily', 'unknown']) (
 - [ ] **Step 2: Run the focused test and verify red state**
 
 Run:
+
+The following command block targets MSI Ubuntu and GitHub Ubuntu. The repository rule requiring PowerShell applies only when execution occurs on Windows.
 
 ```bash
 cd backend
@@ -627,7 +629,7 @@ Expected: FAIL because checked-in golden images still contain yearly presentatio
 
 - [ ] **Step 2: Regenerate screenshot references with the project’s configured update task**
 
-First list screenshot tasks:
+First list screenshot tasks on MSI Ubuntu or GitHub Ubuntu; use the PowerShell equivalent only on a Windows host:
 
 ```bash
 cd Astroloji
@@ -757,10 +759,14 @@ Run:
 
 ```bash
 git grep -nE 'premium_yearly|PremiumBillingCadence\.YEARLY|premium_yearly_label|premium_yearly_savings_percent|premium_period_yearly' -- \
-  ':!docs/superpowers/specs/**' ':!docs/superpowers/plans/**'
+  'Astroloji/app/src/main/**' \
+  'backend/src/**' \
+  'backend/wrangler.toml' \
+  'backend/worker-configuration.d.ts' \
+  '.github/workflows/**'
 ```
 
-Expected: no matches. Historical design/plan prose may mention the removed identifier and is excluded.
+Expected: no matches in production paths. Explicit rejection or `UNKNOWN` tests may retain `premium_yearly`; design, plan, and verification prose may also name the removed identifier.
 
 - [ ] **Step 2: Run complete backend verification**
 

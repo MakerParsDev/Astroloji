@@ -11,7 +11,7 @@ Replace the incomplete monthly/yearly subscription contract with a coherent mont
 - `premium_monthly` with base plan `monthly` and billing period `P1M`
 - `premium_weekly` with base plan `weekly` and billing period `P1W`
 
-No yearly subscription product, UI copy, pricing calculation, backend allowlist entry, reconciliation fallback, or test fixture will remain.
+No yearly subscription product, UI copy, pricing calculation, backend allowlist entry, or reconciliation fallback will remain. The literal `premium_yearly` may remain only in explicit rejection or `UNKNOWN` regression tests.
 
 ## User Experience
 
@@ -50,7 +50,7 @@ The default selection will be monthly when available; otherwise it will be the f
 
 ## Premium Presentation
 
-The billing cadence model will contain `MONTHLY`, `WEEKLY`, and `UNKNOWN`. All `YEARLY` labels, strings, screenshot fixtures, comparison calculations, and tests will be removed or replaced.
+The billing cadence model will contain `MONTHLY`, `WEEKLY`, and `UNKNOWN`. `MONTHLY` requires the exact tuple `premium_monthly` + `monthly` + `P1M`; `WEEKLY` requires `premium_weekly` + `weekly` + `P1W`. Any contradictory or unknown tuple maps to `UNKNOWN`. All `YEARLY` labels, strings, screenshot fixtures, and comparison calculations will be removed; only explicit yearly-rejection tests may retain the removed identifier.
 
 Display priority:
 
@@ -169,7 +169,7 @@ The implementation will not expose raw Billing debug internals to users. User-fa
 
 Diagnostics must exclude purchase tokens, OAuth tokens, Google account identifiers, Firebase tokens, and secrets.
 
-The UI will never silently render an empty plan section after loading completes.
+The UI will never silently render an empty plan section after loading completes. Catalogue failures keep a real retry action; purchase and restore errors render as non-retry messages rather than no-op buttons. Concurrent catalogue loads use latest-request-wins semantics so stale results cannot overwrite newer state.
 
 ## Rollout and Safety
 

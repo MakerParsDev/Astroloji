@@ -174,6 +174,39 @@ class PremiumViewModelTest {
         }
 
     @Test
+    fun `older catalogue result cannot overwrite a newer successful retry`() =
+        runTest {
+            val firstResult = CompletableDeferred<BillingCatalogueLoadResult>()
+            val secondResult = CompletableDeferred<BillingCatalogueLoadResult>()
+            var loadCalls = 0
+            stubDependencies()
+            coEvery { billingManager.loadPlans() } coAnswers {
+                loadCalls += 1
+                if (loadCalls == 1) firstResult.await() else secondResult.await()
+            }
+
+            val viewModel = createViewModel()
+            runCurrent()
+            assertThat(loadCalls).isEqualTo(1)
+
+            viewModel.onEvent(PremiumUiEvent.RetryCatalogue)
+            runCurrent()
+            assertThat(loadCalls).isEqualTo(2)
+
+            secondResult.complete(success(listOf(weeklyPlan, monthlyPlan)))
+            runCurrent()
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
+            assertThat(viewModel.state.value.error).isNull()
+
+            firstResult.complete(BillingCatalogueLoadResult.Failure("stale failure", emptyList()))
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.plans).containsExactly(weeklyPlan, monthlyPlan).inOrder()
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
+            assertThat(viewModel.state.value.error).isNull()
+        }
+
+    @Test
     fun `already premium users keep active subscription state`() =
         runTest {
             stubDependencies(

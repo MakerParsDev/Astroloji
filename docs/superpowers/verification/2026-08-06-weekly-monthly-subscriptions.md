@@ -13,7 +13,7 @@ Production Android and backend code recognize exactly:
 - `premium_monthly` / base plan `monthly` / period `P1M`
 - `premium_weekly` / base plan `weekly` / period `P1W`
 
-A production-path grep returned no matches for:
+A production-path grep limited to `Astroloji/app/src/main/**`, `backend/src/**`, `backend/wrangler.toml`, `backend/worker-configuration.d.ts`, and `.github/workflows/**` returned no matches for:
 
 ```text
 premium_yearly
@@ -31,7 +31,7 @@ Three test-only negative fixtures intentionally retain `premium_yearly` to prove
 
 ## Root Tooling and Secret Scan
 
-Commands:
+Commands below were executed on MSI Ubuntu. The repository PowerShell rule applies only when the host operating system is Windows.
 
 ```bash
 node scripts/scan-secrets.mjs
@@ -75,7 +75,7 @@ Weekly coverage includes validator acceptance, verify, restore, RTDN lookup, per
 
 The local run used Java 21, the configured Android SDK, the checked-in Firebase placeholder, screenshot-test enablement, and the same 3 GiB heap / 1 GiB metaspace limits used by CI.
 
-Commands:
+Commands below were executed on MSI Ubuntu; GitHub CI uses equivalent Bash commands on Ubuntu runners. A Windows execution must use PowerShell equivalents.
 
 ```bash
 cd Astroloji
@@ -128,7 +128,7 @@ The complete local verification job ran from `2026-08-06T15:12:42+03:00` to `202
 
 ## Google Play Read-Back
 
-The Android Publisher API was queried read-only using a temporary `0600` credential file. The credential and access token were not printed and the temporary files were deleted by a shell trap.
+The Android Publisher API read-back ran on MSI Ubuntu using a temporary credential file restricted to mode `0600`; the file was deleted by a shell trap. No Windows credential file was created. A future Windows run must restrict the temporary file with a PowerShell ACL and remove it in a `finally` block. The source credential remains in the local Doppler secret store, was never committed, and was not included in build or release artifacts. The credential and access token were not printed.
 
 Release/version result:
 

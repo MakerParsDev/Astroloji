@@ -10,8 +10,12 @@ internal enum class PremiumBillingCadence {
 
 internal fun premiumBillingCadence(plan: PremiumPlanUi): PremiumBillingCadence =
     when {
-        plan.productId == "premium_monthly" || plan.billingPeriod == "P1M" -> PremiumBillingCadence.MONTHLY
-        plan.productId == "premium_weekly" || plan.billingPeriod == "P1W" -> PremiumBillingCadence.WEEKLY
+        plan.productId == "premium_monthly" &&
+            plan.basePlanId == "monthly" &&
+            plan.billingPeriod == "P1M" -> PremiumBillingCadence.MONTHLY
+        plan.productId == "premium_weekly" &&
+            plan.basePlanId == "weekly" &&
+            plan.billingPeriod == "P1W" -> PremiumBillingCadence.WEEKLY
         else -> PremiumBillingCadence.UNKNOWN
     }
 

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,6 +22,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
+import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
@@ -104,28 +107,54 @@ private fun PremiumContent(
                         callbacks = callbacks.offer,
                     )
                 }
-
-                else -> {
+            }
+            when (premiumErrorMode(model.uiState, model.selected)) {
+                PremiumErrorMode.RETRY_CATALOGUE ->
                     ErrorState(
                         message =
                             model.uiState.error
                                 ?: stringResource(R.string.billing_catalogue_unavailable),
                         onRetry = callbacks.onRetryCatalogue,
                     )
-                }
+
+                PremiumErrorMode.MESSAGE -> PremiumInlineError(model.uiState.error.orEmpty())
+                PremiumErrorMode.NONE -> Unit
             }
             PremiumBenefitsCard()
             if (model.uiState.purchaseSuccess) {
                 PremiumSuccessCard(callbacks.onDismissSuccess)
             }
-            if (model.selected != null) {
-                model.uiState.error?.let { message ->
-                    ErrorState(message = message, onRetry = {})
-                }
-            }
         }
     }
 }
+
+@Composable
+private fun PremiumInlineError(message: String) {
+    AstrologyCard {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+}
+
+internal enum class PremiumErrorMode {
+    NONE,
+    RETRY_CATALOGUE,
+    MESSAGE,
+}
+
+internal fun premiumErrorMode(
+    uiState: PremiumUiState,
+    selected: PremiumPlanUi?,
+): PremiumErrorMode =
+    when {
+        uiState.isAlreadyPremium -> PremiumErrorMode.NONE
+        selected == null -> PremiumErrorMode.RETRY_CATALOGUE
+        uiState.error != null -> PremiumErrorMode.MESSAGE
+        else -> PremiumErrorMode.NONE
+    }
 
 private data class PremiumContentModel(
     val uiState: PremiumUiState,
