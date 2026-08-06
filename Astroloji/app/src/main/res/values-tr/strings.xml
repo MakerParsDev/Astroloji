@@ -221,6 +221,7 @@
     <string name="billing_purchase_failed">Satın alma başarısız</string>
     <string name="billing_payment_pending">Ödeme onay bekliyor</string>
     <string name="billing_acknowledge_failed">Satın alma onaylanamadı</string>
+    <string name="billing_catalogue_unavailable">Abonelik planları Google Play’den yüklenemedi. Tekrar dene.</string>
     <string name="session_error_profile_fetch_failed">Profil getirilemedi.</string>
     <string name="session_error_profile_empty">Profil yanıtı boş.</string>
     <string name="session_error_profile_update_failed">Profil güncellenemedi.</string>

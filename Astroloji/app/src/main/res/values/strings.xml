@@ -221,6 +221,7 @@
     <string name="billing_purchase_failed">Purchase failed</string>
     <string name="billing_payment_pending">Payment is pending approval</string>
     <string name="billing_acknowledge_failed">Purchase could not be acknowledged</string>
+    <string name="billing_catalogue_unavailable">Subscription plans could not be loaded from Google Play. Try again.</string>
     <string name="session_error_profile_fetch_failed">Profile could not be loaded.</string>
     <string name="session_error_profile_empty">Profile response was empty.</string>
     <string name="session_error_profile_update_failed">Profile could not be updated.</string>

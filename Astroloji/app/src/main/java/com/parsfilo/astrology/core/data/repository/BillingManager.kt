@@ -31,13 +31,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 
 private const val PRODUCT_PREMIUM_MONTHLY = "premium_monthly"
-private const val PRODUCT_PREMIUM_YEARLY = "premium_yearly"
-private val PREMIUM_PRODUCT_IDS = setOf(PRODUCT_PREMIUM_MONTHLY, PRODUCT_PREMIUM_YEARLY)
+private const val PRODUCT_PREMIUM_WEEKLY = "premium_weekly"
+private val PREMIUM_PRODUCT_IDS = setOf(PRODUCT_PREMIUM_MONTHLY, PRODUCT_PREMIUM_WEEKLY)
 
 data class PremiumPlanUi(
     val planId: String,
@@ -67,6 +68,23 @@ internal data class DisplayPricingSummary(
     val billingPeriod: String?,
 )
 
+data class BillingCatalogueDiagnostic(
+    val productId: String,
+    val statusCode: Int,
+)
+
+sealed interface BillingCatalogueLoadResult {
+    data class Success(
+        val plans: List<PremiumPlanUi>,
+        val diagnostics: List<BillingCatalogueDiagnostic>,
+    ) : BillingCatalogueLoadResult
+
+    data class Failure(
+        val message: String,
+        val diagnostics: List<BillingCatalogueDiagnostic>,
+    ) : BillingCatalogueLoadResult
+}
+
 @Singleton
 class BillingManager
     @Inject
@@ -93,43 +111,46 @@ class BillingManager
                 .enableAutoServiceReconnection()
                 .build()
 
-        suspend fun loadPlans() {
+        suspend fun loadPlans(): BillingCatalogueLoadResult {
+            val catalogueUnavailableMessage = stringsProvider.get(R.string.billing_catalogue_unavailable)
             val readyResult = ensureReady()
             if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
-                _purchaseState.value =
-                    AppResult.Error(
-                        AppException.BillingException(
-                            readyResult.debugMessage.ifBlank { stringsProvider.get(R.string.billing_purchase_failed) },
-                        ),
-                    )
-                return
-            }
-            val params =
-                QueryProductDetailsParams
-                    .newBuilder()
-                    .setProductList(
-                        listOf(PRODUCT_PREMIUM_MONTHLY, PRODUCT_PREMIUM_YEARLY).map {
-                            QueryProductDetailsParams.Product
-                                .newBuilder()
-                                .setProductId(it)
-                                .setProductType(ProductType.SUBS)
-                                .build()
-                        },
-                    ).build()
-            val result =
-                suspendCancellableCoroutine<Pair<BillingResult, QueryProductDetailsResult>> { continuation ->
-                    billingClient.queryProductDetailsAsync(params) { billingResult, productDetailsResult ->
-                        continuation.resume(billingResult to productDetailsResult)
-                    }
-                }
-            if (result.first.responseCode == BillingResponseCode.OK) {
                 catalog.clear()
-                result.second.productDetailsList.forEach { detail ->
-                    catalog[detail.productId] = detail
-                }
-                _plans.value =
-                    buildPremiumPlans(result.second.productDetailsList)
+                _plans.value = emptyList()
+                return BillingCatalogueLoadResult.Failure(
+                    message = readyResult.debugMessage.ifBlank { catalogueUnavailableMessage },
+                    diagnostics = emptyList(),
+                )
             }
+
+            val (billingResult, productDetailsResult) = queryPremiumProductDetails(billingClient)
+            val diagnostics = productDetailsResult.toCatalogueDiagnostics()
+            logCatalogueDiagnostics(diagnostics)
+            val plans =
+                if (billingResult.responseCode == BillingResponseCode.OK) {
+                    storeCatalogue(productDetailsResult.productDetailsList)
+                } else {
+                    catalog.clear()
+                    _plans.value = emptyList()
+                    emptyList()
+                }
+
+            val queryMessage =
+                billingResult.debugMessage.takeUnless {
+                    billingResult.responseCode == BillingResponseCode.OK
+                }
+            return resolveCatalogueLoadResult(
+                plans = plans,
+                diagnostics = diagnostics,
+                queryMessage = queryMessage,
+                catalogueUnavailableMessage = catalogueUnavailableMessage,
+            )
+        }
+
+        private fun storeCatalogue(productDetails: List<ProductDetails>): List<PremiumPlanUi> {
+            catalog.clear()
+            productDetails.forEach { detail -> catalog[detail.productId] = detail }
+            return buildPremiumPlans(productDetails).also { _plans.value = it }
         }
 
         fun clearPurchaseState() {
@@ -370,6 +391,46 @@ class BillingManager
         }
     }
 
+private suspend fun queryPremiumProductDetails(
+    billingClient: BillingClient,
+): Pair<BillingResult, QueryProductDetailsResult> {
+    val params =
+        QueryProductDetailsParams
+            .newBuilder()
+            .setProductList(
+                listOf(PRODUCT_PREMIUM_MONTHLY, PRODUCT_PREMIUM_WEEKLY).map { productId ->
+                    QueryProductDetailsParams.Product
+                        .newBuilder()
+                        .setProductId(productId)
+                        .setProductType(ProductType.SUBS)
+                        .build()
+                },
+            ).build()
+    return suspendCancellableCoroutine { continuation ->
+        billingClient.queryProductDetailsAsync(params) { billingResult, productDetailsResult ->
+            continuation.resume(billingResult to productDetailsResult)
+        }
+    }
+}
+
+private fun QueryProductDetailsResult.toCatalogueDiagnostics(): List<BillingCatalogueDiagnostic> =
+    unfetchedProductList.map { unfetched ->
+        BillingCatalogueDiagnostic(
+            productId = unfetched.productId,
+            statusCode = unfetched.statusCode,
+        )
+    }
+
+private fun logCatalogueDiagnostics(diagnostics: List<BillingCatalogueDiagnostic>) {
+    diagnostics.forEach { diagnostic ->
+        Timber.w(
+            "Billing catalogue product unavailable: productId=%s statusCode=%d",
+            diagnostic.productId,
+            diagnostic.statusCode,
+        )
+    }
+}
+
 internal fun buildPlanId(
     productId: String,
     basePlanId: String?,
@@ -382,6 +443,25 @@ internal fun resolveRecognizedProductId(products: List<String>): String? {
 }
 
 internal fun isSuccessfulBillingSetup(responseCode: Int): Boolean = responseCode == BillingResponseCode.OK
+
+internal fun defaultPremiumPlan(plans: List<PremiumPlanUi>): PremiumPlanUi? =
+    plans.firstOrNull { it.productId == PRODUCT_PREMIUM_MONTHLY }
+        ?: plans.minByOrNull { it.displayPriority }
+
+internal fun resolveCatalogueLoadResult(
+    plans: List<PremiumPlanUi>,
+    diagnostics: List<BillingCatalogueDiagnostic>,
+    queryMessage: String?,
+    catalogueUnavailableMessage: String,
+): BillingCatalogueLoadResult =
+    if (plans.isNotEmpty()) {
+        BillingCatalogueLoadResult.Success(plans = plans, diagnostics = diagnostics)
+    } else {
+        BillingCatalogueLoadResult.Failure(
+            message = queryMessage?.takeIf { it.isNotBlank() } ?: catalogueUnavailableMessage,
+            diagnostics = diagnostics,
+        )
+    }
 
 private fun selectPurchaseForVerification(purchases: List<Purchase>): Purchase? =
     purchases
@@ -495,10 +575,10 @@ private fun billingPeriodDays(value: String?): Int? {
     return weeks?.times(7)
 }
 
-private fun defaultDisplayPriority(productId: String): Int =
+internal fun defaultDisplayPriority(productId: String): Int =
     when (productId) {
-        PRODUCT_PREMIUM_YEARLY -> 0
-        PRODUCT_PREMIUM_MONTHLY -> 1
+        PRODUCT_PREMIUM_MONTHLY -> 0
+        PRODUCT_PREMIUM_WEEKLY -> 1
         else -> Int.MAX_VALUE
     }
 
