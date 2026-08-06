@@ -25,8 +25,10 @@ class FirebasePushRegistrationManagerTest {
             val result = manager.register()
 
             assertThat(result).isEqualTo("fid-123")
-            verify(exactly = 1) { messaging.register() }
-            verify(exactly = 1) { installations.id }
+            verify(ordering = io.mockk.Ordering.SEQUENCE) {
+                messaging.register()
+                installations.id
+            }
         }
 
     @Test
