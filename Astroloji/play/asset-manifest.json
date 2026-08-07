@@ -28,48 +28,48 @@
       "path": "en-US/phoneScreenshots/01-daily.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "5cf22d12f091a446341c168e159edb814970c7c6c4ef077bfea43b9b57bbd405"
+      "height": 2400,
+      "sha256": "fc13dbc2a2dc978ff3397d87657317188214ff6b222d159b9b3cdec6d8019ccf"
     },
     {
       "locale": "en-US",
       "role": "phoneScreenshot",
       "order": 2,
-      "path": "en-US/phoneScreenshots/02-guidance.png",
+      "path": "en-US/phoneScreenshots/02-weekly.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "cfc1badf8ad08b713cc3aa717dde30d454edd64b064d008b2f2b15cebfb84285"
+      "height": 2400,
+      "sha256": "7a2fabd83d2e6e57389f0129edd889448b3686808db9714e68984dc073b51b18"
     },
     {
       "locale": "en-US",
       "role": "phoneScreenshot",
       "order": 3,
-      "path": "en-US/phoneScreenshots/03-compatibility.png",
+      "path": "en-US/phoneScreenshots/03-monthly.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "99b945c7386fde0175ab44998b96c0d337014c34218b5b20154aa214739de68c"
+      "height": 2400,
+      "sha256": "26c9126176f07d16fdfe59b473a81eff42b635212737763f7ef79a102a9d810d"
     },
     {
       "locale": "en-US",
       "role": "phoneScreenshot",
       "order": 4,
-      "path": "en-US/phoneScreenshots/04-personality.png",
+      "path": "en-US/phoneScreenshots/04-compatibility.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "e84472253258ac3aa9be4182f9a5f9693b8023d374cd3d9db5fbad9b007a3f5e"
+      "height": 2400,
+      "sha256": "e3c4f880579bd403f0d09bdb09698940213f6ed1fa98260dda078c4e4ebfd9c8"
     },
     {
       "locale": "en-US",
       "role": "phoneScreenshot",
       "order": 5,
-      "path": "en-US/phoneScreenshots/05-tools.png",
+      "path": "en-US/phoneScreenshots/05-profile.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "c648deb6fc07a32429934d16093c9640a140ba8d0c8d03f6ccc234b7ee96b16d"
+      "height": 2400,
+      "sha256": "6e17591d78e40f5ba73222482c91a55c9bd419d0b7da6c1e93ce7f22e9044aa0"
     },
     {
       "locale": "en-US",
@@ -78,8 +78,8 @@
       "path": "en-US/phoneScreenshots/06-premium.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "223eb1b5f9ba6acb9cfb96007201a96218659b7ab267a0b04a4aa83d2f34e817"
+      "height": 2400,
+      "sha256": "9e42268da817feb600327a5495d8515a2bcbcc1b757fd0430797218b73a8b7f2"
     },
     {
       "locale": "tr-TR",
@@ -98,48 +98,48 @@
       "path": "tr-TR/phoneScreenshots/01-daily.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "d2f1158d045fc0652e9e464018852a4d1f116324573f2ef8679d358cc8816641"
+      "height": 2400,
+      "sha256": "64587762cea81fafaf7ee0e528a6f2950abbc6a42aa3745b54e7726ca4a9e89d"
     },
     {
       "locale": "tr-TR",
       "role": "phoneScreenshot",
       "order": 2,
-      "path": "tr-TR/phoneScreenshots/02-guidance.png",
+      "path": "tr-TR/phoneScreenshots/02-weekly.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "3adac1458b2130f3c3150a9317fff39705a8df2fcaa984fa4ab726a431efa841"
+      "height": 2400,
+      "sha256": "811df5f5038eaf4f36d14a0a1e12ce9f9f8f5d1228c6285ae30dc72b9c3a196f"
     },
     {
       "locale": "tr-TR",
       "role": "phoneScreenshot",
       "order": 3,
-      "path": "tr-TR/phoneScreenshots/03-compatibility.png",
+      "path": "tr-TR/phoneScreenshots/03-monthly.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "574cbd42510d25b0d7f63b21af0968ff39cd8b87f01b67b2eddc92b0beb7e1e7"
+      "height": 2400,
+      "sha256": "a19b7f937f61bba7f7e07ba8672f60432cbea80cf6dbf9d2f1053583b7e9a027"
     },
     {
       "locale": "tr-TR",
       "role": "phoneScreenshot",
       "order": 4,
-      "path": "tr-TR/phoneScreenshots/04-personality.png",
+      "path": "tr-TR/phoneScreenshots/04-compatibility.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "08d5e8cd7126709c83306d7c2c8498e905ee2025bda3405c09b04fea0dda3284"
+      "height": 2400,
+      "sha256": "8bd67d42a05ee86fc858825c61af776dc5caca7d25d5c748bae9feab2e6da6c0"
     },
     {
       "locale": "tr-TR",
       "role": "phoneScreenshot",
       "order": 5,
-      "path": "tr-TR/phoneScreenshots/05-tools.png",
+      "path": "tr-TR/phoneScreenshots/05-profile.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "57ab34f0d7a3d45e7a31b359547163ee885df75038ee8547d994e4688adc8990"
+      "height": 2400,
+      "sha256": "e8e7617da045706716047c5e5d8c136dd4753cff21909aab12097c168a560158"
     },
     {
       "locale": "tr-TR",
@@ -148,8 +148,8 @@
       "path": "tr-TR/phoneScreenshots/06-premium.png",
       "format": "png",
       "width": 1080,
-      "height": 1920,
-      "sha256": "dc25c966530f06261a8276b848dfeb7a5387afb57b10fd4d4ffd834d6b81d176"
+      "height": 2400,
+      "sha256": "467c3cad0e4bb4973f9578d9723a9955f2ebac8bfd555ff0362bb1dcfe84c0ff"
     }
   ]
 }

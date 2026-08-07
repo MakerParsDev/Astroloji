@@ -57,11 +57,6 @@ on:
         required: false
         default: ''
         type: string
-      track:
-        description: Optional release-notes track for publish mode
-        required: false
-        default: ''
-        type: string
 
 permissions:
   contents: read
@@ -330,7 +325,6 @@ jobs:
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
       PLAY_PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
-      PLAY_METADATA_TRACK: ${{ inputs.track }}
       MODE: ${{ inputs.mode }}
       BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
       BACKUP_SHA256: ${{ inputs.backup_sha256 }}
@@ -411,7 +405,7 @@ jobs:
           export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
           node scripts/verify-play-backup-current.mjs \
             --backup "$RUNNER_TEMP/play-input/play-backup.json"
-      - name: Publish Turkish and English text and images
+      - name: Publish Turkish and English phone screenshots
         if: inputs.mode == 'publish'
         env:
           PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
@@ -419,6 +413,7 @@ jobs:
           export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
           node scripts/publish-play-metadata.mjs \
             --backup "$RUNNER_TEMP/play-input/play-backup.json" \
+            --image-scope phoneScreenshots \
             --confirmation "$CONFIRMATION"
       - name: Remove unsupported live locales
         if: inputs.mode == 'cleanup'

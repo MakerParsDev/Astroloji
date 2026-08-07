@@ -103,6 +103,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchStartupWork() {
+        if (BuildConfig.STORE_SCREENSHOT_QA) return
         lifecycleScope.launch {
             val preferences = preferencesRepository.current()
             appOpenCount =
@@ -127,19 +128,23 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val preferences = preferencesRepository.current()
             val shouldShowAppOpen =
-                shouldShowAppOpenAd(
-                    AppOpenAdPolicy(
-                        isDebug = BuildConfig.DEBUG,
-                        onboardingCompleted = preferences.onboardingCompleted,
-                        isPremium = preferences.isPremium,
-                        canRequestAds = consentManager.canRequestAds,
-                        skipNextAppOpen = skipNextAppOpen,
-                        lastStoppedAtMs = lastStoppedAtMs,
-                        nowMs = SystemClock.elapsedRealtime(),
-                        appOpenCount = appOpenCount,
-                        minBackgroundDurationMs = appOpenMinBackgroundDurationMs,
-                    ),
-                )
+                if (BuildConfig.STORE_SCREENSHOT_QA) {
+                    false
+                } else {
+                    shouldShowAppOpenAd(
+                        AppOpenAdPolicy(
+                            isDebug = BuildConfig.DEBUG,
+                            onboardingCompleted = preferences.onboardingCompleted,
+                            isPremium = preferences.isPremium,
+                            canRequestAds = consentManager.canRequestAds,
+                            skipNextAppOpen = skipNextAppOpen,
+                            lastStoppedAtMs = lastStoppedAtMs,
+                            nowMs = SystemClock.elapsedRealtime(),
+                            appOpenCount = appOpenCount,
+                            minBackgroundDurationMs = appOpenMinBackgroundDurationMs,
+                        ),
+                    )
+                }
             if (skipNextAppOpen) {
                 skipNextAppOpen = false
             }

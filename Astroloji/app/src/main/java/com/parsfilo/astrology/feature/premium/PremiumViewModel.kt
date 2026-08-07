@@ -2,6 +2,7 @@ package com.parsfilo.astrology.feature.premium
 
 import android.app.Activity
 import androidx.lifecycle.viewModelScope
+import com.parsfilo.astrology.BuildConfig
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
@@ -182,7 +183,14 @@ class PremiumViewModel
             val generation = ++catalogueLoadGeneration
             viewModelScope.launch {
                 setState { copy(isLoading = true, error = null) }
-                val result = billingManager.loadPlans()
+                val language = preferencesRepository.current().language
+                val result =
+                    resolvePremiumCatalogue(
+                        storeScreenshotQa = BuildConfig.STORE_SCREENSHOT_QA,
+                        language = language,
+                    ) {
+                        billingManager.loadPlans()
+                    }
                 if (generation != catalogueLoadGeneration) return@launch
 
                 when (result) {

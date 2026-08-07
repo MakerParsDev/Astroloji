@@ -22,36 +22,36 @@ function png(width, height, uniqueByte) {
 const previewNames = [
   ['StoreAppIconScreenshot', 512, 512],
   ['StoreFeatureGraphicEnglishScreenshot', 1024, 500],
-  ['StoreDailyEnglishScreenshot', 1080, 1920],
-  ['StoreGuidanceEnglishScreenshot', 1080, 1920],
-  ['StoreCompatibilityEnglishScreenshot', 1080, 1920],
-  ['StorePersonalityEnglishScreenshot', 1080, 1920],
-  ['StoreToolsEnglishScreenshot', 1080, 1920],
-  ['StorePremiumEnglishScreenshot', 1080, 1920],
+  ['StoreDailyEnglishScreenshot', 1080, 2400],
+  ['StoreGuidanceEnglishScreenshot', 1080, 2400],
+  ['StoreCompatibilityEnglishScreenshot', 1080, 2400],
+  ['StorePersonalityEnglishScreenshot', 1080, 2400],
+  ['StoreToolsEnglishScreenshot', 1080, 2400],
+  ['StorePremiumEnglishScreenshot', 1080, 2400],
   ['StoreFeatureGraphicTurkishScreenshot', 1024, 500],
-  ['StoreDailyTurkishScreenshot', 1080, 1920],
-  ['StoreGuidanceTurkishScreenshot', 1080, 1920],
-  ['StoreCompatibilityTurkishScreenshot', 1080, 1920],
-  ['StorePersonalityTurkishScreenshot', 1080, 1920],
-  ['StoreToolsTurkishScreenshot', 1080, 1920],
-  ['StorePremiumTurkishScreenshot', 1080, 1920],
+  ['StoreDailyTurkishScreenshot', 1080, 2400],
+  ['StoreGuidanceTurkishScreenshot', 1080, 2400],
+  ['StoreCompatibilityTurkishScreenshot', 1080, 2400],
+  ['StorePersonalityTurkishScreenshot', 1080, 2400],
+  ['StoreToolsTurkishScreenshot', 1080, 2400],
+  ['StorePremiumTurkishScreenshot', 1080, 2400],
 ];
 
 const expectedPaths = [
   'shared/icon/icon.png',
   'en-US/featureGraphic/feature-graphic.png',
   'en-US/phoneScreenshots/01-daily.png',
-  'en-US/phoneScreenshots/02-guidance.png',
-  'en-US/phoneScreenshots/03-compatibility.png',
-  'en-US/phoneScreenshots/04-personality.png',
-  'en-US/phoneScreenshots/05-tools.png',
+  'en-US/phoneScreenshots/02-weekly.png',
+  'en-US/phoneScreenshots/03-monthly.png',
+  'en-US/phoneScreenshots/04-compatibility.png',
+  'en-US/phoneScreenshots/05-profile.png',
   'en-US/phoneScreenshots/06-premium.png',
   'tr-TR/featureGraphic/feature-graphic.png',
   'tr-TR/phoneScreenshots/01-daily.png',
-  'tr-TR/phoneScreenshots/02-guidance.png',
-  'tr-TR/phoneScreenshots/03-compatibility.png',
-  'tr-TR/phoneScreenshots/04-personality.png',
-  'tr-TR/phoneScreenshots/05-tools.png',
+  'tr-TR/phoneScreenshots/02-weekly.png',
+  'tr-TR/phoneScreenshots/03-monthly.png',
+  'tr-TR/phoneScreenshots/04-compatibility.png',
+  'tr-TR/phoneScreenshots/05-profile.png',
   'tr-TR/phoneScreenshots/06-premium.png',
 ];
 
@@ -64,6 +64,18 @@ function sourceFixture() {
   });
   return root;
 }
+
+test('icon and feature graphic dimensions stay unchanged while phone height becomes 2400', () => {
+  assert.deepEqual(previewNames.find(([name]) => name === 'StoreAppIconScreenshot'), ['StoreAppIconScreenshot', 512, 512]);
+  assert.deepEqual(
+    previewNames.find(([name]) => name === 'StoreFeatureGraphicEnglishScreenshot'),
+    ['StoreFeatureGraphicEnglishScreenshot', 1024, 500],
+  );
+  for (const [name, width, height] of previewNames.filter(([name]) => !name.includes('Icon') && !name.includes('FeatureGraphic'))) {
+    assert.equal(width, 1080, name);
+    assert.equal(height, 2400, name);
+  }
+});
 
 test('exporter maps verified golden previews to deterministic Play paths', () => {
   const sourceRoot = sourceFixture();

@@ -94,10 +94,18 @@ test('workflow dispatches every guarded script and passes exact confirmations', 
   assert.match(workflow, /STATE_DIGEST:\s*\$\{\{ inputs\.state_digest \}\}/);
   assert.match(workflow, /REMOVAL_COUNT:\s*\$\{\{ inputs\.removal_count \}\}/);
   assert.match(workflow, /--confirmation "\$CONFIRMATION"/);
+  assert.match(workflow, /--image-scope phoneScreenshots/);
   assert.match(workflow, /--state-digest "\$STATE_DIGEST"/);
   assert.match(workflow, /--removal-count "\$REMOVAL_COUNT"/);
 });
 
+
+test('phone screenshot publish workflow exposes no release-note track mutation surface', () => {
+  const block = jobBlock('play-mutation', 'verify-metadata-authorization-closed');
+  assert.doesNotMatch(workflow, /^      track:/m);
+  assert.doesNotMatch(block, /PLAY_METADATA_TRACK|inputs\.track/);
+  assert.match(block, /--image-scope phoneScreenshots/);
+});
 
 test('workflow run scripts never interpolate workflow_dispatch inputs directly', () => {
   const lines = workflow.split(/\r?\n/);

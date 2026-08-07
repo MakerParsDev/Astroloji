@@ -17,6 +17,13 @@ import {
 const changesNotSentForReview =
   process.env.PLAY_CHANGES_NOT_SENT_FOR_REVIEW?.toLowerCase() === 'true';
 
+export function parseImageScope(value) {
+  if (value !== 'phoneScreenshots') {
+    throw new Error('Provide --image-scope phoneScreenshots exactly for screenshot publication.');
+  }
+  return new Set(['phoneScreenshots']);
+}
+
 
 function readLocaleFiles(rootDir) {
   return fs.readdirSync(rootDir, { withFileTypes: true })
@@ -75,12 +82,12 @@ export async function publishPlayMetadata({
   repositoryRoot = process.cwd(),
   backupPath = argument('backup') ?? process.env.PLAY_METADATA_BACKUP_PATH,
   confirmation = argument('confirmation') ?? process.env.PLAY_METADATA_CONFIRMATION,
+  imageScope = argument('image-scope'),
   maxAgeMinutes = Number(
     argument('max-backup-age-minutes') ??
       process.env.PLAY_METADATA_BACKUP_MAX_AGE_MINUTES ??
       30,
   ),
-  releaseNotesTrack = process.env.PLAY_METADATA_TRACK?.trim(),
   deferReview = changesNotSentForReview,
   fetchImpl = fetch,
   client: injectedClient,
@@ -89,8 +96,8 @@ export async function publishPlayMetadata({
   now = new Date(),
 } = {}) {
   if (!backupPath) throw new Error('Provide a fresh backup with --backup=<absolute-path>.');
+  const imageTypes = parseImageScope(imageScope);
   const resolvedRepositoryRoot = path.resolve(repositoryRoot);
-  const resolvedMetadataRoot = path.join(resolvedRepositoryRoot, 'Astroloji', 'play');
 
   const { backup, backupDigest } = readBackupFile(path.resolve(backupPath));
   const expectedConfirmation = backupConfirmation(backupDigest);
@@ -108,19 +115,16 @@ export async function publishPlayMetadata({
     backupDigest,
     confirmation,
     proposed,
+    imageTypes,
     now,
     maxAgeMinutes,
     changesNotSentForReview: deferReview,
-    additionalEditMutation: releaseNotesMutation(
-      path.join(resolvedMetadataRoot, 'release-notes'),
-      releaseNotesTrack,
-      proposed.locales,
-    ),
     independentReadback:
-      independentReadback ?? ((state) => verifySupportedPublishedState(client, state)),
+      independentReadback ??
+      ((state) => verifySupportedPublishedState(client, state, { imageTypes, baseline: backup })),
   });
   console.log(
-    `Published verified Play metadata edit ${result.editId} for ${proposed.locales.length} supported locale(s).`,
+    `Published verified Play phone screenshots edit ${result.editId} for ${proposed.locales.length} supported locale(s).`,
   );
   return { ...result, backupDigest };
 }

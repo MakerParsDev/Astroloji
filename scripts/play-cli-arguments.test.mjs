@@ -44,3 +44,11 @@ test('baseline CLI uses the shared strict argument parser', (t) => {
   assert.notEqual(flagValue.status, 0);
   assert.match(`${flagValue.stdout}\n${flagValue.stderr}`, /requires a non-empty value/i);
 });
+
+test('Play screenshot publisher accepts only the exact phoneScreenshots image scope', async () => {
+  const { parseImageScope } = await import('./publish-play-metadata.mjs');
+  assert.deepEqual([...parseImageScope('phoneScreenshots')], ['phoneScreenshots']);
+  for (const value of [undefined, '', 'icon', 'featureGraphic', 'phoneScreenshots,icon']) {
+    assert.throws(() => parseImageScope(value), /image-scope.*phoneScreenshots/i);
+  }
+});

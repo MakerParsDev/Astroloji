@@ -209,6 +209,7 @@ android {
             "ADMOB_USE_TEST_IDS",
             stringConfig("ADMOB_USE_TEST_IDS", "false"),
         )
+        buildConfigField("boolean", "STORE_SCREENSHOT_QA", "false")
         manifestPlaceholders["ADMOB_APP_ID"] =
             stringConfig(
                 "ADMOB_APP_ID",
@@ -231,6 +232,14 @@ android {
 //            applicationIdSuffix = ".debug"
 //            versionNameSuffix = "-debug"
         }
+        create("storeQa") {
+            initWith(getByName("debug"))
+            matchingFallbacks += listOf("debug")
+            applicationIdSuffix = ".storeqa"
+            versionNameSuffix = "-storeqa"
+            isDebuggable = true
+            buildConfigField("boolean", "STORE_SCREENSHOT_QA", "true")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -243,6 +252,16 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+    }
+
+    sourceSets.named("storeQa") {
+        kotlin.directories += "src/debug/java"
+    }
+
+    if (screenshotTestsEnabled) {
+        sourceSets.named("debug") {
+            res.directories += "src/screenshotTest/res"
         }
     }
 
@@ -334,6 +353,29 @@ tasks.matching { it.name == "processDebugGoogleServices" }.configureEach {
     dependsOn(prepareDebugGoogleServices)
 }
 
+val prepareStoreQaGoogleServices =
+    tasks.register("prepareStoreQaGoogleServices") {
+        description = "Copies the sanitized example google-services config for store screenshot QA verification."
+        val sourceFile = layout.projectDirectory.file("src/storeQa/google-services.example.json")
+        val targetFile = layout.projectDirectory.file("src/storeQa/google-services.json")
+        inputs.file(sourceFile)
+        outputs.file(targetFile)
+        onlyIf {
+            !targetFile.asFile.exists() && sourceFile.asFile.exists()
+        }
+        doLast {
+            copy {
+                from(sourceFile)
+                into(layout.projectDirectory.dir("src/storeQa"))
+                rename { "google-services.json" }
+            }
+        }
+    }
+
+tasks.matching { it.name == "processStoreQaGoogleServices" }.configureEach {
+    dependsOn(prepareStoreQaGoogleServices)
+}
+
 detekt {
     buildUponDefaultConfig = true
     baseline = file("$projectDir/detekt-baseline.xml")
@@ -390,6 +432,7 @@ dependencies {
     implementation(libs.firebase.config)
     implementation(libs.firebase.appcheck.playintegrity)
     debugImplementation(libs.firebase.appcheck.debug)
+    add("storeQaImplementation", libs.firebase.appcheck.debug)
 
     // ── Google Play Services ──────────────────────────────────────────────────
     implementation(libs.play.services.ads)

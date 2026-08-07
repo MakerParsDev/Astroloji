@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "packageName": "com.parsfilo.astrology.storeqa",
+  "device": { "width": 1080, "height": 2160 },
+  "scenes": [
+    { "id": "daily", "order": 1 },
+    { "id": "weekly", "order": 2 },
+    { "id": "monthly", "order": 3 },
+    { "id": "compatibility", "order": 4 },
+    { "id": "profile", "order": 5 },
+    { "id": "premium", "order": 6 }
+  ]
+}

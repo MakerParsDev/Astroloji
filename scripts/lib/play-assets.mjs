@@ -81,7 +81,7 @@ function ensureAssetPath(assetRoot, relativePath) {
 function expectedDimensions(asset, config) {
   if (asset.role === 'icon') return config.assets.icon;
   if (asset.role === 'featureGraphic') return config.assets.featureGraphic;
-  if (asset.role === 'phoneScreenshot') return { width: 1080, height: 1920 };
+  if (asset.role === 'phoneScreenshot') return { width: 1080, height: 2400 };
   return null;
 }
 
