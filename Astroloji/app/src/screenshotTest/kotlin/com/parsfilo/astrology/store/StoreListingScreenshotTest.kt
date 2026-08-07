@@ -86,14 +86,14 @@ private fun InsightMeter(
 @Composable
 private fun StoreDailyScene(copy: StoreLocalizedCopy) {
     StoreSceneFrame(copy.dailyHeadline, copy.dailyBody) {
-        AstroSectionTitle(title = "Aries", eyebrow = "Today")
+        AstroSectionTitle(title = copy.signName, eyebrow = copy.todayLabel)
         AstrologyCard {
-            Text("A confident start", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            InsightMeter("Energy", 0.88f)
-            InsightMeter("Love", 0.76f)
-            InsightMeter("Work", 0.82f)
+            Text(copy.dailyCardTitle, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            InsightMeter(copy.energyLabel, 0.88f)
+            InsightMeter(copy.loveLabel, 0.76f)
+            InsightMeter(copy.workLabel, 0.82f)
             Text(
-                "Take one clear step toward the conversation or project that matters most today.",
+                copy.dailyAdvice,
                 style = MaterialTheme.typography.bodyLarge,
             )
         }
@@ -106,13 +106,13 @@ private fun StoreGuidanceScene(copy: StoreLocalizedCopy) {
         AstrologyCard {
             Text(copy.weeklyTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(copy.weeklyBody)
-            Text("Best day · Thursday", color = MaterialTheme.colorScheme.secondary)
+            Text(copy.bestDayLabel, color = MaterialTheme.colorScheme.secondary)
         }
         AstrologyCard {
             Text(copy.monthlyTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(copy.monthlyBody)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Love", "Work", "Growth").forEach { label ->
+                copy.monthlyThemeLabels.forEach { label ->
                     Surface(
                         shape = RoundedCornerShape(999.dp),
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
@@ -138,10 +138,10 @@ private fun StoreCompatibilityScene(copy: StoreLocalizedCopy) {
                 Text("86%", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.secondary)
                 Text("♌", style = MaterialTheme.typography.displayLarge)
             }
-            Text("Aries + Leo", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-            InsightMeter("Love", 0.91f)
-            InsightMeter("Friendship", 0.84f)
-            InsightMeter("Work", 0.79f)
+            Text(copy.compatibilityPairLabel, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            InsightMeter(copy.loveLabel, 0.91f)
+            InsightMeter(copy.friendshipLabel, 0.84f)
+            InsightMeter(copy.workLabel, 0.79f)
         }
     }
 }
@@ -149,14 +149,14 @@ private fun StoreCompatibilityScene(copy: StoreLocalizedCopy) {
 @Composable
 private fun StorePersonalityScene(copy: StoreLocalizedCopy) {
     StoreSceneFrame(copy.personalityHeadline, copy.personalityBody) {
-        AstroSectionTitle(title = "Aries", eyebrow = "Fire · Mars")
+        AstroSectionTitle(title = copy.signName, eyebrow = copy.elementPlanetLabel)
         AstrologyCard {
             Text(copy.strengthsTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             copy.strengths.forEach { strength -> Text("• $strength") }
         }
         AstrologyCard {
-            Text("Deeper insight", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("Channel your momentum into one meaningful direction and make space for collaboration.")
+            Text(copy.deeperInsightTitle, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(copy.deeperInsightBody)
         }
     }
 }
@@ -205,7 +205,7 @@ private fun StoreToolsScene(copy: StoreLocalizedCopy) {
                     ),
             contentAlignment = Alignment.Center,
         ) {
-            Text("♈  Today · 88%", style = MaterialTheme.typography.headlineMedium)
+            Text("♈  ${copy.todayScoreLabel}", style = MaterialTheme.typography.headlineMedium)
         }
     }
 }

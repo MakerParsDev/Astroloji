@@ -50,3 +50,26 @@ test('feature graphics and shared icon have deterministic Compose previews', () 
   assert.match(source, /spec:width=512dp,height=512dp,dpi=160/);
   assert.doesNotMatch(source, /rating|award|testimonial|countdown|discount/i);
 });
+
+test('all visible store-scene labels are supplied by localized copy and premium prices use matching micros', () => {
+  const scene = fs.readFileSync(sourcePath, 'utf8');
+  const fixtures = fs.readFileSync(
+    'Astroloji/app/src/screenshotTest/kotlin/com/parsfilo/astrology/store/StoreScreenshotFixtures.kt',
+    'utf8',
+  );
+  for (const hardcoded of [
+    '"Aries"', '"Today"', '"A confident start"', '"Energy"', '"Love"', '"Work"',
+    '"Best day · Thursday"', '"Friendship"', '"Fire · Mars"', '"Deeper insight"',
+    '"♈  Today · 88%"',
+  ]) {
+    assert.doesNotMatch(scene, new RegExp(hardcoded.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  for (const localized of [
+    'Koç', 'Bugün', 'Güçlü bir başlangıç', 'Enerji', 'Aşk', 'İş', 'En güçlü gün · Perşembe',
+    'Arkadaşlık', 'Ateş · Mars', 'Daha derin içgörü', 'Aylık', 'Haftalık',
+  ]) {
+    assert.match(fixtures, new RegExp(localized));
+  }
+  assert.match(fixtures, /monthlyPriceMicros = if \(isTurkish\) 394_990_000L else 6_990_000L/);
+  assert.match(fixtures, /weeklyPriceMicros = if \(isTurkish\) 129_990_000L else 2_290_000L/);
+});
