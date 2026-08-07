@@ -1,4 +1,5 @@
 name: android-metadata
+run-name: android-metadata-${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'push' }}-${{ github.event_name == 'workflow_dispatch' && inputs.authorization_correlation || github.sha }}
 
 on:
   push:
@@ -48,6 +49,11 @@ on:
         type: string
       confirmation:
         description: Exact digest-bound publication, cleanup, or restore confirmation
+        required: false
+        default: ''
+        type: string
+      authorization_correlation:
+        description: Unique immutable UUID correlation for publish, cleanup, or restore authorization
         required: false
         default: ''
         type: string
@@ -243,6 +249,8 @@ jobs:
       actions: read
     env:
       GH_TOKEN: ${{ secrets.METADATA_VARIABLES_READ_TOKEN }}
+      AUTHORIZATION_CORRELATION: ${{ inputs.authorization_correlation }}
+      MODE: ${{ inputs.mode }}
     steps:
       - name: Require metadata-variable read token
         run: |
@@ -250,6 +258,19 @@ jobs:
             echo "METADATA_VARIABLES_READ_TOKEN is required for run-scoped mutation authorization." >&2
             exit 1
           fi
+      - name: Validate immutable dispatch correlation and current run metadata
+        run: |
+          set -euo pipefail
+          if [[ ! "$AUTHORIZATION_CORRELATION" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]; then
+            echo "authorization_correlation must be a UUID." >&2
+            exit 1
+          fi
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID")"
+          test "$(jq -r '.event' <<<"$run_json")" = "workflow_dispatch"
+          test "$(jq -r '.head_branch' <<<"$run_json")" = "main"
+          test "$(jq -r '.head_sha' <<<"$run_json")" = "$GITHUB_SHA"
+          expected_title="android-metadata-${MODE}-${AUTHORIZATION_CORRELATION}"
+          test "$(jq -r '.display_title' <<<"$run_json")" = "$expected_title"
       - name: Wait for exact expiring run authorization
         run: |
           set -euo pipefail
@@ -262,6 +283,9 @@ jobs:
             expires_at="$(gh api \
               repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH \
               --jq '.value' 2>/dev/null || true)"
+            auth_correlation="$(gh api \
+              repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_CORRELATION \
+              --jq '.value' 2>/dev/null || true)"
             legacy_gate="$(gh api \
               repos/${{ github.repository }}/actions/variables/ENABLE_METADATA_PUBLISH \
               --jq '.value' 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)"
@@ -271,7 +295,7 @@ jobs:
               exit 1
             fi
 
-            if [ "$auth_run_id" = "$GITHUB_RUN_ID" ] && [[ "$expires_at" =~ ^[0-9]+$ ]]; then
+            if [ "$auth_run_id" = "$GITHUB_RUN_ID" ] && [ "$auth_correlation" = "$AUTHORIZATION_CORRELATION" ] && [[ "$expires_at" =~ ^[0-9]+$ ]]; then
               remaining="$(( expires_at - now ))"
               if [ "$remaining" -gt 0 ] && [ "$remaining" -le 300 ]; then
                 echo "Exact workflow run authorization accepted with bounded expiry."
@@ -290,6 +314,7 @@ jobs:
           {
             echo "## Metadata mutation authorization"
             echo "- Authorization scope: exact workflow run ID"
+            echo "- Authorization correlation: immutable UUID input matched"
             echo "- Maximum accepted lifetime: 300 seconds"
             echo "- Legacy ENABLE_METADATA_PUBLISH gate remained false"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -433,6 +458,7 @@ jobs:
             echo "- Backup run: $BACKUP_RUN_ID"
             echo "- Required operator cleanup: METADATA_PUBLISH_AUTH_RUN_ID=disabled"
             echo "- Required operator cleanup: METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0"
+            echo "- Required operator cleanup: METADATA_PUBLISH_AUTH_CORRELATION=disabled"
             echo "- Legacy gate must remain: ENABLE_METADATA_PUBLISH=false"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary credentials
@@ -474,6 +500,9 @@ jobs:
           expires_at="$(gh api \
             repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH \
             --jq '.value')"
+          auth_correlation="$(gh api \
+            repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_CORRELATION \
+            --jq '.value')"
           if [ "$legacy_gate" != "false" ]; then
             echo "ENABLE_METADATA_PUBLISH=false is required after metadata operations." >&2
             exit 1
@@ -486,6 +515,10 @@ jobs:
             echo "METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0 is required after metadata operations." >&2
             exit 1
           fi
+          if [ "$auth_correlation" != "disabled" ]; then
+            echo "METADATA_PUBLISH_AUTH_CORRELATION=disabled is required after metadata operations." >&2
+            exit 1
+          fi
       - name: Record authorization closure
         if: always()
         run: |
@@ -494,5 +527,6 @@ jobs:
             echo "- ENABLE_METADATA_PUBLISH=false"
             echo "- METADATA_PUBLISH_AUTH_RUN_ID=disabled"
             echo "- METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0"
+            echo "- METADATA_PUBLISH_AUTH_CORRELATION=disabled"
             echo "- Independent repository-variable read-back executed after the mutation flow."
           } >> "$GITHUB_STEP_SUMMARY"

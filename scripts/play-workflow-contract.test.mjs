@@ -15,12 +15,14 @@ test('workflow exposes explicit validate, backup, diff, publish, cleanup, readba
   for (const mode of ['validate', 'backup', 'diff', 'publish', 'cleanup', 'readback', 'restore']) {
     assert.match(workflow, new RegExp(`- ${mode}(?:\\n|\\r\\n)`));
   }
+  assert.match(workflow, /run-name:[^\n]*authorization_correlation/);
   for (const input of [
     'backup_run_id',
     'backup_sha256',
     'state_digest',
     'removal_count',
     'confirmation',
+    'authorization_correlation',
   ]) {
     assert.match(workflow, new RegExp(`^      ${input}:`, 'm'));
   }
@@ -44,6 +46,8 @@ test('mutating modes require main, production environment, repository identity, 
   assert.match(auth, /github\.repository == 'MakerParsDev\/Astroloji'/);
   assert.match(auth, /METADATA_PUBLISH_AUTH_RUN_ID/);
   assert.match(auth, /METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH/);
+  assert.match(auth, /METADATA_PUBLISH_AUTH_CORRELATION/);
+  assert.match(auth, /AUTHORIZATION_CORRELATION/);
   assert.match(auth, /GITHUB_RUN_ID/);
   assert.match(auth, /300/);
   assert.match(auth, /METADATA_VARIABLES_READ_TOKEN/);
@@ -114,9 +118,11 @@ test('final job independently verifies mutation authorization is closed', () => 
   assert.match(block, /actions\/variables\/ENABLE_METADATA_PUBLISH/);
   assert.match(block, /actions\/variables\/METADATA_PUBLISH_AUTH_RUN_ID/);
   assert.match(block, /actions\/variables\/METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH/);
+  assert.match(block, /actions\/variables\/METADATA_PUBLISH_AUTH_CORRELATION/);
   assert.match(block, /ENABLE_METADATA_PUBLISH=false/);
   assert.match(block, /METADATA_PUBLISH_AUTH_RUN_ID=disabled/);
   assert.match(block, /METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0/);
+  assert.match(block, /METADATA_PUBLISH_AUTH_CORRELATION=disabled/);
   assert.match(block, /\$GITHUB_STEP_SUMMARY/);
 });
 

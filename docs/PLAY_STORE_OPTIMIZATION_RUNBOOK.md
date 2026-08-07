@@ -3,34 +3,86 @@
 **Package:** `com.parsfilo.astrology`  
 **Supported store locales:** `en-US`, `tr-TR`  
 **Canonical source:** `Astroloji/play/`  
-**Production mutation authorization:** `ENABLE_METADATA_PUBLISH` remains `false`. GitHub mutation jobs require an exact workflow run ID in `METADATA_PUBLISH_AUTH_RUN_ID` plus `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH` no more than 300 seconds in the future; both are closed immediately after authorization.
+**Production mutation authorization:** `ENABLE_METADATA_PUBLISH` remains `false`. GitHub mutation jobs require an exact workflow run ID, an immutable UUID correlation in `METADATA_PUBLISH_AUTH_CORRELATION`, and `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH` no more than 300 seconds in the future. All authorization variables are closed immediately after mutation start.
 
 
 ## Run-scoped GitHub mutation authorization
 
-Production metadata writes are authorized only after the workflow has been dispatched and its exact workflow run ID is known. `ENABLE_METADATA_PUBLISH` is a legacy defense-in-depth variable and must remain `false`; it no longer grants mutation authority. The workflow accepts only an authorization whose `METADATA_PUBLISH_AUTH_RUN_ID` equals its exact `github.run_id` and whose expiry is positive and at most **300 seconds (5 minutes)** away.
+Production metadata writes are authorized only after a workflow is dispatched with a unique immutable `authorization_correlation` UUID and the exact run is deterministically identified. `ENABLE_METADATA_PUBLISH` is a legacy defense-in-depth variable and must remain `false`; it no longer grants mutation authority. The workflow accepts authorization only when `METADATA_PUBLISH_AUTH_RUN_ID` equals its exact `github.run_id`, `METADATA_PUBLISH_AUTH_CORRELATION` equals the immutable dispatch input, and the expiry is positive and at most **300 seconds (5 minutes)** away.
 
-On MSI Ubuntu, install cleanup before writing authorization variables:
+On MSI Ubuntu, install cleanup before writing any authorization variable. The function attempts every reset and returns failure when any reset fails. The trap is removed only after an explicit successful close:
 
 ```bash
 close_metadata_authorization() {
-  gh variable set METADATA_PUBLISH_AUTH_RUN_ID --repo MakerParsDev/Astroloji --body disabled
-  gh variable set METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH --repo MakerParsDev/Astroloji --body 0
-  gh variable set ENABLE_METADATA_PUBLISH --repo MakerParsDev/Astroloji --body false
+  local rc=0
+  gh variable set METADATA_PUBLISH_AUTH_RUN_ID --repo MakerParsDev/Astroloji --body disabled || rc=1
+  gh variable set METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH --repo MakerParsDev/Astroloji --body 0 || rc=1
+  gh variable set METADATA_PUBLISH_AUTH_CORRELATION --repo MakerParsDev/Astroloji --body disabled || rc=1
+  gh variable set ENABLE_METADATA_PUBLISH --repo MakerParsDev/Astroloji --body false || rc=1
+  return "$rc"
 }
-trap close_metadata_authorization EXIT INT TERM
-
-# Dispatch first and discover the exact new workflow run ID.
-# Then authorize only that run for <= 300 seconds:
-gh variable set METADATA_PUBLISH_AUTH_RUN_ID --repo MakerParsDev/Astroloji --body "$RUN_ID"
-gh variable set METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH --repo MakerParsDev/Astroloji --body "$(( $(date +%s) + 300 ))"
-
-# After authorize-mutation succeeds and play-mutation starts:
-close_metadata_authorization
-trap - EXIT INT TERM
+trap 'close_metadata_authorization || true' EXIT INT TERM
 ```
 
-A dispatch failure happens before authorization is written. Job-start failure, cancellation, operator interruption, timeout, and success all execute the closure path. Even if the operator host crashes before cleanup, the exact-run match prevents reuse by another workflow run and the authorization expires within five minutes. The workflow's final job independently requires `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0`, and `ENABLE_METADATA_PUBLISH=false`.
+Generate one UUID correlation and freeze the current merged `main` SHA before dispatch. Pass the correlation as an immutable workflow input. The workflow `run-name` embeds both mode and correlation:
+
+```bash
+MODE=publish
+CORRELATION="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+EXPECTED_HEAD_SHA="$(gh api repos/MakerParsDev/Astroloji/commits/main --jq '.sha')"
+
+gh workflow run android-metadata.yml \
+  --repo MakerParsDev/Astroloji \
+  --ref main \
+  -f mode="$MODE" \
+  -f backup_run_id="$BACKUP_RUN_ID" \
+  -f backup_sha256="$BACKUP_SHA256" \
+  -f confirmation="$CONFIRMATION" \
+  -f authorization_correlation="$CORRELATION"
+```
+
+Before writing repository authorization variables, select **exactly one** `workflow_dispatch` run. Reject zero or multiple matches. The canonical repository endpoint fixes repository identity; the query and checks bind `main`, exact head SHA, event, mode, and immutable correlation. Mode and correlation are derived from event inputs and encoded in `display_title` by `run-name`:
+
+```bash
+EXPECTED_TITLE="android-metadata-${MODE}-${CORRELATION}"
+RUN_ROWS="$(gh api \
+  'repos/MakerParsDev/Astroloji/actions/workflows/android-metadata.yml/runs?event=workflow_dispatch&branch=main&per_page=100' \
+  --jq '.workflow_runs[] | select(.event == "workflow_dispatch" and .head_branch == "main") | [.id,.head_sha,.display_title] | @tsv')"
+mapfile -t MATCHES < <(printf '%s\n' "$RUN_ROWS" | awk -F '\t' -v sha="$EXPECTED_HEAD_SHA" -v title="$EXPECTED_TITLE" '$2 == sha && $3 == title {print $1}')
+if [ "${#MATCHES[@]}" -ne 1 ]; then
+  echo "Expected exactly one correlated metadata workflow run; found ${#MATCHES[@]}." >&2
+  exit 1
+fi
+RUN_ID="${MATCHES[0]}"
+RUN_JSON="$(gh api "repos/MakerParsDev/Astroloji/actions/runs/$RUN_ID")"
+test "$(jq -r '.event' <<<"$RUN_JSON")" = workflow_dispatch
+test "$(jq -r '.head_branch' <<<"$RUN_JSON")" = main
+test "$(jq -r '.head_sha' <<<"$RUN_JSON")" = "$EXPECTED_HEAD_SHA"
+test "$(jq -r '.display_title' <<<"$RUN_JSON")" = "$EXPECTED_TITLE"
+```
+
+Only after that unique match is proven, authorize the exact run and correlation for at most five minutes:
+
+```bash
+gh variable set METADATA_PUBLISH_AUTH_RUN_ID --repo MakerParsDev/Astroloji --body "$RUN_ID"
+gh variable set METADATA_PUBLISH_AUTH_CORRELATION --repo MakerParsDev/Astroloji --body "$CORRELATION"
+gh variable set METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH --repo MakerParsDev/Astroloji --body "$(( $(date +%s) + 300 ))"
+```
+
+After `authorize-mutation` succeeds and `play-mutation` starts, close authorization immediately. Keep the trap installed on cleanup failure so the EXIT path retries every reset:
+
+```bash
+if close_metadata_authorization; then
+  trap - EXIT INT TERM
+else
+  echo 'Failed to close all metadata authorization variables; leaving cleanup trap installed.' >&2
+  exit 1
+fi
+```
+
+A dispatch failure occurs before authorization is written. Job-start failure, cancellation, operator interruption, timeout, and success all retain a closure path. Even if the operator host crashes, the exact run ID plus immutable correlation prevents reuse by another run and the authorization expires within five minutes. The workflow's final job independently requires `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0`, `METADATA_PUBLISH_AUTH_CORRELATION=disabled`, and `ENABLE_METADATA_PUBLISH=false`.
+
+On Windows, perform the same repository-variable writes inside `try` and reset all four variables in `finally`; do not rely on process exit to close authorization.
 
 ## Safety model
 
@@ -222,16 +274,25 @@ Historical backups such as `play-before-locale-cleanup-20260806T171159Z.json` pr
 
 The production operator host is MSI Ubuntu, so the Bash commands above are canonical for live execution. On Windows, use PowerShell syntax rather than translating Bash line continuations. Read-only direct CLI commands remain ungated. Direct recovery commands rely on their digest-bound confirmations and state checks; the GitHub workflow uses the separate exact-run authorization above.
 
-For any direct recovery session, create the credential outside the repository and delete it in `finally`. Populate it from the approved secret manager without printing its contents, then execute the selected command(s) from the examples below inside the `try` body:
+For any direct recovery session, create the credential outside the repository and delete it in `finally`. On Windows, create the empty file first, disable inherited NTFS ACLs, grant `Allow` only to the current user, apply the ACL, and verify that no non-owner `Allow` entry exists **before writing or reading secret material**:
 
 ```powershell
 $env:PLAY_PACKAGE_NAME = 'com.parsfilo.astrology'
 $credentialPath = Join-Path ([IO.Path]::GetTempPath()) ("astro-play-" + [guid]::NewGuid().ToString('N') + '.json')
+$currentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+New-Item -ItemType File -Path $credentialPath -Force | Out-Null
+$acl = New-Object Security.AccessControl.FileSecurity
+$acl.SetAccessRuleProtection($true, $false)
+$rule = New-Object Security.AccessControl.FileSystemAccessRule($currentUser, 'FullControl', 'Allow')
+$acl.AddAccessRule($rule)
+Set-Acl -Path $credentialPath -AclObject $acl
+$verifiedAcl = Get-Acl -Path $credentialPath
+$unsafeAllows = @($verifiedAcl.Access | Where-Object { $_.AccessControlType -eq 'Allow' -and $_.IdentityReference.Value -ne $currentUser })
+if ($unsafeAllows.Count -ne 0) { throw 'Temporary Play credential ACL is not owner-only.' }
 $env:PLAY_SERVICE_ACCOUNT_JSON_PATH = $credentialPath
 try {
-  # Populate $credentialPath from the approved secret manager without printing it.
+  # Populate the already ACL-hardened file from the approved secret manager without printing it.
   # Execute the selected read-only or recovery command(s) below before leaving this block.
-  Get-Item $credentialPath | Out-Null
 } finally {
   Remove-Item -Force $credentialPath -ErrorAction SilentlyContinue
   Remove-Item Env:PLAY_SERVICE_ACCOUNT_JSON_PATH -ErrorAction SilentlyContinue

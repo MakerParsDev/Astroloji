@@ -16,8 +16,8 @@ Publish the already-reviewed canonical Turkish and English Google Play listing m
 - Canonical subscriptions remain exactly `premium_monthly/monthly` and `premium_weekly/weekly`.
 - Every Play mutation requires a fresh backup, exact digest-bound confirmation, fresh live-state verification immediately before mutation, edit-local verification before commit, and independent read-back after commit.
 - Publication and unsupported-locale cleanup are separate Play edits and separate state-bound operations.
-- `ENABLE_METADATA_PUBLISH` remains `false`. Mutation authority is a short-lived repository authorization bound to the exact `github.run_id`; `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH` may be at most 300 seconds in the future. Operator cleanup resets `METADATA_PUBLISH_AUTH_RUN_ID=disabled` and expiry `0`, while workflow read-back verifies all closed values.
-- Service-account material stays in mode-`0600` temporary files and is never printed or committed.
+- `ENABLE_METADATA_PUBLISH` remains `false`. Mutation authority is short-lived and bound to the exact `github.run_id` plus immutable `authorization_correlation`; `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH` may be at most 300 seconds in the future. Operator cleanup resets `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, expiry `0`, and `METADATA_PUBLISH_AUTH_CORRELATION=disabled`, while workflow read-back verifies all closed values.
+- Service-account material stays in mode-`0600` temporary files on Unix. On Windows, the empty temporary file must have inherited NTFS ACLs disabled, an owner-only/current-user `Allow` rule applied with `Set-Acl`, and ACL verification proving no non-owner `Allow` rule before any secret write/read. Material is never printed or committed.
 - No Google Play purchase is performed.
 
 ## Repository Change
@@ -29,8 +29,8 @@ Publish the already-reviewed canonical Turkish and English Google Play listing m
 1. Merge the contract change through a MakerParsDev same-repository PR after local TDD, CI, and automated review.
 2. From merged `main`, capture a fresh private Play backup and verify its SHA-256.
 3. Run canonical metadata diff. Expected blockers must be zero; text/image changes are expected and extra locales remain preserved during publication.
-4. Dispatch the metadata workflow in `publish` mode with the exact backup run ID, SHA-256, and digest-derived confirmation while authorization is closed.
-5. Bind a maximum-300-second authorization to that exact workflow run ID, wait for authorization success and mutation start, then reset run ID to `disabled`, expiry to `0`, and keep `ENABLE_METADATA_PUBLISH=false`.
+4. Generate a unique immutable `authorization_correlation`, freeze the merged `main` head SHA, dispatch `publish` with the backup inputs plus correlation, then select **exactly one** canonical `workflow_dispatch` run matching the exact run ID, head SHA, repository/ref, publish mode, and correlation encoded by `run-name`; reject ambiguous or mismatched runs before writing authorization.
+5. Bind a maximum-300-second authorization to that exact run ID and correlation. Bash cleanup resets `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0`, `METADATA_PUBLISH_AUTH_CORRELATION=disabled`, and `ENABLE_METADATA_PUBLISH=false`; Windows PowerShell performs the same four `gh variable set` resets in `finally`. Wait for authorization success and mutation start, then close authorization immediately.
 6. Require workflow success and independent live read-back for canonical TR/EN text/images, production rollout `1.0`, and the monthly/weekly subscription pairs.
 
 ## Unsupported-Locale Cleanup Flow
@@ -38,8 +38,8 @@ Publish the already-reviewed canonical Turkish and English Google Play listing m
 1. Capture a new fresh backup after metadata publication and successful read-back.
 2. Run cleanup dry-run against that backup. The plan must freeze the current live-state digest, backup SHA-256, supported locales, removal count, subscriptions, package, and rollout `1.0`.
 3. Expected removal count is determined from the fresh live state; the previously observed count was 84 but must not be assumed if live state changed.
-4. Dispatch the cleanup workflow with all frozen values while authorization is closed, then bind a maximum-300-second authorization to that exact workflow run ID.
-5. After authorization succeeds and cleanup starts, reset run ID to `disabled`, expiry to `0`, and keep `ENABLE_METADATA_PUBLISH=false`.
+4. Generate a new immutable `authorization_correlation`, freeze the current merged `main` head SHA, dispatch cleanup with all frozen values plus correlation, and require **exactly one** canonical `workflow_dispatch` run matching exact run ID, head SHA, repository/ref, cleanup mode, and correlation before authorization.
+5. Bind the exact run ID and correlation for at most 300 seconds. Bash closure resets run ID to `disabled`, expiry to `0`, correlation to `disabled`, and keeps `ENABLE_METADATA_PUBLISH=false`; Windows PowerShell executes the same four cleanup commands in `finally` after cleanup starts or on any handled failure.
 6. Require workflow success and independent read-back proving exactly `en-US` and `tr-TR` remain and rollout/subscriptions are unchanged.
 
 ## Policy Forms
@@ -58,5 +58,5 @@ Keep the pre-publication backup and the fresh pre-cleanup backup outside the rep
 - Unsupported locale cleanup is committed from a fresh state-bound plan and exactly the canonical two locales remain.
 - Production version `1102` remains completed at `1.0` throughout.
 - Monthly/weekly subscriptions remain unchanged.
-- `ENABLE_METADATA_PUBLISH=false`, `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, and `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0` after every mutation flow.
+- `ENABLE_METADATA_PUBLISH=false`, `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0`, and `METADATA_PUBLISH_AUTH_CORRELATION=disabled` after every mutation flow.
 - Data Safety/account-deletion status is either independently verified/applied or explicitly recorded as unresolved UI-only work; no unsupported completion claim is made.
