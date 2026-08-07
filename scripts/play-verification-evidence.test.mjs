@@ -16,6 +16,7 @@ test('verification evidence contains no full email address and records canonical
   assert.match(evidence, /completed-rollout implementation tree:\s*8d8759d59515815db4c47447f93e27c68f8fdca7/i);
   assert.match(evidence, /completed-rollout review-fix tree:\s*c0f962b10fc1a4a11235713a6ab9ec38abff5fe1/i);
   assert.match(evidence, /completed-rollout run-auth tree:\s*822eb7341cdb6b7cbcdf8d0b977e1fb3abf2b2de/i);
+  assert.match(evidence, /completed-rollout correlation-review tree:\s*4ee2a582a6b22081e30b7edfd56ef3c4f66f786e/i);
   assert.match(evidence, /completed-rollout design tree:\s*2ebb73d5040a83d911c673cb1e8948fed715375e/i);
   assert.doesNotMatch(evidence, /oaslananka/i);
 });

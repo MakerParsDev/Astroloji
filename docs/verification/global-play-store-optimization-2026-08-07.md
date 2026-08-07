@@ -53,12 +53,13 @@ completed-rollout design tree: 2ebb73d5040a83d911c673cb1e8948fed715375e
 completed-rollout implementation tree: 8d8759d59515815db4c47447f93e27c68f8fdca7
 completed-rollout review-fix tree: c0f962b10fc1a4a11235713a6ab9ec38abff5fe1
 completed-rollout run-auth tree: 822eb7341cdb6b7cbcdf8d0b977e1fb3abf2b2de
+completed-rollout correlation-review tree: 4ee2a582a6b22081e30b7edfd56ef3c4f66f786e
 PR #57: https://github.com/MakerParsDev/Astroloji/pull/57
 PR author/head owner: MakerParsDev / MakerParsDev
 base main tree: adf992fba503d19013b9b4eb8feb8691e572697f
 ```
 
-The completed-rollout chain changes the metadata safety contract, its tests, operator documentation, and the metadata workflow authorization boundary; it adds no Play track mutation path. Fresh local verification on the run-auth tree `822eb7341cdb6b7cbcdf8d0b977e1fb3abf2b2de` passed `219/219` script tests, metadata validation, secret scan, actionlint, and `git diff --check` before this evidence-only follow-up commit.
+The completed-rollout chain changes the metadata safety contract, its tests, operator documentation, and the metadata workflow authorization boundary; it adds no Play track mutation path. Fresh local verification on the correlation-review tree `4ee2a582a6b22081e30b7edfd56ef3c4f66f786e` passed `220/220` script tests, metadata validation, secret scan, actionlint, and `git diff --check` before this evidence-only follow-up commit.
 
 ## Historical global-optimization local verification
 
@@ -222,8 +223,12 @@ The automated review performed before the prior PR was removed identified one cr
 - identifier-safe baseline source strings and strict baseline CLI parsing,
 - canonical metadata-root enforcement plus explicit release-note skip logging,
 - Ubuntu Bash and Windows PowerShell operator equivalents with mutation-gate documentation.
+- exact workflow-run authorization bound to immutable UUID correlation and five-minute expiry,
+- deterministic exactly-one run selection by canonical repository, main head SHA, workflow_dispatch event, mode, and correlation,
+- fail-closed authorization closure that attempts every repository-variable reset and verifies the closed state independently,
+- Windows owner-only NTFS ACL verification before temporary Play credential write/read.
 
-The current completed-rollout script/workflow test suite is **219/219 green**.
+The current completed-rollout script/workflow test suite is **220/220 green**.
 
 ## Remaining gated actions
 
