@@ -38,7 +38,7 @@ jobs:
         shell: bash
         run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
 
-      - name: Verify Play RTDN secret boundary
+      - name: Verify Play RTDN Phase A authentication boundary
         shell: bash
         run: |
           play_secret="$(
@@ -85,7 +85,6 @@ jobs:
           {
             echo '## Play RTDN production smoke'
             echo
-            echo '- Missing secret: 403'
-            echo '- Valid secret with invalid payload: 400'
-            echo '- Secret source: Doppler production config (masked)'
+            echo '- Missing authentication: 403'
+            echo '- Legacy authentication with invalid payload: 400'
           } >> "$GITHUB_STEP_SUMMARY"

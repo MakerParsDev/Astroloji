@@ -2,6 +2,7 @@ import type { Env, GooglePlaySubscription, GooglePlaySubscriptionResponse, Subsc
 import { createGoogleAccessToken } from '@/utils/jwt';
 
 const GOOGLE_PLAY_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
+const GOOGLE_PLAY_REQUEST_TIMEOUT_MS = 15_000;
 
 export function normalizeSubscriptionState(raw: string | undefined): SubscriptionStatus {
   switch (raw) {
@@ -62,9 +63,15 @@ function normalizeSubscription(
 }
 
 async function playFetch<T>(env: Env, url: string, init?: RequestInit): Promise<T> {
-  const accessToken = await createGoogleAccessToken(env.GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_PLAY_SCOPE);
+  const signal = init?.signal ?? AbortSignal.timeout(GOOGLE_PLAY_REQUEST_TIMEOUT_MS);
+  const accessToken = await createGoogleAccessToken(
+    env.GOOGLE_SERVICE_ACCOUNT_JSON,
+    GOOGLE_PLAY_SCOPE,
+    signal
+  );
   const response = await fetch(url, {
     ...init,
+    signal,
     headers: {
       authorization: `Bearer ${accessToken}`,
       'content-type': 'application/json',

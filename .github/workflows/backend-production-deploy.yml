@@ -30,6 +30,8 @@ jobs:
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      PLAY_RTDN_AUDIENCE: ${{ vars.PLAY_RTDN_AUDIENCE }}
+      PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: ${{ vars.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
     steps:
       - uses: actions/checkout@v6
@@ -43,13 +45,18 @@ jobs:
       - name: Validate deployment configuration
         run: |
           missing=0
-          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID; do
+          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID PLAY_RTDN_AUDIENCE PLAY_RTDN_SERVICE_ACCOUNT_EMAIL; do
             if [ -z "${!name:-}" ]; then
               echo "Missing required production setting: $name"
               missing=1
             fi
           done
           exit "$missing"
+
+      - name: Mask Play RTDN runtime configuration
+        run: |
+          echo "::add-mask::$PLAY_RTDN_AUDIENCE"
+          echo "::add-mask::$PLAY_RTDN_SERVICE_ACCOUNT_EMAIL"
 
       - name: Install dependencies
         run: npm ci
@@ -110,6 +117,53 @@ jobs:
 
       - name: Apply tracked D1 migrations
         run: npx wrangler d1 migrations apply astrology-db --remote
+
+      - name: Verify Play RTDN D1 schema
+        run: |
+          npx wrangler d1 execute astrology-db --remote \
+            --command "PRAGMA table_info(play_rtdn_messages); PRAGMA index_list(play_rtdn_messages); PRAGMA index_info(idx_play_rtdn_messages_received_at); SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'play_rtdn_messages';" --json \
+            > "$RUNNER_TEMP/play-rtdn-schema.json"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/play-rtdn-schema.json', 'utf8'));
+          const resultSets = payload.map((entry) => entry.results ?? []);
+          const columns = resultSets.find((rows) => rows.some((row) => Object.hasOwn(row, 'cid'))) ?? [];
+          const indexes = resultSets.find((rows) => rows.some((row) => Object.hasOwn(row, 'origin'))) ?? [];
+          const indexColumns = resultSets.find((rows) => rows.some((row) => Object.hasOwn(row, 'seqno'))) ?? [];
+          const schemaRows = resultSets.find((rows) => rows.some((row) => typeof row.sql === 'string')) ?? [];
+          const expectedColumns = [
+            ['message_id', 'TEXT', 1, 1],
+            ['package_name', 'TEXT', 1, 0],
+            ['message_fingerprint', 'TEXT', 1, 0],
+            ['notification_type', 'TEXT', 0, 0],
+            ['status', 'TEXT', 1, 0],
+            ['lease_token', 'TEXT', 1, 0],
+            ['lease_expires_at', 'TEXT', 1, 0],
+            ['received_at', 'TEXT', 1, 0],
+            ['processed_at', 'TEXT', 0, 0],
+            ['outcome', 'TEXT', 0, 0],
+          ];
+          if (columns.length !== expectedColumns.length) throw new Error('Play RTDN schema column count mismatch.');
+          for (const [name, type, notnull, pk] of expectedColumns) {
+            const row = columns.find((candidate) => candidate.name === name);
+            if (!row || row.type !== type || Number(row.notnull) !== notnull || Number(row.pk) !== pk) {
+              throw new Error(`Play RTDN schema mismatch for ${name}.`);
+            }
+          }
+          if (!indexes.some((row) => row.name === 'idx_play_rtdn_messages_received_at')) {
+            throw new Error('Play RTDN received_at index is missing.');
+          }
+          if (indexColumns.length !== 1 || indexColumns[0]?.name !== 'received_at') {
+            throw new Error('Play RTDN received_at index definition is invalid.');
+          }
+          if (!indexes.some((row) => Number(row.unique) === 1 && row.origin === 'pk')) {
+            throw new Error('Play RTDN primary-key uniqueness is missing.');
+          }
+          const tableSql = schemaRows[0]?.sql?.replace(/\s+/g, ' ') ?? '';
+          const expectedCheck = "CHECK (status IN ('processing', 'processed'))";
+          if (!tableSql.includes(expectedCheck)) throw new Error('Play RTDN status CHECK is missing.');
+          console.log('Play RTDN schema read-back passed.');
+          NODE
 
       - name: Sync Worker secrets and deploy
         run: npm run deploy:doppler
@@ -176,4 +230,4 @@ jobs:
 
       - name: Remove deployment secret files
         if: always()
-        run: rm -f "$RUNNER_TEMP/doppler-secrets.json"
+        run: rm -f "$RUNNER_TEMP/doppler-secrets.json" "$RUNNER_TEMP/play-rtdn-schema.json"

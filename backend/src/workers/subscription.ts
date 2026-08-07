@@ -1,6 +1,17 @@
 import { Hono } from 'hono';
 
 import { enforceRateLimit } from '@/services/cache';
+import { verifyPlayRtdnIdentity } from '@/services/playRtdnAuth';
+import {
+  claimPlayRtdnMessage,
+  createPlayRtdnFinalizeStatement,
+  finalizePlayRtdnMessage,
+  fingerprintPlayRtdnMessage,
+  parsePlayRtdnEnvelope,
+  releasePlayRtdnClaim,
+  shortPlayRtdnMessageRef,
+  type ParsedPlayRtdnMessage
+} from '@/services/playRtdnDelivery';
 import {
   getSubscriptionStatus,
   hasPremiumEntitlement,
@@ -10,7 +21,7 @@ import {
   replyToPlayReview,
   verifySubscriptionPurchase
 } from '@/services/playBilling';
-import { requirePlayWebhookSecret } from '@/middleware/auth';
+import { requirePlayWebhookAuth } from '@/middleware/auth';
 import type {
   AppBindings,
   GooglePlaySubscription,
@@ -140,6 +151,134 @@ async function processSubscription(
   await writeSubscriptionEvent(db, userId, subscription.purchaseToken, eventType, payload);
 }
 
+interface PlayRtdnLeaseGuard {
+  messageId: string;
+  fingerprint: string;
+  leaseToken: string;
+  checkedAt: string;
+}
+
+const RTDN_LEASE_EXISTS_SQL = `EXISTS (
+  SELECT 1 FROM play_rtdn_messages
+  WHERE message_id = ?
+    AND message_fingerprint = ?
+    AND lease_token = ?
+    AND status = 'processing'
+    AND lease_expires_at > ?
+)`;
+
+function createRtdnSubscriptionUpsertStatement(
+  db: D1Database,
+  userId: string,
+  subscription: GooglePlaySubscription,
+  now: string,
+  guard: PlayRtdnLeaseGuard
+): D1PreparedStatement {
+  return db.prepare(
+    `INSERT INTO subscriptions
+     (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, cancel_reason, created_at, updated_at)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+     WHERE ${RTDN_LEASE_EXISTS_SQL}
+     ON CONFLICT(purchase_token) DO UPDATE SET
+       user_id = excluded.user_id,
+       product_id = excluded.product_id,
+       status = excluded.status,
+       starts_at = excluded.starts_at,
+       expires_at = excluded.expires_at,
+       auto_renewing = excluded.auto_renewing,
+       cancel_reason = excluded.cancel_reason,
+       updated_at = excluded.updated_at`
+  ).bind(
+    crypto.randomUUID(), userId, subscription.purchaseToken, subscription.productId,
+    subscription.status, subscription.startsAt, subscription.expiresAt,
+    Number(subscription.autoRenewing), subscription.cancelReason, now, now,
+    guard.messageId, guard.fingerprint, guard.leaseToken, guard.checkedAt
+  );
+}
+
+function createRtdnPremiumStateStatement(
+  db: D1Database,
+  userId: string,
+  subscription: GooglePlaySubscription,
+  now: string,
+  guard: PlayRtdnLeaseGuard
+): D1PreparedStatement {
+  return db.prepare(
+    `UPDATE users
+     SET is_premium = ?, subscription_state = ?, premium_expires_at = ?, last_seen_at = ?
+     WHERE id = ? AND ${RTDN_LEASE_EXISTS_SQL}`
+  ).bind(
+    hasPremiumEntitlement(subscription) ? 1 : 0,
+    subscription.status,
+    subscription.expiresAt,
+    now,
+    userId,
+    guard.messageId, guard.fingerprint, guard.leaseToken, guard.checkedAt
+  );
+}
+
+function createRtdnSubscriptionEventStatement(
+  db: D1Database,
+  userId: string,
+  purchaseToken: string,
+  eventType: SubscriptionEventType,
+  payload: unknown,
+  createdAt: string,
+  guard: PlayRtdnLeaseGuard
+): D1PreparedStatement {
+  return db.prepare(
+    `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
+     SELECT ?, ?, ?, ?, ?, ?
+     WHERE ${RTDN_LEASE_EXISTS_SQL}`
+  ).bind(
+    crypto.randomUUID(), userId, purchaseToken, eventType, JSON.stringify(payload), createdAt,
+    guard.messageId, guard.fingerprint, guard.leaseToken, guard.checkedAt
+  );
+}
+
+function decodedPlayRtdnPayload(parsed: ParsedPlayRtdnMessage): unknown {
+  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(parsed.decodedBytes));
+}
+
+async function runRtdnBatch(
+  db: D1Database,
+  statements: D1PreparedStatement[]
+): Promise<boolean> {
+  const results = await db.batch(statements);
+  return Number(results.at(-1)?.meta?.changes ?? 0) === 1;
+}
+
+type PlayRtdnLogOutcome =
+  | 'processed'
+  | 'test'
+  | 'duplicate'
+  | 'reconciliation_pending'
+  | 'ignored_unknown_purchase'
+  | 'retryable_failure'
+  | 'rejected';
+
+async function logPlayRtdnOutcome(input: {
+  requestId: string;
+  messageId?: string;
+  auth: 'oidc' | 'legacy' | 'rejected';
+  packageMatch: boolean;
+  notificationClass: 'subscription' | 'test' | 'invalid';
+  outcome: PlayRtdnLogOutcome;
+}) {
+  const messageRef = input.messageId
+    ? await shortPlayRtdnMessageRef(input.messageId)
+    : undefined;
+  console.log({
+    event: 'play_rtdn',
+    requestId: input.requestId,
+    ...(messageRef ? { messageRef } : {}),
+    auth: input.auth,
+    packageMatch: input.packageMatch,
+    notificationClass: input.notificationClass,
+    outcome: input.outcome
+  });
+}
+
 function mapPlayEventType(notificationType: number | string): SubscriptionEventType | null {
   switch (notificationType) {
     case 'SUBSCRIPTION_PURCHASED':
@@ -238,7 +377,18 @@ export function buildPendingReconciliationPayload(
   };
 }
 
-export function registerSubscriptionRoutes(app: Hono<AppBindings>) {
+export interface SubscriptionRouteDependencies {
+  verifyPlayRtdnIdentity: typeof verifyPlayRtdnIdentity;
+}
+
+const defaultSubscriptionRouteDependencies: SubscriptionRouteDependencies = {
+  verifyPlayRtdnIdentity
+};
+
+export function registerSubscriptionRoutes(
+  app: Hono<AppBindings>,
+  dependencies: SubscriptionRouteDependencies = defaultSubscriptionRouteDependencies
+) {
   app.post('/subscriptions/verify', async (c) => {
     const userId = c.get('auth').userId;
     const allowed = await enforceRateLimit(c.env, `verify:${userId}`, 5, 60);
@@ -301,53 +451,281 @@ export function registerSubscriptionRoutes(app: Hono<AppBindings>) {
   });
 
   app.post('/webhooks/play-rtdn', async (c) => {
-    const invalidSecretResponse = requirePlayWebhookSecret(c);
-    if (invalidSecretResponse) {
-      return invalidSecretResponse;
+    const requestId = c.get('requestId');
+    const authResult = await requirePlayWebhookAuth(c, dependencies.verifyPlayRtdnIdentity);
+    if (authResult instanceof Response) {
+      await logPlayRtdnOutcome({
+        requestId,
+        auth: 'rejected',
+        packageMatch: false,
+        notificationClass: 'invalid',
+        outcome: 'rejected'
+      });
+      return authResult;
     }
 
-    const payload = decodeWebhookPayload(await c.req.json());
-    const notification = extractSubscriptionNotification(payload);
-    const purchaseToken = notification.purchaseToken;
-    const productId = notification.productId;
+    let parsed: ParsedPlayRtdnMessage;
+    try {
+      parsed = parsePlayRtdnEnvelope(await c.req.json());
+    } catch {
+      await logPlayRtdnOutcome({
+        requestId,
+        auth: authResult.method,
+        packageMatch: false,
+        notificationClass: 'invalid',
+        outcome: 'rejected'
+      });
+      return jsonError(400, 'INVALID_WEBHOOK', 'Webhook payload is invalid.');
+    }
+
+    if (parsed.packageName !== c.env.PACKAGE_NAME) {
+      await logPlayRtdnOutcome({
+        requestId,
+        messageId: parsed.messageId,
+        auth: authResult.method,
+        packageMatch: false,
+        notificationClass: parsed.kind,
+        outcome: 'rejected'
+      });
+      return jsonError(400, 'INVALID_WEBHOOK', 'Webhook package identity is invalid.');
+    }
+
     const eventType =
-      notification.notificationType === undefined
-        ? null
-        : mapPlayEventType(notification.notificationType);
-
-    if (!purchaseToken || !productId || !eventType) {
-      return jsonError(400, 'INVALID_WEBHOOK', 'Webhook payload is missing subscription details.');
+      parsed.kind === 'subscription' ? mapPlayEventType(parsed.notificationType) : null;
+    if (parsed.kind === 'subscription' && !eventType) {
+      await logPlayRtdnOutcome({
+        requestId,
+        messageId: parsed.messageId,
+        auth: authResult.method,
+        packageMatch: true,
+        notificationClass: parsed.kind,
+        outcome: 'rejected'
+      });
+      return jsonError(400, 'INVALID_WEBHOOK', 'Webhook subscription event is unsupported.');
     }
 
-    const userId = await findUserByPurchaseToken(c.env.DB, purchaseToken);
-    const liveSubscription = await getSubscriptionStatus(
-      c.env,
-      purchaseToken,
-      productId,
-      c.env.PACKAGE_NAME
-    );
+    const fingerprint = await fingerprintPlayRtdnMessage(parsed.packageName, parsed.decodedBytes);
+    const leaseToken = crypto.randomUUID();
+    const claimStartedAt = new Date().toISOString();
+    const claimResult = await claimPlayRtdnMessage(c.env.DB, {
+      messageId: parsed.messageId,
+      packageName: parsed.packageName,
+      fingerprint,
+      notificationType: String(parsed.notificationType),
+      leaseToken,
+      receivedAt: claimStartedAt
+    });
 
-    if (!userId && !liveSubscription) {
-      return c.json({ ok: true });
+    if (claimResult === 'duplicate_processed') {
+      await logPlayRtdnOutcome({
+        requestId,
+        messageId: parsed.messageId,
+        auth: authResult.method,
+        packageMatch: true,
+        notificationClass: parsed.kind,
+        outcome: 'duplicate'
+      });
+      return c.json({ ok: true, duplicate: true });
+    }
+    if (claimResult === 'duplicate_processing') {
+      await logPlayRtdnOutcome({
+        requestId,
+        messageId: parsed.messageId,
+        auth: authResult.method,
+        packageMatch: true,
+        notificationClass: parsed.kind,
+        outcome: 'retryable_failure'
+      });
+      return jsonError(503, 'RTDN_IN_PROGRESS', 'Webhook delivery is still processing.');
+    }
+    if (claimResult === 'mismatch') {
+      await logPlayRtdnOutcome({
+        requestId,
+        messageId: parsed.messageId,
+        auth: authResult.method,
+        packageMatch: true,
+        notificationClass: parsed.kind,
+        outcome: 'rejected'
+      });
+      return jsonError(409, 'RTDN_REPLAY_MISMATCH', 'Webhook delivery identity does not match.');
     }
 
-    if (!userId) {
-      return jsonError(404, 'USER_NOT_FOUND', 'User for webhook purchase token was not found.');
-    }
+    let claimOpen = true;
+    let retryableFailureLogged = false;
+    try {
+      if (parsed.kind === 'test') {
+        await finalizePlayRtdnMessage(c.env.DB, parsed.messageId, fingerprint, leaseToken, 'test');
+        claimOpen = false;
+        await logPlayRtdnOutcome({
+          requestId,
+          messageId: parsed.messageId,
+          auth: authResult.method,
+          packageMatch: true,
+          notificationClass: 'test',
+          outcome: 'test'
+        });
+        return c.json({ ok: true, test: true });
+      }
 
-    if (!liveSubscription) {
-      await writeSubscriptionEvent(
-        c.env.DB,
-        userId,
-        purchaseToken,
-        'sync_pending',
-        buildPendingReconciliationPayload(eventType, payload)
+      const payload = decodedPlayRtdnPayload(parsed);
+      const userId = await findUserByPurchaseToken(c.env.DB, parsed.purchaseToken);
+      const liveSubscription = await getSubscriptionStatus(
+        c.env,
+        parsed.purchaseToken,
+        parsed.productId,
+        c.env.PACKAGE_NAME
       );
-      return c.json({ ok: true, reconciliation: 'pending' });
-    }
 
-    await processSubscription(c.env.DB, userId, liveSubscription, eventType, payload);
-    return c.json({ ok: true });
+      if (!userId && !liveSubscription) {
+        await finalizePlayRtdnMessage(
+          c.env.DB,
+          parsed.messageId,
+          fingerprint,
+          leaseToken,
+          'ignored_unknown_purchase'
+        );
+        claimOpen = false;
+        await logPlayRtdnOutcome({
+          requestId,
+          messageId: parsed.messageId,
+          auth: authResult.method,
+          packageMatch: true,
+          notificationClass: 'subscription',
+          outcome: 'ignored_unknown_purchase'
+        });
+        return c.json({ ok: true });
+      }
+
+      if (!userId) {
+        await releasePlayRtdnClaim(c.env.DB, parsed.messageId, fingerprint, leaseToken);
+        claimOpen = false;
+        await logPlayRtdnOutcome({
+          requestId,
+          messageId: parsed.messageId,
+          auth: authResult.method,
+          packageMatch: true,
+          notificationClass: 'subscription',
+          outcome: 'retryable_failure'
+        });
+        return jsonError(503, 'RTDN_OWNER_PENDING', 'Webhook subscription owner is not available.');
+      }
+
+      const now = new Date().toISOString();
+      const leaseGuard: PlayRtdnLeaseGuard = {
+        messageId: parsed.messageId,
+        fingerprint,
+        leaseToken,
+        checkedAt: now
+      };
+      if (!liveSubscription) {
+        const finalized = await runRtdnBatch(c.env.DB, [
+          createRtdnSubscriptionEventStatement(
+            c.env.DB,
+            userId,
+            parsed.purchaseToken,
+            'sync_pending',
+            buildPendingReconciliationPayload(eventType!, payload),
+            now,
+            leaseGuard
+          ),
+          createPlayRtdnFinalizeStatement(
+            c.env.DB,
+            parsed.messageId,
+            fingerprint,
+            leaseToken,
+            'reconciliation_pending',
+            now
+          )
+        ]);
+        claimOpen = false;
+        if (!finalized) {
+          // A zero-row finalize is a consistency alarm, not a rollback trigger.
+          // Customer-state statements are fenced by the same lease and therefore
+          // also apply zero rows after ownership is lost or the lease expires.
+          await logPlayRtdnOutcome({
+            requestId,
+            messageId: parsed.messageId,
+            auth: authResult.method,
+            packageMatch: true,
+            notificationClass: 'subscription',
+            outcome: 'retryable_failure'
+          });
+          retryableFailureLogged = true;
+          throw new Error('Play RTDN transactional finalize guard did not match.');
+        }
+        await logPlayRtdnOutcome({
+          requestId,
+          messageId: parsed.messageId,
+          auth: authResult.method,
+          packageMatch: true,
+          notificationClass: 'subscription',
+          outcome: 'reconciliation_pending'
+        });
+        return c.json({ ok: true, reconciliation: 'pending' });
+      }
+
+      const finalized = await runRtdnBatch(c.env.DB, [
+        createRtdnSubscriptionUpsertStatement(c.env.DB, userId, liveSubscription, now, leaseGuard),
+        createRtdnPremiumStateStatement(c.env.DB, userId, liveSubscription, now, leaseGuard),
+        createRtdnSubscriptionEventStatement(
+          c.env.DB,
+          userId,
+          liveSubscription.purchaseToken,
+          eventType!,
+          payload,
+          now,
+          leaseGuard
+        ),
+        createPlayRtdnFinalizeStatement(
+          c.env.DB,
+          parsed.messageId,
+          fingerprint,
+          leaseToken,
+          'processed',
+          now
+        )
+      ]);
+      claimOpen = false;
+      if (!finalized) {
+        // A zero-row finalize is a consistency alarm, not a rollback trigger.
+        // Customer-state statements are fenced by the same lease and therefore
+        // also apply zero rows after ownership is lost or the lease expires.
+        await logPlayRtdnOutcome({
+          requestId,
+          messageId: parsed.messageId,
+          auth: authResult.method,
+          packageMatch: true,
+          notificationClass: 'subscription',
+          outcome: 'retryable_failure'
+        });
+        retryableFailureLogged = true;
+        throw new Error('Play RTDN transactional finalize guard did not match.');
+      }
+      await logPlayRtdnOutcome({
+        requestId,
+        messageId: parsed.messageId,
+        auth: authResult.method,
+        packageMatch: true,
+        notificationClass: 'subscription',
+        outcome: 'processed'
+      });
+      return c.json({ ok: true });
+    } catch {
+      if (claimOpen) {
+        await releasePlayRtdnClaim(c.env.DB, parsed.messageId, fingerprint, leaseToken);
+      }
+      if (!retryableFailureLogged) {
+        await logPlayRtdnOutcome({
+          requestId,
+          messageId: parsed.messageId,
+          auth: authResult.method,
+          packageMatch: true,
+          notificationClass: parsed.kind,
+          outcome: 'retryable_failure'
+        });
+      }
+      throw new Error('Play RTDN processing failed.');
+    }
   });
 }
 

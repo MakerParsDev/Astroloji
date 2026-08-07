@@ -20,7 +20,8 @@ import { registerNotificationRoutes } from '@/workers/notification';
 import { registerRewardRoutes } from '@/workers/reward';
 import {
   registerSubscriptionAdminRoutes,
-  registerSubscriptionRoutes
+  registerSubscriptionRoutes,
+  type SubscriptionRouteDependencies
 } from '@/workers/subscription';
 import { registerUserRoutes } from '@/workers/user';
 
@@ -30,6 +31,7 @@ function jsonError(status: number, code: string, message: string) {
 
 export interface CreateAppOptions {
   reward?: RewardRouteDependencies;
+  subscription?: SubscriptionRouteDependencies;
 }
 
 export function createApp(options: CreateAppOptions = {}) {
@@ -147,7 +149,7 @@ export function createApp(options: CreateAppOptions = {}) {
   registerChartRoutes(apiRoutes);
   registerRewardRoutes(apiRoutes, options.reward);
   registerContentRoutes(apiRoutes);
-  registerSubscriptionRoutes(apiRoutes);
+  registerSubscriptionRoutes(apiRoutes, options.subscription);
 
   apiRoutes.post('/events/track', async (c) => {
     const body = validateTrackEventBody(await c.req.json());
