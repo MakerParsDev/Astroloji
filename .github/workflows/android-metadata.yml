@@ -155,7 +155,9 @@ jobs:
           if-no-files-found: error
       - name: Require prior backup run
         if: inputs.mode == 'diff'
-        run: test -n "${{ inputs.backup_run_id }}"
+        env:
+          BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+        run: test -n "$BACKUP_RUN_ID"
       - name: Download prior backup artifact
         if: inputs.mode == 'diff'
         uses: actions/download-artifact@v4
@@ -190,10 +192,12 @@ jobs:
             --expected-root "$GITHUB_WORKSPACE"
       - name: Summarize read-only operation
         if: always()
+        env:
+          MODE: ${{ inputs.mode }}
         run: |
           {
             echo "## Play metadata read-only operation"
-            echo "- Mode: ${{ inputs.mode }}"
+            echo "- Mode: $MODE"
             echo "- No listing, track, subscription, or policy mutation is performed by this job."
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary credentials
@@ -233,6 +237,12 @@ jobs:
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
       PLAY_PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
       PLAY_METADATA_TRACK: ${{ inputs.track }}
+      MODE: ${{ inputs.mode }}
+      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+      BACKUP_SHA256: ${{ inputs.backup_sha256 }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      STATE_DIGEST: ${{ inputs.state_digest }}
+      REMOVAL_COUNT: ${{ inputs.removal_count }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -240,9 +250,9 @@ jobs:
           node-version: 24
       - name: Require immutable backup inputs
         run: |
-          test -n "${{ inputs.backup_run_id }}"
-          test -n "${{ inputs.backup_sha256 }}"
-          test -n "${{ inputs.confirmation }}"
+          test -n "$BACKUP_RUN_ID"
+          test -n "$BACKUP_SHA256"
+          test -n "$CONFIRMATION"
       - name: Download approved backup artifact
         uses: actions/download-artifact@v4
         with:
@@ -255,7 +265,7 @@ jobs:
         run: |
           chmod 600 "$RUNNER_TEMP/play-input/play-backup.json"
           actual_sha="$(sha256sum "$RUNNER_TEMP/play-input/play-backup.json" | awk '{print $1}')"
-          test "$actual_sha" = "${{ inputs.backup_sha256 }}"
+          test "$actual_sha" = "$BACKUP_SHA256"
       - name: Re-run dry-run diff before mutation
         if: inputs.mode == 'publish'
         run: |
@@ -298,21 +308,21 @@ jobs:
           export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
           node scripts/publish-play-metadata.mjs \
             --backup "$RUNNER_TEMP/play-input/play-backup.json" \
-            --confirmation "${{ inputs.confirmation }}"
+            --confirmation "$CONFIRMATION"
       - name: Remove unsupported live locales
         if: inputs.mode == 'cleanup'
         env:
           PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
         run: |
-          test -n "${{ inputs.state_digest }}"
-          test -n "${{ inputs.removal_count }}"
+          test -n "$STATE_DIGEST"
+          test -n "$REMOVAL_COUNT"
           export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
           node scripts/cleanup-play-locales.mjs \
             --backup "$RUNNER_TEMP/play-input/play-backup.json" \
-            --backup-sha256 "${{ inputs.backup_sha256 }}" \
-            --state-digest "${{ inputs.state_digest }}" \
-            --removal-count "${{ inputs.removal_count }}" \
-            --confirmation "${{ inputs.confirmation }}"
+            --backup-sha256 "$BACKUP_SHA256" \
+            --state-digest "$STATE_DIGEST" \
+            --removal-count "$REMOVAL_COUNT" \
+            --confirmation "$CONFIRMATION"
       - name: Restore exact backed-up listing state
         if: inputs.mode == 'restore'
         env:
@@ -321,14 +331,14 @@ jobs:
           export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
           node scripts/restore-play-metadata.mjs \
             --backup "$RUNNER_TEMP/play-input/play-backup.json" \
-            --confirmation "${{ inputs.confirmation }}"
+            --confirmation "$CONFIRMATION"
       - name: Summarize mutation and gate reset requirement
         if: always()
         run: |
           {
             echo "## Play metadata mutation"
-            echo "- Mode: ${{ inputs.mode }}"
-            echo "- Backup run: ${{ inputs.backup_run_id }}"
+            echo "- Mode: $MODE"
+            echo "- Backup run: $BACKUP_RUN_ID"
             echo "- Restore repository variable immediately: ENABLE_METADATA_PUBLISH=false"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary credentials
@@ -349,8 +359,14 @@ jobs:
       contents: read
       actions: read
     env:
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.METADATA_VARIABLES_READ_TOKEN }}
     steps:
+      - name: Require metadata-variable read token
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "METADATA_VARIABLES_READ_TOKEN is required to verify the publication gate is closed." >&2
+            exit 1
+          fi
       - name: Verify ENABLE_METADATA_PUBLISH returned to false
         run: |
           current_value="$(gh api \

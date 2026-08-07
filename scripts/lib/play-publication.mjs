@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { capturePlayBackup } from './play-backup.mjs';
-import { buildPlayDiff, IMAGE_TYPES, releaseRolloutFraction } from './play-diff.mjs';
+import { buildPlayDiff, IMAGE_TYPES } from './play-diff.mjs';
+import { releaseRolloutFraction } from './play-release.mjs';
 
 const CONFIRMATION_PREFIX_LENGTH = 12;
 const DEFAULT_MAX_BACKUP_AGE_MINUTES = 30;
@@ -57,15 +58,48 @@ function assertConfirmation(actual, expected) {
 
 function assertPackageAgreement(client, backup, proposed) {
   const packageNames = [client.packageName, backup.packageName, proposed.packageName];
+  if (packageNames.some((value) => typeof value !== 'string' || !value.trim())) {
+    throw new Error('Missing package identity across client, backup, or proposal.');
+  }
   if (new Set(packageNames).size !== 1) {
     throw new Error(`Package mismatch across client, backup, and proposal: ${packageNames.join(', ')}`);
   }
 }
 
-function sortedHashes(images) {
+function normalizedSha256(image, context) {
+  const value = String(image?.sha256 ?? '').toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(value)) {
+    throw new Error(`${context} requires a valid SHA-256 value.`);
+  }
+  return value;
+}
+
+function sortedHashes(images, context) {
   return [...(images ?? [])]
-    .map((image) => String(image.sha256 ?? '').toLowerCase())
+    .map((image, index) => normalizedSha256(image, `${context}[${index}]`))
     .sort();
+}
+
+function assertProposedImageHashes(proposed) {
+  for (const locale of proposed.locales ?? []) {
+    for (const imageType of IMAGE_TYPES) {
+      sortedHashes(proposed.listings?.[locale]?.images?.[imageType] ?? [], `${locale}/${imageType}`);
+    }
+  }
+}
+
+export function assertBackupRestorable(backup) {
+  if (typeof backup?.defaultLocale !== 'string' || !backup.defaultLocale.trim()) {
+    throw new Error('Play backup defaultLocale is required for restore verification.');
+  }
+  if (!backup.listings?.some((listing) => listing.locale === backup.defaultLocale)) {
+    throw new Error(`Play backup defaultLocale is missing from listings: ${backup.defaultLocale}`);
+  }
+  for (const listing of backup.listings ?? []) {
+    for (const imageType of IMAGE_TYPES) {
+      sortedHashes(listing.images?.[imageType] ?? [], `backup ${listing.locale}/${imageType}`);
+    }
+  }
 }
 
 async function verifyEditLocalState(client, editId, proposed) {
@@ -88,8 +122,8 @@ async function verifyEditLocalState(client, editId, proposed) {
         );
       }
       if (
-        JSON.stringify(sortedHashes(actualImages)) !==
-        JSON.stringify(sortedHashes(expectedImages))
+        JSON.stringify(sortedHashes(actualImages, `actual ${locale}/${imageType}`)) !==
+        JSON.stringify(sortedHashes(expectedImages, `expected ${locale}/${imageType}`))
       ) {
         throw new Error(`Edit-local image checksum mismatch for ${locale}/${imageType}.`);
       }
@@ -129,6 +163,7 @@ export async function publishPreparedMetadata({
   changesNotSentForReview = false,
 }) {
   assertPackageAgreement(client, backup, proposed);
+  assertProposedImageHashes(proposed);
   assertFreshBackup(backup, { now, maxAgeMinutes });
   assertConfirmation(confirmation, backupConfirmation(backupDigest));
   const diff = buildPlayDiff(backup, proposed);
@@ -153,7 +188,7 @@ export async function publishPreparedMetadata({
 
     const readbackErrors = await independentReadback(proposed);
     if (readbackErrors.length > 0) {
-      throw new Error(`Post-commit Play read-back failed: ${readbackErrors.join(' | ')}`);
+      throw new Error(`Committed edit ${edit.id} but post-commit Play read-back failed: ${readbackErrors.join(' | ')}. Restore from the approved backup before retrying.`);
     }
     return { editId: edit.id, diff };
   } finally {
@@ -169,6 +204,7 @@ function temporaryImageExtension(url) {
 }
 
 async function downloadBackupImage(fetchImpl, image, directory, index) {
+  const expectedSha256 = normalizedSha256(image, `backup image ${index}`);
   if (!image.url) throw new Error('Backed-up Play image is missing its download URL.');
   const response = await fetchImpl(image.url);
   if (!response.ok) {
@@ -176,7 +212,7 @@ async function downloadBackupImage(fetchImpl, image, directory, index) {
   }
   const bytes = Buffer.from(await response.arrayBuffer());
   const actualSha256 = crypto.createHash('sha256').update(bytes).digest('hex');
-  if (image.sha256 && actualSha256.toLowerCase() !== image.sha256.toLowerCase()) {
+  if (actualSha256.toLowerCase() !== expectedSha256) {
     throw new Error(`Backed-up Play image checksum mismatch for ${image.url}.`);
   }
   const filePath = path.join(directory, `${String(index).padStart(3, '0')}${temporaryImageExtension(image.url)}`);
@@ -230,8 +266,8 @@ async function verifyRestoredEdit(client, editId, backup) {
         throw new Error(`Restore image count mismatch for ${listing.locale}/${imageType}.`);
       }
       if (
-        JSON.stringify(sortedHashes(actualImages)) !==
-        JSON.stringify(sortedHashes(expectedImages))
+        JSON.stringify(sortedHashes(actualImages, `actual ${listing.locale}/${imageType}`)) !==
+        JSON.stringify(sortedHashes(expectedImages, `expected ${listing.locale}/${imageType}`))
       ) {
         throw new Error(`Restore image checksum mismatch for ${listing.locale}/${imageType}.`);
       }
@@ -249,9 +285,13 @@ export async function restorePreparedMetadata({
   additionalEditMutation = async () => {},
   changesNotSentForReview = false,
 }) {
+  if (!client.packageName || !backup.packageName) {
+    throw new Error('Missing package identity for restore.');
+  }
   if (client.packageName !== backup.packageName) {
     throw new Error(`Restore package mismatch: client=${client.packageName} backup=${backup.packageName}.`);
   }
+  assertBackupRestorable(backup);
   assertConfirmation(confirmation, restoreConfirmation(backupDigest));
   const edit = await client.createEdit();
   let committed = false;
@@ -314,7 +354,7 @@ function backupAsProposed(backup) {
   );
   return {
     packageName: backup.packageName,
-    defaultLocale: backup.listings[0]?.locale ?? null,
+    defaultLocale: backup.defaultLocale,
     locales: backup.listings.map((listing) => listing.locale).sort(),
     listings,
     productionRolloutFraction: releaseRolloutFraction(backup.tracks?.production),

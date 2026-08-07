@@ -67,9 +67,29 @@ test('workflow dispatches every guarded script and passes exact confirmations', 
   ]) {
     assert.match(workflow, new RegExp(script.replaceAll('.', '\\.')));
   }
-  assert.match(workflow, /--confirmation "\$\{\{ inputs\.confirmation \}\}"/);
-  assert.match(workflow, /--state-digest "\$\{\{ inputs\.state_digest \}\}"/);
-  assert.match(workflow, /--removal-count "\$\{\{ inputs\.removal_count \}\}"/);
+  assert.match(workflow, /CONFIRMATION:\s*\$\{\{ inputs\.confirmation \}\}/);
+  assert.match(workflow, /STATE_DIGEST:\s*\$\{\{ inputs\.state_digest \}\}/);
+  assert.match(workflow, /REMOVAL_COUNT:\s*\$\{\{ inputs\.removal_count \}\}/);
+  assert.match(workflow, /--confirmation "\$CONFIRMATION"/);
+  assert.match(workflow, /--state-digest "\$STATE_DIGEST"/);
+  assert.match(workflow, /--removal-count "\$REMOVAL_COUNT"/);
+});
+
+
+test('workflow run scripts never interpolate workflow_dispatch inputs directly', () => {
+  const lines = workflow.split(/\r?\n/);
+  let runIndent = null;
+  for (const line of lines) {
+    const indent = line.match(/^\s*/)[0].length;
+    if (/^\s*run:\s*(?:\||>-?)?\s*$/.test(line)) {
+      runIndent = indent;
+      continue;
+    }
+    if (runIndent !== null && line.trim() && indent <= runIndent) runIndent = null;
+    if (runIndent !== null) {
+      assert.doesNotMatch(line, /\$\{\{\s*inputs\./, `Unsafe direct input interpolation in run block: ${line.trim()}`);
+    }
+  }
 });
 
 test('credential files are mode 0600 and removed in always cleanup steps', () => {
@@ -78,8 +98,10 @@ test('credential files are mode 0600 and removed in always cleanup steps', () =>
   assert.ok(cleanupMatches.length >= 2, `Expected credential cleanup in both Play jobs, found ${cleanupMatches.length}`);
 });
 
-test('final job dynamically verifies the repository gate returned to false', () => {
+test('final job dynamically verifies the repository gate returned to false with a dedicated read token', () => {
   const block = jobBlock('verify-metadata-gate-closed');
+  assert.match(block, /GH_TOKEN:\s*\$\{\{ secrets\.METADATA_VARIABLES_READ_TOKEN \}\}/);
+  assert.match(block, /METADATA_VARIABLES_READ_TOKEN is required/i);
   assert.match(block, /gh api\s+\\?\s*repos\/\$\{\{ github\.repository \}\}\/actions\/variables\/ENABLE_METADATA_PUBLISH/);
   assert.match(block, /current_value.*false/);
   assert.match(block, /ENABLE_METADATA_PUBLISH=false/);

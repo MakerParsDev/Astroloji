@@ -109,6 +109,16 @@ export function validateAssetManifest(rootDir, config) {
 
   for (const asset of manifest.assets) {
     const label = `${asset.locale ?? 'unknown'}:${asset.role ?? 'unknown'}:${asset.order ?? 'unknown'}`;
+    const allowedLocales = new Set(['shared', ...config.locales]);
+    if (!allowedLocales.has(asset.locale)) {
+      errors.push(`Unsupported asset locale: ${String(asset.locale)}`);
+    }
+    if (asset.locale === 'shared' && asset.role !== 'icon') {
+      errors.push(`shared assets may only use the icon role: ${String(asset.role)}`);
+    }
+    if (config.locales.includes(asset.locale) && !['featureGraphic', 'phoneScreenshot'].includes(asset.role)) {
+      errors.push(`${asset.locale} has unsupported localized asset role: ${String(asset.role)}`);
+    }
     if (!asset.path || typeof asset.path !== 'string') {
       errors.push(`${label} is missing path`);
       continue;

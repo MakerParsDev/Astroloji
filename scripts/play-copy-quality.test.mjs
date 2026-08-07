@@ -90,3 +90,26 @@ test('validator rejects Turkish copy without Turkish Unicode quality', () => {
   });
   assert.ok(errors.some((error) => /Turkish Unicode ratio/i.test(error)));
 });
+
+test('validator rejects every excluded commercial/deterministic claim in English and Turkish', () => {
+  const cases = [
+    ['en-US', 'free trial'], ['tr-TR', 'ücretsiz deneme'],
+    ['en-US', 'yearly plan'], ['tr-TR', 'yıllık plan'],
+    ['en-US', 'guaranteed result'], ['tr-TR', 'garantili sonuç'],
+    ['en-US', 'medical diagnosis'], ['tr-TR', 'tıbbi teşhis'],
+    ['en-US', 'financial advice'], ['tr-TR', 'finansal tavsiye'],
+    ['en-US', 'legal advice'], ['tr-TR', 'hukuki danışmanlık'],
+    ['en-US', '100% accurate'], ['tr-TR', '%100 doğru'],
+    ['en-US', 'psychic reading'], ['tr-TR', 'medyum yorumu'],
+  ];
+  for (const [locale, claim] of cases) {
+    const errors = validateListingCopy({
+      locale,
+      title: locale === 'tr-TR' ? 'Astroloji Günlük Burç' : 'Astrology Daily Horoscope',
+      shortDescription: claim,
+      fullDescription: locale === 'tr-TR' ? 'Günlük burç yorumu ve uyum.' : 'Daily horoscope and compatibility.',
+      englishFullDescription: 'Daily horoscope and compatibility.',
+    });
+    assert.ok(errors.some((error) => /forbidden claim/i.test(error)), `${locale} should reject: ${claim}`);
+  }
+});

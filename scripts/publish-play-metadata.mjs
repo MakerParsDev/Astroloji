@@ -1,8 +1,10 @@
+import { cliArgument as argument } from './lib/cli-arguments.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPlayClient } from './lib/play-api-client.mjs';
 import { loadCanonicalPlayState } from './lib/play-diff.mjs';
+import { selectRelevantRelease } from './lib/play-release.mjs';
 import {
   backupConfirmation,
   publishPreparedMetadata,
@@ -13,13 +15,6 @@ import {
 const changesNotSentForReview =
   process.env.PLAY_CHANGES_NOT_SENT_FOR_REVIEW?.toLowerCase() === 'true';
 
-function argument(name) {
-  const equalsPrefix = `--${name}=`;
-  const equalsValue = process.argv.find((value) => value.startsWith(equalsPrefix));
-  if (equalsValue) return equalsValue.slice(equalsPrefix.length);
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
 
 function readLocaleFiles(rootDir) {
   return fs.readdirSync(rootDir, { withFileTypes: true })
@@ -32,23 +27,30 @@ function readTrimmed(filePath) {
   return fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n').trim();
 }
 
-function releaseNotesMutation(releaseNotesRoot, releaseNotesTrack) {
+export function releaseNotesMutation(releaseNotesRoot, releaseNotesTrack, supportedLocales) {
   if (!releaseNotesTrack || !fs.existsSync(releaseNotesRoot)) return async () => {};
-  const releaseNotes = readLocaleFiles(releaseNotesRoot).map(({ locale, path: localePath }) => ({
-    language: locale,
-    text: readTrimmed(path.join(localePath, 'default.txt')),
-  }));
+  const supported = new Set(supportedLocales ?? []);
+  const releaseNotes = readLocaleFiles(releaseNotesRoot)
+    .filter(({ locale }) => supported.has(locale))
+    .map(({ locale, path: localePath }) => ({
+      language: locale,
+      text: readTrimmed(path.join(localePath, 'default.txt')),
+    }));
   return async (client, editId) => {
     if (releaseNotes.length === 0) return;
     const track = await client.getTrack(editId, releaseNotesTrack);
     if (!track.releases?.length) {
       throw new Error(`Track '${releaseNotesTrack}' has no releases to attach release notes to.`);
     }
-    const [primaryRelease, ...otherReleases] = track.releases;
-    await client.updateTrack(editId, releaseNotesTrack, {
-      ...track,
-      releases: [{ ...primaryRelease, releaseNotes }, ...otherReleases],
-    });
+    const target = selectRelevantRelease(track);
+    if (!target) {
+      throw new Error(`Track '${releaseNotesTrack}' has no staged or completed release to attach release notes to.`);
+    }
+    const targetIndex = track.releases.indexOf(target);
+    const releases = track.releases.map((release, index) =>
+      index === targetIndex ? { ...release, releaseNotes } : release,
+    );
+    await client.updateTrack(editId, releaseNotesTrack, { ...track, releases });
   };
 }
 
@@ -102,6 +104,7 @@ export async function publishPlayMetadata({
     additionalEditMutation: releaseNotesMutation(
       path.join(resolvedMetadataRoot, 'release-notes'),
       releaseNotesTrack,
+      proposed.locales,
     ),
     independentReadback:
       independentReadback ?? ((state) => verifySupportedPublishedState(client, state)),

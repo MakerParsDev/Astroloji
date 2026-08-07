@@ -74,6 +74,7 @@ function backupFixture(capturedAt = '2026-08-06T15:00:00.000Z') {
     schemaVersion: 1,
     capturedAt,
     packageName: 'com.parsfilo.astrology',
+    defaultLocale: 'tr-TR',
     listings: [
       {
         locale: 'en-US',
@@ -298,7 +299,142 @@ test('diff CLI writes a mode-0600 JSON report beside the backup', async () => {
   const result = runDiffCli({ backupPath, expectedRoot: process.cwd() });
   assert.equal(result.diff.blockingErrors.length, 0);
   assert.ok(fs.existsSync(result.outputPath));
-  assert.equal(fs.statSync(result.outputPath).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') {
+    assert.equal(fs.statSync(result.outputPath).mode & 0o777, 0o600);
+  }
   const report = JSON.parse(fs.readFileSync(result.outputPath, 'utf8'));
   assert.equal(report.backupSha256, result.backupDigest);
+});
+
+test('publication rejects missing package identity before creating an edit', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  client.packageName = '';
+  await assert.rejects(
+    publishPreparedMetadata({
+      client,
+      backup,
+      backupDigest,
+      confirmation: backupConfirmation(backupDigest),
+      proposed,
+      now: new Date('2026-08-06T15:10:00.000Z'),
+      independentReadback: async () => [],
+    }),
+    /missing package/i,
+  );
+  assert.equal(client.calls.length, 0);
+});
+
+test('post-commit readback failure names the committed edit and restoration action', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  await assert.rejects(
+    publishPreparedMetadata({
+      client,
+      backup,
+      backupDigest,
+      confirmation: backupConfirmation(backupDigest),
+      proposed,
+      now: new Date('2026-08-06T15:10:00.000Z'),
+      independentReadback: async () => ['listing drift'],
+    }),
+    /committed edit edit-publish.*restore/i,
+  );
+  assert.ok(client.calls.some((call) => call[0] === 'commitEdit'));
+});
+
+test('restore rejects backups that omit explicit default locale or valid image sha256 before edit creation', async () => {
+  const backup = backupFixture();
+  delete backup.defaultLocale;
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  await assert.rejects(
+    restorePreparedMetadata({ client, backup, backupDigest, confirmation: restoreConfirmation(backupDigest) }),
+    /defaultLocale/i,
+  );
+  assert.equal(client.calls.length, 0);
+
+  backup.defaultLocale = 'tr-TR';
+  backup.listings[1].images.icon[0].sha256 = null;
+  const digestWithDefault = digest(backup);
+  await assert.rejects(
+    restorePreparedMetadata({
+      client,
+      backup,
+      backupDigest: digestWithDefault,
+      confirmation: restoreConfirmation(digestWithDefault),
+    }),
+    /valid sha-256/i,
+  );
+  assert.equal(client.calls.length, 0);
+});
+
+test('edit-local verification rejects missing or malformed image sha256 values', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  const originalUpload = client.uploadImage;
+  client.uploadImage = async (...args) => {
+    const image = await originalUpload(...args);
+    return { ...image, sha256: '' };
+  };
+  // listImages state is populated inside the fake client, so corrupt one proposed expected hash instead.
+  proposed.listings['en-US'].images.featureGraphic[0].sha256 = '';
+  await assert.rejects(
+    publishPreparedMetadata({
+      client,
+      backup,
+      backupDigest,
+      confirmation: backupConfirmation(backupDigest),
+      proposed,
+      now: new Date('2026-08-06T15:10:00.000Z'),
+      independentReadback: async () => [],
+    }),
+    /valid sha-256/i,
+  );
+});
+
+test('release-note mutation filters supported locales and targets selected staged release', async () => {
+  const { releaseNotesMutation } = await import('./publish-play-metadata.mjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'play-release-notes-'));
+  for (const [locale, text] of [['en-US', 'English note'], ['tr-TR', 'Türkçe not'], ['de-DE', 'Nicht erlaubt']]) {
+    fs.mkdirSync(path.join(root, locale), { recursive: true });
+    fs.writeFileSync(path.join(root, locale, 'default.txt'), text);
+  }
+  let updated;
+  const client = {
+    async getTrack() {
+      return {
+        track: 'production',
+        releases: [
+          { status: 'completed', versionCodes: ['1102'], releaseNotes: [{ language: 'en-US', text: 'old' }] },
+          { status: 'inProgress', userFraction: 0.1, versionCodes: ['1103'] },
+        ],
+      };
+    },
+    async updateTrack(_editId, _track, value) { updated = value; },
+  };
+  const mutate = releaseNotesMutation(root, 'production', ['en-US', 'tr-TR']);
+  await mutate(client, 'edit');
+  assert.deepEqual(updated.releases[0].releaseNotes, [{ language: 'en-US', text: 'old' }]);
+  assert.deepEqual(updated.releases[1].releaseNotes, [
+    { language: 'en-US', text: 'English note' },
+    { language: 'tr-TR', text: 'Türkçe not' },
+  ]);
+  assert.doesNotMatch(JSON.stringify(updated), /de-DE|Nicht erlaubt/);
+});
+
+test('restore CLI refuses legacy backup before presenting an actionable confirmation', async () => {
+  const { runRestoreCli } = await import('./restore-play-metadata.mjs');
+  const backup = backupFixture();
+  delete backup.defaultLocale;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-play-backup-'));
+  const backupPath = path.join(dir, 'backup.json');
+  fs.writeFileSync(backupPath, JSON.stringify(backup));
+  await assert.rejects(runRestoreCli({ backupPath }), /defaultLocale/i);
 });

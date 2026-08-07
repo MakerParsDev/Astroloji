@@ -1,11 +1,12 @@
 const forbiddenClaims = [
-  ['free trial', /free trial/i],
-  ['annual or yearly plan', /annual|yearly/i],
-  ['guaranteed outcome', /guaranteed/i],
-  ['medical or diagnosis claim', /medical|diagnos/i],
-  ['financial advice', /financial advice/i],
-  ['legal advice', /legal advice/i],
-  ['100% accurate claim', /100% accurate/i],
+  ['free trial', /free trial|ücretsiz deneme/i],
+  ['annual or yearly plan', /annual|yearly|yıllık/i],
+  ['guaranteed outcome', /guaranteed|garantili/i],
+  ['medical or diagnosis claim', /medical|diagnos|tıbbi (?:tanı|teşhis)|teşhis/i],
+  ['financial advice', /financial advice|finansal (?:tavsiye|danışmanlık)/i],
+  ['legal advice', /legal advice|hukuki (?:tavsiye|danışmanlık)|yasal (?:tavsiye|danışmanlık)/i],
+  ['100% accurate claim', /100% accurate|%100 doğru|yüzde yüz doğru/i],
+  ['psychic claim', /psychic|medyum/i],
 ];
 
 function normalize(value) {

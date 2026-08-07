@@ -63,4 +63,4 @@
 5. Save account deletion and Data Safety answers only after the bounded browser action plan is approved for the exact current page state.
 6. Submit changes for review only after a second read-back shows the intended values.
 7. Verify the public Play page after approval and preserve evidence without account identities or secrets.
-8. Keep the production rollout at 10% until a separate stability and conversion decision is approved.
+8. Record production release `1102` as currently completed at 100% (`1.0`). Do not change rollout during policy or metadata work. A 10% cap applies only to a future/staged release after a separate stability and conversion approval.

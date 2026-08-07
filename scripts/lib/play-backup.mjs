@@ -1,3 +1,4 @@
+import { releaseRolloutFraction } from './play-release.mjs';
 const IMAGE_TYPES = ['icon', 'featureGraphic', 'phoneScreenshots'];
 const TRACKS = ['production', 'internal'];
 
@@ -51,7 +52,7 @@ function normalizeSubscription(subscription) {
 
 export async function capturePlayBackup(
   client,
-  { now = () => new Date().toISOString(), listingConcurrency = 4 } = {},
+  { now = () => new Date().toISOString(), listingConcurrency = 4, defaultLocale = null } = {},
 ) {
   const edit = await client.createEdit();
   try {
@@ -93,10 +94,14 @@ export async function capturePlayBackup(
       .map(normalizeSubscription)
       .sort((a, b) => a.productId.localeCompare(b.productId));
 
+    if (defaultLocale !== null && !listings.some((listing) => listing.locale === defaultLocale)) {
+      throw new Error(`Default locale is not present in Play listings: ${defaultLocale}`);
+    }
     return {
       schemaVersion: 1,
       capturedAt: now(),
       packageName: client.packageName,
+      defaultLocale,
       listings,
       tracks,
       subscriptions,
@@ -131,8 +136,7 @@ export async function verifyLiveState(client, expected) {
     );
   }
 
-  const productionRelease = live.tracks.production.releases[0];
-  const liveFraction = productionRelease?.userFraction ?? (productionRelease?.status === 'completed' ? 1 : null);
+  const liveFraction = releaseRolloutFraction(live.tracks.production);
   if (liveFraction !== expected.productionRolloutFraction) {
     errors.push(
       `Production rollout fraction differs: live=${String(liveFraction)} expected=${expected.productionRolloutFraction}`,

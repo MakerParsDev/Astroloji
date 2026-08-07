@@ -122,3 +122,54 @@ test('Play client error messages omit bearer tokens and private keys', async () 
     },
   );
 });
+
+test('image upload uses Google media upload semantics', async () => {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    calls.push({ url: String(url), method: init.method ?? 'GET' });
+    if (String(url) === 'https://oauth2.googleapis.com/token') return response(200, { access_token: 'token' });
+    if (String(url).startsWith('https://androidpublisher.googleapis.com/upload/')) {
+      return response(200, { image: { id: 'img', sha256: 'a'.repeat(64) } });
+    }
+    throw new Error(`Unexpected request ${url}`);
+  };
+  const client = createPlayClient({ packageName: 'com.parsfilo.astrology', credentialsPath: credentialsFile(), fetchImpl });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'play-upload-'));
+  const image = path.join(dir, 'asset.png');
+  fs.writeFileSync(image, Buffer.from('image'));
+  await client.uploadImage('edit', 'tr-TR', 'featureGraphic', image);
+  const upload = calls.find((call) => call.url.includes('/upload/'));
+  assert.match(upload.url, /[?&]uploadType=media(?:&|$)/);
+});
+
+test('missing track is normalized to an empty track instead of aborting backup', async () => {
+  const fetchImpl = async (url) => {
+    if (String(url) === 'https://oauth2.googleapis.com/token') return response(200, { access_token: 'token' });
+    if (String(url).includes('/tracks/production')) return response(404, { error: { message: 'not found' } });
+    throw new Error(`Unexpected request ${url}`);
+  };
+  const client = createPlayClient({ packageName: 'com.parsfilo.astrology', credentialsPath: credentialsFile(), fetchImpl });
+  assert.deepEqual(await client.getTrack('edit', 'production'), { track: 'production', releases: [] });
+});
+
+test('subscription listing follows nextPageToken pagination', async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(String(url));
+    if (String(url) === 'https://oauth2.googleapis.com/token') return response(200, { access_token: 'token' });
+    const parsed = new URL(String(url));
+    if (parsed.pathname.endsWith('/subscriptions') && !parsed.searchParams.get('pageToken')) {
+      return response(200, { subscriptions: [{ productId: 'premium_monthly' }], nextPageToken: 'page-2' });
+    }
+    if (parsed.pathname.endsWith('/subscriptions') && parsed.searchParams.get('pageToken') === 'page-2') {
+      return response(200, { subscriptions: [{ productId: 'premium_weekly' }] });
+    }
+    throw new Error(`Unexpected request ${url}`);
+  };
+  const client = createPlayClient({ packageName: 'com.parsfilo.astrology', credentialsPath: credentialsFile(), fetchImpl });
+  assert.deepEqual(await client.listSubscriptions(), [
+    { productId: 'premium_monthly' },
+    { productId: 'premium_weekly' },
+  ]);
+  assert.ok(calls.some((url) => url.includes('pageToken=page-2')));
+});

@@ -1,17 +1,13 @@
+import { cliArgument as argument } from './lib/cli-arguments.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPlayClient } from './lib/play-api-client.mjs';
 import { capturePlayBackup } from './lib/play-backup.mjs';
+import { loadStoreConfig } from './lib/play-store-config.mjs';
+import { releaseRolloutFraction } from './lib/play-release.mjs';
 
-function argument(name) {
-  const equalsPrefix = `--${name}=`;
-  const equalsValue = process.argv.find((value) => value.startsWith(equalsPrefix));
-  if (equalsValue) return equalsValue.slice(equalsPrefix.length);
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
 
 function assertSafeOutputPath(outputPath, repositoryRoot = process.cwd()) {
   if (!outputPath) {
@@ -22,7 +18,8 @@ function assertSafeOutputPath(outputPath, repositoryRoot = process.cwd()) {
     throw new Error('Play backup output path must be absolute.');
   }
   const resolvedRepository = path.resolve(repositoryRoot);
-  if (resolved === resolvedRepository || resolved.startsWith(`${resolvedRepository}${path.sep}`)) {
+  const relative = path.relative(resolvedRepository, resolved);
+  if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
     throw new Error('Play backup output path must be outside the repository.');
   }
   return resolved;
@@ -37,7 +34,8 @@ export async function runBackupCli({
 } = {}) {
   const resolvedOutput = assertSafeOutputPath(outputPath, repositoryRoot);
   const client = createPlayClient({ packageName, credentialsPath, fetchImpl });
-  const backup = await capturePlayBackup(client);
+  const storeConfig = loadStoreConfig(repositoryRoot);
+  const backup = await capturePlayBackup(client, { defaultLocale: storeConfig.defaultLocale });
   fs.mkdirSync(path.dirname(resolvedOutput), { recursive: true, mode: 0o700 });
   const descriptor = fs.openSync(resolvedOutput, 'wx', 0o600);
   try {
@@ -47,8 +45,7 @@ export async function runBackupCli({
   }
   fs.chmodSync(resolvedOutput, 0o600);
 
-  const production = backup.tracks.production?.releases?.[0];
-  const rollout = production?.userFraction ?? (production?.status === 'completed' ? 1 : null);
+  const rollout = releaseRolloutFraction(backup.tracks.production);
   const subscriptionPairs = backup.subscriptions.flatMap((subscription) =>
     subscription.basePlans.map((plan) => `${subscription.productId}/${plan.basePlanId}`),
   );

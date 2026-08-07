@@ -1,3 +1,4 @@
+import { cliArgument as argument } from './lib/cli-arguments.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -91,10 +92,6 @@ export function exportPlayAssets({
   return assets;
 }
 
-function argument(name) {
-  const prefix = `--${name}=`;
-  return process.argv.find((value) => value.startsWith(prefix))?.slice(prefix.length);
-}
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
 if (invokedPath === fileURLToPath(import.meta.url)) {

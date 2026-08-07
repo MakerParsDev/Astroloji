@@ -1,16 +1,10 @@
+import { cliArgument as argument } from './lib/cli-arguments.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPlayDiff, formatPlayDiff, loadCanonicalPlayState } from './lib/play-diff.mjs';
 import { readBackupFile } from './lib/play-publication.mjs';
 
-function argument(name) {
-  const equalsPrefix = `--${name}=`;
-  const equalsValue = process.argv.find((value) => value.startsWith(equalsPrefix));
-  if (equalsValue) return equalsValue.slice(equalsPrefix.length);
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
 
 export function runDiffCli({
   backupPath = argument('backup'),

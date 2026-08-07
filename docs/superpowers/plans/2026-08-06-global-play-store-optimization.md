@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - The application and canonical Play source support exactly `tr-TR` and `en-US` in this phase.
-- Production rollout remains exactly `0.1` (10%) throughout this plan.
+- The desired metadata-publication rollout contract remains `0.1` (10%), but live production release `1102` was observed on 2026-08-07 as `completed` / `1.0` (100%). Metadata publication and locale cleanup remain blocked until a separate release/rollout decision establishes an approved state; metadata tooling never changes the production track.
 - Do not add a new Android application language.
 - Do not change subscription prices, product IDs, base plans, or billing behavior.
 - Do not claim trials, annual plans, guaranteed predictions, medical authority, financial authority, legal authority, ratings, awards, endorsements, or user counts.
@@ -452,7 +452,7 @@ The validator must compare support URLs/e-mail against `store-config.json`, requ
 
 - [ ] **Step 5: Update readiness checklists**
 
-Replace the stale statement that Play reports data cannot be deleted with an operator gate that requires a post-save public-page verification. Keep the release rollout hold at 10%.
+Replace the stale statement that Play reports data cannot be deleted with an operator gate that requires a post-save public-page verification. Do not mutate the live `1.0` rollout as part of policy reconciliation. A 10% cap applies only to a future/staged release after a separate release/rollout approval.
 
 - [ ] **Step 6: Run policy tests**
 
@@ -1058,7 +1058,7 @@ The schema must contain collection timestamps and nullable values for unavailabl
 ```json
 {
   "window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
-  "play": { "productionRolloutFraction": 0.1, "ratings": null, "reviews": null },
+  "play": { "productionRolloutFraction": 1.0, "ratings": null, "reviews": null },
   "stability": { "crashRate": null, "anrRate": null },
   "analytics": { "activeUsers": null, "sessions": null, "events": null },
   "subscriptions": { "premiumScreenViews": null, "purchaseStarts": null, "verifiedPurchases": null },
@@ -1082,7 +1082,7 @@ Use a fixed 30-day window ending on the latest complete reporting date. Store on
 
 - [ ] **Step 5: Document interpretation and rollout hold**
 
-`PLAY_STORE_MEASUREMENT.md` must state that metadata changes do not prove causation without an experiment. Production remains at 10% until a separate approval reviews stability, conversion, retention, ratings, and subscription behavior.
+`PLAY_STORE_MEASUREMENT.md` must state that metadata changes do not prove causation without an experiment. Live production is currently `1.0`/100%; metadata work must not change it. The desired `0.1`/10% contract can be established only by a separate release/rollout approval after reviewing stability, conversion, retention, ratings, and subscription behavior.
 
 - [ ] **Step 6: Run tests and secret scan**
 
@@ -1140,7 +1140,7 @@ Push `feat/global-play-store-optimization-20260806`, open a PR to `main`, and re
 
 - [ ] **Step 4: Merge and capture a fresh live backup**
 
-After green CI and merge, use the merged commit. Create a fresh backup and dry-run diff. Verify production rollout `0.1`, production version code unchanged, and subscriptions exactly:
+After green CI and merge, use the merged commit. Create a fresh backup and dry-run diff. This step is currently **blocked** because live production reads `1.0`. Proceed to mutation only after a separate release/rollout decision establishes the approved `0.1` contract for the intended release; then verify the production version code is unchanged and subscriptions are exactly:
 
 ```text
 premium_monthly / monthly / P1M
@@ -1212,7 +1212,7 @@ After successful live read-back, commit `docs/verification/global-play-store-opt
 - Localized visual asset system: Tasks 4–6.
 - Backup, dry-run, publication, rollback, cleanup, and read-back: Tasks 7–10 and 12.
 - Measurement and rollout governance: Task 11 and Task 12.
-- Exactly two live locales and unchanged 10% rollout: Tasks 1, 9, and 12.
+- Exactly two canonical locales plus a fail-closed rollout invariant: Tasks 1, 9, and 12. Live `1.0` versus desired `0.1` is an explicit blocker, not a value metadata tooling may rewrite.
 
 ### Type and interface consistency
 

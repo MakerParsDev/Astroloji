@@ -1,16 +1,10 @@
+import { cliArgument as argument } from './lib/cli-arguments.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPlayClient } from './lib/play-api-client.mjs';
 import { verifyLiveState } from './lib/play-backup.mjs';
 import { loadStoreConfig } from './lib/play-store-config.mjs';
 
-function argument(name) {
-  const equalsPrefix = `--${name}=`;
-  const equalsValue = process.argv.find((value) => value.startsWith(equalsPrefix));
-  if (equalsValue) return equalsValue.slice(equalsPrefix.length);
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
 
 export async function runReadbackCli({
   packageName = process.env.PLAY_PACKAGE_NAME,

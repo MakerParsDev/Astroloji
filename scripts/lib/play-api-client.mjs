@@ -49,7 +49,7 @@ async function parseJsonResponse(response, context) {
   }
 }
 
-export function createPlayClient({ packageName, credentialsPath, fetchImpl = fetch, now = Date.now }) {
+export function createPlayClient({ packageName, credentialsPath, fetchImpl = fetch, now = Date.now, requestTimeoutMs = 30_000, uploadTimeoutMs = 120_000 }) {
   if (!packageName) throw new Error('PLAY_PACKAGE_NAME is required.');
   const credentials = readCredentials(credentialsPath);
   let cachedToken;
@@ -62,6 +62,7 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
     const assertion = createAssertion(credentials, Math.floor(currentMillis / 1000));
     const response = await fetchImpl(TOKEN_URL, {
       method: 'POST',
+      signal: AbortSignal.timeout(requestTimeoutMs),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -75,10 +76,11 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
     return cachedToken;
   }
 
-  async function request(relativePath, { method = 'GET', body, headers = {} } = {}) {
+  async function request(relativePath, { method = 'GET', body, headers = {}, allowNotFound = false } = {}) {
     const token = await accessToken();
     const response = await fetchImpl(`${API_ROOT}/${encodeURIComponent(packageName)}${relativePath}`, {
       method,
+      signal: AbortSignal.timeout(requestTimeoutMs),
       headers: {
         Authorization: `Bearer ${token}`,
         ...(body === undefined ? {} : { 'Content-Type': 'application/json; charset=utf-8' }),
@@ -86,6 +88,7 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
       },
       ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
     });
+    if (allowNotFound && response.status === 404) return null;
     return parseJsonResponse(response, `Google Play API ${method} ${relativePath}`);
   }
 
@@ -99,8 +102,9 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
     if (!extension) throw new Error(`Unsupported Play image file type: ${filePath}`);
     const relativePath =
       `/edits/${encodeURIComponent(editId)}/listings/${encodeURIComponent(locale)}/${encodeURIComponent(imageType)}`;
-    const response = await fetchImpl(`${UPLOAD_ROOT}/${encodeURIComponent(packageName)}${relativePath}`, {
+    const response = await fetchImpl(`${UPLOAD_ROOT}/${encodeURIComponent(packageName)}${relativePath}?uploadType=media`, {
       method: 'POST',
+      signal: AbortSignal.timeout(uploadTimeoutMs),
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': extension,
@@ -143,16 +147,28 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
         { method: 'DELETE' },
       ),
     uploadImage,
-    getTrack: (editId, track) =>
-      request(`/edits/${encodeURIComponent(editId)}/tracks/${encodeURIComponent(track)}`),
+    async getTrack(editId, track) {
+      const value = await request(
+        `/edits/${encodeURIComponent(editId)}/tracks/${encodeURIComponent(track)}`,
+        { allowNotFound: true },
+      );
+      return value ?? { track, releases: [] };
+    },
     updateTrack: (editId, track, value) =>
       request(`/edits/${encodeURIComponent(editId)}/tracks/${encodeURIComponent(track)}`, {
         method: 'PUT',
         body: value,
       }),
     async listSubscriptions() {
-      const body = await request('/subscriptions');
-      return body.subscriptions ?? [];
+      const subscriptions = [];
+      let pageToken;
+      do {
+        const query = pageToken ? `?pageToken=${encodeURIComponent(pageToken)}` : '';
+        const body = await request(`/subscriptions${query}`);
+        subscriptions.push(...(body.subscriptions ?? []));
+        pageToken = body.nextPageToken || undefined;
+      } while (pageToken);
+      return subscriptions;
     },
     commitEdit(
       editId,
@@ -166,7 +182,8 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
       if (changesInReviewBehavior) {
         query.set('changesInReviewBehavior', changesInReviewBehavior);
       }
-      const suffix = query.size > 0 ? `?${query.toString()}` : '';
+      const queryString = query.toString();
+      const suffix = queryString ? `?${queryString}` : '';
       return request(`/edits/${encodeURIComponent(editId)}:commit${suffix}`, {
         method: 'POST',
       });

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { capturePlayBackup, verifyLiveState } from './lib/play-backup.mjs';
 
@@ -92,8 +94,39 @@ test('backup CLI requires an absolute output path outside the repository', async
     () => assertSafeOutputPath(`${process.cwd()}/private/play.json`, process.cwd()),
     /outside the repository/i,
   );
+  const outsidePath = path.join(os.tmpdir(), 'astro-play-backup.json');
   assert.equal(
-    assertSafeOutputPath('/tmp/astro-play-backup.json', process.cwd()),
-    '/tmp/astro-play-backup.json',
+    assertSafeOutputPath(outsidePath, process.cwd()),
+    path.resolve(outsidePath),
   );
+});
+
+test('backup preserves an explicit default locale for future restore verification', async () => {
+  const backup = await capturePlayBackup(fakeClient(), {
+    now: () => '2026-08-06T12:00:00.000Z',
+    defaultLocale: 'tr-TR',
+  });
+  assert.equal(backup.defaultLocale, 'tr-TR');
+});
+
+test('readback selects staged release even when completed history is first', async () => {
+  const client = fakeClient();
+  client.getTrack = async (_editId, track) => ({
+    track,
+    releases: track === 'production'
+      ? [
+          { status: 'completed', versionCodes: ['1102'] },
+          { status: 'inProgress', userFraction: 0.1, versionCodes: ['1103'] },
+        ]
+      : [],
+  });
+  const errors = await verifyLiveState(client, {
+    locales: ['en-US', 'tr-TR'],
+    productionRolloutFraction: 0.1,
+    subscriptions: [
+      { productId: 'premium_monthly', basePlanId: 'monthly' },
+      { productId: 'premium_weekly', basePlanId: 'weekly' },
+    ],
+  });
+  assert.deepEqual(errors, []);
 });

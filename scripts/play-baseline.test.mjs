@@ -84,6 +84,7 @@ test('baseline rejects invented zero unavailable metrics and identity fields', (
       impressions: metric(22, 'admob'),
     },
   });
+  baseline.play.ratings = { value: 0, unavailableReason: 'not available' };
   baseline.accountEmail = 'forbidden@example.invalid';
 
   const errors = validateBaseline(baseline);
@@ -125,4 +126,39 @@ test('measurement governance rejects causal claims and treats rollout drift as a
   assert.match(doc, /separate.*rollout.*decision/i);
   assert.match(doc, /metadata publication.*blocked|block.*metadata publication/i);
   assert.match(doc, /observation window/i);
+});
+
+test('metric rejects coercible non-numeric inputs and non-finite values', () => {
+  for (const value of ['', '   ', false, Infinity, -Infinity, NaN]) {
+    assert.throws(() => metric(value, 'source'), /numeric|finite/i, `Expected rejection for ${String(value)}`);
+  }
+});
+
+test('baseline metric normalization whitelists fields and drops arbitrary sensitive input keys', () => {
+  const baseline = buildPlayBaseline({
+    collectedAt: '2026-08-07T04:10:00.000Z',
+    window,
+    play: {
+      productionRolloutFraction: {
+        value: 1,
+        source: 'play',
+        accessToken: 'must-not-survive',
+        privateKey: 'must-not-survive',
+        purchaseToken: 'must-not-survive',
+      },
+    },
+    stability: {}, analytics: {}, subscriptions: {}, ads: {},
+  });
+  const serialized = JSON.stringify(baseline);
+  assert.doesNotMatch(serialized, /must-not-survive|accessToken|privateKey|purchaseToken/);
+  assert.deepEqual(baseline.play.productionRolloutFraction, { value: 1, source: 'play' });
+});
+
+test('baseline rejects normalized impossible calendar dates', () => {
+  const invalid = buildPlayBaseline({
+    collectedAt: '2026-08-07T04:10:00.000Z',
+    window: { start: '2026-02-30', end: '2026-03-31' },
+    play: {}, stability: {}, analytics: {}, subscriptions: {}, ads: {},
+  });
+  assert.ok(validateBaseline(invalid).some((error) => /window start\/end/i.test(error)));
 });

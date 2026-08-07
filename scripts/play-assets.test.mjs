@@ -133,3 +133,19 @@ test('main metadata validator enforces the localized asset manifest', () => {
   assert.match(validator, /validateAssetManifest/);
   assert.match(validator, /for \(const error of validateAssetManifest\(repositoryRoot, storeConfig\)\)/);
 });
+
+test('manifest rejects unsupported locales and illegal shared/localized roles', () => {
+  const fixture = validFixture();
+  const manifest = JSON.parse(fs.readFileSync(fixture.manifestPath, 'utf8'));
+  const foreign = writeAsset(fixture.root, 'fr-FR/featureGraphic/feature-graphic.png', 1024, 500, 222);
+  manifest.assets.push({ locale: 'fr-FR', role: 'featureGraphic', order: 0, ...foreign });
+  const sharedFeature = writeAsset(fixture.root, 'shared/featureGraphic/feature-graphic.png', 1024, 500, 223);
+  manifest.assets.push({ locale: 'shared', role: 'featureGraphic', order: 0, ...sharedFeature });
+  const localizedIcon = writeAsset(fixture.root, 'en-US/icon/icon.png', 512, 512, 224);
+  manifest.assets.push({ locale: 'en-US', role: 'icon', order: 0, ...localizedIcon });
+  fs.writeFileSync(fixture.manifestPath, JSON.stringify(manifest));
+  const errors = validateAssetManifest(fixture.root, config);
+  assert.ok(errors.some((error) => /unsupported asset locale.*fr-FR/i.test(error)));
+  assert.ok(errors.some((error) => /shared.*only.*icon/i.test(error)));
+  assert.ok(errors.some((error) => /en-US.*role.*icon/i.test(error)));
+});

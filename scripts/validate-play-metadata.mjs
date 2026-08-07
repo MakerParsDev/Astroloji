@@ -117,7 +117,9 @@ for (const [locale, payload] of listingPayloads) {
   for (const error of errors) fail(error);
 }
 
-if (fs.existsSync(releaseNotesRoot)) {
+if (!fs.existsSync(releaseNotesRoot)) {
+  fail(`Missing release-note directory: ${releaseNotesRoot}`);
+} else {
   const noteLocales = fs.readdirSync(releaseNotesRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory());
   const noteLocaleNames = noteLocales.map((entry) => entry.name).sort();
   if (JSON.stringify(noteLocaleNames) !== JSON.stringify(expectedLocales)) {

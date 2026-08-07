@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { loadStoreConfig } from './play-store-config.mjs';
+import { releaseRolloutFraction } from './play-release.mjs';
 
 const LISTING_FIELDS = ['title', 'shortDescription', 'fullDescription'];
 const IMAGE_TYPES = ['icon', 'featureGraphic', 'phoneScreenshots'];
@@ -10,14 +11,6 @@ function normalizeText(value) {
   return String(value ?? '').replace(/\r\n/g, '\n').trim();
 }
 
-function releaseRolloutFraction(track) {
-  const release = track?.releases?.[0];
-  if (!release) return null;
-  if (release.userFraction !== null && release.userFraction !== undefined) {
-    return Number(release.userFraction);
-  }
-  return release.status === 'completed' ? 1 : null;
-}
 
 function subscriptionPairsFromLive(subscriptions) {
   return subscriptions
@@ -37,7 +30,7 @@ function subscriptionPairsFromProposed(subscriptions) {
 
 function imageHashes(images) {
   return [...(images ?? [])]
-    .map((image) => String(image.sha256 ?? ''))
+    .map((image) => String(image.sha256 ?? image.sha1 ?? image.id ?? ''))
     .sort();
 }
 

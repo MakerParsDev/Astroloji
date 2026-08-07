@@ -140,32 +140,38 @@ The tool re-reads live state before applying. Any state, count, package, support
 
 ## Rollback dry-run and restore
 
-For the current blocked cleanup evidence, inspect the exact restore plan without mutation:
+Guarded restore now requires a backup that explicitly records canonical `defaultLocale` and valid SHA-256 metadata for every backed-up image. Older pre-review backups remain historical evidence but are intentionally rejected for restore apply.
 
-```bash
-PLAY_PACKAGE_NAME=com.parsfilo.astrology \
-PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
-node scripts/restore-play-metadata.mjs \
-  --backup /home/msi/.local/state/astroloji/play-backups/play-before-locale-cleanup-20260806T171159Z.json
-```
-
-The command prints the exact backup-bound confirmation. Apply only after verifying the backup SHA-256 is still:
+Current restore-capable fresh backup:
 
 ```text
-388809d154972b688f9a856661a3bea8e0d0b6155da5c9e2491fdd96ee15f322
+/home/msi/.local/state/astroloji/play-backups/play-task12-reviewfixed-20260807T053740Z.json
+SHA-256: 323d4addb3d370fbfb7045b46d7248598833f54744ccdea7373b9fe2c52221a4
+mode: 0600
+defaultLocale: tr-TR
 ```
 
-Then use:
+Inspect its exact restore plan without mutation:
+
+```bash
+PLAY_PACKAGE_NAME=com.parsfilo.astrology \
+node scripts/restore-play-metadata.mjs \
+  --backup /home/msi/.local/state/astroloji/play-backups/play-task12-reviewfixed-20260807T053740Z.json
+```
+
+The dry-run validates backup restore invariants before printing any actionable confirmation. Apply is permitted only after separately verifying the SHA-256 above and supplying the exact backup-derived confirmation:
 
 ```bash
 PLAY_PACKAGE_NAME=com.parsfilo.astrology \
 PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
 node scripts/restore-play-metadata.mjs \
-  --backup /home/msi/.local/state/astroloji/play-backups/play-before-locale-cleanup-20260806T171159Z.json \
-  --confirmation RESTORE_PLAY_METADATA_388809d15497
+  --backup /home/msi/.local/state/astroloji/play-backups/play-task12-reviewfixed-20260807T053740Z.json \
+  --confirmation RESTORE_PLAY_METADATA_323d4addb3d3
 ```
 
-Restore reconstructs listing text and backed-up image slots in a new edit, verifies the edit, commits with `ERROR_IF_IN_REVIEW`, and performs an independent read-back. Do not restore an old backup merely to bypass a current cleanup blocker.
+No restore has been executed because no live metadata publication has occurred. Restore reconstructs listing text and backed-up image slots in a new edit, verifies the edit, commits with `ERROR_IF_IN_REVIEW`, and performs an independent read-back. Do not restore merely to bypass a current rollout or locale-cleanup blocker.
+
+Historical backups such as `play-before-locale-cleanup-20260806T171159Z.json` predate the explicit `defaultLocale` restore invariant and are retained only as audit evidence.
 
 ## Policy forms
 

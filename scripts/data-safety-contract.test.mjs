@@ -33,8 +33,9 @@ test('data safety source links to the canonical Play policy answer set', () => {
   assert.match(matrix, /Account deletion[^\n]*Supported/i);
 });
 
-test('production readiness requires public deletion verification and keeps rollout at ten percent', () => {
+test('production readiness requires public deletion verification and separates live rollout from the desired ten-percent contract', () => {
   assert.match(readiness, /public Play page[^\n]*account deletion[^\n]*supported/i);
-  assert.match(readiness, /10%/);
+  assert.match(readiness, /currently completed at 100%/i);
+  assert.match(readiness, /10% cap[^\n]*separate rollout decision/i);
   assert.doesNotMatch(readiness, /existing production listing currently reports that data cannot be deleted/i);
 });

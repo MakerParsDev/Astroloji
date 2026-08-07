@@ -151,3 +151,16 @@ test('live state digest ignores capture time and listing order but changes with 
   second.listings[0].title = 'Changed title';
   assert.notEqual(computePlayStateDigest(first), computePlayStateDigest(second));
 });
+
+test('image diff detects equal-count content changes when live backup exposes sha1/id only', () => {
+  const live = liveFixture();
+  live.listings.find((listing) => listing.locale === 'tr-TR').images.phoneScreenshots = [
+    { id: 'live-old', sha1: 'old-sha1', sha256: null },
+  ];
+  const proposed = proposedFixture();
+  proposed.listings['tr-TR'].images.phoneScreenshots = [
+    { sha256: 'a'.repeat(64) },
+  ];
+  const diff = buildPlayDiff(live, proposed);
+  assert.equal(diff.images['tr-TR'].phoneScreenshots.status, 'CHANGED');
+});

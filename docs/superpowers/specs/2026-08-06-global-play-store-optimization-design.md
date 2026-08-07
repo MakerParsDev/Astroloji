@@ -11,7 +11,7 @@ Make the Google Play presence honest, globally credible, conversion-oriented, me
 
 The current application supports Turkish and English. The first optimization phase therefore serves exactly those two languages. A locale may be added later only when the application UI, product content, store text, screenshots, support path, and QA evidence are all available in that locale.
 
-The production rollout remains at 10% while policy declarations, store metadata, and localized visual assets are reconciled. Rollout expansion is a separate operational decision based on stability and conversion evidence.
+The desired metadata-publication rollout contract is 10%, but live production release `1102` was observed on 2026-08-07 as `completed` / 100%. Policy, metadata, asset publication, and locale cleanup must not change that live track and remain blocked until a separate release/rollout decision establishes an approved rollout state. Rollout changes are separate operational decisions based on stability and conversion evidence.
 
 ## 2. Non-goals
 
@@ -22,7 +22,7 @@ This phase does not:
 - add new Android application languages,
 - create misleading testimonials, ratings, medical claims, guaranteed predictions, or scarcity claims,
 - change subscription prices or production billing products,
-- increase the current production rollout above 10%,
+- mutate the current production rollout (currently 100%) or manufacture a 10% state merely to satisfy metadata guards,
 - publish metadata without a backup, dry-run report, explicit diff, and post-publish read-back.
 
 ## 3. Guiding principles
@@ -256,7 +256,7 @@ After publication:
 10. Prepare and approve the destructive removal plan for unsupported locales.
 11. Remove unsupported live locales and verify exactly two remain.
 12. Reconcile UI-only policy fields through a bounded Play Console session.
-13. Capture post-change baselines and keep production rollout at 10% pending evidence.
+13. Capture post-change baselines without mutating rollout. A future/staged release may use the desired 10% cap only after a separate rollout approval.
 
 ## 9. Acceptance criteria
 
@@ -271,4 +271,4 @@ The phase is complete when all of the following are true:
 - Support identity and policy URLs are consistent.
 - Publication tooling has backup, dry-run, destructive confirmation, read-back, and rollback coverage.
 - Full CI, metadata tests, visual QA, secret scan, and Play read-back pass.
-- Production remains at 10% until a separate rollout decision is approved.
+- Metadata tooling leaves production rollout untouched. Live production is currently 100%; the desired 10% contract may be established only through a separate release/rollout decision.

@@ -1,20 +1,15 @@
+import { cliArgument as argument } from './lib/cli-arguments.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPlayClient } from './lib/play-api-client.mjs';
 import {
+  assertBackupRestorable,
   readBackupFile,
   restoreConfirmation,
   restorePreparedMetadata,
   verifyBackupRestoredState,
 } from './lib/play-publication.mjs';
 
-function argument(name) {
-  const equalsPrefix = `--${name}=`;
-  const equalsValue = process.argv.find((value) => value.startsWith(equalsPrefix));
-  if (equalsValue) return equalsValue.slice(equalsPrefix.length);
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
 
 export async function runRestoreCli({
   packageName = process.env.PLAY_PACKAGE_NAME,
@@ -29,6 +24,7 @@ export async function runRestoreCli({
   if (!backupPath) throw new Error('Provide --backup=<absolute-path>.');
   const resolvedBackup = path.resolve(backupPath);
   const { backup, backupDigest } = readBackupFile(resolvedBackup);
+  assertBackupRestorable(backup);
   const expectedConfirmation = restoreConfirmation(backupDigest);
   const imageCount = backup.listings.reduce(
     (total, listing) =>

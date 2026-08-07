@@ -13,13 +13,13 @@ const SECTION_KEYS = {
 const IDENTITY_KEY_PATTERN = /(account.*email|email|user.?id|device.?id|advertising.?id|gaid|tester|client.?id|publisher.?id)/i;
 
 export function metric(value, source) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) {
-    throw new Error('Measured metric value must be numeric.');
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error('Measured metric value must be a finite numeric value.');
   }
   if (!source || !String(source).trim()) {
     throw new Error('Measured metric source is required.');
   }
-  return { value: Number(value), source: String(source).trim() };
+  return { value, source: String(source).trim() };
 }
 
 export function unavailableMetric(reason) {
@@ -30,17 +30,23 @@ export function unavailableMetric(reason) {
 }
 
 function normalizeMetric(value, fallbackReason) {
-  if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'value')) {
-    return structuredClone(value);
+  if (!value || typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, 'value')) {
+    return unavailableMetric(fallbackReason);
   }
-  return unavailableMetric(fallbackReason);
+  if (value.value === null || value.unavailableReason !== undefined) {
+    return unavailableMetric(value.unavailableReason ?? fallbackReason);
+  }
+  return metric(value.value, value.source);
 }
 
 export function buildPlayBaseline(input) {
   const baseline = {
     schemaVersion: 1,
     collectedAt: input.collectedAt,
-    window: structuredClone(input.window ?? {}),
+    window: {
+      start: input?.window?.start,
+      end: input?.window?.end,
+    },
   };
 
   for (const [section, keys] of Object.entries(SECTION_KEYS)) {
@@ -56,9 +62,12 @@ export function buildPlayBaseline(input) {
 }
 
 function parseDate(date) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date ?? ''))) return null;
-  const timestamp = Date.parse(`${date}T00:00:00Z`);
-  return Number.isFinite(timestamp) ? timestamp : null;
+  const value = String(date ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const timestamp = Date.parse(`${value}T00:00:00Z`);
+  if (!Number.isFinite(timestamp)) return null;
+  if (new Date(timestamp).toISOString().slice(0, 10) !== value) return null;
+  return timestamp;
 }
 
 function findIdentityKeys(value, prefix = '') {

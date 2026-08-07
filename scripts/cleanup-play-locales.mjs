@@ -1,3 +1,4 @@
+import { cliArgument as argument } from './lib/cli-arguments.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPlayClient } from './lib/play-api-client.mjs';
@@ -195,13 +196,6 @@ export async function executeLocaleCleanup({
   }
 }
 
-function argument(name) {
-  const equalsPrefix = `--${name}=`;
-  const equalsValue = process.argv.find((value) => value.startsWith(equalsPrefix));
-  if (equalsValue) return equalsValue.slice(equalsPrefix.length);
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
 
 function verifyCleanupReadback(current, supportedLocales, expectedRolloutFraction) {
   return async (plan) => {
