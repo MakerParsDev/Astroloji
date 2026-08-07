@@ -148,6 +148,7 @@ export interface PlayRtdnClaimInput {
   packageName: string;
   fingerprint: string;
   notificationType: string;
+  leaseToken: string;
   receivedAt: string;
 }
 
@@ -157,27 +158,46 @@ export type PlayRtdnClaimResult =
   | 'duplicate_processing'
   | 'mismatch';
 
+const PLAY_RTDN_CLAIM_LEASE_MS = 60_000;
+
 type ExistingPlayRtdnClaim = Pick<
   PlayRtdnMessageRow,
-  'package_name' | 'message_fingerprint' | 'status'
+  'package_name' | 'message_fingerprint' | 'status' | 'lease_token' | 'lease_expires_at'
 >;
+
+function leaseExpiry(receivedAt: string): string {
+  const receivedAtMs = Date.parse(receivedAt);
+  if (!Number.isFinite(receivedAtMs)) {
+    throw new Error('Play RTDN claim receivedAt is invalid.');
+  }
+  return new Date(receivedAtMs + PLAY_RTDN_CLAIM_LEASE_MS).toISOString();
+}
 
 export async function claimPlayRtdnMessage(
   db: D1Database,
   input: PlayRtdnClaimInput
 ): Promise<PlayRtdnClaimResult> {
+  const leaseExpiresAt = leaseExpiry(input.receivedAt);
   const insert = await db.prepare(
     `INSERT INTO play_rtdn_messages
-     (message_id, package_name, message_fingerprint, notification_type, status, received_at)
-     VALUES (?, ?, ?, ?, 'processing', ?)
+     (message_id, package_name, message_fingerprint, notification_type, status, lease_token, received_at, lease_expires_at)
+     VALUES (?, ?, ?, ?, 'processing', ?, ?, ?)
      ON CONFLICT(message_id) DO NOTHING`
-  ).bind(input.messageId, input.packageName, input.fingerprint, input.notificationType, input.receivedAt).run();
+  ).bind(
+    input.messageId,
+    input.packageName,
+    input.fingerprint,
+    input.notificationType,
+    input.leaseToken,
+    input.receivedAt,
+    leaseExpiresAt
+  ).run();
   if (Number(insert.meta?.changes ?? 0) === 1) {
     return 'claimed';
   }
 
   const existing = await db.prepare(
-    `SELECT package_name, message_fingerprint, status
+    `SELECT package_name, message_fingerprint, status, lease_token, lease_expires_at
      FROM play_rtdn_messages
      WHERE message_id = ?`
   ).bind(input.messageId).first<ExistingPlayRtdnClaim>();
@@ -191,37 +211,70 @@ export async function claimPlayRtdnMessage(
   ) {
     return 'mismatch';
   }
-  return existing.status === 'processed' ? 'duplicate_processed' : 'duplicate_processing';
+  if (existing.status === 'processed') {
+    return 'duplicate_processed';
+  }
+
+  const reclaim = await db.prepare(
+    `UPDATE play_rtdn_messages
+     SET lease_token = ?, lease_expires_at = ?, received_at = ?
+     WHERE message_id = ?
+       AND package_name = ?
+       AND message_fingerprint = ?
+       AND status = 'processing'
+       AND lease_expires_at <= ?`
+  ).bind(
+    input.leaseToken,
+    leaseExpiresAt,
+    input.receivedAt,
+    input.messageId,
+    input.packageName,
+    input.fingerprint,
+    input.receivedAt
+  ).run();
+
+  return Number(reclaim.meta?.changes ?? 0) === 1 ? 'claimed' : 'duplicate_processing';
 }
 
 export async function releasePlayRtdnClaim(
   db: D1Database,
   messageId: string,
-  fingerprint: string
+  fingerprint: string,
+  leaseToken: string
 ): Promise<void> {
   await db.prepare(
     `DELETE FROM play_rtdn_messages
-     WHERE message_id = ? AND message_fingerprint = ? AND status = 'processing'`
-  ).bind(messageId, fingerprint).run();
+     WHERE message_id = ?
+       AND message_fingerprint = ?
+       AND lease_token = ?
+       AND status = 'processing'`
+  ).bind(messageId, fingerprint, leaseToken).run();
 }
+
 export function createPlayRtdnFinalizeStatement(
   db: D1Database,
   messageId: string,
   fingerprint: string,
+  leaseToken: string,
   outcome: PlayRtdnOutcome,
   processedAt: string
 ): D1PreparedStatement {
   return db.prepare(
     `UPDATE play_rtdn_messages
      SET status = 'processed', processed_at = ?, outcome = ?
-     WHERE message_id = ? AND message_fingerprint = ? AND status = 'processing'`
-  ).bind(processedAt, outcome, messageId, fingerprint);
+     WHERE message_id = ?
+       AND message_fingerprint = ?
+       AND lease_token = ?
+       AND status = 'processing'
+       AND lease_expires_at > ?`
+  ).bind(processedAt, outcome, messageId, fingerprint, leaseToken, processedAt);
 }
 
 export async function finalizePlayRtdnMessage(
   db: D1Database,
   messageId: string,
   fingerprint: string,
+  leaseToken: string,
   outcome: PlayRtdnOutcome,
   processedAt = new Date().toISOString()
 ): Promise<void> {
@@ -229,6 +282,7 @@ export async function finalizePlayRtdnMessage(
     db,
     messageId,
     fingerprint,
+    leaseToken,
     outcome,
     processedAt
   ).run();

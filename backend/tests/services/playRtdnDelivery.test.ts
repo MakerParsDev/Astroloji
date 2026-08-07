@@ -156,6 +156,8 @@ interface ClaimRow {
   message_fingerprint: string;
   notification_type: string;
   status: 'processing' | 'processed';
+  lease_token: string;
+  lease_expires_at: string;
   received_at: string;
   processed_at: string | null;
   outcome: string | null;
@@ -175,9 +177,10 @@ function createClaimDb(initial: ClaimRow[] = []) {
         async first() {
           if (!normalized.startsWith('SELECT package_name, message_fingerprint, status')) return null;
           return rows.get(String(bindings[0])) ?? null;
-        },        async run() {
+        },
+        async run() {
           if (normalized.startsWith('INSERT INTO play_rtdn_messages')) {
-            const [messageId, packageName, fingerprint, notificationType, receivedAt] = bindings.map(String);
+            const [messageId, packageName, fingerprint, notificationType, leaseToken, receivedAt, leaseExpiresAt] = bindings.map(String);
             if (rows.has(messageId)) return { success: true, meta: { changes: 0 } };
             rows.set(messageId, {
               message_id: messageId,
@@ -185,22 +188,38 @@ function createClaimDb(initial: ClaimRow[] = []) {
               message_fingerprint: fingerprint,
               notification_type: notificationType,
               status: 'processing',
+              lease_token: leaseToken,
+              lease_expires_at: leaseExpiresAt,
               received_at: receivedAt,
               processed_at: null,
               outcome: null
             });
             return { success: true, meta: { changes: 1 } };
           }
-          if (normalized.startsWith('DELETE FROM play_rtdn_messages')) {
-            const [messageId, fingerprint] = bindings.map(String);
+          if (normalized.startsWith('UPDATE play_rtdn_messages SET lease_token')) {
+            const [leaseToken, leaseExpiresAt, receivedAt, messageId, packageName, fingerprint, now] = bindings.map(String);
             const row = rows.get(messageId);
-            const matches = row?.message_fingerprint === fingerprint && row.status === 'processing';
+            const matches = row?.package_name === packageName && row.message_fingerprint === fingerprint &&
+              row.status === 'processing' && row.lease_expires_at <= now;
+            if (matches && row) {
+              row.lease_token = leaseToken;
+              row.lease_expires_at = leaseExpiresAt;
+              row.received_at = receivedAt;
+            }
+            return { success: true, meta: { changes: matches ? 1 : 0 } };
+          }
+          if (normalized.startsWith('DELETE FROM play_rtdn_messages')) {
+            const [messageId, fingerprint, leaseToken] = bindings.map(String);
+            const row = rows.get(messageId);
+            const matches = row?.message_fingerprint === fingerprint && row.lease_token === leaseToken && row.status === 'processing';
             if (matches) rows.delete(messageId);
             return { success: true, meta: { changes: matches ? 1 : 0 } };
-          }          if (normalized.startsWith('UPDATE play_rtdn_messages')) {
-            const [processedAt, outcome, messageId, fingerprint] = bindings.map(String);
+          }
+          if (normalized.startsWith('UPDATE play_rtdn_messages')) {
+            const [processedAt, outcome, messageId, fingerprint, leaseToken, checkedAt] = bindings.map(String);
             const row = rows.get(messageId);
-            const matches = row?.message_fingerprint === fingerprint && row.status === 'processing';
+            const matches = row?.message_fingerprint === fingerprint && row.lease_token === leaseToken &&
+              row.status === 'processing' && row.lease_expires_at > checkedAt;
             if (matches && row) {
               row.status = 'processed';
               row.processed_at = processedAt;
@@ -213,9 +232,7 @@ function createClaimDb(initial: ClaimRow[] = []) {
       };
       return statement;
     },
-    async batch() {
-      return [];
-    }
+    async batch() { return []; }
   } as unknown as D1Database;
   return { db, rows };
 }
@@ -224,17 +241,31 @@ function processingRow(patch: Partial<ClaimRow> = {}): ClaimRow {
   return {
     message_id: 'message-1', package_name: 'com.example.astrology',
     message_fingerprint: 'fingerprint-1', notification_type: '4', status: 'processing',
+    lease_token: 'lease-1', lease_expires_at: '2026-08-08T00:01:00.000Z',
     received_at: '2026-08-08T00:00:00.000Z', processed_at: null, outcome: null, ...patch
   };
 }
+
+function claimInput(patch: Partial<{
+  messageId: string; packageName: string; fingerprint: string; notificationType: string;
+  leaseToken: string; receivedAt: string;
+}> = {}) {
+  return {
+    messageId: 'message-1', packageName: 'com.example.astrology', fingerprint: 'fingerprint-1',
+    notificationType: '4', leaseToken: 'lease-2', receivedAt: '2026-08-08T00:00:30.000Z', ...patch
+  };
+}
+
 describe('Play RTDN D1 delivery claims', () => {
-  it('defines the additive schema without sensitive payload columns', () => {
+  it('defines the additive fenced-lease schema without sensitive payload columns', () => {
     const migration = readFileSync('migrations/0002_play_rtdn_messages.sql', 'utf8');
     const schema = readFileSync('schema.sql', 'utf8');
     for (const source of [migration, schema]) {
       expect(source).toContain('CREATE TABLE IF NOT EXISTS play_rtdn_messages');
       expect(source).toContain('message_id TEXT PRIMARY KEY');
       expect(source).toContain('message_fingerprint TEXT NOT NULL');
+      expect(source).toContain('lease_token TEXT NOT NULL');
+      expect(source).toContain('lease_expires_at TEXT NOT NULL');
       expect(source).toContain("status TEXT NOT NULL CHECK (status IN ('processing', 'processed'))");
       expect(source).toContain('idx_play_rtdn_messages_received_at');
       const block = source.match(/CREATE TABLE IF NOT EXISTS play_rtdn_messages[\s\S]*?\);/)?.[0];
@@ -244,32 +275,36 @@ describe('Play RTDN D1 delivery claims', () => {
     }
   });
 
-  it('atomically claims a first message as processing', async () => {
+  it('atomically claims a first message with a bounded lease', async () => {
     const { db, rows } = createClaimDb();
-    const result = await claimPlayRtdnMessage(db, {
-      messageId: 'message-1', packageName: 'com.example.astrology',
-      fingerprint: 'fingerprint-1', notificationType: '4',
-      receivedAt: '2026-08-08T00:00:00.000Z'
-    });
+    const result = await claimPlayRtdnMessage(db, claimInput({
+      leaseToken: 'lease-first', receivedAt: '2026-08-08T00:00:00.000Z'
+    }));
     expect(result).toBe('claimed');
-    expect(rows.get('message-1')?.status).toBe('processing');
-  });
-  it('classifies an already processed matching message as duplicate_processed', async () => {
-    const { db } = createClaimDb([processingRow({ status: 'processed', processed_at: '2026-08-08T00:01:00.000Z' })]);
-    await expect(claimPlayRtdnMessage(db, {
-      messageId: 'message-1', packageName: 'com.example.astrology',
-      fingerprint: 'fingerprint-1', notificationType: '4',
-      receivedAt: '2026-08-08T00:02:00.000Z'
-    })).resolves.toBe('duplicate_processed');
+    expect(rows.get('message-1')).toMatchObject({
+      status: 'processing', lease_token: 'lease-first', lease_expires_at: '2026-08-08T00:01:00.000Z'
+    });
   });
 
-  it('classifies an in-flight matching message as duplicate_processing', async () => {
+  it('classifies an already processed matching message as duplicate_processed', async () => {
+    const { db } = createClaimDb([processingRow({ status: 'processed', processed_at: '2026-08-08T00:00:20.000Z' })]);
+    await expect(claimPlayRtdnMessage(db, claimInput())).resolves.toBe('duplicate_processed');
+  });
+
+  it('keeps a fresh in-flight matching lease as duplicate_processing', async () => {
     const { db } = createClaimDb([processingRow()]);
-    await expect(claimPlayRtdnMessage(db, {
-      messageId: 'message-1', packageName: 'com.example.astrology',
-      fingerprint: 'fingerprint-1', notificationType: '4',
-      receivedAt: '2026-08-08T00:02:00.000Z'
-    })).resolves.toBe('duplicate_processing');
+    await expect(claimPlayRtdnMessage(db, claimInput())).resolves.toBe('duplicate_processing');
+  });
+
+  it('atomically reclaims an expired processing lease with a new token', async () => {
+    const { db, rows } = createClaimDb([processingRow()]);
+    await expect(claimPlayRtdnMessage(db, claimInput({
+      leaseToken: 'lease-reclaimed', receivedAt: '2026-08-08T00:01:01.000Z'
+    }))).resolves.toBe('claimed');
+    expect(rows.get('message-1')).toMatchObject({
+      status: 'processing', lease_token: 'lease-reclaimed',
+      lease_expires_at: '2026-08-08T00:02:01.000Z', received_at: '2026-08-08T00:01:01.000Z'
+    });
   });
 
   it.each([
@@ -277,48 +312,59 @@ describe('Play RTDN D1 delivery claims', () => {
     ['fingerprint mismatch', { packageName: 'com.example.astrology', fingerprint: 'fingerprint-2' }]
   ])('classifies same message ID with %s as mismatch', async (_name, values) => {
     const { db } = createClaimDb([processingRow()]);
-    await expect(claimPlayRtdnMessage(db, {
-      messageId: 'message-1', notificationType: '4', receivedAt: '2026-08-08T00:02:00.000Z', ...values
-    })).resolves.toBe('mismatch');
+    await expect(claimPlayRtdnMessage(db, claimInput(values))).resolves.toBe('mismatch');
   });
-  it('releases only the exact still-processing claim', async () => {
+
+  it('releases only the exact still-processing lease owner', async () => {
     const first = createClaimDb([processingRow()]);
-    await releasePlayRtdnClaim(first.db, 'message-1', 'fingerprint-1');
+    await releasePlayRtdnClaim(first.db, 'message-1', 'fingerprint-1', 'lease-1');
     expect(first.rows.has('message-1')).toBe(false);
 
-    const wrongFingerprint = createClaimDb([processingRow()]);
-    await releasePlayRtdnClaim(wrongFingerprint.db, 'message-1', 'fingerprint-2');
-    expect(wrongFingerprint.rows.has('message-1')).toBe(true);
+    const wrongLease = createClaimDb([processingRow()]);
+    await releasePlayRtdnClaim(wrongLease.db, 'message-1', 'fingerprint-1', 'lease-other');
+    expect(wrongLease.rows.has('message-1')).toBe(true);
 
     const processed = createClaimDb([processingRow({ status: 'processed' })]);
-    await releasePlayRtdnClaim(processed.db, 'message-1', 'fingerprint-1');
+    await releasePlayRtdnClaim(processed.db, 'message-1', 'fingerprint-1', 'lease-1');
     expect(processed.rows.has('message-1')).toBe(true);
   });
 
-  it('finalizes only the exact processing claim', async () => {
+  it('finalizes only the exact unexpired processing lease', async () => {
     const { db, rows } = createClaimDb([processingRow()]);
     await finalizePlayRtdnMessage(
-      db, 'message-1', 'fingerprint-1', 'processed', '2026-08-08T00:03:00.000Z'
+      db, 'message-1', 'fingerprint-1', 'lease-1', 'processed', '2026-08-08T00:00:30.000Z'
     );
     expect(rows.get('message-1')).toMatchObject({
-      status: 'processed', processed_at: '2026-08-08T00:03:00.000Z', outcome: 'processed'
+      status: 'processed', processed_at: '2026-08-08T00:00:30.000Z', outcome: 'processed'
     });
   });
 
-  it('fails standalone finalize when identity/status guards do not match', async () => {
+  it('fences an old lease after stale takeover', async () => {
+    const { db, rows } = createClaimDb([processingRow()]);
+    await claimPlayRtdnMessage(db, claimInput({
+      leaseToken: 'lease-new', receivedAt: '2026-08-08T00:01:01.000Z'
+    }));
+    await expect(finalizePlayRtdnMessage(
+      db, 'message-1', 'fingerprint-1', 'lease-1', 'processed', '2026-08-08T00:01:02.000Z'
+    )).rejects.toThrow();
+    expect(rows.get('message-1')).toMatchObject({ status: 'processing', lease_token: 'lease-new' });
+  });
+
+  it('rejects finalization after the current lease expires', async () => {
     const { db } = createClaimDb([processingRow()]);
     await expect(finalizePlayRtdnMessage(
-      db, 'message-1', 'fingerprint-2', 'processed', '2026-08-08T00:03:00.000Z'
+      db, 'message-1', 'fingerprint-1', 'lease-1', 'processed', '2026-08-08T00:01:01.000Z'
     )).rejects.toThrow();
   });
-  it('creates a guarded finalize statement for transaction batches', async () => {
+
+  it('creates a lease-guarded finalize statement for transaction batches', async () => {
     const { db, rows } = createClaimDb([processingRow()]);
     const statement = createPlayRtdnFinalizeStatement(
-      db, 'message-1', 'fingerprint-1', 'test', '2026-08-08T00:04:00.000Z'
+      db, 'message-1', 'fingerprint-1', 'lease-1', 'test', '2026-08-08T00:00:40.000Z'
     );
     await statement.run();
     expect(rows.get('message-1')).toMatchObject({
-      status: 'processed', processed_at: '2026-08-08T00:04:00.000Z', outcome: 'test'
+      status: 'processed', processed_at: '2026-08-08T00:00:40.000Z', outcome: 'test'
     });
   });
 });

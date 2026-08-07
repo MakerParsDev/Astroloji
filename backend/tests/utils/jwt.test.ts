@@ -1,6 +1,7 @@
+import { exportPKCS8, generateKeyPair } from 'jose';
 import { describe, expect, it, vi } from 'vitest';
 
-import { signAppJwt, verifyAppJwt } from '@/utils/jwt';
+import { createGoogleAccessToken, signAppJwt, verifyAppJwt } from '@/utils/jwt';
 import { createTestEnv } from '../helpers/env';
 
 describe('jwt utils', () => {
@@ -48,4 +49,30 @@ describe('jwt utils', () => {
       vi.useRealTimers();
     }
   });
+
+  it('passes a caller-provided AbortSignal to the Google OAuth exchange', async () => {
+    const { privateKey } = await generateKeyPair('RS256', { extractable: true });
+    const privateKeyPem = await exportPKCS8(privateKey);
+    const signal = new AbortController().signal;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({ access_token: 'google-access-token' })
+    );
+
+    await createGoogleAccessToken(
+      JSON.stringify({
+        client_email: 'service@example-project.iam.gserviceaccount.com',
+        private_key: privateKeyPem,
+        token_uri: 'https://oauth2.example.test/token',
+        project_id: 'example-project'
+      }),
+      'https://www.googleapis.com/auth/androidpublisher',
+      signal
+    );
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://oauth2.example.test/token',
+      expect.objectContaining({ signal })
+    );
+  });
+
 });

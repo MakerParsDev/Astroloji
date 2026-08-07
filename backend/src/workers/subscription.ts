@@ -151,16 +151,34 @@ async function processSubscription(
   await writeSubscriptionEvent(db, userId, subscription.purchaseToken, eventType, payload);
 }
 
+interface PlayRtdnLeaseGuard {
+  messageId: string;
+  fingerprint: string;
+  leaseToken: string;
+  checkedAt: string;
+}
+
+const RTDN_LEASE_EXISTS_SQL = `EXISTS (
+  SELECT 1 FROM play_rtdn_messages
+  WHERE message_id = ?
+    AND message_fingerprint = ?
+    AND lease_token = ?
+    AND status = 'processing'
+    AND lease_expires_at > ?
+)`;
+
 function createRtdnSubscriptionUpsertStatement(
   db: D1Database,
   userId: string,
   subscription: GooglePlaySubscription,
-  now: string
+  now: string,
+  guard: PlayRtdnLeaseGuard
 ): D1PreparedStatement {
   return db.prepare(
     `INSERT INTO subscriptions
      (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, cancel_reason, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+     WHERE ${RTDN_LEASE_EXISTS_SQL}
      ON CONFLICT(purchase_token) DO UPDATE SET
        user_id = excluded.user_id,
        product_id = excluded.product_id,
@@ -173,7 +191,8 @@ function createRtdnSubscriptionUpsertStatement(
   ).bind(
     crypto.randomUUID(), userId, subscription.purchaseToken, subscription.productId,
     subscription.status, subscription.startsAt, subscription.expiresAt,
-    Number(subscription.autoRenewing), subscription.cancelReason, now, now
+    Number(subscription.autoRenewing), subscription.cancelReason, now, now,
+    guard.messageId, guard.fingerprint, guard.leaseToken, guard.checkedAt
   );
 }
 
@@ -181,12 +200,20 @@ function createRtdnPremiumStateStatement(
   db: D1Database,
   userId: string,
   subscription: GooglePlaySubscription,
-  now: string
+  now: string,
+  guard: PlayRtdnLeaseGuard
 ): D1PreparedStatement {
   return db.prepare(
-    'UPDATE users SET is_premium = ?, subscription_state = ?, premium_expires_at = ?, last_seen_at = ? WHERE id = ?'
+    `UPDATE users
+     SET is_premium = ?, subscription_state = ?, premium_expires_at = ?, last_seen_at = ?
+     WHERE id = ? AND ${RTDN_LEASE_EXISTS_SQL}`
   ).bind(
-    hasPremiumEntitlement(subscription) ? 1 : 0, subscription.status, subscription.expiresAt, now, userId
+    hasPremiumEntitlement(subscription) ? 1 : 0,
+    subscription.status,
+    subscription.expiresAt,
+    now,
+    userId,
+    guard.messageId, guard.fingerprint, guard.leaseToken, guard.checkedAt
   );
 }
 
@@ -196,12 +223,17 @@ function createRtdnSubscriptionEventStatement(
   purchaseToken: string,
   eventType: SubscriptionEventType,
   payload: unknown,
-  createdAt: string
+  createdAt: string,
+  guard: PlayRtdnLeaseGuard
 ): D1PreparedStatement {
   return db.prepare(
     `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).bind(crypto.randomUUID(), userId, purchaseToken, eventType, JSON.stringify(payload), createdAt);
+     SELECT ?, ?, ?, ?, ?, ?
+     WHERE ${RTDN_LEASE_EXISTS_SQL}`
+  ).bind(
+    crypto.randomUUID(), userId, purchaseToken, eventType, JSON.stringify(payload), createdAt,
+    guard.messageId, guard.fingerprint, guard.leaseToken, guard.checkedAt
+  );
 }
 
 function decodedPlayRtdnPayload(parsed: ParsedPlayRtdnMessage): unknown {
@@ -473,12 +505,15 @@ export function registerSubscriptionRoutes(
     }
 
     const fingerprint = await fingerprintPlayRtdnMessage(parsed.packageName, parsed.decodedBytes);
+    const leaseToken = crypto.randomUUID();
+    const claimStartedAt = new Date().toISOString();
     const claimResult = await claimPlayRtdnMessage(c.env.DB, {
       messageId: parsed.messageId,
       packageName: parsed.packageName,
       fingerprint,
       notificationType: String(parsed.notificationType),
-      receivedAt: new Date().toISOString()
+      leaseToken,
+      receivedAt: claimStartedAt
     });
 
     if (claimResult === 'duplicate_processed') {
@@ -516,9 +551,10 @@ export function registerSubscriptionRoutes(
     }
 
     let claimOpen = true;
+    let retryableFailureLogged = false;
     try {
       if (parsed.kind === 'test') {
-        await finalizePlayRtdnMessage(c.env.DB, parsed.messageId, fingerprint, 'test');
+        await finalizePlayRtdnMessage(c.env.DB, parsed.messageId, fingerprint, leaseToken, 'test');
         claimOpen = false;
         await logPlayRtdnOutcome({
           requestId,
@@ -545,6 +581,7 @@ export function registerSubscriptionRoutes(
           c.env.DB,
           parsed.messageId,
           fingerprint,
+          leaseToken,
           'ignored_unknown_purchase'
         );
         claimOpen = false;
@@ -560,7 +597,7 @@ export function registerSubscriptionRoutes(
       }
 
       if (!userId) {
-        await releasePlayRtdnClaim(c.env.DB, parsed.messageId, fingerprint);
+        await releasePlayRtdnClaim(c.env.DB, parsed.messageId, fingerprint, leaseToken);
         claimOpen = false;
         await logPlayRtdnOutcome({
           requestId,
@@ -574,6 +611,12 @@ export function registerSubscriptionRoutes(
       }
 
       const now = new Date().toISOString();
+      const leaseGuard: PlayRtdnLeaseGuard = {
+        messageId: parsed.messageId,
+        fingerprint,
+        leaseToken,
+        checkedAt: now
+      };
       if (!liveSubscription) {
         const finalized = await runRtdnBatch(c.env.DB, [
           createRtdnSubscriptionEventStatement(
@@ -582,18 +625,32 @@ export function registerSubscriptionRoutes(
             parsed.purchaseToken,
             'sync_pending',
             buildPendingReconciliationPayload(eventType!, payload),
-            now
+            now,
+            leaseGuard
           ),
           createPlayRtdnFinalizeStatement(
             c.env.DB,
             parsed.messageId,
             fingerprint,
+            leaseToken,
             'reconciliation_pending',
             now
           )
         ]);
         claimOpen = false;
         if (!finalized) {
+          // A zero-row finalize is a consistency alarm, not a rollback trigger.
+          // Customer-state statements are fenced by the same lease and therefore
+          // also apply zero rows after ownership is lost or the lease expires.
+          await logPlayRtdnOutcome({
+            requestId,
+            messageId: parsed.messageId,
+            auth: authResult.method,
+            packageMatch: true,
+            notificationClass: 'subscription',
+            outcome: 'retryable_failure'
+          });
+          retryableFailureLogged = true;
           throw new Error('Play RTDN transactional finalize guard did not match.');
         }
         await logPlayRtdnOutcome({
@@ -608,26 +665,40 @@ export function registerSubscriptionRoutes(
       }
 
       const finalized = await runRtdnBatch(c.env.DB, [
-        createRtdnSubscriptionUpsertStatement(c.env.DB, userId, liveSubscription, now),
-        createRtdnPremiumStateStatement(c.env.DB, userId, liveSubscription, now),
+        createRtdnSubscriptionUpsertStatement(c.env.DB, userId, liveSubscription, now, leaseGuard),
+        createRtdnPremiumStateStatement(c.env.DB, userId, liveSubscription, now, leaseGuard),
         createRtdnSubscriptionEventStatement(
           c.env.DB,
           userId,
           liveSubscription.purchaseToken,
           eventType!,
           payload,
-          now
+          now,
+          leaseGuard
         ),
         createPlayRtdnFinalizeStatement(
           c.env.DB,
           parsed.messageId,
           fingerprint,
+          leaseToken,
           'processed',
           now
         )
       ]);
       claimOpen = false;
       if (!finalized) {
+        // A zero-row finalize is a consistency alarm, not a rollback trigger.
+        // Customer-state statements are fenced by the same lease and therefore
+        // also apply zero rows after ownership is lost or the lease expires.
+        await logPlayRtdnOutcome({
+          requestId,
+          messageId: parsed.messageId,
+          auth: authResult.method,
+          packageMatch: true,
+          notificationClass: 'subscription',
+          outcome: 'retryable_failure'
+        });
+        retryableFailureLogged = true;
         throw new Error('Play RTDN transactional finalize guard did not match.');
       }
       await logPlayRtdnOutcome({
@@ -641,16 +712,18 @@ export function registerSubscriptionRoutes(
       return c.json({ ok: true });
     } catch {
       if (claimOpen) {
-        await releasePlayRtdnClaim(c.env.DB, parsed.messageId, fingerprint);
+        await releasePlayRtdnClaim(c.env.DB, parsed.messageId, fingerprint, leaseToken);
       }
-      await logPlayRtdnOutcome({
-        requestId,
-        messageId: parsed.messageId,
-        auth: authResult.method,
-        packageMatch: true,
-        notificationClass: parsed.kind,
-        outcome: 'retryable_failure'
-      });
+      if (!retryableFailureLogged) {
+        await logPlayRtdnOutcome({
+          requestId,
+          messageId: parsed.messageId,
+          auth: authResult.method,
+          packageMatch: true,
+          notificationClass: parsed.kind,
+          outcome: 'retryable_failure'
+        });
+      }
       throw new Error('Play RTDN processing failed.');
     }
   });

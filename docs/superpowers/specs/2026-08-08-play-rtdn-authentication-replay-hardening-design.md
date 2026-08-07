@@ -92,6 +92,8 @@ Add an additive D1 table dedicated to RTDN delivery claims, conceptually:
 - `message_fingerprint TEXT NOT NULL`
 - `notification_type TEXT`
 - `status TEXT NOT NULL`
+- `lease_token TEXT NOT NULL`
+- `lease_expires_at TEXT NOT NULL`
 - `received_at TEXT NOT NULL`
 - `processed_at TEXT`
 - `outcome TEXT`
@@ -106,15 +108,19 @@ The initial migration is additive. Existing subscription tables are not rewritte
 For each authenticated, structurally valid delivery:
 
 1. Compute the canonical message fingerprint.
-2. Atomically attempt to insert the `message_id` claim with status `processing`.
+2. Atomically attempt to insert the `message_id` claim with status `processing`, a random lease token, and a 60-second lease expiry.
 3. If the insert wins, continue with the authoritative Play lookup and existing subscription processing.
-4. Mark the claim `processed` only after all intended state writes complete successfully.
-5. If downstream processing fails, remove or release the unprocessed claim before returning a retryable non-2xx response so a later Pub/Sub redelivery can retry the work.
+4. Every customer-state D1 statement and finalization statement is fenced by the same message ID, fingerprint, lease token, processing status, and unexpired lease.
+5. Mark the claim `processed` only after all intended state writes complete successfully under that lease.
+6. If downstream processing fails while the worker still owns the lease, release only that exact lease before returning a retryable non-2xx response.
 
 If the same `message_id` already exists:
 - same fingerprint + `processed` => return an idempotent success without repeating the state transition;
-- same fingerprint + `processing` => do not acknowledge it as completed; return retryable failure so a later delivery observes the final result;
+- same fingerprint + `processing` with an unexpired lease => return retryable failure without acknowledging completion;
+- same fingerprint + `processing` with an expired lease => atomically replace the lease token/expiry and retry under the new owner;
 - different fingerprint or package => treat as a security/integrity mismatch and perform no state transition.
+
+The lease token is a fencing token: after takeover, the old worker cannot release, finalize, or apply subscription/user/event writes. A zero-row finalizer is treated as a retryable consistency alarm rather than being mistaken for a transactional rollback.
 
 The implementation must use D1 primitives that make the claim race-safe. A read-then-insert sequence without a uniqueness-enforced atomic claim is not acceptable.
 
@@ -183,7 +189,7 @@ Phase B removes legacy auth in a separate reviewed PR and deploy. After deploy, 
 - valid expected OIDC identity passes authentication and reaches payload validation/processing;
 - `PLAY_WEBHOOK_SECRET` is absent from the final Worker/config secret inventory.
 
-Rollback from Phase A returns the Pub/Sub subscription to the prior working auth configuration while the compatibility Worker still accepts legacy auth. Rollback from Phase B redeploys the exact reviewed Phase A compatibility commit temporarily. The additive D1 table is not dropped during rollback.
+Rollback before the Pub/Sub cutover may restore the captured pre-Phase-A Worker directly. After Pub/Sub has been changed to authenticated OIDC push, rollback order is strict: restore the prior legacy Pub/Sub push configuration first, prove the legacy boundary against the still-running Phase A compatibility Worker, and only then restore the captured pre-Phase-A Worker if necessary. Never roll the Worker back first while Pub/Sub still depends on OIDC. Rollback from Phase B restores the captured Phase A Worker version temporarily while retaining the legacy secret until recovery is proven. The additive D1 table is not dropped during rollback.
 
 No rollback or verification step changes Play rollout percentage, subscription products, prices, purchase state, refund state, or customer entitlement manually.
 

@@ -18,7 +18,7 @@
 - Final code must not accept `?token=` or `X-Play-Secret` and must remove `PLAY_WEBHOOK_SECRET` from active Worker/config secret inventory.
 - RTDN package identity must exactly match server `PACKAGE_NAME` before Play API lookup or entitlement mutation.
 - D1 idempotency must be uniqueness-enforced and race-safe; a read-then-insert claim is not acceptable.
-- Never persist/log bearer JWTs, shared secrets, purchase tokens, raw RTDN data, full service-account identifiers, or full Pub/Sub message IDs.
+- Never log or disclose publicly bearer JWTs, shared secrets, purchase tokens, raw RTDN data, full service-account identifiers, or full Pub/Sub message IDs. The expected caller email may exist only as restricted server-side configuration, and the full Pub/Sub `message_id` may exist only as the internal D1 dedupe primary key; neither appears in logs or public evidence.
 - No Play rollout percentage, subscription product/price, purchase/refund state, or customer entitlement may be manually changed during this work.
 - Phase A and Phase B are separate reviewed PRs/deploys; production mutations happen only from the exact merged `main` SHA for that phase.
 - Production release gate `ENABLE_PRODUCTION_RELEASE` remains `false`; unrelated production rollout/subscription controls stay untouched.
@@ -299,9 +299,9 @@ git commit -m "feat(backend): parse Play RTDN deliveries strictly"
 **Interfaces:**
 - Produces:
   - `claimPlayRtdnMessage(db, input): Promise<PlayRtdnClaimResult>`
-  - `releasePlayRtdnClaim(db, messageId, fingerprint): Promise<void>`
-  - `finalizePlayRtdnMessage(db, messageId, fingerprint, outcome): Promise<void>`
-  - `createPlayRtdnFinalizeStatement(db, messageId, fingerprint, outcome, processedAt): D1PreparedStatement`
+  - `releasePlayRtdnClaim(db, messageId, fingerprint, leaseToken): Promise<void>`
+  - `finalizePlayRtdnMessage(db, messageId, fingerprint, leaseToken, outcome, processedAt?): Promise<void>`
+  - `createPlayRtdnFinalizeStatement(db, messageId, fingerprint, leaseToken, outcome, processedAt): D1PreparedStatement`
 - `PlayRtdnClaimResult` is exactly `claimed | duplicate_processed | duplicate_processing | mismatch`.
 
 - [ ] **Step 1: Write migration contract and failing claim tests**
@@ -310,11 +310,13 @@ The migration/fresh schema table is:
 
 ```sql
 CREATE TABLE IF NOT EXISTS play_rtdn_messages (
-  message_id TEXT PRIMARY KEY,
+  message_id TEXT PRIMARY KEY NOT NULL,
   package_name TEXT NOT NULL,
   message_fingerprint TEXT NOT NULL,
   notification_type TEXT,
   status TEXT NOT NULL CHECK (status IN ('processing', 'processed')),
+  lease_token TEXT NOT NULL,
+  lease_expires_at TEXT NOT NULL,
   received_at TEXT NOT NULL,
   processed_at TEXT,
   outcome TEXT
@@ -332,10 +334,12 @@ No purchase token or raw payload column is permitted.
 Tests must prove:
 - first `message_id` inserts `processing` and returns `claimed`;
 - uniqueness conflict + same fingerprint/status `processed` returns `duplicate_processed`;
-- same fingerprint/status `processing` returns `duplicate_processing`;
+- same fingerprint/status `processing` with an unexpired 60-second lease returns `duplicate_processing`;
+- an expired processing lease is atomically reclaimed with a new `lease_token` and expiry and returns `claimed`;
 - same ID with different package or fingerprint returns `mismatch`;
-- release deletes only the exact still-`processing` claim;
-- finalize updates only the exact fingerprint/status pair.
+- release deletes only the exact still-`processing` lease owner;
+- finalize requires exact fingerprint, lease token, processing status, and an unexpired lease;
+- after stale takeover the old lease cannot release, finalize, or mutate customer state.
 
 Run and expect RED:
 
@@ -355,6 +359,7 @@ export interface PlayRtdnClaimInput {
   packageName: string;
   fingerprint: string;
   notificationType: string;
+  leaseToken: string;
   receivedAt: string;
 }
 ```
@@ -367,10 +372,10 @@ Release SQL must include all guards:
 
 ```sql
 DELETE FROM play_rtdn_messages
-WHERE message_id = ? AND message_fingerprint = ? AND status = 'processing'
+WHERE message_id = ? AND message_fingerprint = ? AND lease_token = ? AND status = 'processing'
 ```
 
-Finalize SQL must include the same identity guards and set `status='processed'`, `processed_at`, and bounded `outcome`. Require `meta.changes === 1` for standalone finalize.
+Finalize SQL must include `message_id`, fingerprint, exact `lease_token`, `status='processing'`, and `lease_expires_at > processedAt` guards while setting `status='processed'`, `processed_at`, and bounded `outcome`. Require `meta.changes === 1` for standalone finalize. Conflict handling may atomically replace an expired lease only when the same package/fingerprint still owns a `processing` row.
 
 - [ ] **Step 4: Apply migration to an isolated local D1 and verify schema**
 
@@ -381,7 +386,7 @@ npx wrangler d1 migrations apply astrology-db --local
 npx wrangler d1 execute astrology-db --local --command "PRAGMA table_info(play_rtdn_messages)" --json
 ```
 
-Expected: columns exactly include the eight planned fields and primary key on `message_id`.
+Expected: columns exactly include the ten planned fields, `message_id` is the primary key, both lease columns are NOT NULL, the status CHECK exists, and the `received_at` index is present.
 - [ ] **Step 5: Run focused tests and build**
 
 ```bash
@@ -450,7 +455,8 @@ Add RED tests for:
 - processed duplicate => 200 and no second Play lookup/business write;
 - processing duplicate => retryable non-2xx;
 - same message ID/different fingerprint => rejection and no Play lookup;
-- transient Play lookup exception => claim released and 500/retryable;
+- stale processing lease => atomically reclaimed with a new lease token; transient Play/OAuth failure => exact current lease released and 500/retryable;
+- lease ownership lost before the transactional batch => every customer-state statement applies zero rows and route returns retryable failure;
 - invalid bearer + valid legacy secret => 403, proving no auth downgrade.
 Run RED:
 
@@ -471,20 +477,20 @@ If `parsed.packageName !== c.env.PACKAGE_NAME`, return a permanent rejection bef
 
 - [ ] **Step 4: Handle safe `testNotification` as a processed no-op**
 
-After a successful claim for `kind === 'test'`, call `finalizePlayRtdnMessage(..., 'test')` and return `{ ok: true, test: true }`. This is the production transport/auth proof path and must not query subscriptions or update users.
+After a successful claim for `kind === 'test'`, call `finalizePlayRtdnMessage(..., leaseToken, 'test')` and return `{ ok: true, test: true }`. This is the production transport/auth proof path and must not query subscriptions or update users.
 
 - [ ] **Step 5: Make successful subscription state writes transactional with message finalization**
 
 Do not reuse the existing multi-call `processSubscription()` for RTDN because a crash between its writes and message finalization could cause duplicate events on retry. For RTDN only, build a D1 `batch()` containing:
 
 ```text
-1. INSERT subscriptions ... ON CONFLICT(purchase_token) DO UPDATE ...
-2. UPDATE users SET is_premium/subscription_state/premium_expires_at/last_seen_at ...
-3. INSERT subscription_events ...
-4. UPDATE play_rtdn_messages SET status='processed', processed_at=?, outcome=? WHERE message_id=? AND message_fingerprint=? AND status='processing'
+1. lease-guarded INSERT subscriptions ... ON CONFLICT(purchase_token) DO UPDATE ...
+2. lease-guarded UPDATE users SET is_premium/subscription_state/premium_expires_at/last_seen_at ...
+3. lease-guarded INSERT subscription_events ...
+4. UPDATE play_rtdn_messages SET status='processed', processed_at=?, outcome=? WHERE message_id=? AND message_fingerprint=? AND lease_token=? AND status='processing' AND lease_expires_at > ?
 ```
 
-Cloudflare D1 `batch()` is transactional; if any statement fails, the sequence rolls back.
+Cloudflare D1 `batch()` is transactional when a statement fails, but a zero-row guarded UPDATE is still a successful statement. Therefore every customer-state statement must carry the same `message_id`/fingerprint/lease-token/unexpired-lease `EXISTS` guard. If the finalizer reports `changes=0`, emit a bounded `retryable_failure` consistency alarm before throwing; do not assume the zero-row finalizer itself rolled back prior statements.
 For the existing `liveSubscription === null` reconciliation path, batch the `sync_pending` event insert and RTDN message finalization together. For `!userId && !liveSubscription`, finalize with bounded outcome `ignored_unknown_purchase` and return 200. For `!userId && liveSubscription`, release the processing claim and keep a retryable/non-2xx response.
 
 - [ ] **Step 6: Release only unprocessed claims on exceptions**
@@ -495,12 +501,12 @@ Wrap the post-claim processing block:
 try {
   // authoritative lookup + transactional success path
 } catch (error) {
-  await releasePlayRtdnClaim(c.env.DB, parsed.messageId, fingerprint);
+  await releasePlayRtdnClaim(c.env.DB, parsed.messageId, fingerprint, leaseToken);
   throw error;
 }
 ```
 
-Never release after a successful transactional finalization.
+Never release after a successful transactional finalization, and never release another worker's reclaimed lease: release is fenced by the exact `leaseToken`.
 
 - [ ] **Step 7: Add sparse structured audit logs**
 
@@ -613,15 +619,33 @@ After `Apply tracked D1 migrations`, add a read-only schema assertion:
 
 ```bash
 npx wrangler d1 execute astrology-db --remote \
-  --command "PRAGMA table_info(play_rtdn_messages)" --json \
+  --command "PRAGMA table_info(play_rtdn_messages); PRAGMA index_list(play_rtdn_messages); SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'play_rtdn_messages';" --json \
   > "$RUNNER_TEMP/play-rtdn-schema.json"
 node - <<'NODE'
 const fs = require('node:fs');
 const payload = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/play-rtdn-schema.json', 'utf8'));
-const rows = payload.flatMap((entry) => entry.results ?? []);
-const names = new Set(rows.map((row) => row.name));
-const required = ['message_id','package_name','message_fingerprint','notification_type','status','received_at','processed_at','outcome'];
-if (!required.every((name) => names.has(name))) throw new Error('Play RTDN schema read-back failed.');
+const resultSets = payload.map((entry) => entry.results ?? []);
+const columns = resultSets.find((rows) => rows.some((row) => Object.hasOwn(row, 'cid'))) ?? [];
+const indexes = resultSets.find((rows) => rows.some((row) => Object.hasOwn(row, 'origin'))) ?? [];
+const schemaRows = resultSets.find((rows) => rows.some((row) => typeof row.sql === 'string')) ?? [];
+const expectedColumns = [
+  ['message_id', 'TEXT', 1, 1], ['package_name', 'TEXT', 1, 0],
+  ['message_fingerprint', 'TEXT', 1, 0], ['notification_type', 'TEXT', 0, 0],
+  ['status', 'TEXT', 1, 0], ['lease_token', 'TEXT', 1, 0],
+  ['lease_expires_at', 'TEXT', 1, 0], ['received_at', 'TEXT', 1, 0],
+  ['processed_at', 'TEXT', 0, 0], ['outcome', 'TEXT', 0, 0],
+];
+if (columns.length !== expectedColumns.length) throw new Error('Play RTDN schema column count mismatch.');
+for (const [name, type, notnull, pk] of expectedColumns) {
+  const row = columns.find((candidate) => candidate.name === name);
+  if (!row || row.type !== type || Number(row.notnull) !== notnull || Number(row.pk) !== pk) {
+    throw new Error(`Play RTDN schema mismatch for ${name}.`);
+  }
+}
+if (!indexes.some((row) => row.name === 'idx_play_rtdn_messages_received_at')) throw new Error('Play RTDN received_at index is missing.');
+if (!indexes.some((row) => Number(row.unique) === 1 && row.origin === 'pk')) throw new Error('Play RTDN primary-key uniqueness is missing.');
+const tableSql = schemaRows[0]?.sql?.replace(/\s+/g, ' ') ?? '';
+if (!tableSql.includes("CHECK (status IN ('processing', 'processed'))")) throw new Error('Play RTDN status CHECK is missing.');
 console.log('Play RTDN schema read-back passed.');
 NODE
 ```
@@ -763,9 +787,10 @@ If the project/topic is not accessible with the authorized operator account, sto
 If the topic is blank, use the project ID already present in `GOOGLE_SERVICE_ACCOUNT_JSON` without printing it, and create/reuse the deterministic topic `astrology-play-rtdn`:
 
 ```bash
-raw="$(doppler secrets get GOOGLE_SERVICE_ACCOUNT_JSON --plain --project mobil-apps --config astrology)"
-PUBSUB_PROJECT_ID="$(node -e 'const x=JSON.parse(process.argv[1]); process.stdout.write(x.project_id)' "$raw")"
-unset raw
+PUBSUB_PROJECT_ID="$(
+  doppler secrets get GOOGLE_SERVICE_ACCOUNT_JSON --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" |
+    node -e 'let input=""; process.stdin.on("data", (chunk) => input += chunk); process.stdin.on("end", () => process.stdout.write(JSON.parse(input).project_id));'
+)"
 PLAY_RTDN_TOPIC="projects/${PUBSUB_PROJECT_ID}/topics/astrology-play-rtdn"
 gcloud pubsub topics describe "$PLAY_RTDN_TOPIC" >/dev/null 2>&1 || \
   gcloud pubsub topics create "$PLAY_RTDN_TOPIC"
@@ -850,7 +875,7 @@ NODE
 )"
 ```
 
-Do not print `$PRE_PHASE_A_VERSION`. If Phase A activates but migration/live verification fails, roll back before changing Pub/Sub or Play Console:
+Do not print `$PRE_PHASE_A_VERSION`. This direct Worker rollback is permitted only before changing Pub/Sub or Play Console. If Phase A activates but migration/live verification fails at that pre-cutover stage:
 
 ```bash
 npx wrangler rollback "$PRE_PHASE_A_VERSION" --name astrology-backend --message 'RTDN Phase A rollback' --yes
@@ -941,6 +966,38 @@ gh workflow run backend-play-webhook-smoke.yml --repo MakerParsDev/Astroloji --r
 Resolve/watch the exact-main run and require summary outcomes `unauthorized=403` and `legacy-authorized-invalid-payload=400`. This proves rollback compatibility remains available while Pub/Sub has already moved to OIDC.
 
 Do **not** delete `PLAY_WEBHOOK_SECRET` from Cloudflare or Doppler in Phase A.
+
+If a failure after the OIDC Pub/Sub cutover requires the pre-Phase-A Worker, reverse the dependency in this exact order. First restore the legacy Pub/Sub push config while the compatibility Worker is still active. Keep the shared secret and access token in process memory only:
+
+```bash
+export PUSH_SUB PUBSUB_PROJECT_ID RTDN_ENDPOINT DOPPLER_PROJECT DOPPLER_CONFIG
+node <<'NODE'
+const { execFileSync } = require('node:child_process');
+(async () => {
+  const secret = execFileSync('doppler', [
+    'secrets', 'get', 'PLAY_WEBHOOK_SECRET', '--plain',
+    '--project', process.env.DOPPLER_PROJECT, '--config', process.env.DOPPLER_CONFIG,
+  ], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const accessToken = execFileSync('gcloud', ['auth', 'print-access-token'], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  const subscription = `projects/${process.env.PUBSUB_PROJECT_ID}/subscriptions/${process.env.PUSH_SUB}`;
+  const pushEndpoint = `${process.env.RTDN_ENDPOINT}?token=${encodeURIComponent(secret)}`;
+  const response = await fetch(
+    `https://pubsub.googleapis.com/v1/${subscription}:modifyPushConfig`,
+    {
+      method: 'POST',
+      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ pushConfig: { pushEndpoint } }),
+    },
+  );
+  if (!response.ok) throw new Error(`Pub/Sub legacy rollback failed with ${response.status}.`);
+  console.log('legacyPushConfigRestored=true');
+})().catch(() => process.exit(1));
+NODE
+```
+
+Read the subscription back into a mode-0600 local JSON file and emit only `legacyEndpointHasQuery=true` and `oidcConfigured=false`; never print the endpoint. Then run the Phase A legacy boundary smoke and require `403/400`. Only after that proof may `$PRE_PHASE_A_VERSION` be restored with `wrangler rollback`. If any reversal/read-back fails, keep the Phase A compatibility Worker active and stop.
 
 - [ ] **Step 13: Re-run idempotency/replay regression locally before Phase B**
 
@@ -1392,8 +1449,9 @@ Stop and report instead of guessing when any of these gates fails:
 - Cloudflare/Doppler secret deletion cannot be independently read back.
 
 Rollback rules:
-- Before Phase A deploy, capture `$PRE_PHASE_A_VERSION`; if the Phase A deployment activates but post-deploy verification fails, `npx wrangler rollback "$PRE_PHASE_A_VERSION" --name astrology-backend --message 'RTDN Phase A rollback' --yes` and leave Pub/Sub/Play unchanged.
-- Before Phase B deploy, capture the active Phase A Worker version; if Phase B fails before secret retirement, roll back to that exact version and retain the legacy secret.
+- Before the Phase A Pub/Sub cutover, the captured `$PRE_PHASE_A_VERSION` may be restored directly if Worker deployment/live verification fails; Pub/Sub and Play are still unchanged at that point.
+- After Pub/Sub has been switched to OIDC, **never roll the Worker back first**. Restore the prior legacy Pub/Sub push configuration first, verify the legacy boundary against the still-running Phase A compatibility Worker, and only then run `npx wrangler rollback "$PRE_PHASE_A_VERSION" --name astrology-backend --message 'RTDN Phase A rollback' --yes` if Worker rollback is still required.
+- Before Phase B deploy, capture the active Phase A Worker version; if Phase B fails before secret retirement, roll back to that exact Phase A version and retain the legacy secret.
 - The additive `play_rtdn_messages` migration is never dropped during rollback.
 - After final legacy-secret deletion, OIDC infrastructure remains the normal recovery path; recreating a shared secret is not part of routine rollback and requires a new explicit security decision.
 

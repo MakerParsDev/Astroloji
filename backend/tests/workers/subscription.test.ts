@@ -103,20 +103,40 @@ interface RtdnClaimState {
   package_name: string;
   message_fingerprint: string;
   status: 'processing' | 'processed';
+  lease_token: string;
+  lease_expires_at: string;
   outcome?: string | null;
 }
 
 interface RtdnDbOptions {
   subscriptionOwner?: string | null;
-  initialClaim?: RtdnClaimState;
+  initialClaim?: Omit<RtdnClaimState, 'lease_token' | 'lease_expires_at'> &
+    Partial<Pick<RtdnClaimState, 'lease_token' | 'lease_expires_at'>>;
+  stealLeaseBeforeBatch?: boolean;
 }
 
 function createRtdnDb(options: RtdnDbOptions = {}) {
   const writes: Array<{ sql: string; bindings: unknown[] }> = [];
   const batchWrites: Array<{ sql: string; bindings: unknown[] }> = [];
+  const appliedBatchWrites: Array<{ sql: string; bindings: unknown[] }> = [];
   const reads: Array<{ sql: string; bindings: unknown[] }> = [];
   const claims = new Map<string, RtdnClaimState>();
-  if (options.initialClaim) claims.set(options.initialClaim.message_id, { ...options.initialClaim });
+  if (options.initialClaim) {
+    claims.set(options.initialClaim.message_id, {
+      lease_token: 'seed-lease',
+      lease_expires_at: '2099-01-01T00:00:00.000Z',
+      ...options.initialClaim
+    });
+  }
+
+  function leaseMatches(bindings: unknown[]) {
+    const [messageId, fingerprint, leaseToken, checkedAt] = bindings.slice(-4).map(String);
+    const row = claims.get(messageId);
+    return Boolean(
+      row && row.message_fingerprint === fingerprint && row.lease_token === leaseToken &&
+      row.status === 'processing' && row.lease_expires_at > checkedAt
+    );
+  }
 
   function makeStatement(sql: string) {
     let bindings: unknown[] = [];
@@ -144,28 +164,37 @@ function createRtdnDb(options: RtdnDbOptions = {}) {
       async run() {
         writes.push({ sql, bindings });
         if (normalized.startsWith('INSERT INTO play_rtdn_messages')) {
-          const [messageId, packageName, fingerprint] = bindings.map(String);
+          const [messageId, packageName, fingerprint, _notificationType, leaseToken, receivedAt, leaseExpiresAt] = bindings.map(String);
           if (claims.has(messageId)) return { success: true, meta: { changes: 0 } };
           claims.set(messageId, {
-            message_id: messageId,
-            package_name: packageName,
-            message_fingerprint: fingerprint,
-            status: 'processing'
+            message_id: messageId, package_name: packageName, message_fingerprint: fingerprint,
+            status: 'processing', lease_token: leaseToken, lease_expires_at: leaseExpiresAt
           });
+          void receivedAt;
           return { success: true, meta: { changes: 1 } };
         }
-        if (normalized.startsWith('DELETE FROM play_rtdn_messages')) {
-          const [messageId, fingerprint] = bindings.map(String);
+        if (normalized.startsWith('UPDATE play_rtdn_messages SET lease_token')) {
+          const [leaseToken, leaseExpiresAt, _receivedAt, messageId, packageName, fingerprint, checkedAt] = bindings.map(String);
           const row = claims.get(messageId);
-          const matches = row?.message_fingerprint === fingerprint && row.status === 'processing';
+          const matches = row?.package_name === packageName && row.message_fingerprint === fingerprint &&
+            row.status === 'processing' && row.lease_expires_at <= checkedAt;
+          if (matches && row) { row.lease_token = leaseToken; row.lease_expires_at = leaseExpiresAt; }
+          return { success: true, meta: { changes: matches ? 1 : 0 } };
+        }
+        if (normalized.startsWith('DELETE FROM play_rtdn_messages')) {
+          const [messageId, fingerprint, leaseToken] = bindings.map(String);
+          const row = claims.get(messageId);
+          const matches = row?.message_fingerprint === fingerprint && row.lease_token === leaseToken && row.status === 'processing';
           if (matches) claims.delete(messageId);
           return { success: true, meta: { changes: matches ? 1 : 0 } };
         }
         if (normalized.startsWith('UPDATE play_rtdn_messages')) {
-          const [processedAt, outcome, messageId, fingerprint] = bindings.map(String);
+          const [processedAt, outcome, messageId, fingerprint, leaseToken, checkedAt] = bindings.map(String);
           const row = claims.get(messageId);
-          const matches = row?.message_fingerprint === fingerprint && row.status === 'processing';
+          const matches = row?.message_fingerprint === fingerprint && row.lease_token === leaseToken &&
+            row.status === 'processing' && row.lease_expires_at > checkedAt;
           if (matches && row) { row.status = 'processed'; row.outcome = outcome; }
+          void processedAt;
           return { success: true, meta: { changes: matches ? 1 : 0 } };
         }
         return { success: true, meta: { changes: 1 } };
@@ -177,25 +206,37 @@ function createRtdnDb(options: RtdnDbOptions = {}) {
   const db = {
     prepare: makeStatement,
     async batch(statements: D1PreparedStatement[]) {
+      if (options.stealLeaseBeforeBatch) {
+        const current = [...claims.values()].find((row) => row.status === 'processing');
+        if (current) {
+          current.lease_token = 'other-worker-lease';
+          current.lease_expires_at = '2099-01-01T00:00:00.000Z';
+        }
+      }
+      const results: Array<{ success: boolean; meta: { changes: number } }> = [];
       for (const raw of statements as Array<D1PreparedStatement & { _sql: string; _bindings: unknown[] }>) {
         batchWrites.push({ sql: raw._sql, bindings: raw._bindings });
         const normalized = raw._sql.replace(/\s+/g, ' ').trim();
         if (normalized.startsWith('UPDATE play_rtdn_messages')) {
-          const [processedAt, outcome, messageId, fingerprint] = raw._bindings.map(String);
+          const [processedAt, outcome, messageId, fingerprint, leaseToken, checkedAt] = raw._bindings.map(String);
           const row = claims.get(messageId);
-          if (!row || row.message_fingerprint !== fingerprint || row.status !== 'processing') {
-            throw new Error('Finalize guard mismatch in batch.');
-          }
-          row.status = 'processed';
-          row.outcome = outcome;
+          const matches = row?.message_fingerprint === fingerprint && row.lease_token === leaseToken &&
+            row.status === 'processing' && row.lease_expires_at > checkedAt;
+          if (matches && row) { row.status = 'processed'; row.outcome = outcome; }
           void processedAt;
+          results.push({ success: true, meta: { changes: matches ? 1 : 0 } });
+          continue;
         }
+        const guarded = /EXISTS \( ?SELECT 1 FROM play_rtdn_messages/.test(normalized);
+        const changes = guarded ? Number(leaseMatches(raw._bindings)) : 1;
+        if (changes === 1) appliedBatchWrites.push({ sql: raw._sql, bindings: raw._bindings });
+        results.push({ success: true, meta: { changes } });
       }
-      return statements.map(() => ({ success: true, meta: { changes: 1 } }));
+      return results;
     }
   } as unknown as D1Database;
 
-  return { db, writes, batchWrites, reads, claims };
+  return { db, writes, batchWrites, appliedBatchWrites, reads, claims };
 }
 
 function playPushEnvelope(messageId: string, notification: unknown) {
@@ -349,6 +390,59 @@ describe('subscription worker', () => {
       expect.stringContaining('UPDATE play_rtdn_messages')
     ]);
     expect(claims.get('subscription-message-1')).toMatchObject({ status: 'processed', outcome: 'processed' });
+  });
+
+  it('reclaims an expired processing lease and completes the delivery under a new owner token', async () => {
+    const notification = playSubscriptionNotification();
+    const fingerprint = await testMessageFingerprint(notification);
+    const { db, claims } = createRtdnDb({
+      initialClaim: {
+        message_id: 'stale-message', package_name: 'com.parsfilo.astrology',
+        message_fingerprint: fingerprint, status: 'processing',
+        lease_token: 'stale-owner', lease_expires_at: '2000-01-01T00:00:00.000Z'
+      }
+    });
+    getSubscriptionStatusMock.mockResolvedValue(activeWeeklySubscription());
+
+    const response = await createApp({ subscription: { verifyPlayRtdnIdentity: acceptingVerifier() } }).request(
+      '/api/v1/webhooks/play-rtdn',
+      {
+        method: 'POST', headers: { authorization: 'Bearer oidc-test-token', 'content-type': 'application/json' },
+        body: JSON.stringify(playPushEnvelope('stale-message', notification))
+      },
+      createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' })
+    );
+
+    expect(response.status).toBe(200);
+    expect(claims.get('stale-message')).toMatchObject({ status: 'processed', outcome: 'processed' });
+    expect(claims.get('stale-message')?.lease_token).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('fences all customer writes when lease ownership is lost before the D1 batch', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const { db, appliedBatchWrites, claims } = createRtdnDb({ stealLeaseBeforeBatch: true });
+    getSubscriptionStatusMock.mockResolvedValue(activeWeeklySubscription());
+
+    const response = await createApp({ subscription: { verifyPlayRtdnIdentity: acceptingVerifier() } }).request(
+      '/api/v1/webhooks/play-rtdn',
+      {
+        method: 'POST', headers: { authorization: 'Bearer oidc-test-token', 'content-type': 'application/json' },
+        body: JSON.stringify(playPushEnvelope('lost-lease-message', playSubscriptionNotification()))
+      },
+      createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' })
+    );
+
+    expect(response.status).toBe(500);
+    expect(appliedBatchWrites.filter((write) =>
+      /subscriptions|UPDATE users|subscription_events/.test(write.sql)
+    )).toHaveLength(0);
+    expect(claims.get('lost-lease-message')).toMatchObject({
+      status: 'processing', lease_token: 'other-worker-lease'
+    });
+    expect(errorSpy).toHaveBeenCalled();
+    expect(JSON.stringify(logSpy.mock.calls)).toContain('retryable_failure');
+    expect(JSON.stringify(logSpy.mock.calls)).not.toContain('lost-lease-message');
   });
 
   it('acknowledges a processed duplicate without repeating Play lookup or writes', async () => {

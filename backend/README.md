@@ -95,6 +95,8 @@ Cloudflare secret store'a giden anahtarlar:
 
 ## D1 Migration Notu
 
+RTDN idempotency Worker kodu `play_rtdn_messages` tablosunu zorunlu kabul eder. Production backend deploy'undan once tracked migration'lar `npx wrangler d1 migrations apply astrology-db --remote` ile uygulanmali ve `play_rtdn_messages` kolon/PK/CHECK/index yapisi read-back ile dogrulanmalidir. Bu sira `.github/workflows/backend-production-deploy.yml` tarafindan enforce edilir; RTDN kodunu migration veya schema read-back olmadan manuel deploy etmeyin.
+
 Taze kurulumlar `schema.sql` uzerinden `users.subscription_state` kolonu ile gelir. Mevcut ortamlarda tek seferlik D1 migration icin asagidaki SQL'i uygulayin:
 
 ```sql

@@ -135,7 +135,8 @@ export async function verifyFirebaseIdToken(env: Env, token: string): Promise<Fi
 
 export async function createGoogleAccessToken(
   serviceAccountJson: string,
-  scope: string
+  scope: string,
+  signal?: AbortSignal
 ): Promise<string> {
   const account = getGoogleServiceAccount(serviceAccountJson);
   const privateKey = await importPKCS8(account.private_key, 'RS256');
@@ -152,6 +153,7 @@ export async function createGoogleAccessToken(
 
   const response = await fetch(account.token_uri, {
     method: 'POST',
+    signal,
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',

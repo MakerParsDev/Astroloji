@@ -217,6 +217,8 @@ export interface PlayRtdnMessageRow {
   message_fingerprint: string;
   notification_type: string | null;
   status: PlayRtdnMessageStatus;
+  lease_token: string;
+  lease_expires_at: string;
   received_at: string;
   processed_at: string | null;
   outcome: PlayRtdnOutcome | null;
