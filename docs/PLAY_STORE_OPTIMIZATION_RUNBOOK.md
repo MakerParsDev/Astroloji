@@ -91,6 +91,22 @@ node scripts/diff-play-metadata.mjs \
 
 The command writes `/absolute/private/play-backup.json.diff.json` with mode `0600`. Publication is blocked when production rollout or subscription products differ from canonical source control.
 
+Reconfirm the approved backup against fresh live Play state immediately before any publication attempt, then run the independent read-back. Both commands are read-only and remain ungated:
+
+```bash
+PLAY_PACKAGE_NAME=com.parsfilo.astrology \
+PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
+node scripts/verify-play-backup-current.mjs \
+  --backup /absolute/private/play-backup.json
+
+PLAY_PACKAGE_NAME=com.parsfilo.astrology \
+PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
+node scripts/readback-play-metadata.mjs \
+  --expected-root /absolute/path/to/merged/repository
+```
+
+The current production rollout drift can make the read-back fail by design; that failure is evidence, not a reason to bypass the guard.
+
 The publication command must not be run until the dry-run has no blockers:
 
 ```bash
@@ -178,38 +194,67 @@ Historical backups such as `play-before-locale-cleanup-20260806T171159Z.json` pr
 
 ## Windows PowerShell operator equivalents
 
-The production operator host is MSI Ubuntu, so the Bash commands above are canonical for live execution. On Windows, use PowerShell syntax rather than translating Bash line continuations. Dry-run commands remain ungated; set the mutation gate only for the exact apply command and clear it immediately afterward.
+The production operator host is MSI Ubuntu, so the Bash commands above are canonical for live execution. On Windows, use PowerShell syntax rather than translating Bash line continuations. Read-only commands remain ungated. Every mutation example sets the gate only for the exact apply and removes it in `finally`, including command failure or interruption handled by PowerShell.
 
 ```powershell
 # Common identity and credential variables
 $env:PLAY_PACKAGE_NAME = 'com.parsfilo.astrology'
 $env:PLAY_SERVICE_ACCOUNT_JSON_PATH = 'C:\private\play-service-account.json'
+```
 
-# Fresh backup + checksum
+Read-only backup, checksum, diff, fresh-state verification, and read-back:
+
+```powershell
 node scripts/backup-play-metadata.mjs --output 'C:\private\play-before-operation.json'
 (Get-FileHash 'C:\private\play-before-operation.json' -Algorithm SHA256).Hash.ToLowerInvariant()
-
-# Read-only diff
 node scripts/diff-play-metadata.mjs --backup 'C:\private\play-before-operation.json' --expected-root $PWD.Path
+node scripts/verify-play-backup-current.mjs --backup 'C:\private\play-before-operation.json'
+node scripts/readback-play-metadata.mjs --expected-root $PWD.Path
+```
 
-# Publication apply: only after a clean diff and exact confirmation.
+Publication apply:
+
+```powershell
 $env:ENABLE_METADATA_PUBLISH = 'true'
-node scripts/publish-play-metadata.mjs --backup 'C:\private\play-before-operation.json' --confirmation 'PUBLISH_TR_EN_METADATA_<exact-backup-sha-prefix>'
-Remove-Item Env:ENABLE_METADATA_PUBLISH
+try {
+  node scripts/publish-play-metadata.mjs --backup 'C:\private\play-before-operation.json' --confirmation 'PUBLISH_TR_EN_METADATA_<exact-backup-sha-prefix>'
+} finally {
+  Remove-Item Env:ENABLE_METADATA_PUBLISH -ErrorAction SilentlyContinue
+}
+```
 
-# Locale cleanup dry-run stays ungated.
+Locale cleanup dry-run remains read-only:
+
+```powershell
 node scripts/cleanup-play-locales.mjs --backup 'C:\private\fresh-pre-cleanup-backup.json'
+```
 
-# Locale cleanup apply.
+Locale cleanup apply:
+
+```powershell
 $env:ENABLE_METADATA_PUBLISH = 'true'
-node scripts/cleanup-play-locales.mjs --backup 'C:\private\fresh-pre-cleanup-backup.json' --backup-sha256 '<exact-64-character-backup-sha256>' --state-digest '<exact-64-character-live-state-sha256>' --removal-count '<exact-count>' --confirmation 'REMOVE_<exact-count>_UNSUPPORTED_PLAY_LOCALES_<exact-state-prefix>'
-Remove-Item Env:ENABLE_METADATA_PUBLISH
+try {
+  node scripts/cleanup-play-locales.mjs --backup 'C:\private\fresh-pre-cleanup-backup.json' --backup-sha256 '<exact-64-character-backup-sha256>' --state-digest '<exact-64-character-live-state-sha256>' --removal-count '<exact-count>' --confirmation 'REMOVE_<exact-count>_UNSUPPORTED_PLAY_LOCALES_<exact-state-prefix>'
+} finally {
+  Remove-Item Env:ENABLE_METADATA_PUBLISH -ErrorAction SilentlyContinue
+}
+```
 
-# Restore dry-run stays ungated; apply requires the exact backup-derived confirmation.
+Restore dry-run remains read-only:
+
+```powershell
 node scripts/restore-play-metadata.mjs --backup 'C:\private\play-backup.json'
+```
+
+Restore apply:
+
+```powershell
 $env:ENABLE_METADATA_PUBLISH = 'true'
-node scripts/restore-play-metadata.mjs --backup 'C:\private\play-backup.json' --confirmation 'RESTORE_PLAY_METADATA_<exact-backup-sha-prefix>'
-Remove-Item Env:ENABLE_METADATA_PUBLISH
+try {
+  node scripts/restore-play-metadata.mjs --backup 'C:\private\play-backup.json' --confirmation 'RESTORE_PLAY_METADATA_<exact-backup-sha-prefix>'
+} finally {
+  Remove-Item Env:ENABLE_METADATA_PUBLISH -ErrorAction SilentlyContinue
+}
 ```
 
 Never persist the service-account JSON in the repository or PowerShell history. Prefer the guarded GitHub workflow over direct operator apply.

@@ -9,7 +9,9 @@ Canonical repository and Git identity:
 ```text
 repository: MakerParsDev/Astroloji
 branch: feat/global-play-store-optimization-20260806
-verified base implementation HEAD: 955f6146d55bb0f3be0d666fad553cafcc73b57d
+final verification tree: cd1ce0a46b17187f4d745f52f21c0e69cf4ed3ab
+verification tree parent: 164fb24ce01d8c3c303a9517aaec74f209e3ef06
+base implementation ancestor: 955f6146d55bb0f3be0d666fad553cafcc73b57d
 author/committer account: MakerParsDev
 origin: https://github.com/MakerParsDev/Astroloji.git
 ```
@@ -41,7 +43,7 @@ No alternate GitHub account is used as a push, commit, fork, or PR identity for 
 
 ## Final local repository verification
 
-Fresh verification on the final implementation tree:
+Fresh verification on the exact `cd1ce0a46b17187f4d745f52f21c0e69cf4ed3ab` tree recorded above. The follow-up review-round changes after that tree are documentation/test-strengthening only and are revalidated separately before push:
 
 - `node --test scripts/*.test.mjs`: **214/214 passed**.
 - `node scripts/validate-play-metadata.mjs`: passed for exactly `en-US` and `tr-TR`.

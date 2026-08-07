@@ -488,11 +488,18 @@ test('restore requires independent read-back before creating an edit', async () 
   assert.equal(client.calls.length, 0);
 });
 
-test('restore applies a bounded timeout to backup image downloads', async () => {
+test('restore applies a bounded timeout to backup image downloads', async (t) => {
   const backup = backupFixture();
   const backupDigest = digest(backup);
   const client = fakeClient();
   const signals = [];
+  const timeoutValues = [];
+  const originalTimeout = AbortSignal.timeout;
+  AbortSignal.timeout = (value) => {
+    timeoutValues.push(value);
+    return originalTimeout(value);
+  };
+  t.after(() => { AbortSignal.timeout = originalTimeout; });
   const fetchImpl = async (url, options = {}) => {
     signals.push(options.signal);
     return {
@@ -512,6 +519,7 @@ test('restore applies a bounded timeout to backup image downloads', async () => 
   });
   assert.equal(signals.length, 3);
   assert.ok(signals.every((signal) => signal instanceof AbortSignal));
+  assert.deepEqual(timeoutValues, [1234, 1234, 1234]);
 });
 
 test('edit abandonment failure does not mask the original publication error', async () => {
