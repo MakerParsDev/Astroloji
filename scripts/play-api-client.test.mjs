@@ -60,9 +60,10 @@ test('Play client exchanges JWT and exposes bounded Android Publisher methods', 
     throw new Error(`Unexpected request: ${init.method ?? 'GET'} ${url}`);
   };
 
+  const credentials = credentialsFile();
   const client = createPlayClient({
     packageName: 'com.parsfilo.astrology',
-    credentialsPath: credentialsFile(),
+    credentialsPath: credentials,
     fetchImpl,
   });
 
@@ -73,7 +74,7 @@ test('Play client exchanges JWT and exposes bounded Android Publisher methods', 
   assert.deepEqual(await client.deleteAllImages('edit-1', 'en-US', 'phoneScreenshots'), {
     deleted: [{ id: 'old-image' }],
   });
-  const imagePath = path.join(path.dirname(credentialsFile()), 'upload.png');
+  const imagePath = path.join(path.dirname(credentials), 'upload.png');
   fs.writeFileSync(imagePath, Buffer.from('png-bytes'));
   assert.deepEqual(await client.uploadImage('edit-1', 'en-US', 'phoneScreenshots', imagePath), {
     id: 'uploaded-image',
@@ -106,7 +107,7 @@ test('Play client error messages omit bearer tokens and private keys', async () 
     if (String(url) === 'https://oauth2.googleapis.com/token') {
       return response(200, { access_token: 'secret-token-that-must-not-leak' });
     }
-    return response(403, { error: { message: 'forbidden' } });
+    return response(403, { error: { status: 'PERMISSION_DENIED', message: 'forbidden operator@example.invalid' } });
   };
   const client = createPlayClient({
     packageName: 'com.parsfilo.astrology',
@@ -117,7 +118,8 @@ test('Play client error messages omit bearer tokens and private keys', async () 
     client.createEdit(),
     (error) => {
       assert.match(error.message, /403/);
-      assert.doesNotMatch(error.message, /secret-token-that-must-not-leak|PRIVATE KEY/);
+      assert.match(error.message, /PERMISSION_DENIED/);
+      assert.doesNotMatch(error.message, /forbidden operator@example\.invalid|secret-token-that-must-not-leak|PRIVATE KEY/);
       return true;
     },
   );
@@ -172,4 +174,45 @@ test('subscription listing follows nextPageToken pagination', async () => {
     { productId: 'premium_weekly' },
   ]);
   assert.ok(calls.some((url) => url.includes('pageToken=page-2')));
+});
+
+
+test('subscription pagination rejects a repeated nextPageToken', async () => {
+  const fetchImpl = async (url) => {
+    if (String(url) === 'https://oauth2.googleapis.com/token') return response(200, { access_token: 'token' });
+    const parsed = new URL(String(url));
+    if (parsed.pathname.endsWith('/subscriptions')) {
+      return response(200, { subscriptions: [{ productId: 'premium_monthly' }], nextPageToken: 'loop' });
+    }
+    throw new Error(`Unexpected request ${url}`);
+  };
+  const client = createPlayClient({ packageName: 'com.parsfilo.astrology', credentialsPath: credentialsFile(), fetchImpl });
+  await assert.rejects(client.listSubscriptions(), /repeated.*page token/i);
+});
+
+test('Play client caches access tokens until the refresh window', async () => {
+  let currentMillis = 1_000_000;
+  let tokenExchanges = 0;
+  const fetchImpl = async (url, init = {}) => {
+    if (String(url) === 'https://oauth2.googleapis.com/token') {
+      tokenExchanges += 1;
+      return response(200, { access_token: `token-${tokenExchanges}`, expires_in: 120 });
+    }
+    const pathname = new URL(String(url)).pathname;
+    if (pathname.endsWith('/edits') && (init.method ?? 'GET') === 'POST') return response(200, { id: 'edit' });
+    throw new Error(`Unexpected request ${url}`);
+  };
+  const client = createPlayClient({
+    packageName: 'com.parsfilo.astrology',
+    credentialsPath: credentialsFile(),
+    fetchImpl,
+    now: () => currentMillis,
+  });
+  await client.createEdit();
+  currentMillis += 30_000;
+  await client.createEdit();
+  assert.equal(tokenExchanges, 1);
+  currentMillis += 31_000;
+  await client.createEdit();
+  assert.equal(tokenExchanges, 2);
 });

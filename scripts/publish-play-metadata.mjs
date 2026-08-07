@@ -3,9 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPlayClient } from './lib/play-api-client.mjs';
+import { capturePlayBackup } from './lib/play-backup.mjs';
 import { loadCanonicalPlayState } from './lib/play-diff.mjs';
 import { selectRelevantRelease } from './lib/play-release.mjs';
 import {
+  assertBackupMatchesLiveState,
   backupConfirmation,
   publishPreparedMetadata,
   readBackupFile,
@@ -27,8 +29,18 @@ function readTrimmed(filePath) {
   return fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n').trim();
 }
 
-export function releaseNotesMutation(releaseNotesRoot, releaseNotesTrack, supportedLocales) {
-  if (!releaseNotesTrack || !fs.existsSync(releaseNotesRoot)) return async () => {};
+export function releaseNotesMutation(
+  releaseNotesRoot,
+  releaseNotesTrack,
+  supportedLocales,
+  log = console.log,
+) {
+  if (!releaseNotesTrack) {
+    return async () => log('Release notes skipped: PLAY_METADATA_TRACK is not set.');
+  }
+  if (!fs.existsSync(releaseNotesRoot)) {
+    return async () => log(`Release notes skipped: release-note root does not exist: ${releaseNotesRoot}`);
+  }
   const supported = new Set(supportedLocales ?? []);
   const releaseNotes = readLocaleFiles(releaseNotesRoot)
     .filter(({ locale }) => supported.has(locale))
@@ -37,7 +49,10 @@ export function releaseNotesMutation(releaseNotesRoot, releaseNotesTrack, suppor
       text: readTrimmed(path.join(localePath, 'default.txt')),
     }));
   return async (client, editId) => {
-    if (releaseNotes.length === 0) return;
+    if (releaseNotes.length === 0) {
+      log('Release notes skipped: no supported locale release notes were found.');
+      return;
+    }
     const track = await client.getTrack(editId, releaseNotesTrack);
     if (!track.releases?.length) {
       throw new Error(`Track '${releaseNotesTrack}' has no releases to attach release notes to.`);
@@ -58,10 +73,6 @@ export async function publishPlayMetadata({
   packageName = process.env.PLAY_PACKAGE_NAME,
   credentialsPath = process.env.PLAY_SERVICE_ACCOUNT_JSON_PATH,
   repositoryRoot = process.cwd(),
-  metadataRoot = path.resolve(
-    repositoryRoot,
-    process.env.PLAY_METADATA_ROOT ?? path.join('Astroloji', 'play'),
-  ),
   backupPath = argument('backup') ?? process.env.PLAY_METADATA_BACKUP_PATH,
   confirmation = argument('confirmation') ?? process.env.PLAY_METADATA_CONFIRMATION,
   maxAgeMinutes = Number(
@@ -74,15 +85,12 @@ export async function publishPlayMetadata({
   fetchImpl = fetch,
   client: injectedClient,
   independentReadback,
+  captureCurrentState = (playClient, options) => capturePlayBackup(playClient, options),
   now = new Date(),
 } = {}) {
   if (!backupPath) throw new Error('Provide a fresh backup with --backup=<absolute-path>.');
   const resolvedRepositoryRoot = path.resolve(repositoryRoot);
-  const resolvedMetadataRoot = path.resolve(metadataRoot);
-  const expectedMetadataRoot = path.join(resolvedRepositoryRoot, 'Astroloji', 'play');
-  if (resolvedMetadataRoot !== expectedMetadataRoot) {
-    throw new Error(`Metadata root must be canonical: ${expectedMetadataRoot}`);
-  }
+  const resolvedMetadataRoot = path.join(resolvedRepositoryRoot, 'Astroloji', 'play');
 
   const { backup, backupDigest } = readBackupFile(path.resolve(backupPath));
   const expectedConfirmation = backupConfirmation(backupDigest);
@@ -92,6 +100,8 @@ export async function publishPlayMetadata({
 
   const proposed = loadCanonicalPlayState(resolvedRepositoryRoot);
   const client = injectedClient ?? createPlayClient({ packageName, credentialsPath, fetchImpl });
+  const current = await captureCurrentState(client, { defaultLocale: backup.defaultLocale });
+  assertBackupMatchesLiveState(backup, current);
   const result = await publishPreparedMetadata({
     client,
     backup,

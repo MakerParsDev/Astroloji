@@ -111,3 +111,26 @@ test('final job dynamically verifies the repository gate returned to false with 
 test('workflow does not defer Play review by default', () => {
   assert.doesNotMatch(workflow, /PLAY_CHANGES_NOT_SENT_FOR_REVIEW:\s*['"]?true['"]?/);
 });
+
+
+test('metadata workflow installs a pinned checksum-verified Doppler CLI without exposing the token', () => {
+  const installSteps = [...workflow.matchAll(/- name: Install pinned Doppler CLI[\s\S]*?(?=\n      - name:)/g)].map((match) => match[0]);
+  assert.equal(installSteps.length, 2);
+  for (const step of installSteps) {
+    assert.match(step, /DOPPLER_VERSION:\s*3\.76\.1/);
+    assert.match(step, /DOPPLER_SHA256:\s*e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2/);
+    assert.match(step, /github\.com\/DopplerHQ\/cli\/releases\/download/);
+    assert.match(step, /sha256sum --check/);
+    assert.doesNotMatch(step, /DOPPLER_TOKEN/);
+  }
+});
+
+
+test('workflow verifies approved backup against fresh live Play state immediately before publication', () => {
+  const block = jobBlock('play-mutation', 'verify-metadata-gate-closed');
+  assert.match(block, /Verify approved backup still matches live Play state/);
+  assert.match(block, /verify-play-backup-current\.mjs/);
+  const verifyIndex = block.indexOf('verify-play-backup-current.mjs');
+  const publishIndex = block.indexOf('publish-play-metadata.mjs');
+  assert.ok(verifyIndex >= 0 && publishIndex > verifyIndex, 'Fresh live-state verification must run before publication.');
+});

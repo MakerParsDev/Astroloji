@@ -55,3 +55,17 @@ test('store config binds shared assets to the Turkish default listing', () => {
   assert.equal(config.defaultLocale, 'tr-TR');
   assert.ok(config.locales.includes(config.defaultLocale));
 });
+
+
+test('duplicate Play locale mappings are rejected', () => {
+  assert.throws(
+    () => assertLocaleContract(
+      {
+        locales: ['en-US'],
+        androidLocaleMap: { en: 'en-US', 'en-GB': 'en-US' },
+      },
+      ['en', 'en-GB'],
+    ),
+    /Duplicate Play locale mapping: en-US/,
+  );
+});

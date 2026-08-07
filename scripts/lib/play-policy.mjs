@@ -11,16 +11,32 @@ const activeProviders = [
   'Cloudflare',
 ];
 
-const requiredAnswerLines = [
-  'Account deletion: Supported',
-  'Ads: Yes',
-  'Purchases: Google Play subscriptions',
-  'Data deletion request: Available in app',
-  'Optional date of birth: Collected ephemerally for app functionality',
+const requiredAnswers = [
+  ['Account deletion', 'Supported'],
+  ['Ads', 'Yes'],
+  ['Purchases', 'Google Play subscriptions'],
+  ['Data deletion request', 'Available in app'],
+  ['Optional date of birth', 'Collected ephemerally for app functionality'],
 ];
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+
+function answerValues(markdown) {
+  const values = new Map();
+  for (const line of markdown.split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:[-*]\s*)?([^|:\n]+?)\s*:\s*(.+?)\s*$/u);
+    if (!match) continue;
+    const field = match[1].trim();
+    const value = match[2].trim();
+    const key = field.toLocaleLowerCase('en-US');
+    const existing = values.get(key) ?? { field, values: [] };
+    existing.values.push(value);
+    values.set(key, existing);
+  }
+  return values;
 }
 
 function hasTableValue(markdown, field, value) {
@@ -47,9 +63,20 @@ export function validatePolicyAnswerSet(markdown, storeConfig, matrixMarkdown) {
     }
   }
 
-  for (const requiredLine of requiredAnswerLines) {
-    if (!markdown.toLowerCase().includes(requiredLine.toLowerCase())) {
-      errors.push(`Policy answer set is missing: ${requiredLine}`);
+  const parsedAnswers = answerValues(markdown);
+  for (const [field, expectedValue] of requiredAnswers) {
+    const entry = parsedAnswers.get(field.toLocaleLowerCase('en-US'));
+    if (!entry) {
+      errors.push(`Policy answer set is missing: ${field}: ${expectedValue}`);
+      continue;
+    }
+    const distinct = [...new Set(entry.values.map((value) => value.toLocaleLowerCase('en-US')))];
+    if (distinct.length > 1) {
+      errors.push(`Policy answer set has conflicting values for ${field}: ${entry.values.join(' | ')}`);
+      continue;
+    }
+    if (entry.values[0].toLocaleLowerCase('en-US') !== expectedValue.toLocaleLowerCase('en-US')) {
+      errors.push(`Policy answer set ${field} must be: ${expectedValue}`);
     }
   }
 

@@ -18,8 +18,9 @@ function metadataFixture() {
   return root;
 }
 
-test('metadata validator fails when canonical release-notes root is absent', () => {
+test('metadata validator fails when canonical release-notes root is absent', (t) => {
   const root = metadataFixture();
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.rmSync(path.join(root, 'Astroloji/play/release-notes'), { recursive: true, force: true });
   const result = spawnSync(process.execPath, ['scripts/validate-play-metadata.mjs'], {
     cwd: root,

@@ -24,6 +24,12 @@ export function assertLocaleContract(config, androidLocales) {
   }
 
   const mapped = androidLocales.map((locale) => config.androidLocaleMap[locale]).sort();
+  const duplicateMappings = mapped.filter(
+    (locale, index) => index > 0 && locale === mapped[index - 1],
+  );
+  if (duplicateMappings.length) {
+    throw new Error(`Duplicate Play locale mapping: ${[...new Set(duplicateMappings)].join(', ')}`);
+  }
   const proposed = [...config.locales].sort();
   const unsupported = proposed.filter((locale) => !mapped.includes(locale));
   const missing = mapped.filter((locale) => !proposed.includes(locale));

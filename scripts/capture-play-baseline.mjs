@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cliArgument } from './lib/cli-arguments.mjs';
 
 const SECTION_KEYS = {
   play: ['productionRolloutFraction', 'ratings', 'reviews'],
@@ -11,6 +12,11 @@ const SECTION_KEYS = {
 };
 
 const IDENTITY_KEY_PATTERN = /(account.*email|email|user.?id|device.?id|advertising.?id|gaid|tester|client.?id|publisher.?id)/i;
+const IDENTITY_VALUE_PATTERN = /(?:[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:account|user|device|client|publisher)[-_ ]?id\s*[:=])/i;
+
+function containsIdentifier(value) {
+  return IDENTITY_VALUE_PATTERN.test(String(value ?? ''));
+}
 
 export function metric(value, source) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -19,7 +25,11 @@ export function metric(value, source) {
   if (!source || !String(source).trim()) {
     throw new Error('Measured metric source is required.');
   }
-  return { value, source: String(source).trim() };
+  const normalizedSource = String(source).trim();
+  if (containsIdentifier(normalizedSource)) {
+    throw new Error('Measured metric source must be redacted and contain no identifiers or e-mail addresses.');
+  }
+  return { value, source: normalizedSource };
 }
 
 export function unavailableMetric(reason) {
@@ -114,7 +124,11 @@ export function validateBaseline(baseline) {
         if (typeof item.value !== 'number' || !Number.isFinite(item.value)) {
           errors.push(`${label} measured value must be a finite number.`);
         }
-        if (!String(item.source ?? '').trim()) errors.push(`${label} measured metric source is required.`);
+        if (!String(item.source ?? '').trim()) {
+          errors.push(`${label} measured metric source is required.`);
+        } else if (containsIdentifier(item.source)) {
+          errors.push(`${label} measured metric source contains an identifier or e-mail address.`);
+        }
       }
     }
   }
@@ -126,17 +140,6 @@ export function validateBaseline(baseline) {
 
   errors.push(...findIdentityKeys(baseline));
   return errors;
-}
-
-function parseArgs(argv) {
-  const args = {};
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index];
-    if (!token.startsWith('--')) continue;
-    args[token.slice(2)] = argv[index + 1];
-    index += 1;
-  }
-  return args;
 }
 
 export function writeBaselineFile({ inputPath, outputPath }) {
@@ -152,8 +155,11 @@ export function writeBaselineFile({ inputPath, outputPath }) {
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
 if (invokedPath === fileURLToPath(import.meta.url)) {
   try {
-    const args = parseArgs(process.argv.slice(2));
-    const baseline = writeBaselineFile({ inputPath: args.input, outputPath: args.output });
+    const argv = process.argv.slice(2);
+    const baseline = writeBaselineFile({
+      inputPath: cliArgument('input', argv),
+      outputPath: cliArgument('output', argv),
+    });
     console.log(`Play store baseline written for ${baseline.window.start}..${baseline.window.end}.`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

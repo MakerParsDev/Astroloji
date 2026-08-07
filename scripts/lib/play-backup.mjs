@@ -1,3 +1,4 @@
+import { abandonEdit } from './play-edit.mjs';
 import { releaseRolloutFraction } from './play-release.mjs';
 const IMAGE_TYPES = ['icon', 'featureGraphic', 'phoneScreenshots'];
 const TRACKS = ['production', 'internal'];
@@ -107,7 +108,7 @@ export async function capturePlayBackup(
       subscriptions,
     };
   } finally {
-    await client.deleteEdit(edit.id);
+    await abandonEdit(client, edit.id);
   }
 }
 

@@ -38,15 +38,22 @@ function createAssertion(credentials, nowSeconds) {
 
 async function parseJsonResponse(response, context) {
   const text = await response.text();
+  let parsed;
+  if (text) {
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      if (response.ok) throw new Error(`${context} returned invalid JSON.`);
+    }
+  }
   if (!response.ok) {
-    throw new Error(`${context} failed (${response.status} ${response.statusText}).`);
+    const errorStatus = parsed?.error?.status;
+    const safeStatus = /^[A-Z][A-Z0-9_]{1,63}$/.test(String(errorStatus ?? ''))
+      ? `; ${errorStatus}`
+      : '';
+    throw new Error(`${context} failed (${response.status} ${response.statusText}${safeStatus}).`);
   }
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(`${context} returned invalid JSON.`);
-  }
+  return parsed ?? {};
 }
 
 export function createPlayClient({ packageName, credentialsPath, fetchImpl = fetch, now = Date.now, requestTimeoutMs = 30_000, uploadTimeoutMs = 120_000 }) {
@@ -161,8 +168,15 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
       }),
     async listSubscriptions() {
       const subscriptions = [];
+      const seenPageTokens = new Set();
       let pageToken;
       do {
+        if (pageToken) {
+          if (seenPageTokens.has(pageToken)) {
+            throw new Error(`Google Play subscriptions pagination returned a repeated page token: ${pageToken}.`);
+          }
+          seenPageTokens.add(pageToken);
+        }
         const query = pageToken ? `?pageToken=${encodeURIComponent(pageToken)}` : '';
         const body = await request(`/subscriptions${query}`);
         subscriptions.push(...(body.subscriptions ?? []));

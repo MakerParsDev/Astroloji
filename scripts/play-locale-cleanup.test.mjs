@@ -196,3 +196,54 @@ test('execute cleanup rejects wrong confirmation before creating an edit', async
   );
   assert.equal(creates, 0);
 });
+
+
+function cleanupClient(current, { initialExtraLocale = null, keepLocale = null } = {}) {
+  const calls = [];
+  let editLocales = current.listings.map((listing) => listing.locale);
+  let listCalls = 0;
+  return {
+    calls,
+    packageName: current.packageName,
+    async createEdit() { calls.push(['createEdit']); return { id: 'cleanup-edit' }; },
+    async listListings() {
+      listCalls += 1;
+      const values = listCalls === 1 && initialExtraLocale ? [...editLocales, initialExtraLocale] : editLocales;
+      return values.map((language) => ({ language }));
+    },
+    async getListing(_editId, locale) { return current.listings.find((listing) => listing.locale === locale); },
+    async deleteListing(editId, locale) {
+      calls.push(['deleteListing', editId, locale]);
+      if (locale !== keepLocale) editLocales = editLocales.filter((value) => value !== locale);
+      return {};
+    },
+    async commitEdit(editId) { calls.push(['commitEdit', editId]); return {}; },
+    async deleteEdit(editId) { calls.push(['deleteEdit', editId]); return {}; },
+  };
+}
+
+test('cleanup abandons edit when the listing set changed after planning', async () => {
+  const current = backupFixture();
+  const plan = buildValidPlan();
+  const client = cleanupClient(current, { initialExtraLocale: 'it-IT' });
+  await assert.rejects(executeLocaleCleanup({ client, current, plan, confirmation: plan.confirmation, independentReadback: async () => [] }), /listing set differs/i);
+  assert.ok(client.calls.some((call) => call[0] === 'deleteEdit'));
+  assert.ok(!client.calls.some((call) => call[0] === 'commitEdit'));
+});
+
+test('cleanup abandons edit when deletion does not leave exactly supported locales', async () => {
+  const current = backupFixture();
+  const plan = buildValidPlan();
+  const client = cleanupClient(current, { keepLocale: 'fr-FR' });
+  await assert.rejects(executeLocaleCleanup({ client, current, plan, confirmation: plan.confirmation, independentReadback: async () => [] }), /exactly supported locales/i);
+  assert.ok(client.calls.some((call) => call[0] === 'deleteEdit'));
+  assert.ok(!client.calls.some((call) => call[0] === 'commitEdit'));
+});
+
+test('cleanup reports independent read-back errors after commit', async () => {
+  const current = backupFixture();
+  const plan = buildValidPlan();
+  const client = cleanupClient(current);
+  await assert.rejects(executeLocaleCleanup({ client, current, plan, confirmation: plan.confirmation, independentReadback: async () => ['locale drift'] }), /Post-cleanup Play read-back failed.*locale drift/i);
+  assert.ok(client.calls.some((call) => call[0] === 'commitEdit'));
+});

@@ -9,20 +9,28 @@ import { loadStoreConfig } from './lib/play-store-config.mjs';
 import { releaseRolloutFraction } from './lib/play-release.mjs';
 
 
+function isWithin(rootPath, candidatePath) {
+  const relative = path.relative(rootPath, candidatePath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
 function assertSafeOutputPath(outputPath, repositoryRoot = process.cwd()) {
   if (!outputPath) {
     throw new Error('Provide an absolute output path with --output.');
   }
-  const resolved = path.resolve(outputPath);
   if (!path.isAbsolute(outputPath)) {
     throw new Error('Play backup output path must be absolute.');
   }
-  const resolvedRepository = path.resolve(repositoryRoot);
-  const relative = path.relative(resolvedRepository, resolved);
-  if (relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))) {
+  const resolved = path.resolve(outputPath);
+  const outputDirectory = path.dirname(resolved);
+  fs.mkdirSync(outputDirectory, { recursive: true, mode: 0o700 });
+  const physicalRepository = fs.realpathSync.native(path.resolve(repositoryRoot));
+  const physicalParent = fs.realpathSync.native(outputDirectory);
+  const physicalOutput = path.join(physicalParent, path.basename(resolved));
+  if (isWithin(physicalRepository, physicalOutput)) {
     throw new Error('Play backup output path must be outside the repository.');
   }
-  return resolved;
+  return physicalOutput;
 }
 
 export async function runBackupCli({

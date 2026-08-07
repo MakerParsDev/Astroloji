@@ -49,3 +49,10 @@ test('validator requires every active provider', () => {
   const errors = validatePolicyAnswerSet(withoutCrashlytics, storeConfig, matrix);
   assert.ok(errors.some((error) => /Firebase Crashlytics/iu.test(error)));
 });
+
+
+test('validator rejects contradictory policy field values', () => {
+  const contradictory = `${answerSet}\nAds: No\nNote: required answer example Ads: Yes`;
+  const errors = validatePolicyAnswerSet(contradictory, storeConfig, matrix);
+  assert.ok(errors.some((error) => /Ads.*conflict|conflicting.*Ads/i.test(error)));
+});

@@ -162,3 +162,19 @@ test('baseline rejects normalized impossible calendar dates', () => {
   });
   assert.ok(validateBaseline(invalid).some((error) => /window start\/end/i.test(error)));
 });
+
+
+test('baseline rejects identifier-bearing metric source strings', () => {
+  assert.throws(
+    () => metric(1, 'report for alice@example.invalid'),
+    /identifier|email|redact/i,
+  );
+  const baseline = buildPlayBaseline({
+    collectedAt: '2026-08-07T04:10:00.000Z',
+    window,
+    play: { productionRolloutFraction: metric(1, 'Google Play API') },
+    stability: {}, analytics: {}, subscriptions: {}, ads: {},
+  });
+  baseline.play.productionRolloutFraction.source = 'alice@example.invalid';
+  assert.ok(validateBaseline(baseline).some((error) => /identifier|email|redact/i.test(error)));
+});

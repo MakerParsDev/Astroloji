@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPlayClient } from './lib/play-api-client.mjs';
 import { capturePlayBackup } from './lib/play-backup.mjs';
+import { abandonEdit } from './lib/play-edit.mjs';
 import {
   computePlayStateDigest,
   releaseRolloutFraction,
@@ -192,21 +193,21 @@ export async function executeLocaleCleanup({
     }
     return { editId: edit.id, removedLocales: plan.localesToRemove };
   } finally {
-    if (!committed) await client.deleteEdit(edit.id);
+    if (!committed) await abandonEdit(client, edit.id);
   }
 }
 
 
-function verifyCleanupReadback(current, supportedLocales, expectedRolloutFraction) {
+function verifyCleanupReadback(afterCleanup, supportedLocales, expectedRolloutFraction) {
   return async (plan) => {
     const errors = [];
-    const liveLocales = sortedLocales(current);
+    const liveLocales = sortedLocales(afterCleanup);
     if (!sameArray(liveLocales, supportedLocales)) {
       errors.push(
         `Live locales after cleanup are ${liveLocales.join(', ')}, expected ${supportedLocales.join(', ')}.`,
       );
     }
-    const rollout = releaseRolloutFraction(current.tracks?.production);
+    const rollout = releaseRolloutFraction(afterCleanup.tracks?.production);
     if (rollout !== expectedRolloutFraction) {
       errors.push(`Production rollout changed after cleanup: ${String(rollout)}.`);
     }

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  assertBackupMatchesLiveState,
   assertFreshBackup,
   backupConfirmation,
   publishPreparedMetadata,
@@ -255,6 +256,7 @@ test('restore reconstructs listing text and backed-up images in a new edit', asy
     backupDigest,
     confirmation: restoreConfirmation(backupDigest),
     fetchImpl,
+    independentReadback: async () => [],
   });
   assert.equal(fetched.length, 3);
   assert.ok(client.calls.some((call) => call[0] === 'commitEdit'));
@@ -373,7 +375,7 @@ test('restore rejects backups that omit explicit default locale or valid image s
   assert.equal(client.calls.length, 0);
 });
 
-test('edit-local verification rejects missing or malformed image sha256 values', async () => {
+test('publication preflight rejects missing or malformed proposed image sha256 values', async () => {
   const proposed = proposedFixture();
   const backup = backupFixture();
   const backupDigest = digest(backup);
@@ -397,6 +399,35 @@ test('edit-local verification rejects missing or malformed image sha256 values',
     }),
     /valid sha-256/i,
   );
+});
+
+
+
+test('edit-local verification rejects malformed uploaded image sha256 and abandons the edit', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  const originalListImages = client.listImages;
+  client.listImages = async (...args) => {
+    const images = await originalListImages(...args);
+    if (images.length > 0) return [{ ...images[0], sha256: '' }, ...images.slice(1)];
+    return images;
+  };
+  await assert.rejects(
+    publishPreparedMetadata({
+      client,
+      backup,
+      backupDigest,
+      confirmation: backupConfirmation(backupDigest),
+      proposed,
+      now: new Date('2026-08-06T15:10:00.000Z'),
+      independentReadback: async () => [],
+    }),
+    /valid sha-256|image checksum/i,
+  );
+  assert.ok(client.calls.some((call) => call[0] === 'deleteEdit'));
+  assert.ok(!client.calls.some((call) => call[0] === 'commitEdit'));
 });
 
 test('release-note mutation filters supported locales and targets selected staged release', async () => {
@@ -437,4 +468,123 @@ test('restore CLI refuses legacy backup before presenting an actionable confirma
   const backupPath = path.join(dir, 'backup.json');
   fs.writeFileSync(backupPath, JSON.stringify(backup));
   await assert.rejects(runRestoreCli({ backupPath }), /defaultLocale/i);
+});
+
+
+test('restore requires independent read-back before creating an edit', async () => {
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  await assert.rejects(
+    restorePreparedMetadata({
+      client,
+      backup,
+      backupDigest,
+      confirmation: restoreConfirmation(backupDigest),
+      fetchImpl: async () => ({ ok: true, async arrayBuffer() { return new ArrayBuffer(0); } }),
+    }),
+    /requires an independent read-back/i,
+  );
+  assert.equal(client.calls.length, 0);
+});
+
+test('restore applies a bounded timeout to backup image downloads', async () => {
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  const signals = [];
+  const fetchImpl = async (url, options = {}) => {
+    signals.push(options.signal);
+    return {
+      ok: true,
+      status: 200,
+      async arrayBuffer() { return Uint8Array.from(Buffer.from(`downloaded:${url}`)).buffer; },
+    };
+  };
+  await restorePreparedMetadata({
+    client,
+    backup,
+    backupDigest,
+    confirmation: restoreConfirmation(backupDigest),
+    fetchImpl,
+    imageDownloadTimeoutMs: 1234,
+    independentReadback: async () => [],
+  });
+  assert.equal(signals.length, 3);
+  assert.ok(signals.every((signal) => signal instanceof AbortSignal));
+});
+
+test('edit abandonment failure does not mask the original publication error', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient({ failUploadAt: 2 });
+  client.deleteEdit = async () => { throw new Error('cleanup failure'); };
+  await assert.rejects(
+    publishPreparedMetadata({
+      client,
+      backup,
+      backupDigest,
+      confirmation: backupConfirmation(backupDigest),
+      proposed,
+      now: new Date('2026-08-06T15:10:00.000Z'),
+      independentReadback: async () => [],
+    }),
+    /simulated image upload failure/,
+  );
+});
+
+
+test('approved backup state digest must match fresh live state', () => {
+  const backup = backupFixture();
+  const current = structuredClone(backup);
+  current.capturedAt = '2026-08-06T15:05:00.000Z';
+  assert.doesNotThrow(() => assertBackupMatchesLiveState(backup, current));
+  current.listings[0].title = 'Concurrent Play Console change';
+  assert.throws(
+    () => assertBackupMatchesLiveState(backup, current),
+    /live Play state changed since the approved backup/i,
+  );
+});
+
+test('publisher CLI rejects fresh live-state drift before opening a mutation edit', async () => {
+  const { publishPlayMetadata } = await import('./publish-play-metadata.mjs');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'play-publisher-live-guard-'));
+  const backup = backupFixture();
+  const backupPath = path.join(directory, 'backup.json');
+  fs.writeFileSync(backupPath, `${JSON.stringify(backup, null, 2)}
+`);
+  const client = fakeClient();
+  const current = structuredClone(backup);
+  current.listings[0].shortDescription = 'Concurrent change';
+  await assert.rejects(
+    publishPlayMetadata({
+      repositoryRoot: process.cwd(),
+      backupPath,
+      confirmation: backupConfirmation(crypto.createHash('sha256').update(fs.readFileSync(backupPath)).digest('hex')),
+      client,
+      captureCurrentState: async () => current,
+      now: new Date('2026-08-06T15:10:00.000Z'),
+    }),
+    /live Play state changed since the approved backup/i,
+  );
+  assert.equal(client.calls.length, 0);
+});
+
+
+test('release-note mutation logs why publication is skipped', async () => {
+  const { releaseNotesMutation } = await import('./publish-play-metadata.mjs');
+  const logs = [];
+  const missingTrack = releaseNotesMutation('/does/not/matter', '', ['en-US', 'tr-TR'], (message) => logs.push(message));
+  await missingTrack({}, 'edit');
+  assert.match(logs.shift(), /PLAY_METADATA_TRACK.*not set/i);
+  const missingRoot = releaseNotesMutation('/definitely/missing/release-notes', 'production', ['en-US'], (message) => logs.push(message));
+  await missingRoot({}, 'edit');
+  assert.match(logs.shift(), /release-note.*does not exist/i);
+});
+
+test('publisher uses only the canonical metadata root and exposes no environment override', async () => {
+  const source = fs.readFileSync('scripts/publish-play-metadata.mjs', 'utf8');
+  assert.doesNotMatch(source, /PLAY_METADATA_ROOT/);
+  assert.match(source, /path\.join\(resolvedRepositoryRoot, 'Astroloji', 'play'\)/);
 });

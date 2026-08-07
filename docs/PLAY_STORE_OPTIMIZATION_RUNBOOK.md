@@ -94,6 +94,7 @@ The command writes `/absolute/private/play-backup.json.diff.json` with mode `060
 The publication command must not be run until the dry-run has no blockers:
 
 ```bash
+ENABLE_METADATA_PUBLISH=true \
 PLAY_PACKAGE_NAME=com.parsfilo.astrology \
 PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
 node scripts/publish-play-metadata.mjs \
@@ -126,6 +127,7 @@ REQUIRED CONFIRMATION
 Apply only by copying all four values exactly:
 
 ```bash
+ENABLE_METADATA_PUBLISH=true \
 PLAY_PACKAGE_NAME=com.parsfilo.astrology \
 PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
 node scripts/cleanup-play-locales.mjs \
@@ -162,6 +164,7 @@ node scripts/restore-play-metadata.mjs \
 The dry-run validates backup restore invariants before printing any actionable confirmation. Apply is permitted only after separately verifying the SHA-256 above and supplying the exact backup-derived confirmation:
 
 ```bash
+ENABLE_METADATA_PUBLISH=true \
 PLAY_PACKAGE_NAME=com.parsfilo.astrology \
 PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
 node scripts/restore-play-metadata.mjs \
@@ -172,6 +175,44 @@ node scripts/restore-play-metadata.mjs \
 No restore has been executed because no live metadata publication has occurred. Restore reconstructs listing text and backed-up image slots in a new edit, verifies the edit, commits with `ERROR_IF_IN_REVIEW`, and performs an independent read-back. Do not restore merely to bypass a current rollout or locale-cleanup blocker.
 
 Historical backups such as `play-before-locale-cleanup-20260806T171159Z.json` predate the explicit `defaultLocale` restore invariant and are retained only as audit evidence.
+
+## Windows PowerShell operator equivalents
+
+The production operator host is MSI Ubuntu, so the Bash commands above are canonical for live execution. On Windows, use PowerShell syntax rather than translating Bash line continuations. Dry-run commands remain ungated; set the mutation gate only for the exact apply command and clear it immediately afterward.
+
+```powershell
+# Common identity and credential variables
+$env:PLAY_PACKAGE_NAME = 'com.parsfilo.astrology'
+$env:PLAY_SERVICE_ACCOUNT_JSON_PATH = 'C:\private\play-service-account.json'
+
+# Fresh backup + checksum
+node scripts/backup-play-metadata.mjs --output 'C:\private\play-before-operation.json'
+(Get-FileHash 'C:\private\play-before-operation.json' -Algorithm SHA256).Hash.ToLowerInvariant()
+
+# Read-only diff
+node scripts/diff-play-metadata.mjs --backup 'C:\private\play-before-operation.json' --expected-root $PWD.Path
+
+# Publication apply: only after a clean diff and exact confirmation.
+$env:ENABLE_METADATA_PUBLISH = 'true'
+node scripts/publish-play-metadata.mjs --backup 'C:\private\play-before-operation.json' --confirmation 'PUBLISH_TR_EN_METADATA_<exact-backup-sha-prefix>'
+Remove-Item Env:ENABLE_METADATA_PUBLISH
+
+# Locale cleanup dry-run stays ungated.
+node scripts/cleanup-play-locales.mjs --backup 'C:\private\fresh-pre-cleanup-backup.json'
+
+# Locale cleanup apply.
+$env:ENABLE_METADATA_PUBLISH = 'true'
+node scripts/cleanup-play-locales.mjs --backup 'C:\private\fresh-pre-cleanup-backup.json' --backup-sha256 '<exact-64-character-backup-sha256>' --state-digest '<exact-64-character-live-state-sha256>' --removal-count '<exact-count>' --confirmation 'REMOVE_<exact-count>_UNSUPPORTED_PLAY_LOCALES_<exact-state-prefix>'
+Remove-Item Env:ENABLE_METADATA_PUBLISH
+
+# Restore dry-run stays ungated; apply requires the exact backup-derived confirmation.
+node scripts/restore-play-metadata.mjs --backup 'C:\private\play-backup.json'
+$env:ENABLE_METADATA_PUBLISH = 'true'
+node scripts/restore-play-metadata.mjs --backup 'C:\private\play-backup.json' --confirmation 'RESTORE_PLAY_METADATA_<exact-backup-sha-prefix>'
+Remove-Item Env:ENABLE_METADATA_PUBLISH
+```
+
+Never persist the service-account JSON in the repository or PowerShell history. Prefer the guarded GitHub workflow over direct operator apply.
 
 ## Policy forms
 

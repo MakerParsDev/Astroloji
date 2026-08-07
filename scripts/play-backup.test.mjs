@@ -130,3 +130,24 @@ test('readback selects staged release even when completed history is first', asy
   });
   assert.deepEqual(errors, []);
 });
+
+
+test('backup CLI rejects an outside symlink that resolves inside the repository', async (t) => {
+  if (process.platform === 'win32') return;
+  const fs = await import('node:fs');
+  const { assertSafeOutputPath } = await import('./backup-play-metadata.mjs');
+  const repositoryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'play-backup-repo-'));
+  const outsideRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'play-backup-outside-'));
+  t.after(() => {
+    fs.rmSync(repositoryRoot, { recursive: true, force: true });
+    fs.rmSync(outsideRoot, { recursive: true, force: true });
+  });
+  const privateDir = path.join(repositoryRoot, 'private');
+  fs.mkdirSync(privateDir, { recursive: true });
+  const linkDir = path.join(outsideRoot, 'linked');
+  fs.symlinkSync(privateDir, linkDir, 'dir');
+  assert.throws(
+    () => assertSafeOutputPath(path.join(linkDir, 'backup.json'), repositoryRoot),
+    /outside the repository/i,
+  );
+});

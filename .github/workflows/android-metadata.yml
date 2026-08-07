@@ -102,11 +102,20 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - name: Install Doppler CLI
+      - name: Install pinned Doppler CLI
         if: inputs.mode == 'backup' || inputs.mode == 'readback'
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+          DOPPLER_VERSION: 3.76.1
+          DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2
+        run: |
+          set -euo pipefail
+          archive="doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/${archive}"
+          curl --fail --location --silent --show-error "$url" -o "$RUNNER_TEMP/$archive"
+          echo "$DOPPLER_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" doppler
+          sudo install -m 0755 "$RUNNER_TEMP/doppler" /usr/local/bin/doppler
+          doppler --version
       - name: Download Doppler secrets
         if: inputs.mode == 'backup' || inputs.mode == 'readback'
         env:
@@ -272,10 +281,19 @@ jobs:
           node scripts/diff-play-metadata.mjs \
             --backup "$RUNNER_TEMP/play-input/play-backup.json" \
             --expected-root "$GITHUB_WORKSPACE"
-      - name: Install Doppler CLI
+      - name: Install pinned Doppler CLI
         env:
-          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+          DOPPLER_VERSION: 3.76.1
+          DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2
+        run: |
+          set -euo pipefail
+          archive="doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/${archive}"
+          curl --fail --location --silent --show-error "$url" -o "$RUNNER_TEMP/$archive"
+          echo "$DOPPLER_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" doppler
+          sudo install -m 0755 "$RUNNER_TEMP/doppler" /usr/local/bin/doppler
+          doppler --version
       - name: Download Doppler secrets
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
@@ -300,6 +318,14 @@ jobs:
           umask 077
           node -e "const fs=require('fs'); const p=process.env.DOPPLER_SECRETS_JSON_PATH; let s=''; if (p && fs.existsSync(p)) { const parsed=JSON.parse(fs.readFileSync(p,'utf8')); const pick=(key)=> typeof parsed[key]==='string' ? parsed[key] : parsed[key]?.computed || ''; s = pick('PLAY_SERVICE_ACCOUNT_JSON') || pick('GOOGLE_SERVICE_ACCOUNT_JSON'); } s = process.env.PLAY_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON || s; if (!s) { console.error('Missing Play service account JSON from GitHub secrets or Doppler.'); process.exit(1); } fs.writeFileSync(process.env.RUNNER_TEMP + '/play-service-account.json', s, {mode:0o600});"
           chmod 600 "$RUNNER_TEMP/play-service-account.json"
+      - name: Verify approved backup still matches live Play state
+        if: inputs.mode == 'publish'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: |
+          export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
+          node scripts/verify-play-backup-current.mjs \
+            --backup "$RUNNER_TEMP/play-input/play-backup.json"
       - name: Publish Turkish and English text and images
         if: inputs.mode == 'publish'
         env:

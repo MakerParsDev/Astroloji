@@ -3,11 +3,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { capturePlayBackup } from './play-backup.mjs';
-import { buildPlayDiff, IMAGE_TYPES } from './play-diff.mjs';
+import { abandonEdit } from './play-edit.mjs';
+import { buildPlayDiff, computePlayStateDigest, IMAGE_TYPES } from './play-diff.mjs';
 import { releaseRolloutFraction } from './play-release.mjs';
 
 const CONFIRMATION_PREFIX_LENGTH = 12;
 const DEFAULT_MAX_BACKUP_AGE_MINUTES = 30;
+const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 60_000;
 
 function normalizeText(value) {
   return String(value ?? '').replace(/\r\n/g, '\n').trim();
@@ -86,6 +88,20 @@ function assertProposedImageHashes(proposed) {
       sortedHashes(proposed.listings?.[locale]?.images?.[imageType] ?? [], `${locale}/${imageType}`);
     }
   }
+}
+
+export function assertBackupMatchesLiveState(backup, current) {
+  if (!backup?.packageName || !current?.packageName || backup.packageName !== current.packageName) {
+    throw new Error('Approved backup package does not match the fresh live Play state.');
+  }
+  const backupStateDigest = computePlayStateDigest(backup);
+  const liveStateDigest = computePlayStateDigest(current);
+  if (backupStateDigest !== liveStateDigest) {
+    throw new Error(
+      'Live Play state changed since the approved backup. Capture a new backup and obtain fresh approval.',
+    );
+  }
+  return { backupStateDigest, liveStateDigest };
 }
 
 export function assertBackupRestorable(backup) {
@@ -193,7 +209,7 @@ export async function publishPreparedMetadata({
     return { editId: edit.id, diff };
   } finally {
     if (!committed) {
-      await client.deleteEdit(edit.id);
+      await abandonEdit(client, edit.id);
     }
   }
 }
@@ -203,10 +219,10 @@ function temporaryImageExtension(url) {
   return pathname.endsWith('.jpg') || pathname.endsWith('.jpeg') ? '.jpg' : '.png';
 }
 
-async function downloadBackupImage(fetchImpl, image, directory, index) {
+async function downloadBackupImage(fetchImpl, image, directory, index, timeoutMs) {
   const expectedSha256 = normalizedSha256(image, `backup image ${index}`);
   if (!image.url) throw new Error('Backed-up Play image is missing its download URL.');
-  const response = await fetchImpl(image.url);
+  const response = await fetchImpl(image.url, { signal: AbortSignal.timeout(timeoutMs) });
   if (!response.ok) {
     throw new Error(`Unable to download backed-up Play image (${response.status}).`);
   }
@@ -220,7 +236,7 @@ async function downloadBackupImage(fetchImpl, image, directory, index) {
   return filePath;
 }
 
-async function applyBackupState(client, editId, backup, fetchImpl) {
+async function applyBackupState(client, editId, backup, fetchImpl, imageDownloadTimeoutMs) {
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'restore-play-assets-'));
   fs.chmodSync(temporaryDirectory, 0o700);
   try {
@@ -241,6 +257,7 @@ async function applyBackupState(client, editId, backup, fetchImpl) {
             images[index],
             temporaryDirectory,
             index,
+            imageDownloadTimeoutMs,
           );
           await client.uploadImage(editId, listing.locale, imageType, filePath);
         }
@@ -282,6 +299,7 @@ export async function restorePreparedMetadata({
   confirmation,
   fetchImpl = fetch,
   independentReadback,
+  imageDownloadTimeoutMs = DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS,
   additionalEditMutation = async () => {},
   changesNotSentForReview = false,
 }) {
@@ -293,26 +311,30 @@ export async function restorePreparedMetadata({
   }
   assertBackupRestorable(backup);
   assertConfirmation(confirmation, restoreConfirmation(backupDigest));
+  if (typeof independentReadback !== 'function') {
+    throw new Error('Restore requires an independent read-back function.');
+  }
+  if (!Number.isFinite(imageDownloadTimeoutMs) || imageDownloadTimeoutMs <= 0) {
+    throw new Error('Restore image download timeout must be a positive finite number.');
+  }
   const edit = await client.createEdit();
   let committed = false;
   try {
-    await applyBackupState(client, edit.id, backup, fetchImpl);
+    await applyBackupState(client, edit.id, backup, fetchImpl, imageDownloadTimeoutMs);
     await verifyRestoredEdit(client, edit.id, backup);
     await client.commitEdit(edit.id, {
       changesNotSentForReview,
       changesInReviewBehavior: 'ERROR_IF_IN_REVIEW',
     });
     committed = true;
-    if (independentReadback) {
-      const errors = await independentReadback(backup);
-      if (errors.length > 0) {
-        throw new Error(`Post-restore Play read-back failed: ${errors.join(' | ')}`);
-      }
+    const errors = await independentReadback(backup);
+    if (errors.length > 0) {
+      throw new Error(`Post-restore Play read-back failed: ${errors.join(' | ')}`);
     }
     return { editId: edit.id };
   } finally {
     if (!committed) {
-      await client.deleteEdit(edit.id);
+      await abandonEdit(client, edit.id);
     }
   }
 }
@@ -403,4 +425,4 @@ export async function verifyBackupRestoredState(client, backup) {
   return errors;
 }
 
-export { DEFAULT_MAX_BACKUP_AGE_MINUTES, verifyEditLocalState };
+export { DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS, DEFAULT_MAX_BACKUP_AGE_MINUTES, verifyEditLocalState };
