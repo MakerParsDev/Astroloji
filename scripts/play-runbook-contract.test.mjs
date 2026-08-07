@@ -28,6 +28,26 @@ test('runbook documents exact run-scoped expiring commit-status authorization', 
   assert.doesNotMatch(runbook, /METADATA_VARIABLES_READ_TOKEN/);
 });
 
+
+test('runbook includes executable PowerShell dispatch authorization and closure flow', () => {
+  const powershellBlocks = [...runbook.matchAll(/```powershell\n([\s\S]*?)```/gi)].map((match) => match[1]);
+  const authBlock = powershellBlocks.find((block) => block.includes('gh workflow run android-metadata.yml'));
+  assert.ok(authBlock, 'Missing executable PowerShell metadata authorization block.');
+  assert.match(authBlock, /authorization_correlation/i);
+  assert.match(authBlock, /workflow_dispatch/i);
+  assert.match(authBlock, /display_title/i);
+  assert.match(authBlock, /actor\.login/i);
+  assert.match(authBlock, /MakerParsDev/);
+  assert.match(authBlock, /metadata-auth\/\$Correlation/i);
+  assert.match(authBlock, /authorized run=\$RunId;exp=\$ExpiresAt/i);
+  assert.match(authBlock, /try\s*\{/i);
+  assert.match(authBlock, /finally\s*\{/i);
+  assert.match(authBlock, /closed run=\$RunId/i);
+  assert.match(authBlock, /ENABLE_METADATA_PUBLISH[^\n]*false/i);
+  assert.match(authBlock, /for\s*\(\$attempt\s*=\s*1;\s*\$attempt\s*-le\s*3;/i);
+  assert.match(authBlock, /exactly one/i);
+});
+
 test('runbook keeps read-only backup, diff, live verification, and read-back ungated', () => {
   const codeBlocks = [...runbook.matchAll(/```(?:bash|powershell)\n([\s\S]*?)```/gi)].map((match) => match[1]);
   for (const command of ['backup-play-metadata.mjs', 'diff-play-metadata.mjs', 'verify-play-backup-current.mjs', 'readback-play-metadata.mjs']) {

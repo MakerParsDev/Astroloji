@@ -97,7 +97,109 @@ fi
 
 A dispatch failure occurs before authorization is posted. Job-start failure, cancellation, operator interruption, timeout, and success all retain a closure path. Even if the operator host crashes after posting `authorized run=...`, the unique context cannot authorize another correlation/run and the embedded expiry is accepted only for five minutes. The workflow final verifier independently requires the latest exact context to be `success`, description `closed run=<exact-run-id>`, creator `MakerParsDev`, and target URL equal to that exact workflow run. `ENABLE_METADATA_PUBLISH` must remain `false` throughout.
 
-On Windows PowerShell, post the same `metadata-auth/$Correlation` status inside `try`; in `finally`, post `closed run=$RunId` to the same context/target URL and set `ENABLE_METADATA_PUBLISH=false`. Do not rely on process exit for closure.
+On Windows PowerShell, use the same run-scoped protocol. This executable equivalent dispatches the workflow, requires exactly one matching `workflow_dispatch` run, validates the exact `main` head SHA and `MakerParsDev` actor, posts the expiring authorization, waits for the mutation job to start, then closes the same status context in `finally`. Closure retries three times and also forces `ENABLE_METADATA_PUBLISH=false`.
+
+```powershell
+$Repo = 'MakerParsDev/Astroloji'
+$Mode = 'publish'
+$Correlation = [guid]::NewGuid().ToString()
+$ExpectedHeadSha = (gh api "repos/$Repo/commits/main" --jq '.sha').Trim()
+$StatusContext = "metadata-auth/$Correlation"
+$ExpectedTitle = "android-metadata-$Mode-$Correlation"
+
+# BACKUP_RUN_ID, BACKUP_SHA256, and CONFIRMATION must be frozen from the approved backup/diff.
+gh workflow run android-metadata.yml `
+  --repo $Repo `
+  --ref main `
+  -f "mode=$Mode" `
+  -f "backup_run_id=$env:BACKUP_RUN_ID" `
+  -f "backup_sha256=$env:BACKUP_SHA256" `
+  -f "confirmation=$env:CONFIRMATION" `
+  -f "authorization_correlation=$Correlation"
+if ($LASTEXITCODE -ne 0) { throw 'Metadata workflow dispatch failed.' }
+
+$Matches = @()
+for ($attempt = 1; $attempt -le 30; $attempt++) {
+  $Runs = gh api "repos/$Repo/actions/workflows/android-metadata.yml/runs?event=workflow_dispatch&branch=main&per_page=100" | ConvertFrom-Json
+  $Matches = @($Runs.workflow_runs | Where-Object {
+    $_.event -eq 'workflow_dispatch' -and
+    $_.head_branch -eq 'main' -and
+    $_.head_sha -eq $ExpectedHeadSha -and
+    $_.display_title -eq $ExpectedTitle
+  })
+  if ($Matches.Count -eq 1) { break }
+  if ($Matches.Count -gt 1) { throw "Expected exactly one correlated metadata workflow run; found $($Matches.Count)." }
+  Start-Sleep -Seconds 2
+}
+if ($Matches.Count -ne 1) { throw "Expected exactly one correlated metadata workflow run; found $($Matches.Count)." }
+
+$RunId = [string]$Matches[0].id
+$RunUrl = "https://github.com/$Repo/actions/runs/$RunId"
+$Run = gh api "repos/$Repo/actions/runs/$RunId" | ConvertFrom-Json
+if ($Run.event -ne 'workflow_dispatch') { throw 'Unexpected workflow event.' }
+if ($Run.head_branch -ne 'main') { throw 'Unexpected workflow branch.' }
+if ($Run.head_sha -ne $ExpectedHeadSha) { throw 'Workflow head SHA drifted.' }
+if ($Run.display_title -ne $ExpectedTitle) { throw 'Workflow correlation/title mismatch.' }
+if ($Run.actor.login -ne 'MakerParsDev') { throw 'Workflow dispatch actor is not MakerParsDev.' }
+
+function Close-MetadataAuthorization {
+  param(
+    [string]$Repository,
+    [string]$HeadSha,
+    [string]$Context,
+    [string]$TargetUrl,
+    [string]$RunId
+  )
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    try {
+      gh api --method POST "repos/$Repository/statuses/$HeadSha" `
+        -f state=success `
+        -f "context=$Context" `
+        -f "description=closed run=$RunId" `
+        -f "target_url=$TargetUrl" | Out-Null
+      if ($LASTEXITCODE -ne 0) { throw 'Failed to post closed metadata authorization status.' }
+      gh variable set ENABLE_METADATA_PUBLISH --repo $Repository --body false
+      if ($LASTEXITCODE -ne 0) { throw 'Failed to reset ENABLE_METADATA_PUBLISH=false.' }
+      return
+    } catch {
+      if ($attempt -eq 3) { throw }
+      Start-Sleep -Seconds 2
+    }
+  }
+}
+
+try {
+  $ExpiresAt = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 300
+  gh api --method POST "repos/$Repo/statuses/$ExpectedHeadSha" `
+    -f state=success `
+    -f "context=$StatusContext" `
+    -f "description=authorized run=$RunId;exp=$ExpiresAt" `
+    -f "target_url=$RunUrl" | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'Failed to post metadata authorization status.' }
+
+  $Started = $false
+  $Deadline = [DateTimeOffset]::UtcNow.AddMinutes(4)
+  while ([DateTimeOffset]::UtcNow -lt $Deadline) {
+    $Jobs = gh api "repos/$Repo/actions/runs/$RunId/jobs?per_page=100" | ConvertFrom-Json
+    $AuthJob = @($Jobs.jobs | Where-Object { $_.name -eq 'authorize-mutation' }) | Select-Object -First 1
+    $MutationJob = @($Jobs.jobs | Where-Object { $_.name -eq 'play-mutation' }) | Select-Object -First 1
+    if ($AuthJob.conclusion -eq 'failure') { throw 'authorize-mutation failed.' }
+    if ($MutationJob.status -eq 'in_progress' -or $MutationJob.status -eq 'completed') {
+      $Started = $true
+      break
+    }
+    Start-Sleep -Seconds 5
+  }
+  if (-not $Started) { throw 'Timed out waiting for play-mutation to start.' }
+} finally {
+  Close-MetadataAuthorization `
+    -Repository $Repo `
+    -HeadSha $ExpectedHeadSha `
+    -Context $StatusContext `
+    -TargetUrl $RunUrl `
+    -RunId $RunId
+}
+```
 
 ## Safety model
 

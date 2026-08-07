@@ -52,6 +52,8 @@ test('mutating modes require main, production environment, and exact expiring co
   assert.match(auth, /creator\.login/);
   assert.match(auth, /MakerParsDev/);
   assert.match(auth, /target_url/);
+  assert.match(auth, /\.actor\.login/);
+  assert.match(auth, /test \"\$\(jq -r '\.actor\.login'/);
   assert.match(auth, /300/);
   assert.doesNotMatch(auth, /METADATA_VARIABLES_READ_TOKEN/);
   assert.doesNotMatch(auth, /actions\/variables\/METADATA_PUBLISH_AUTH/);

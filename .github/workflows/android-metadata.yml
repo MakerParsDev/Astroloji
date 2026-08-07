@@ -265,6 +265,7 @@ jobs:
           test "$(jq -r '.event' <<<"$run_json")" = "workflow_dispatch"
           test "$(jq -r '.head_branch' <<<"$run_json")" = "main"
           test "$(jq -r '.head_sha' <<<"$run_json")" = "$GITHUB_SHA"
+          test "$(jq -r '.actor.login' <<<"$run_json")" = "MakerParsDev"
           expected_title="android-metadata-${MODE}-${AUTHORIZATION_CORRELATION}"
           test "$(jq -r '.display_title' <<<"$run_json")" = "$expected_title"
       - name: Wait for exact expiring commit-status authorization
