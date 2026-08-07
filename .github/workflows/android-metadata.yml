@@ -240,24 +240,20 @@ jobs:
       github.event_name == 'workflow_dispatch' &&
       (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
       github.ref == 'refs/heads/main' &&
-      github.repository == 'MakerParsDev/Astroloji'
+      github.repository == 'MakerParsDev/Astroloji' &&
+      vars.ENABLE_METADATA_PUBLISH == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: validate-metadata
     permissions:
       contents: read
       actions: read
+      statuses: read
     env:
-      GH_TOKEN: ${{ secrets.METADATA_VARIABLES_READ_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
       AUTHORIZATION_CORRELATION: ${{ inputs.authorization_correlation }}
       MODE: ${{ inputs.mode }}
     steps:
-      - name: Require metadata-variable read token
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "METADATA_VARIABLES_READ_TOKEN is required for run-scoped mutation authorization." >&2
-            exit 1
-          fi
       - name: Validate immutable dispatch correlation and current run metadata
         run: |
           set -euo pipefail
@@ -269,42 +265,37 @@ jobs:
           test "$(jq -r '.event' <<<"$run_json")" = "workflow_dispatch"
           test "$(jq -r '.head_branch' <<<"$run_json")" = "main"
           test "$(jq -r '.head_sha' <<<"$run_json")" = "$GITHUB_SHA"
+          test "$(jq -r '.actor.login' <<<"$run_json")" = "MakerParsDev"
           expected_title="android-metadata-${MODE}-${AUTHORIZATION_CORRELATION}"
           test "$(jq -r '.display_title' <<<"$run_json")" = "$expected_title"
-      - name: Wait for exact expiring run authorization
+      - name: Wait for exact expiring commit-status authorization
         run: |
           set -euo pipefail
+          context="metadata-auth/$AUTHORIZATION_CORRELATION"
+          expected_target="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           deadline="$(( $(date +%s) + 180 ))"
           while :; do
             now="$(date +%s)"
-            auth_run_id="$(gh api \
-              repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_RUN_ID \
-              --jq '.value' 2>/dev/null || true)"
-            expires_at="$(gh api \
-              repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH \
-              --jq '.value' 2>/dev/null || true)"
-            auth_correlation="$(gh api \
-              repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_CORRELATION \
-              --jq '.value' 2>/dev/null || true)"
-            legacy_gate="$(gh api \
-              repos/${{ github.repository }}/actions/variables/ENABLE_METADATA_PUBLISH \
-              --jq '.value' 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)"
-
-            if [ "$legacy_gate" != "false" ]; then
-              echo "ENABLE_METADATA_PUBLISH must remain false; run-scoped authorization is required." >&2
-              exit 1
-            fi
-
-            if [ "$auth_run_id" = "$GITHUB_RUN_ID" ] && [ "$auth_correlation" = "$AUTHORIZATION_CORRELATION" ] && [[ "$expires_at" =~ ^[0-9]+$ ]]; then
-              remaining="$(( expires_at - now ))"
-              if [ "$remaining" -gt 0 ] && [ "$remaining" -le 300 ]; then
-                echo "Exact workflow run authorization accepted with bounded expiry."
-                break
+            combined="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/status")"
+            status_json="$(jq -c --arg context "$context" '[.statuses[] | select(.context == $context)][0] // empty' <<<"$combined")"
+            if [ -n "$status_json" ]; then
+              state="$(jq -r '.state' <<<"$status_json")"
+              description="$(jq -r '.description // ""' <<<"$status_json")"
+              creator="$(jq -r '.creator.login // ""' <<<"$status_json")"
+              target_url="$(jq -r '.target_url // ""' <<<"$status_json")"
+              if [ "$state" = "success" ] && [ "$creator" = "MakerParsDev" ] && [ "$target_url" = "$expected_target" ] && [[ "$description" =~ ^authorized\ run=([0-9]+)\;exp=([0-9]+)$ ]]; then
+                authorized_run="${BASH_REMATCH[1]}"
+                expires_at="${BASH_REMATCH[2]}"
+                remaining="$(( expires_at - now ))"
+                if [ "$authorized_run" = "$GITHUB_RUN_ID" ] && [ "$remaining" -gt 0 ] && [ "$remaining" -le 300 ]; then
+                  echo "Exact commit-status authorization accepted with bounded expiry."
+                  break
+                fi
               fi
             fi
 
             if [ "$now" -ge "$deadline" ]; then
-              echo "Timed out waiting for exact run-scoped metadata authorization." >&2
+              echo "Timed out waiting for exact commit-status metadata authorization." >&2
               exit 1
             fi
             sleep 5
@@ -313,9 +304,11 @@ jobs:
         run: |
           {
             echo "## Metadata mutation authorization"
-            echo "- Authorization scope: exact workflow run ID"
-            echo "- Authorization correlation: immutable UUID input matched"
+            echo "- Authorization context: metadata-auth/<immutable-correlation>"
+            echo "- Authorization scope: exact workflow run ID and exact main SHA"
+            echo "- Expected authorization description: authorized run=<exact-run-id>;exp=<epoch>"
             echo "- Maximum accepted lifetime: 300 seconds"
+            echo "- Authorization creator: MakerParsDev"
             echo "- Legacy ENABLE_METADATA_PUBLISH gate remained false"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -325,6 +318,7 @@ jobs:
       (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
       github.ref == 'refs/heads/main' &&
       github.repository == 'MakerParsDev/Astroloji' &&
+      vars.ENABLE_METADATA_PUBLISH == 'false' &&
       needs.authorize-mutation.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -456,9 +450,7 @@ jobs:
             echo "## Play metadata mutation"
             echo "- Mode: $MODE"
             echo "- Backup run: $BACKUP_RUN_ID"
-            echo "- Required operator cleanup: METADATA_PUBLISH_AUTH_RUN_ID=disabled"
-            echo "- Required operator cleanup: METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0"
-            echo "- Required operator cleanup: METADATA_PUBLISH_AUTH_CORRELATION=disabled"
+            echo "- Required operator closure: latest metadata-auth/<correlation> status is closed run=<run-id>"
             echo "- Legacy gate must remain: ENABLE_METADATA_PUBLISH=false"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary credentials
@@ -479,54 +471,43 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read
+      statuses: read
     env:
-      GH_TOKEN: ${{ secrets.METADATA_VARIABLES_READ_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      AUTHORIZATION_CORRELATION: ${{ inputs.authorization_correlation }}
+      LEGACY_GATE: ${{ vars.ENABLE_METADATA_PUBLISH }}
     steps:
-      - name: Require metadata-variable read token
+      - name: Verify commit-status authorization returned to closed state
         run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "METADATA_VARIABLES_READ_TOKEN is required to verify mutation authorization is closed." >&2
-            exit 1
-          fi
-      - name: Verify mutation authorization returned to closed state
-        run: |
-          legacy_gate="$(gh api \
-            repos/${{ github.repository }}/actions/variables/ENABLE_METADATA_PUBLISH \
-            --jq '.value' | tr '[:upper:]' '[:lower:]')"
-          auth_run_id="$(gh api \
-            repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_RUN_ID \
-            --jq '.value')"
-          expires_at="$(gh api \
-            repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH \
-            --jq '.value')"
-          auth_correlation="$(gh api \
-            repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_CORRELATION \
-            --jq '.value')"
-          if [ "$legacy_gate" != "false" ]; then
+          set -euo pipefail
+          if [ "$(printf '%s' "$LEGACY_GATE" | tr '[:upper:]' '[:lower:]')" != "false" ]; then
             echo "ENABLE_METADATA_PUBLISH=false is required after metadata operations." >&2
             exit 1
           fi
-          if [ "$auth_run_id" != "disabled" ]; then
-            echo "METADATA_PUBLISH_AUTH_RUN_ID=disabled is required after metadata operations." >&2
+          context="metadata-auth/$AUTHORIZATION_CORRELATION"
+          expected_target="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          combined="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/status")"
+          status_json="$(jq -c --arg context "$context" '[.statuses[] | select(.context == $context)][0] // empty' <<<"$combined")"
+          if [ -z "$status_json" ]; then
+            echo "Missing closed metadata authorization status for $context." >&2
             exit 1
           fi
-          if [ "$expires_at" != "0" ]; then
-            echo "METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0 is required after metadata operations." >&2
-            exit 1
-          fi
-          if [ "$auth_correlation" != "disabled" ]; then
-            echo "METADATA_PUBLISH_AUTH_CORRELATION=disabled is required after metadata operations." >&2
-            exit 1
-          fi
+          state="$(jq -r '.state' <<<"$status_json")"
+          description="$(jq -r '.description // ""' <<<"$status_json")"
+          creator="$(jq -r '.creator.login // ""' <<<"$status_json")"
+          target_url="$(jq -r '.target_url // ""' <<<"$status_json")"
+          test "$state" = "success"
+          test "$description" = "closed run=$GITHUB_RUN_ID"
+          test "$creator" = "MakerParsDev"
+          test "$target_url" = "$expected_target"
       - name: Record authorization closure
         if: always()
         run: |
           {
             echo "## Metadata mutation authorization closure"
+            echo "- Commit-status context: metadata-auth/<immutable-correlation>"
+            echo "- Required latest state: closed run=<exact-run-id>"
+            echo "- Authorization creator: MakerParsDev"
             echo "- ENABLE_METADATA_PUBLISH=false"
-            echo "- METADATA_PUBLISH_AUTH_RUN_ID=disabled"
-            echo "- METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0"
-            echo "- METADATA_PUBLISH_AUTH_CORRELATION=disabled"
-            echo "- Independent repository-variable read-back executed after the mutation flow."
+            echo "- Independent commit-status read-back executed after the mutation flow."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -31,33 +31,33 @@ test('fresh backup plan removes temporary credentials on every handled exit with
   assert.match(spec, /NTFS[^\n]*(?:owner-only|current user)/i);
 });
 
-test('publication and cleanup use exact correlated expiring authorization and explicit closure', () => {
+test('publication and cleanup use exact correlated expiring commit-status authorization and explicit closure', () => {
   for (const [name, block] of [
     ['publication', section('### Task 3:', '### Task 4:')],
     ['cleanup', section('### Task 4:', '### Task 5:')],
   ]) {
-    assert.match(block, /METADATA_PUBLISH_AUTH_RUN_ID/, `${name} must name run authorization`);
-    assert.match(block, /METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH/, `${name} must name expiry`);
-    assert.match(block, /METADATA_PUBLISH_AUTH_CORRELATION/, `${name} must name correlation variable`);
     assert.match(block, /authorization_correlation/i, `${name} must use immutable correlation`);
     assert.match(block, /exactly one/i, `${name} must reject ambiguous run selection`);
     assert.match(block, /head SHA/i, `${name} must verify head SHA`);
     assert.match(block, /workflow_dispatch/i, `${name} must verify event`);
-    assert.match(block, /(?:exact[^\n]*workflow run ID|workflow run ID[^\n]*exact)/i, `${name} must bind exact run`);
+    assert.match(block, /metadata-auth\/(?:<correlation>|\$?CORRELATION)/i, `${name} must use a unique status context`);
+    assert.match(block, /authorized run=/i, `${name} must define authorization status`);
+    assert.match(block, /closed run=/i, `${name} must define closure status`);
     assert.match(block, /(?:300 seconds|5 minutes)/i, `${name} must bound expiry`);
     assert.match(block, /PowerShell[^\n]*(?:try\/finally|finally)/i, `${name} must define Windows authorization cleanup`);
-    assert.match(block, /METADATA_PUBLISH_AUTH_RUN_ID=disabled/, `${name} must explicitly clear run id`);
-    assert.match(block, /METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0/, `${name} must explicitly clear expiry`);
-    assert.match(block, /METADATA_PUBLISH_AUTH_CORRELATION=disabled/, `${name} must explicitly clear correlation`);
     assert.match(block, /ENABLE_METADATA_PUBLISH=false/, `${name} must keep legacy gate false`);
-    assert.match(block, /dispatch failure[^\n]*job-start failure[^\n]*cancellation/i, `${name} must cover failure paths`);
+    assert.doesNotMatch(block, /METADATA_VARIABLES_READ_TOKEN/, `${name} must not require a long-lived GitHub PAT secret`);
   }
 });
 
-test('design spec binds authorization to immutable correlation and documents Windows cleanup', () => {
+test('design spec binds authorization to immutable status context and documents Windows cleanup', () => {
   assert.match(spec, /authorization_correlation/i);
   assert.match(spec, /exactly one/i);
   assert.match(spec, /head SHA/i);
+  assert.match(spec, /metadata-auth\/(?:<correlation>|\$?CORRELATION)/i);
+  assert.match(spec, /authorized run=/i);
+  assert.match(spec, /closed run=/i);
   assert.match(spec, /PowerShell[^\n]*(?:try\/finally|finally)/i);
-  assert.match(spec, /METADATA_PUBLISH_AUTH_CORRELATION=disabled/);
+  assert.doesNotMatch(spec, /METADATA_VARIABLES_READ_TOKEN/);
 });
+
