@@ -15,12 +15,14 @@ test('workflow exposes explicit validate, backup, diff, publish, cleanup, readba
   for (const mode of ['validate', 'backup', 'diff', 'publish', 'cleanup', 'readback', 'restore']) {
     assert.match(workflow, new RegExp(`- ${mode}(?:\\n|\\r\\n)`));
   }
+  assert.match(workflow, /run-name:[^\n]*authorization_correlation/);
   for (const input of [
     'backup_run_id',
     'backup_sha256',
     'state_digest',
     'removal_count',
     'confirmation',
+    'authorization_correlation',
   ]) {
     assert.match(workflow, new RegExp(`^      ${input}:`, 'm'));
   }
@@ -35,14 +37,25 @@ test('read-only modes do not require the metadata publication gate', () => {
   assert.doesNotMatch(block, /environment:\s*production/);
 });
 
-test('mutating modes require main, production environment, repository identity, and gate', () => {
-  const block = jobBlock('play-mutation', 'verify-metadata-gate-closed');
-  assert.match(block, /inputs\.mode == 'publish'/);
-  assert.match(block, /inputs\.mode == 'cleanup'/);
-  assert.match(block, /inputs\.mode == 'restore'/);
-  assert.match(block, /github\.ref == 'refs\/heads\/main'/);
-  assert.match(block, /github\.repository == 'MakerParsDev\/Astroloji'/);
-  assert.match(block, /vars\.ENABLE_METADATA_PUBLISH == 'true'/);
+test('mutating modes require main, production environment, repository identity, and exact expiring run authorization', () => {
+  const auth = jobBlock('authorize-mutation', 'play-mutation');
+  assert.match(auth, /inputs\.mode == 'publish'/);
+  assert.match(auth, /inputs\.mode == 'cleanup'/);
+  assert.match(auth, /inputs\.mode == 'restore'/);
+  assert.match(auth, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(auth, /github\.repository == 'MakerParsDev\/Astroloji'/);
+  assert.match(auth, /METADATA_PUBLISH_AUTH_RUN_ID/);
+  assert.match(auth, /METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH/);
+  assert.match(auth, /METADATA_PUBLISH_AUTH_CORRELATION/);
+  assert.match(auth, /AUTHORIZATION_CORRELATION/);
+  assert.match(auth, /GITHUB_RUN_ID/);
+  assert.match(auth, /300/);
+  assert.match(auth, /METADATA_VARIABLES_READ_TOKEN/);
+
+  const block = jobBlock('play-mutation', 'verify-metadata-authorization-closed');
+  assert.match(block, /needs:[\s\S]*authorize-mutation/);
+  assert.match(block, /needs\.authorize-mutation\.result == 'success'/);
+  assert.doesNotMatch(block, /vars\.ENABLE_METADATA_PUBLISH == 'true'/);
   assert.match(block, /environment:\s*production/);
 });
 
@@ -98,13 +111,18 @@ test('credential files are mode 0600 and removed in always cleanup steps', () =>
   assert.ok(cleanupMatches.length >= 2, `Expected credential cleanup in both Play jobs, found ${cleanupMatches.length}`);
 });
 
-test('final job dynamically verifies the repository gate returned to false with a dedicated read token', () => {
-  const block = jobBlock('verify-metadata-gate-closed');
+test('final job independently verifies mutation authorization is closed', () => {
+  const block = jobBlock('verify-metadata-authorization-closed');
   assert.match(block, /GH_TOKEN:\s*\$\{\{ secrets\.METADATA_VARIABLES_READ_TOKEN \}\}/);
   assert.match(block, /METADATA_VARIABLES_READ_TOKEN is required/i);
-  assert.match(block, /gh api\s+\\?\s*repos\/\$\{\{ github\.repository \}\}\/actions\/variables\/ENABLE_METADATA_PUBLISH/);
-  assert.match(block, /current_value.*false/);
+  assert.match(block, /actions\/variables\/ENABLE_METADATA_PUBLISH/);
+  assert.match(block, /actions\/variables\/METADATA_PUBLISH_AUTH_RUN_ID/);
+  assert.match(block, /actions\/variables\/METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH/);
+  assert.match(block, /actions\/variables\/METADATA_PUBLISH_AUTH_CORRELATION/);
   assert.match(block, /ENABLE_METADATA_PUBLISH=false/);
+  assert.match(block, /METADATA_PUBLISH_AUTH_RUN_ID=disabled/);
+  assert.match(block, /METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0/);
+  assert.match(block, /METADATA_PUBLISH_AUTH_CORRELATION=disabled/);
   assert.match(block, /\$GITHUB_STEP_SUMMARY/);
 });
 
@@ -127,7 +145,7 @@ test('metadata workflow installs a pinned checksum-verified Doppler CLI without 
 
 
 test('workflow verifies approved backup against fresh live Play state immediately before publication', () => {
-  const block = jobBlock('play-mutation', 'verify-metadata-gate-closed');
+  const block = jobBlock('play-mutation', 'verify-metadata-authorization-closed');
   assert.match(block, /Verify approved backup still matches live Play state/);
   assert.match(block, /verify-play-backup-current\.mjs/);
   const verifyIndex = block.indexOf('verify-play-backup-current.mjs');

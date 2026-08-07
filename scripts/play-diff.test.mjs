@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildPlayDiff, formatPlayDiff } from './lib/play-diff.mjs';
 
-function liveFixture({ rollout = 0.1 } = {}) {
+function liveFixture({ rollout = 1 } = {}) {
   return {
     schemaVersion: 1,
     capturedAt: '2026-08-06T15:00:00.000Z',
@@ -79,7 +79,7 @@ function proposedFixture() {
         },
       },
     },
-    productionRolloutFraction: 0.1,
+    productionRolloutFraction: 1,
     subscriptions: [
       { productId: 'premium_monthly', basePlanId: 'monthly' },
       { productId: 'premium_weekly', basePlanId: 'weekly' },
@@ -100,7 +100,7 @@ test('diff reports supported listing changes, image replacement, and preserved e
   assert.match(formatted, /LISTING en-US fullDescription: CHANGED/);
   assert.match(formatted, /IMAGE tr-TR phoneScreenshots: 3 -> 6/);
   assert.match(formatted, /EXTRA LIVE LOCALES: PRESERVED 1 de-DE/);
-  assert.match(formatted, /TRACK production rolloutFraction: UNCHANGED 0\.1/);
+  assert.match(formatted, /TRACK production rolloutFraction: UNCHANGED 1/);
   assert.match(
     formatted,
     /SUBSCRIPTIONS: UNCHANGED premium_monthly\/monthly, premium_weekly\/weekly/,
@@ -108,7 +108,7 @@ test('diff reports supported listing changes, image replacement, and preserved e
 });
 
 test('diff blocks rollout and subscription drift without proposing track or catalog mutation', () => {
-  const live = liveFixture({ rollout: 1 });
+  const live = liveFixture({ rollout: 0.1 });
   live.subscriptions = [
     { productId: 'premium_monthly', basePlans: [{ basePlanId: 'monthly', state: 'ACTIVE' }] },
     { productId: 'premium_yearly', basePlans: [{ basePlanId: 'yearly', state: 'ACTIVE' }] },
@@ -117,7 +117,7 @@ test('diff blocks rollout and subscription drift without proposing track or cata
   assert.ok(diff.blockingErrors.some((error) => /rollout/i.test(error)));
   assert.ok(diff.blockingErrors.some((error) => /subscription/i.test(error)));
   const formatted = formatPlayDiff(diff);
-  assert.match(formatted, /TRACK production rolloutFraction: DRIFT live=1 expected=0\.1/);
+  assert.match(formatted, /TRACK production rolloutFraction: DRIFT live=0\.1 expected=1/);
   assert.match(formatted, /SUBSCRIPTIONS: DRIFT/);
   assert.doesNotMatch(formatted, /UPDATE TRACK|DELETE SUBSCRIPTION/);
 });

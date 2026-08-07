@@ -28,7 +28,7 @@ function fakeClient() {
       return {
         track,
         releases: track === 'production'
-          ? [{ status: 'inProgress', userFraction: 0.1, versionCodes: ['1102'], name: 'Astroloji 1.0.101' }]
+          ? [{ status: 'completed', versionCodes: ['1102'], name: 'Astroloji 1.0.101' }]
           : [{ status: 'completed', versionCodes: ['1101'], name: '1.0.101-internal' }],
       };
     },
@@ -51,7 +51,9 @@ test('backup captures listings, images, tracks, and subscription identifiers wit
   assert.equal(backup.capturedAt, '2026-08-06T12:00:00.000Z');
   assert.deepEqual(backup.listings.map((listing) => listing.locale), ['en-US', 'tr-TR']);
   assert.equal(backup.listings[0].images.phoneScreenshots.length, 1);
-  assert.equal(backup.tracks.production.releases[0].userFraction, 0.1);
+  assert.equal(backup.tracks.production.releases[0].status, 'completed');
+  assert.deepEqual(backup.tracks.production.releases[0].versionCodes, ['1102']);
+  assert.equal(backup.tracks.production.releases[0].userFraction, null);
   assert.deepEqual(backup.subscriptions, [
     { productId: 'premium_monthly', basePlans: [{ basePlanId: 'monthly', state: 'ACTIVE' }] },
     { productId: 'premium_weekly', basePlans: [{ basePlanId: 'weekly', state: 'ACTIVE' }] },
@@ -75,10 +77,10 @@ test('independent readback reports rollout and subscription drift', async () => 
   assert.ok(errors.some((error) => /premium_weekly\/weekly/i.test(error)));
 });
 
-test('independent readback passes for the canonical two-locale catalog and ten percent rollout', async () => {
+test('independent readback passes for the canonical two-locale catalog and completed rollout', async () => {
   const errors = await verifyLiveState(fakeClient(), {
     locales: ['en-US', 'tr-TR'],
-    productionRolloutFraction: 0.1,
+    productionRolloutFraction: 1,
     subscriptions: [
       { productId: 'premium_monthly', basePlanId: 'monthly' },
       { productId: 'premium_weekly', basePlanId: 'weekly' },

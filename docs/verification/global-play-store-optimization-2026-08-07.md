@@ -42,11 +42,30 @@ cross-repository: false
 
 No alternate GitHub account is used as a push, commit, fork, or PR identity for this project.
 
-## Final local repository verification
 
-Fresh verification on the exact `cd1ce0a46b17187f4d745f52f21c0e69cf4ed3ab` tree recorded above. The follow-up review-round changes after that tree are documentation/test-strengthening only and are revalidated separately before push:
+## Completed-rollout metadata contract decision — 2026-08-07
 
-- `node --test scripts/*.test.mjs`: **215/215 passed**.
+The operator explicitly selected approach A: keep production `1102` completed at rollout fraction `1.0` and align the metadata safety precondition to that live state without mutating the Play track.
+
+```text
+completed-rollout contract branch: fix/play-metadata-live-contract-20260807
+completed-rollout design tree: 2ebb73d5040a83d911c673cb1e8948fed715375e
+completed-rollout implementation tree: 8d8759d59515815db4c47447f93e27c68f8fdca7
+completed-rollout review-fix tree: c0f962b10fc1a4a11235713a6ab9ec38abff5fe1
+completed-rollout run-auth tree: 822eb7341cdb6b7cbcdf8d0b977e1fb3abf2b2de
+completed-rollout correlation-review tree: 4ee2a582a6b22081e30b7edfd56ef3c4f66f786e
+PR #57: https://github.com/MakerParsDev/Astroloji/pull/57
+PR author/head owner: MakerParsDev / MakerParsDev
+base main tree: adf992fba503d19013b9b4eb8feb8691e572697f
+```
+
+The completed-rollout chain changes the metadata safety contract, its tests, operator documentation, and the metadata workflow authorization boundary; it adds no Play track mutation path. Fresh local verification on the correlation-review tree `4ee2a582a6b22081e30b7edfd56ef3c4f66f786e` passed `220/220` script tests, metadata validation, secret scan, actionlint, and `git diff --check` before this evidence-only follow-up commit.
+
+## Historical global-optimization local verification
+
+The earlier global-optimization verification on exact tree `cd1ce0a46b17187f4d745f52f21c0e69cf4ed3ab` predated the completed-rollout contract work. Its script-suite result was **214/214**; completed-rollout verification is recorded separately above.
+
+- `node --test scripts/*.test.mjs`: **214/214 passed**.
 - `node scripts/validate-play-metadata.mjs`: passed for exactly `en-US` and `tr-TR`.
 - `node scripts/scan-secrets.mjs`: passed.
 - `git diff --check`: passed before the final implementation commits.
@@ -130,12 +149,12 @@ canonical locales: 2 (en-US, tr-TR)
 unsupported live locales: 84
 missing supported locales: none
 production rollout: 1.0 / completed
-canonical metadata safety contract rollout: 0.1
+canonical metadata safety contract rollout: 1.0 (explicitly approved 2026-08-07)
 subscriptions: premium_monthly/monthly, premium_weekly/weekly
 read-back: blocked by design with 2 drift findings
 ```
 
-The read-back opened no committed Play mutation. Metadata publication and unsupported-locale cleanup remain fail-closed because live production is already fully rolled out while the canonical metadata mutation guard deliberately expects a separately approved 10% release state.
+The read-back opened no committed Play mutation. The operator explicitly approved keeping production fully rolled out and aligning the metadata safety contract to live `1.0`; metadata publication and locale cleanup remain fail-closed against any future rollout drift.
 
 ## Backup / restore evidence
 
@@ -204,20 +223,24 @@ The automated review performed before the prior PR was removed identified one cr
 - identifier-safe baseline source strings and strict baseline CLI parsing,
 - canonical metadata-root enforcement plus explicit release-note skip logging,
 - Ubuntu Bash and Windows PowerShell operator equivalents with mutation-gate documentation.
+- exact workflow-run authorization bound to immutable UUID correlation and five-minute expiry,
+- deterministic exactly-one run selection by canonical repository, main head SHA, workflow_dispatch event, mode, and correlation,
+- fail-closed authorization closure that attempts every repository-variable reset and verifies the closed state independently,
+- Windows owner-only NTFS ACL verification before temporary Play credential write/read.
 
-The resulting script/workflow test suite is **215/215 green**.
+The current completed-rollout script/workflow test suite is **220/220 green**.
 
 ## Remaining gated actions
 
 The following are intentionally incomplete:
 
-1. Push the review-resolution and evidence commits to PR #56 and complete fresh GitHub CI/automated review.
-2. Merge PR #56 only after all required checks and review findings are green.
+1. Push this evidence follow-up to PR #57 and complete fresh GitHub CI/automated review on the exact final head.
+2. Merge PR #57 only after all current checks and review findings are green.
 3. Make a new post-merge Play backup and dry-run diff.
-4. Resolve the separate live rollout `1.0` versus canonical mutation-guard `0.1` decision.
-5. Publish the canonical Turkish/English metadata and 15 assets only after that guard is intentionally reconciled.
-6. Perform independent post-publication read-back.
-7. Remove 84 unsupported locales only through the state-bound cleanup flow.
+4. Publish the canonical Turkish/English metadata and 15 assets only while fresh live rollout remains `1.0` and exact-run authorization is active.
+5. Take a second post-publication Play backup; record its backup ID or digest as the cleanup rollback point.
+6. Perform independent post-publication read-back and verify mutation authorization is closed.
+7. Remove unsupported locales only through a new post-publication state-bound cleanup flow using that second backup.
 8. Reconcile UI-only Play Data Safety/account-deletion settings and verify public propagation.
 9. Mark the post-change measurement timestamp and compare a later observation window without claiming causation.
 

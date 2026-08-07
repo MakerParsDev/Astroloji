@@ -50,6 +50,11 @@ test('store config owns the canonical monthly and weekly subscription pairs', ()
   ]);
 });
 
+test('store config matches the completed production rollout contract', () => {
+  const config = loadStoreConfig(process.cwd());
+  assert.equal(config.productionRolloutFraction, 1);
+});
+
 test('store config binds shared assets to the Turkish default listing', () => {
   const config = loadStoreConfig(process.cwd());
   assert.equal(config.defaultLocale, 'tr-TR');

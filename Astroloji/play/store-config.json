@@ -27,7 +27,7 @@
       "height": 512
     }
   },
-  "productionRolloutFraction": 0.1,
+  "productionRolloutFraction": 1.0,
   "subscriptions": [
     {
       "productId": "premium_monthly",
