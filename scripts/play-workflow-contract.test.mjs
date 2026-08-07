@@ -48,6 +48,9 @@ test('mutating modes require main, production environment, and exact expiring co
   assert.match(auth, /GH_TOKEN:\s*\$\{\{ github\.token \}\}/);
   assert.match(auth, /metadata-auth\/\$AUTHORIZATION_CORRELATION/);
   assert.match(auth, /commits\/\$GITHUB_SHA\/statuses\?per_page=100/);
+  assert.match(auth, /--paginate/);
+  assert.match(auth, /--slurp/);
+  assert.match(auth, /\.\[\]\[\]/);
   assert.match(auth, /sort_by\(\.updated_at\)/);
   assert.match(auth, /authorized run=/);
   assert.match(auth, /creator\.login/);
@@ -124,6 +127,9 @@ test('final job independently verifies commit-status authorization is closed', (
   assert.match(block, /GH_TOKEN:\s*\$\{\{ github\.token \}\}/);
   assert.match(block, /metadata-auth\/\$AUTHORIZATION_CORRELATION/);
   assert.match(block, /commits\/\$GITHUB_SHA\/statuses\?per_page=100/);
+  assert.match(block, /--paginate/);
+  assert.match(block, /--slurp/);
+  assert.match(block, /\.\[\]\[\]/);
   assert.match(block, /sort_by\(\.updated_at\)/);
   assert.match(block, /closed run=/);
   assert.match(block, /creator\.login/);
