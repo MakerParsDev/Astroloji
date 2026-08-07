@@ -218,6 +218,7 @@ Publication apply:
 $env:ENABLE_METADATA_PUBLISH = 'true'
 try {
   node scripts/publish-play-metadata.mjs --backup 'C:\private\play-before-operation.json' --confirmation 'PUBLISH_TR_EN_METADATA_<exact-backup-sha-prefix>'
+  if ($LASTEXITCODE -ne 0) { throw "Play metadata publication failed with exit code $LASTEXITCODE." }
 } finally {
   Remove-Item Env:ENABLE_METADATA_PUBLISH -ErrorAction SilentlyContinue
 }
@@ -235,6 +236,7 @@ Locale cleanup apply:
 $env:ENABLE_METADATA_PUBLISH = 'true'
 try {
   node scripts/cleanup-play-locales.mjs --backup 'C:\private\fresh-pre-cleanup-backup.json' --backup-sha256 '<exact-64-character-backup-sha256>' --state-digest '<exact-64-character-live-state-sha256>' --removal-count '<exact-count>' --confirmation 'REMOVE_<exact-count>_UNSUPPORTED_PLAY_LOCALES_<exact-state-prefix>'
+  if ($LASTEXITCODE -ne 0) { throw "Play locale cleanup failed with exit code $LASTEXITCODE." }
 } finally {
   Remove-Item Env:ENABLE_METADATA_PUBLISH -ErrorAction SilentlyContinue
 }
@@ -252,6 +254,7 @@ Restore apply:
 $env:ENABLE_METADATA_PUBLISH = 'true'
 try {
   node scripts/restore-play-metadata.mjs --backup 'C:\private\play-backup.json' --confirmation 'RESTORE_PLAY_METADATA_<exact-backup-sha-prefix>'
+  if ($LASTEXITCODE -ne 0) { throw "Play metadata restore failed with exit code $LASTEXITCODE." }
 } finally {
   Remove-Item Env:ENABLE_METADATA_PUBLISH -ErrorAction SilentlyContinue
 }

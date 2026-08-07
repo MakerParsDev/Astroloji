@@ -22,6 +22,7 @@ Review-fix commits on the final implementation tree:
 cc847ae fix(play): address metadata review findings
 955f614 fix(play): fully localize Turkish store screenshots
 164fb24 fix(play): harden guarded publication review
+89b0d3a fix(play): close remaining review findings
 ```
 
 No fork is part of the approved delivery path. The branch is pushed directly to the canonical repository.
@@ -45,7 +46,7 @@ No alternate GitHub account is used as a push, commit, fork, or PR identity for 
 
 Fresh verification on the exact `cd1ce0a46b17187f4d745f52f21c0e69cf4ed3ab` tree recorded above. The follow-up review-round changes after that tree are documentation/test-strengthening only and are revalidated separately before push:
 
-- `node --test scripts/*.test.mjs`: **214/214 passed**.
+- `node --test scripts/*.test.mjs`: **215/215 passed**.
 - `node scripts/validate-play-metadata.mjs`: passed for exactly `en-US` and `tr-TR`.
 - `node scripts/scan-secrets.mjs`: passed.
 - `git diff --check`: passed before the final implementation commits.
@@ -204,7 +205,7 @@ The automated review performed before the prior PR was removed identified one cr
 - canonical metadata-root enforcement plus explicit release-note skip logging,
 - Ubuntu Bash and Windows PowerShell operator equivalents with mutation-gate documentation.
 
-The resulting script/workflow test suite is **214/214 green**.
+The resulting script/workflow test suite is **215/215 green**.
 
 ## Remaining gated actions
 
