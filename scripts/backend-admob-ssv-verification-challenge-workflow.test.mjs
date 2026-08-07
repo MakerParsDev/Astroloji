@@ -163,13 +163,24 @@ test('production verification plan arms exit-safe ownership-aware temporary clea
   assert.match(plan, /gh run watch .*--exit-status/);
   assert.match(plan, /SSV_CHALLENGE_MAY_EXIST=1/);
   assert.match(plan, /cleanupVerified: true/);
+  assert.match(plan, /SSV_USER_SECRET_CREATED=1/);
+  assert.match(plan, /SSV_CUSTOM_SECRET_CREATED=1/);
 
   ordered(plan, [
     "Temporary AdMob SSV repository secrets already exist",
     'trap cleanup_ssv_verification EXIT INT TERM',
     'gh secret set ADMOB_SSV_TEST_USER_ID',
+    'SSV_USER_SECRET_CREATED=1',
     'gh secret set ADMOB_SSV_TEST_CUSTOM_DATA',
+    'SSV_CUSTOM_SECRET_CREATED=1',
     'SSV_CHALLENGE_MAY_EXIST=1'
+  ]);
+
+  ordered(plan, [
+    'gh run view "$delete_run" -R "$REPO" --log',
+    "grep -F -- '- cleanupVerified: true'",
+    'gh secret delete ADMOB_SSV_TEST_USER_ID',
+    'gh secret delete ADMOB_SSV_TEST_CUSTOM_DATA'
   ]);
 });
 
