@@ -299,3 +299,36 @@ test('non-idempotent Play POST requests are never retried on transient 503 respo
   assert.equal(createAttempts, 1);
   assert.deepEqual(delays, []);
 });
+
+test('transient responses cancel unread bodies before idempotent retry', async () => {
+  let attempts = 0;
+  let cancels = 0;
+  const fetchImpl = async (url, init = {}) => {
+    if (String(url) === 'https://oauth2.googleapis.com/token') {
+      return response(200, { access_token: 'token' });
+    }
+    const pathname = new URL(String(url)).pathname;
+    if (pathname.endsWith('/edits/edit/listings/fa-IR') && init.method === 'DELETE') {
+      attempts += 1;
+      if (attempts === 1) {
+        return {
+          ...response(503, { error: { status: 'UNAVAILABLE' } }),
+          body: { async cancel() { cancels += 1; } },
+        };
+      }
+      return response(200, {});
+    }
+    throw new Error(`Unexpected request ${init.method ?? 'GET'} ${url}`);
+  };
+  const client = createPlayClient({
+    packageName: 'com.parsfilo.astrology',
+    credentialsPath: credentialsFile(),
+    fetchImpl,
+    retryBaseDelayMs: 1,
+    sleep: async () => {},
+  });
+
+  await client.deleteListing('edit', 'fa-IR');
+  assert.equal(attempts, 2);
+  assert.equal(cancels, 1);
+});

@@ -133,6 +133,7 @@ export function createPlayClient({
         attempt < maxTransientRetries
       ) {
         sawTransientFailure = true;
+        await response.body?.cancel?.();
         await sleep(retryBaseDelayMs * (2 ** attempt));
         continue;
       }
