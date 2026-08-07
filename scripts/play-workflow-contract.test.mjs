@@ -37,25 +37,29 @@ test('read-only modes do not require the metadata publication gate', () => {
   assert.doesNotMatch(block, /environment:\s*production/);
 });
 
-test('mutating modes require main, production environment, repository identity, and exact expiring run authorization', () => {
+test('mutating modes require main, production environment, and exact expiring commit-status authorization', () => {
   const auth = jobBlock('authorize-mutation', 'play-mutation');
   assert.match(auth, /inputs\.mode == 'publish'/);
   assert.match(auth, /inputs\.mode == 'cleanup'/);
   assert.match(auth, /inputs\.mode == 'restore'/);
   assert.match(auth, /github\.ref == 'refs\/heads\/main'/);
   assert.match(auth, /github\.repository == 'MakerParsDev\/Astroloji'/);
-  assert.match(auth, /METADATA_PUBLISH_AUTH_RUN_ID/);
-  assert.match(auth, /METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH/);
-  assert.match(auth, /METADATA_PUBLISH_AUTH_CORRELATION/);
-  assert.match(auth, /AUTHORIZATION_CORRELATION/);
-  assert.match(auth, /GITHUB_RUN_ID/);
+  assert.match(auth, /statuses:\s*read/);
+  assert.match(auth, /GH_TOKEN:\s*\$\{\{ github\.token \}\}/);
+  assert.match(auth, /metadata-auth\/\$AUTHORIZATION_CORRELATION/);
+  assert.match(auth, /commits\/\$GITHUB_SHA\/status/);
+  assert.match(auth, /authorized run=/);
+  assert.match(auth, /creator\.login/);
+  assert.match(auth, /MakerParsDev/);
+  assert.match(auth, /target_url/);
   assert.match(auth, /300/);
-  assert.match(auth, /METADATA_VARIABLES_READ_TOKEN/);
+  assert.doesNotMatch(auth, /METADATA_VARIABLES_READ_TOKEN/);
+  assert.doesNotMatch(auth, /actions\/variables\/METADATA_PUBLISH_AUTH/);
 
   const block = jobBlock('play-mutation', 'verify-metadata-authorization-closed');
   assert.match(block, /needs:[\s\S]*authorize-mutation/);
   assert.match(block, /needs\.authorize-mutation\.result == 'success'/);
-  assert.doesNotMatch(block, /vars\.ENABLE_METADATA_PUBLISH == 'true'/);
+  assert.match(block, /vars\.ENABLE_METADATA_PUBLISH == 'false'/);
   assert.match(block, /environment:\s*production/);
 });
 
@@ -111,18 +115,19 @@ test('credential files are mode 0600 and removed in always cleanup steps', () =>
   assert.ok(cleanupMatches.length >= 2, `Expected credential cleanup in both Play jobs, found ${cleanupMatches.length}`);
 });
 
-test('final job independently verifies mutation authorization is closed', () => {
+test('final job independently verifies commit-status authorization is closed', () => {
   const block = jobBlock('verify-metadata-authorization-closed');
-  assert.match(block, /GH_TOKEN:\s*\$\{\{ secrets\.METADATA_VARIABLES_READ_TOKEN \}\}/);
-  assert.match(block, /METADATA_VARIABLES_READ_TOKEN is required/i);
-  assert.match(block, /actions\/variables\/ENABLE_METADATA_PUBLISH/);
-  assert.match(block, /actions\/variables\/METADATA_PUBLISH_AUTH_RUN_ID/);
-  assert.match(block, /actions\/variables\/METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH/);
-  assert.match(block, /actions\/variables\/METADATA_PUBLISH_AUTH_CORRELATION/);
+  assert.match(block, /statuses:\s*read/);
+  assert.match(block, /GH_TOKEN:\s*\$\{\{ github\.token \}\}/);
+  assert.match(block, /metadata-auth\/\$AUTHORIZATION_CORRELATION/);
+  assert.match(block, /commits\/\$GITHUB_SHA\/status/);
+  assert.match(block, /closed run=/);
+  assert.match(block, /creator\.login/);
+  assert.match(block, /MakerParsDev/);
+  assert.match(block, /target_url/);
+  assert.doesNotMatch(block, /METADATA_VARIABLES_READ_TOKEN/);
+  assert.doesNotMatch(block, /actions\/variables\/METADATA_PUBLISH_AUTH/);
   assert.match(block, /ENABLE_METADATA_PUBLISH=false/);
-  assert.match(block, /METADATA_PUBLISH_AUTH_RUN_ID=disabled/);
-  assert.match(block, /METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0/);
-  assert.match(block, /METADATA_PUBLISH_AUTH_CORRELATION=disabled/);
   assert.match(block, /\$GITHUB_STEP_SUMMARY/);
 });
 

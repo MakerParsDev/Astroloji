@@ -3,26 +3,12 @@
 **Package:** `com.parsfilo.astrology`  
 **Supported store locales:** `en-US`, `tr-TR`  
 **Canonical source:** `Astroloji/play/`  
-**Production mutation authorization:** `ENABLE_METADATA_PUBLISH` remains `false`. GitHub mutation jobs require an exact workflow run ID, an immutable UUID correlation in `METADATA_PUBLISH_AUTH_CORRELATION`, and `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH` no more than 300 seconds in the future. All authorization variables are closed immediately after mutation start.
+**Production mutation authorization:** `ENABLE_METADATA_PUBLISH` remains `false`. GitHub mutation jobs require a unique commit-status context `metadata-auth/<correlation>` on the exact merged `main` SHA. The status authorizes one exact workflow run for at most 300 seconds, then the same context is replaced with `closed run=<run-id>`. No long-lived GitHub PAT secret is required by the workflow.
 
 
 ## Run-scoped GitHub mutation authorization
 
-Production metadata writes are authorized only after a workflow is dispatched with a unique immutable `authorization_correlation` UUID and the exact run is deterministically identified. `ENABLE_METADATA_PUBLISH` is a legacy defense-in-depth variable and must remain `false`; it no longer grants mutation authority. The workflow accepts authorization only when `METADATA_PUBLISH_AUTH_RUN_ID` equals its exact `github.run_id`, `METADATA_PUBLISH_AUTH_CORRELATION` equals the immutable dispatch input, and the expiry is positive and at most **300 seconds (5 minutes)** away.
-
-On MSI Ubuntu, install cleanup before writing any authorization variable. The function attempts every reset and returns failure when any reset fails. The trap is removed only after an explicit successful close:
-
-```bash
-close_metadata_authorization() {
-  local rc=0
-  gh variable set METADATA_PUBLISH_AUTH_RUN_ID --repo MakerParsDev/Astroloji --body disabled || rc=1
-  gh variable set METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH --repo MakerParsDev/Astroloji --body 0 || rc=1
-  gh variable set METADATA_PUBLISH_AUTH_CORRELATION --repo MakerParsDev/Astroloji --body disabled || rc=1
-  gh variable set ENABLE_METADATA_PUBLISH --repo MakerParsDev/Astroloji --body false || rc=1
-  return "$rc"
-}
-trap 'close_metadata_authorization || true' EXIT INT TERM
-```
+Production metadata writes are authorized only after a workflow is dispatched with a unique immutable `authorization_correlation` UUID and the exact run is deterministically identified. `ENABLE_METADATA_PUBLISH` is a legacy defense-in-depth variable and must remain `false`; it never grants mutation authority. Authorization is carried by a unique commit-status context `metadata-auth/$CORRELATION` on the exact merged `main` SHA. The workflow reads that status with its short-lived `${{ github.token }}` and `statuses: read`; no additional long-lived GitHub read-token secret is required.
 
 Generate one UUID correlation and freeze the current merged `main` SHA before dispatch. Pass the correlation as an immutable workflow input. The workflow `run-name` embeds both mode and correlation:
 
@@ -30,6 +16,7 @@ Generate one UUID correlation and freeze the current merged `main` SHA before di
 MODE=publish
 CORRELATION="$(python3 -c 'import uuid; print(uuid.uuid4())')"
 EXPECTED_HEAD_SHA="$(gh api repos/MakerParsDev/Astroloji/commits/main --jq '.sha')"
+STATUS_CONTEXT="metadata-auth/$CORRELATION"
 
 gh workflow run android-metadata.yml \
   --repo MakerParsDev/Astroloji \
@@ -41,48 +28,76 @@ gh workflow run android-metadata.yml \
   -f authorization_correlation="$CORRELATION"
 ```
 
-Before writing repository authorization variables, select **exactly one** `workflow_dispatch` run. Reject zero or multiple matches. The canonical repository endpoint fixes repository identity; the query and checks bind `main`, exact head SHA, event, mode, and immutable correlation. Mode and correlation are derived from event inputs and encoded in `display_title` by `run-name`:
+Before posting any authorization status, select **exactly one** `workflow_dispatch` run. Reject zero or multiple matches. The canonical repository endpoint fixes repository identity; poll until the unique match is visible and verify `main`, exact head SHA, event, mode, and immutable correlation. Mode and correlation are encoded in `display_title` by `run-name`:
 
 ```bash
 EXPECTED_TITLE="android-metadata-${MODE}-${CORRELATION}"
-RUN_ROWS="$(gh api \
-  'repos/MakerParsDev/Astroloji/actions/workflows/android-metadata.yml/runs?event=workflow_dispatch&branch=main&per_page=100' \
-  --jq '.workflow_runs[] | select(.event == "workflow_dispatch" and .head_branch == "main") | [.id,.head_sha,.display_title] | @tsv')"
-mapfile -t MATCHES < <(printf '%s\n' "$RUN_ROWS" | awk -F '\t' -v sha="$EXPECTED_HEAD_SHA" -v title="$EXPECTED_TITLE" '$2 == sha && $3 == title {print $1}')
+for attempt in $(seq 1 30); do
+  RUN_ROWS="$(gh api \
+    'repos/MakerParsDev/Astroloji/actions/workflows/android-metadata.yml/runs?event=workflow_dispatch&branch=main&per_page=100' \
+    --jq '.workflow_runs[] | select(.event == "workflow_dispatch" and .head_branch == "main") | [.id,.head_sha,.display_title] | @tsv')"
+  mapfile -t MATCHES < <(printf '%s\n' "$RUN_ROWS" | awk -F '\t' -v sha="$EXPECTED_HEAD_SHA" -v title="$EXPECTED_TITLE" '$2 == sha && $3 == title {print $1}')
+  [ "${#MATCHES[@]}" -eq 1 ] && break
+  [ "${#MATCHES[@]}" -gt 1 ] && { echo 'Ambiguous correlated metadata workflow runs.' >&2; exit 1; }
+  sleep 2
+done
 if [ "${#MATCHES[@]}" -ne 1 ]; then
   echo "Expected exactly one correlated metadata workflow run; found ${#MATCHES[@]}." >&2
   exit 1
 fi
 RUN_ID="${MATCHES[0]}"
+RUN_URL="https://github.com/MakerParsDev/Astroloji/actions/runs/$RUN_ID"
 RUN_JSON="$(gh api "repos/MakerParsDev/Astroloji/actions/runs/$RUN_ID")"
 test "$(jq -r '.event' <<<"$RUN_JSON")" = workflow_dispatch
 test "$(jq -r '.head_branch' <<<"$RUN_JSON")" = main
 test "$(jq -r '.head_sha' <<<"$RUN_JSON")" = "$EXPECTED_HEAD_SHA"
 test "$(jq -r '.display_title' <<<"$RUN_JSON")" = "$EXPECTED_TITLE"
+test "$(jq -r '.actor.login' <<<"$RUN_JSON")" = MakerParsDev
 ```
 
-Only after that unique match is proven, authorize the exact run and correlation for at most five minutes:
+Install closure before posting authorization. The closure attempts both the `closed run=<id>` status and the legacy gate reset, returns failure if either write fails, and remains trapped until a successful explicit close:
 
 ```bash
-gh variable set METADATA_PUBLISH_AUTH_RUN_ID --repo MakerParsDev/Astroloji --body "$RUN_ID"
-gh variable set METADATA_PUBLISH_AUTH_CORRELATION --repo MakerParsDev/Astroloji --body "$CORRELATION"
-gh variable set METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH --repo MakerParsDev/Astroloji --body "$(( $(date +%s) + 300 ))"
+close_metadata_authorization() {
+  local rc=0
+  gh api --method POST \
+    "repos/MakerParsDev/Astroloji/statuses/$EXPECTED_HEAD_SHA" \
+    -f state=success \
+    -f context="$STATUS_CONTEXT" \
+    -f description="closed run=$RUN_ID" \
+    -f target_url="$RUN_URL" >/dev/null || rc=1
+  gh variable set ENABLE_METADATA_PUBLISH --repo MakerParsDev/Astroloji --body false || rc=1
+  return "$rc"
+}
+trap 'close_metadata_authorization || true' EXIT INT TERM
 ```
 
-After `authorize-mutation` succeeds and `play-mutation` starts, close authorization immediately. Keep the trap installed on cleanup failure so the EXIT path retries every reset:
+Only after the exact run match is proven, authorize that exact run for at most five minutes. The status creator must be `MakerParsDev`, and the target URL binds the status to the exact Actions run:
+
+```bash
+EXPIRES_AT="$(( $(date +%s) + 300 ))"
+gh api --method POST \
+  "repos/MakerParsDev/Astroloji/statuses/$EXPECTED_HEAD_SHA" \
+  -f state=success \
+  -f context="$STATUS_CONTEXT" \
+  -f description="authorized run=$RUN_ID;exp=$EXPIRES_AT" \
+  -f target_url="$RUN_URL" >/dev/null
+```
+
+After `authorize-mutation` succeeds and `play-mutation` starts, close authorization immediately. Keep the trap installed on cleanup failure so the EXIT path retries the same status closure:
 
 ```bash
 if close_metadata_authorization; then
   trap - EXIT INT TERM
 else
-  echo 'Failed to close all metadata authorization variables; leaving cleanup trap installed.' >&2
+  echo 'Failed to close metadata authorization; leaving cleanup trap installed.' >&2
   exit 1
 fi
 ```
 
-A dispatch failure occurs before authorization is written. Job-start failure, cancellation, operator interruption, timeout, and success all retain a closure path. Even if the operator host crashes, the exact run ID plus immutable correlation prevents reuse by another run and the authorization expires within five minutes. The workflow's final job independently requires `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0`, `METADATA_PUBLISH_AUTH_CORRELATION=disabled`, and `ENABLE_METADATA_PUBLISH=false`.
+A dispatch failure occurs before authorization is posted. Job-start failure, cancellation, operator interruption, timeout, and success all retain a closure path. Even if the operator host crashes after posting `authorized run=...`, the unique context cannot authorize another correlation/run and the embedded expiry is accepted only for five minutes. The workflow final verifier independently requires the latest exact context to be `success`, description `closed run=<exact-run-id>`, creator `MakerParsDev`, and target URL equal to that exact workflow run. `ENABLE_METADATA_PUBLISH` must remain `false` throughout.
 
-On Windows, perform the same repository-variable writes inside `try` and reset all four variables in `finally`; do not rely on process exit to close authorization.
+On Windows PowerShell, post the same `metadata-auth/$Correlation` status inside `try`; in `finally`, post `closed run=$RunId` to the same context/target URL and set `ENABLE_METADATA_PUBLISH=false`. Do not rely on process exit for closure.
 
 ## Safety model
 
