@@ -146,6 +146,33 @@ test('implementation plan uses portable PowerShell-friendly verification command
   assert.match(plan, /Pop-Location/);
 });
 
+
+test('production verification plan arms exit-safe ownership-aware temporary cleanup', () => {
+  const plan = fs.readFileSync(
+    'docs/superpowers/plans/2026-08-07-reward-ssv-production-verification.md',
+    'utf8'
+  );
+
+  assert.doesNotMatch(plan, /gh variable get ENABLE_PRODUCTION_RELEASE --env production/);
+  assert.match(plan, /gh variable get ENABLE_PRODUCTION_RELEASE -R/);
+  assert.match(plan, /SSV_USER_SECRET_CREATED=0/);
+  assert.match(plan, /SSV_CUSTOM_SECRET_CREATED=0/);
+  assert.match(plan, /SSV_CHALLENGE_MAY_EXIST=0/);
+  assert.match(plan, /cleanup_ssv_verification\(\)/);
+  assert.match(plan, /trap cleanup_ssv_verification EXIT INT TERM/);
+  assert.match(plan, /gh run watch .*--exit-status/);
+  assert.match(plan, /SSV_CHALLENGE_MAY_EXIST=1/);
+  assert.match(plan, /cleanupVerified: true/);
+
+  ordered(plan, [
+    "Temporary AdMob SSV repository secrets already exist",
+    'trap cleanup_ssv_verification EXIT INT TERM',
+    'gh secret set ADMOB_SSV_TEST_USER_ID',
+    'gh secret set ADMOB_SSV_TEST_CUSTOM_DATA',
+    'SSV_CHALLENGE_MAY_EXIST=1'
+  ]);
+});
+
 const operatorDocs = [
   'backend/README.md',
   'docs/PLAY_PRODUCTION_READINESS.md',

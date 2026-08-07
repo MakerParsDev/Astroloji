@@ -98,7 +98,7 @@ Do not create a production challenge or dispatch a deployment if any Step 1–3 
 ```bash
 REPO=MakerParsDev/Astroloji
 MAIN_SHA="$(gh api repos/$REPO/commits/main --jq .sha)"
-GATE="$(gh variable get ENABLE_PRODUCTION_RELEASE --env production -R "$REPO")"
+GATE="$(gh variable get ENABLE_PRODUCTION_RELEASE -R "$REPO")"
 test "$GATE" = false
 echo "main=$MAIN_SHA"
 echo 'productionReleaseGate=false'
@@ -123,9 +123,9 @@ Expected: rewarded preflight returns `400 / MALFORMED_CALLBACK`; origin health i
 ```bash
 cd /tmp/astro-reward-ssv-audit-20260807/backend
 REPO=MakerParsDev/Astroloji
-DOPPLER_PROJECT="$(gh variable get DOPPLER_PROJECT --env production -R "$REPO")"
-DOPPLER_CONFIG="$(gh variable get DOPPLER_CONFIG --env production -R "$REPO")"
-ZONE_ID="$(gh variable get CLOUDFLARE_ZONE_ID --env production -R "$REPO")"
+DOPPLER_PROJECT="$(gh variable get DOPPLER_PROJECT -R "$REPO")"
+DOPPLER_CONFIG="$(gh variable get DOPPLER_CONFIG -R "$REPO")"
+ZONE_ID="$(gh variable get CLOUDFLARE_ZONE_ID -R "$REPO")"
 umask 077
 CF_TOKEN="$(doppler secrets get CLOUDFLARE_API_TOKEN --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
 trap 'rm -f /tmp/ssv-routes.json /tmp/ssv-secrets.json /tmp/ssv-schema.json; unset CF_TOKEN' EXIT INT TERM
@@ -368,34 +368,111 @@ If the installed `gh` does not support `--match-head-commit`, use the GitHub mer
 **Interfaces:**
 - Consumes: merged cleanup hardening, `backend-admob-ssv-verification-challenge.yml`, production AdMob SSV verification surface.
 - Produces: run IDs and redacted evidence for `pending -> verified -> deleted`, plus a redacted Worker callback outcome.
-- [ ] **Step 1: Freeze merged main and create temporary verification values without printing them**
+- [ ] **Step 1: Freeze merged main and arm an ownership-aware cleanup session before creating secrets**
+
+Run Task 5 Steps 1–7 in one persistent Bash session. Do not close that shell until Step 6 disarms the cleanup trap.
 
 ```bash
+set -euo pipefail
 REPO=MakerParsDev/Astroloji
+WORKFLOW=backend-admob-ssv-verification-challenge.yml
 MAIN_SHA="$(gh api repos/$REPO/commits/main --jq .sha)"
-test "$(gh variable get ENABLE_PRODUCTION_RELEASE --env production -R "$REPO")" = false
+test "$(gh variable get ENABLE_PRODUCTION_RELEASE -R "$REPO")" = false
+TEMP_FILE=/tmp/astro-admob-ssv-values.env
+
+if gh secret list -R "$REPO" | awk '{print $1}' | \
+  grep -Eq '^ADMOB_SSV_TEST_(USER_ID|CUSTOM_DATA)$'; then
+  echo 'Temporary AdMob SSV repository secrets already exist; refusing to overwrite them.' >&2
+  exit 1
+fi
+
+SSV_USER_SECRET_CREATED=0
+SSV_CUSTOM_SECRET_CREATED=0
+SSV_CHALLENGE_MAY_EXIST=0
+SSV_CLEANUP_COMPLETE=0
+
+dispatch_challenge_run() {
+  local command="$1"
+  local before_ids run_id new_ids
+  before_ids=" $(gh run list -R "$REPO" -w "$WORKFLOW" -b main -c "$MAIN_SHA" \
+    -e workflow_dispatch -u MakerParsDev -L 20 --json databaseId --jq 'map(.databaseId)|join(" ")') "
+  gh workflow run "$WORKFLOW" -R "$REPO" --ref main \
+    -f command="$command" -f confirm=MANAGE_ADMOB_SSV_CHALLENGE
+  for _ in $(seq 1 30); do
+    new_ids=()
+    while IFS= read -r candidate; do
+      [ -n "$candidate" ] || continue
+      case "$before_ids" in
+        *" $candidate "*) ;;
+        *) new_ids+=("$candidate") ;;
+      esac
+    done < <(gh run list -R "$REPO" -w "$WORKFLOW" -b main -c "$MAIN_SHA" \
+      -e workflow_dispatch -u MakerParsDev -L 20 --json databaseId --jq '.[].databaseId')
+    if [ "${#new_ids[@]}" -eq 1 ]; then
+      run_id="${new_ids[0]}"
+      break
+    fi
+    if [ "${#new_ids[@]}" -gt 1 ]; then
+      echo 'Ambiguous AdMob SSV workflow dispatch; refusing to select a run.' >&2
+      return 1
+    fi
+    sleep 2
+  done
+  [ -n "${run_id:-}" ] || { echo 'AdMob SSV workflow run was not observed.' >&2; return 1; }
+  gh run watch "$run_id" -R "$REPO" --exit-status >&2
+  gh api "repos/$REPO/actions/runs/$run_id" --jq \
+    "select(.head_sha == \"$MAIN_SHA\" and .head_branch == \"main\" and .event == \"workflow_dispatch\" and .actor.login == \"MakerParsDev\" and .conclusion == \"success\") | .id" \
+    | grep -qx "$run_id"
+  printf '%s\n' "$run_id"
+}
+
+cleanup_ssv_verification() {
+  local original_status=$? cleanup_failed=0 delete_run=''
+  trap - EXIT INT TERM
+  set +e
+  unset USER_ID CUSTOM_DATA
+  if [ "$SSV_CLEANUP_COMPLETE" -ne 1 ] && [ "$SSV_CHALLENGE_MAY_EXIST" -eq 1 ]; then
+    delete_run="$(dispatch_challenge_run delete)" || cleanup_failed=1
+    if [ "$cleanup_failed" -eq 0 ]; then
+      gh run view "$delete_run" -R "$REPO" --log | grep -F -- '- cleanupVerified: true' >/dev/null \
+        || cleanup_failed=1
+    fi
+  fi
+  if [ "$cleanup_failed" -eq 0 ]; then
+    [ "$SSV_USER_SECRET_CREATED" -eq 0 ] || gh secret delete ADMOB_SSV_TEST_USER_ID -R "$REPO" || cleanup_failed=1
+    [ "$SSV_CUSTOM_SECRET_CREATED" -eq 0 ] || gh secret delete ADMOB_SSV_TEST_CUSTOM_DATA -R "$REPO" || cleanup_failed=1
+  else
+    echo 'Challenge cleanup could not be proven; run-owned repository secrets are retained only for cleanup retry.' >&2
+  fi
+  rm -f "$TEMP_FILE"
+  if [ "$cleanup_failed" -ne 0 ]; then exit 1; fi
+  exit "$original_status"
+}
+trap cleanup_ssv_verification EXIT INT TERM
+
 umask 077
 USER_ID="admob-verify-$(node -e 'console.log(crypto.randomUUID())')"
 CUSTOM_DATA="$(node -e 'console.log(crypto.randomUUID())')"
-printf 'ADMOB_SSV_TEST_USER_ID=%s\nADMOB_SSV_TEST_CUSTOM_DATA=%s\n' "$USER_ID" "$CUSTOM_DATA" \
-  > /tmp/astro-admob-ssv-values.env
-chmod 600 /tmp/astro-admob-ssv-values.env
+printf 'ADMOB_SSV_TEST_USER_ID=%s\nADMOB_SSV_TEST_CUSTOM_DATA=%s\n' "$USER_ID" "$CUSTOM_DATA" > "$TEMP_FILE"
+chmod 600 "$TEMP_FILE"
 printf '%s' "$USER_ID" | gh secret set ADMOB_SSV_TEST_USER_ID -R "$REPO"
+SSV_USER_SECRET_CREATED=1
 printf '%s' "$CUSTOM_DATA" | gh secret set ADMOB_SSV_TEST_CUSTOM_DATA -R "$REPO"
+SSV_CUSTOM_SECRET_CREATED=1
 unset USER_ID CUSTOM_DATA
 ```
 
-Do not `cat` the file into CI logs, PR comments, issues, or chat. The authenticated AdMob UI operator may read it locally only for the provider verification form.
+Do not `cat` the file into CI logs, PR comments, issues, or chat. The authenticated AdMob UI operator may read it locally only for the provider verification form. If setup exits before a challenge dispatch, the trap removes only secrets created by this run and deletes the local file. If a challenge may have been created, the trap proves D1 cleanup first; if that proof fails it removes the local file but deliberately retains only the run-owned repository secrets so cleanup can be retried safely.
 
 - [ ] **Step 2: Dispatch `create` and require exact merged-main execution**
 
 ```bash
-gh workflow run backend-admob-ssv-verification-challenge.yml -R "$REPO" --ref main \
-  -f command=create \
-  -f confirm=MANAGE_ADMOB_SSV_CHALLENGE
+SSV_CHALLENGE_MAY_EXIST=1
+CREATE_RUN_ID="$(dispatch_challenge_run create)"
+gh run view "$CREATE_RUN_ID" -R "$REPO" --log | grep -F -- '- status: pending' >/dev/null
 ```
 
-Poll the workflow list until one new run appears. Require `event=workflow_dispatch`, `head_branch=main`, `head_sha=MAIN_SHA`, actor `MakerParsDev`, and conclusion `success`. The job summary must show only redacted evidence with status `pending` and no full temporary values.
+The helper requires `event=workflow_dispatch`, `head_branch=main`, `head_sha=MAIN_SHA`, actor `MakerParsDev`, and conclusion `success`. The run log must expose only redacted evidence with status `pending` and no full temporary values.
 - [ ] **Step 3: Trigger the provider-signed callback**
 
 In the authenticated production rewarded-ad-unit AdMob SSV settings, use exactly:
@@ -415,13 +492,14 @@ Expected: AdMob reports successful URL verification. On failure, do not save; pr
 Dispatch `inspect` on exact `MAIN_SHA` and require redacted evidence `status: verified` with a non-null transaction prefix. Then dispatch `callback` and require redacted evidence `status: found`, `scriptName: astrology-ssv-transition`, and `outcome: verified` (an exact provider retry may instead surface `duplicate_callback`, which is acceptable only when the preceding inspect already proved the same challenge is verified).
 
 ```bash
-gh workflow run backend-admob-ssv-verification-challenge.yml -R "$REPO" --ref main \
-  -f command=inspect -f confirm=MANAGE_ADMOB_SSV_CHALLENGE
-gh workflow run backend-admob-ssv-verification-challenge.yml -R "$REPO" --ref main \
-  -f command=callback -f confirm=MANAGE_ADMOB_SSV_CHALLENGE
+INSPECT_RUN_ID="$(dispatch_challenge_run inspect)"
+gh run view "$INSPECT_RUN_ID" -R "$REPO" --log | grep -F -- '- status: verified' >/dev/null
+CALLBACK_RUN_ID="$(dispatch_challenge_run callback)"
+gh run view "$CALLBACK_RUN_ID" -R "$REPO" --log | \
+  grep -Eq -- '- outcome: (verified|duplicate_callback)'
 ```
 
-For each run, require exact merged-main SHA, actor `MakerParsDev`, `workflow_dispatch`, and conclusion `success` before accepting its summary.
+The helper enforces exact merged-main SHA, actor `MakerParsDev`, `workflow_dispatch`, and conclusion `success` before any summary is accepted.
 - [ ] **Step 5: Re-prove replay/idempotency from automated tests, not destructive production replay**
 
 ```bash
@@ -434,31 +512,30 @@ Expected: duplicate callback, transaction replay/reuse, expired/mismatched callb
 - [ ] **Step 6: Delete the temporary production challenge and verify absence before deleting secrets**
 
 ```bash
-gh workflow run backend-admob-ssv-verification-challenge.yml -R "$REPO" --ref main \
-  -f command=delete \
-  -f confirm=MANAGE_ADMOB_SSV_CHALLENGE
-```
-
-Require exact merged-main execution, conclusion `success`, and redacted delete evidence `cleanupVerified: true`. Only after that:
-
-```bash
+DELETE_RUN_ID="$(dispatch_challenge_run delete)"
+gh run view "$DELETE_RUN_ID" -R "$REPO" --log | grep -F -- '- cleanupVerified: true' >/dev/null
+SSV_CHALLENGE_MAY_EXIST=0
 gh secret delete ADMOB_SSV_TEST_USER_ID -R "$REPO"
+SSV_USER_SECRET_CREATED=0
 gh secret delete ADMOB_SSV_TEST_CUSTOM_DATA -R "$REPO"
-rm -f /tmp/astro-admob-ssv-values.env
+SSV_CUSTOM_SECRET_CREATED=0
+rm -f "$TEMP_FILE"
 if gh secret list -R "$REPO" | grep -Eq 'ADMOB_SSV_TEST_(USER_ID|CUSTOM_DATA)'; then
   echo 'Temporary AdMob SSV repository secrets still exist.' >&2
   exit 1
 fi
+SSV_CLEANUP_COMPLETE=1
+trap - EXIT INT TERM
 ```
 
-If any step after challenge creation fails, cleanup is mandatory before stopping: keep the temporary secrets long enough to run `delete`, require `cleanupVerified: true`, then remove both repository secrets and the local file.
+Require exact merged-main execution, conclusion `success`, and redacted delete evidence `cleanupVerified: true` before removing either repository secret. Any earlier exit is handled by the already-armed trap; it never deletes a pre-existing secret because Step 1 refuses to overwrite those names.
 
 - [ ] **Step 7: Recheck production route and release gate after cleanup**
 
 ```bash
 cd /tmp/astro-reward-ssv-audit-20260807
 BACKEND_BASE_URL=https://astrology.parsfilo.com node scripts/check-backend-reward-ssv.mjs
-test "$(gh variable get ENABLE_PRODUCTION_RELEASE --env production -R MakerParsDev/Astroloji)" = false
+test "$(gh variable get ENABLE_PRODUCTION_RELEASE -R MakerParsDev/Astroloji)" = false
 ```
 
 Expected: live SSV remains fail-closed for malformed callbacks and release gate remains false.
@@ -575,7 +652,7 @@ Freeze the exact PR head and merge with GitHub head matching. Verify the merge c
 ```bash
 REPO=MakerParsDev/Astroloji
 MAIN_SHA="$(gh api repos/$REPO/commits/main --jq .sha)"
-test "$(gh variable get ENABLE_PRODUCTION_RELEASE --env production -R "$REPO")" = false
+test "$(gh variable get ENABLE_PRODUCTION_RELEASE -R "$REPO")" = false
 BACKEND_BASE_URL=https://astrology.parsfilo.com \
   node scripts/check-backend-reward-ssv.mjs
 BACKEND_BASE_URL=https://astrology.parsfilo.com \
