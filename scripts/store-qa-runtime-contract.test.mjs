@@ -26,7 +26,7 @@ test('storeQa runtime is deterministic and side-effect isolated', () => {
   assert.match(manifest, /firebase_analytics_collection_enabled/);
   assert.match(manifest, /firebase_crashlytics_collection_enabled/);
   assert.match(source, /setOf\("tr",\s*"en"\)/);
-  assert.match(source, /AppCompatDelegate\.getApplicationLocales\(\)\.toLanguageTags\(\)/);
+  assert.match(source, /AppCompatDelegate\s*\.getApplicationLocales\(\)\s*\.toLanguageTags\(\)/);
   assert.match(source, /if \(currentLocale != locale\) \{[\s\S]*AppLanguageManager\.applyLanguage\(this@StoreQaBootstrapActivity, locale\)[\s\S]*return/);
   assert.ok(source.indexOf('if (currentLocale != locale)') < source.indexOf('database.clearAllTables()'));
 

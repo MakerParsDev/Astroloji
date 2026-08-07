@@ -21,15 +21,19 @@ class StoreScreenshotQaBillingTest {
     }
 
     @Test
-    fun `qa catalogue never calls live loader`() = runTest {
-        var liveCalls = 0
+    fun `qa catalogue never calls live loader`() =
+        runTest {
+            var liveCalls = 0
 
-        val result = resolvePremiumCatalogue(storeScreenshotQa = true, language = "en") {
-            liveCalls += 1
-            error("live billing must not run in store QA")
+            val result =
+                resolvePremiumCatalogue(storeScreenshotQa = true, language = "en") {
+                    liveCalls += 1
+                    error("live billing must not run in store QA")
+                }
+
+            assertThat(liveCalls).isEqualTo(0)
+            assertThat(result).isInstanceOf(
+                com.parsfilo.astrology.core.data.repository.BillingCatalogueLoadResult.Success::class.java,
+            )
         }
-
-        assertThat(liveCalls).isEqualTo(0)
-        assertThat(result).isInstanceOf(com.parsfilo.astrology.core.data.repository.BillingCatalogueLoadResult.Success::class.java)
-    }
 }

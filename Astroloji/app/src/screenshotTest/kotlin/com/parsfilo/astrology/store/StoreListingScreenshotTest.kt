@@ -78,13 +78,12 @@ private fun StoreCaptureScene(
     copy: StoreMarketingCopy,
     @DrawableRes captureRes: Int,
     cropAlignment: Alignment = Alignment.TopCenter,
-) =
-    StoreMarketingFrame(
-        headline = copy.headline,
-        supportingText = copy.supportingText,
-        captureRes = captureRes,
-        cropAlignment = cropAlignment,
-    )
+) = StoreMarketingFrame(
+    headline = copy.headline,
+    supportingText = copy.supportingText,
+    captureRes = captureRes,
+    cropAlignment = cropAlignment,
+)
 
 @PreviewTest
 @Preview(device = PHONE_PREVIEW, locale = "en", showBackground = true)
@@ -119,14 +118,12 @@ fun StoreToolsTurkishScreenshot() = StoreCaptureScene(turkishStoreCopy.monthly, 
 @PreviewTest
 @Preview(device = PHONE_PREVIEW, locale = "en", showBackground = true)
 @Composable
-fun StoreCompatibilityEnglishScreenshot() =
-    StoreCaptureScene(englishStoreCopy.compatibility, R.drawable.store_capture_en_compatibility)
+fun StoreCompatibilityEnglishScreenshot() = StoreCaptureScene(englishStoreCopy.compatibility, R.drawable.store_capture_en_compatibility)
 
 @PreviewTest
 @Preview(device = PHONE_PREVIEW, locale = "tr-rTR", showBackground = true)
 @Composable
-fun StoreCompatibilityTurkishScreenshot() =
-    StoreCaptureScene(turkishStoreCopy.compatibility, R.drawable.store_capture_tr_compatibility)
+fun StoreCompatibilityTurkishScreenshot() = StoreCaptureScene(turkishStoreCopy.compatibility, R.drawable.store_capture_tr_compatibility)
 
 @PreviewTest
 @Preview(device = PHONE_PREVIEW, locale = "en", showBackground = true)

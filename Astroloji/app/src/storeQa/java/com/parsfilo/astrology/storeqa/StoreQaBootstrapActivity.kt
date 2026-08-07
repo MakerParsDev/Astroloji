@@ -36,7 +36,11 @@ class StoreQaBootstrapActivity : AppCompatActivity() {
             return
         }
         val currentLocale =
-            AppCompatDelegate.getApplicationLocales().toLanguageTags().substringBefore('-').lowercase()
+            AppCompatDelegate
+                .getApplicationLocales()
+                .toLanguageTags()
+                .substringBefore('-')
+                .lowercase()
         if (currentLocale != locale) {
             AppLanguageManager.applyLanguage(this@StoreQaBootstrapActivity, locale)
             return
