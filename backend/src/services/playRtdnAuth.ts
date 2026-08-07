@@ -5,6 +5,8 @@ import type { Env } from '@/types';
 const PLAY_RTDN_JWKS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
 const PLAY_RTDN_JWKS_CACHE_KEY = 'play_rtdn_google_jwks';
 const PLAY_RTDN_JWKS_CACHE_TTL_SECONDS = 3600;
+const PLAY_RTDN_JWKS_REFRESH_COOLDOWN_KEY = 'play_rtdn_google_jwks_refresh_cooldown';
+const PLAY_RTDN_JWKS_REFRESH_COOLDOWN_SECONDS = 60;
 
 interface PlayRtdnJwks {
   keys: Array<Record<string, unknown>>;
@@ -54,8 +56,14 @@ async function resolveGoogleVerificationKey(
   let jwks = cached ? parseJwks(cached) : await fetchGoogleJwks(env);
   let jwk = findJwk(jwks, header.kid);
   if (!jwk && cached) {
-    jwks = await fetchGoogleJwks(env);
-    jwk = findJwk(jwks, header.kid);
+    const refreshCoolingDown = await env.CACHE.get(PLAY_RTDN_JWKS_REFRESH_COOLDOWN_KEY);
+    if (!refreshCoolingDown) {
+      await env.CACHE.put(PLAY_RTDN_JWKS_REFRESH_COOLDOWN_KEY, '1', {
+        expirationTtl: PLAY_RTDN_JWKS_REFRESH_COOLDOWN_SECONDS
+      });
+      jwks = await fetchGoogleJwks(env);
+      jwk = findJwk(jwks, header.kid);
+    }
   }
 
   if (!jwk || jwk.kty !== 'RSA') {
@@ -70,6 +78,10 @@ export async function verifyPlayRtdnIdentity(
   token: string,
   dependencies: PlayRtdnAuthDependencies = {}
 ): Promise<void> {
+  if (!env.PLAY_RTDN_AUDIENCE || !env.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL) {
+    throw new Error('Play RTDN identity configuration is missing.');
+  }
+
   const header = decodeProtectedHeader(token);
   if (!header.kid) {
     throw new Error('Play RTDN identity token is missing kid.');

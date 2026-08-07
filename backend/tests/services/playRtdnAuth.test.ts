@@ -28,15 +28,19 @@ afterEach(() => {
   audience?: string;
   expiration?: string | number;
   email?: string;
+  omitEmail?: boolean;
   emailVerified?: boolean;
   kid?: string | null;
 }
 
 async function signGoogleToken(options: TokenOptions = {}) {
-  const token = new SignJWT({
-    email: options.email ?? CALLER,
+  const claims: Record<string, unknown> = {
     email_verified: options.emailVerified ?? true
-  })
+  };
+  if (!options.omitEmail) {
+    claims.email = options.email ?? CALLER;
+  }
+  const token = new SignJWT(claims)
     .setProtectedHeader(
       options.kid === null
         ? { alg: 'RS256', typ: 'JWT' }
@@ -52,16 +56,17 @@ async function signGoogleToken(options: TokenOptions = {}) {
 function verifierDependencies() {
   return { resolveVerificationKey: vi.fn(async () => publicKey) };
 }function createCache(initial: string | null = null) {
-  let stored = initial;
+  const values = new Map<string, string>();
+  if (initial) values.set('play_rtdn_google_jwks', initial);
   return {
-    async get() {
-      return stored;
+    async get(key: string) {
+      return values.get(key) ?? null;
     },
-    async put(_key: string, value: string) {
-      stored = value;
+    async put(key: string, value: string) {
+      values.set(key, value);
     },
-    async delete() {
-      stored = null;
+    async delete(key: string) {
+      values.delete(key);
     }
   } as unknown as KVNamespace;
 }
@@ -90,7 +95,9 @@ function createAuthContext(input: {
       return Response.json(body, { status });
     }
   } as unknown as AppContext;
-}describe('verifyPlayRtdnIdentity', () => {
+}
+
+describe('verifyPlayRtdnIdentity', () => {
   it('accepts a valid Google-signed identity for the configured audience and caller', async () => {
     const token = await signGoogleToken();
     const dependencies = verifierDependencies();
@@ -123,6 +130,19 @@ function createAuthContext(input: {
   it('rejects a malformed JWT', async () => {
     await expect(
       verifyPlayRtdnIdentity(createTestEnv(), 'not-a-jwt', verifierDependencies())
+    ).rejects.toThrow();
+  });
+
+  it.each([
+    ['PLAY_RTDN_AUDIENCE', false],
+    ['PLAY_RTDN_SERVICE_ACCOUNT_EMAIL', true]
+  ] as const)('rejects when runtime binding %s is missing', async (binding, omitEmail) => {
+    const env = createTestEnv();
+    (env as unknown as Record<string, unknown>)[binding] = undefined;
+    const token = await signGoogleToken({ omitEmail });
+
+    await expect(
+      verifyPlayRtdnIdentity(env, token, verifierDependencies())
     ).rejects.toThrow();
   });
 
@@ -159,6 +179,21 @@ function createAuthContext(input: {
     });
 
     await expect(verifyPlayRtdnIdentity(env, token)).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('throttles refreshes across distinct unknown kids during the shared cooldown', async () => {
+    const first = await signGoogleToken({ kid: 'unknown-kid-1' });
+    const second = await signGoogleToken({ kid: 'unknown-kid-2' });
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () => Response.json({ keys: [jwk] })
+    );
+    const env = createTestEnv({
+      CACHE: createCache(JSON.stringify({ keys: [{ ...jwk, kid: 'stale-key' }] }))
+    });
+
+    await expect(verifyPlayRtdnIdentity(env, first)).rejects.toThrow();
+    await expect(verifyPlayRtdnIdentity(env, second)).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
