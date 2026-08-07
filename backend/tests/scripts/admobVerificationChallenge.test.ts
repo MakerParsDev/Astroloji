@@ -115,8 +115,13 @@ describe('verification challenge command execution', () => {
     expect(JSON.stringify(log.mock.calls)).not.toContain(userId);
   });
 
-  it('deletes only the exact namespaced challenge and logs only the prefix', () => {
-    const runSql = vi.fn().mockReturnValue([{ success: true, meta: { changes: 1 } }]);
+  it('deletes only the exact namespaced challenge and verifies cleanup before success', () => {
+    const runSql = vi
+      .fn()
+      .mockReturnValueOnce([{ success: true, meta: { changes: 1 } }])
+      .mockReturnValueOnce([
+        { success: true, results: [{ challenge_count: 0, user_count: 0 }] }
+      ]);
     const log = vi.fn();
 
     const evidence = executeVerificationChallengeCommand({
@@ -129,15 +134,52 @@ describe('verification challenge command execution', () => {
       log
     });
 
-    const sql = runSql.mock.calls[0]?.[0] as string;
-    expect(sql).toContain(`id = '${challengeId}'`);
-    expect(sql).toContain(`user_id = '${userId}'`);
-    expect(sql).toContain('DELETE FROM users');
-    expect(sql.indexOf('DELETE FROM reward_challenges')).toBeLessThan(sql.indexOf('DELETE FROM users'));
-    expect(sql).toContain(`id = '${userId}'`);
-    expect(sql).toContain('NOT EXISTS');
-    expect(evidence).toEqual({ operation: 'delete', deletedChallengePrefix: '22222222' });
-    expect(JSON.stringify(log.mock.calls)).not.toContain(challengeId);
+    expect(runSql).toHaveBeenCalledTimes(2);
+    const deleteSql = runSql.mock.calls[0]?.[0] as string;
+    const verifySql = runSql.mock.calls[1]?.[0] as string;
+    expect(deleteSql).toContain(`id = '${challengeId}'`);
+    expect(deleteSql).toContain(`user_id = '${userId}'`);
+    expect(deleteSql).toContain('DELETE FROM users');
+    expect(deleteSql.indexOf('DELETE FROM reward_challenges')).toBeLessThan(
+      deleteSql.indexOf('DELETE FROM users')
+    );
+    expect(deleteSql).toContain(`id = '${userId}'`);
+    expect(deleteSql).toContain('NOT EXISTS');
+    expect(verifySql).toContain('challenge_count');
+    expect(verifySql).toContain('user_count');
+    expect(evidence).toEqual({
+      operation: 'delete',
+      deletedChallengePrefix: '22222222',
+      cleanupVerified: true
+    });
+    const serializedLogs = JSON.stringify(log.mock.calls);
+    expect(serializedLogs).not.toContain(challengeId);
+    expect(serializedLogs).not.toContain(userId);
+  });
+
+  it('fails closed when post-delete cleanup verification finds temporary state', () => {
+    const runSql = vi
+      .fn()
+      .mockReturnValueOnce([{ success: true, meta: { changes: 1 } }])
+      .mockReturnValueOnce([
+        { success: true, results: [{ challenge_count: 1, user_count: 0 }] }
+      ]);
+    const log = vi.fn();
+
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'delete',
+        env: {
+          ADMOB_SSV_TEST_USER_ID: userId,
+          ADMOB_SSV_TEST_CUSTOM_DATA: challengeId
+        },
+        runSql,
+        log
+      })
+    ).toThrow(/cleanup verification failed/i);
+
+    expect(runSql).toHaveBeenCalledTimes(2);
+    expect(log).not.toHaveBeenCalled();
   });
 
   it('rejects missing secrets before running SQL', () => {

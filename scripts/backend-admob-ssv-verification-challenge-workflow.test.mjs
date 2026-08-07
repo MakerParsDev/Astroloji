@@ -89,6 +89,11 @@ test('delete removes only the D1 challenge and requires manual temporary-secret 
   assert.match(workflow, /Delete these temporary repository secrets manually/);
   assert.match(workflow, /ADMOB_SSV_TEST_USER_ID/);
   assert.match(workflow, /ADMOB_SSV_TEST_CUSTOM_DATA/);
+  assert.match(
+    workflow,
+    /delete: \['operation', 'deletedChallengePrefix', 'cleanupVerified'\]/
+  );
+  assert.match(workflow, /name: Remove temporary evidence[\s\S]*if: always\(\)/);
 
   ordered(workflow, [
     'Delete verification challenge from D1',
@@ -139,6 +144,44 @@ test('implementation plan uses portable PowerShell-friendly verification command
   assert.doesNotMatch(plan, /^cd \.\.$/m);
   assert.match(plan, /Push-Location backend/);
   assert.match(plan, /Pop-Location/);
+});
+
+
+test('production verification plan arms exit-safe ownership-aware temporary cleanup', () => {
+  const plan = fs.readFileSync(
+    'docs/superpowers/plans/2026-08-07-reward-ssv-production-verification.md',
+    'utf8'
+  );
+
+  assert.doesNotMatch(plan, /gh variable get ENABLE_PRODUCTION_RELEASE --env production/);
+  assert.match(plan, /gh variable get ENABLE_PRODUCTION_RELEASE -R/);
+  assert.match(plan, /SSV_USER_SECRET_CREATED=0/);
+  assert.match(plan, /SSV_CUSTOM_SECRET_CREATED=0/);
+  assert.match(plan, /SSV_CHALLENGE_MAY_EXIST=0/);
+  assert.match(plan, /cleanup_ssv_verification\(\)/);
+  assert.match(plan, /trap cleanup_ssv_verification EXIT INT TERM/);
+  assert.match(plan, /gh run watch .*--exit-status/);
+  assert.match(plan, /SSV_CHALLENGE_MAY_EXIST=1/);
+  assert.match(plan, /cleanupVerified: true/);
+  assert.match(plan, /SSV_USER_SECRET_CREATED=1/);
+  assert.match(plan, /SSV_CUSTOM_SECRET_CREATED=1/);
+
+  ordered(plan, [
+    "Temporary AdMob SSV repository secrets already exist",
+    'trap cleanup_ssv_verification EXIT INT TERM',
+    'gh secret set ADMOB_SSV_TEST_USER_ID',
+    'SSV_USER_SECRET_CREATED=1',
+    'gh secret set ADMOB_SSV_TEST_CUSTOM_DATA',
+    'SSV_CUSTOM_SECRET_CREATED=1',
+    'SSV_CHALLENGE_MAY_EXIST=1'
+  ]);
+
+  ordered(plan, [
+    'gh run view "$delete_run" -R "$REPO" --log',
+    "grep -F -- '- cleanupVerified: true'",
+    'gh secret delete ADMOB_SSV_TEST_USER_ID',
+    'gh secret delete ADMOB_SSV_TEST_CUSTOM_DATA'
+  ]);
 });
 
 const operatorDocs = [

@@ -202,7 +202,7 @@ jobs:
           const allowedByOperation = {
             create: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
             inspect: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
-            delete: ['operation', 'deletedChallengePrefix'],
+            delete: ['operation', 'deletedChallengePrefix', 'cleanupVerified'],
             callback: ['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'verifierCode', 'verifierReason', 'verifierField', 'scriptVersion', 'telemetryCount', 'returnedCount', 'workerServiceSeen', 'queryStatus', 'rowsRead', 'scriptFilterReturnedCount', 'scriptFilterQueryStatus', 'scriptFilterRowsRead', 'scriptFilterRequestStatus', 'unfilteredReturnedCount', 'unfilteredQueryStatus', 'unfilteredRowsRead', 'unfilteredRequestStatus']
           };
           const allowed = allowedByOperation[evidence.operation];

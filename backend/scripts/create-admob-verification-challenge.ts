@@ -25,6 +25,11 @@ export interface VerificationChallengeRow {
   expires_at: string;
 }
 
+interface VerificationCleanupRow {
+  challenge_count: number;
+  user_count: number;
+}
+
 export type D1CommandResult = Array<{
   results?: unknown[];
   success?: boolean;
@@ -35,7 +40,7 @@ export type VerificationChallengeCommand = 'create' | 'inspect' | 'delete';
 
 export type VerificationChallengeEvidence =
   | ({ operation: 'create' | 'inspect' } & ReturnType<typeof formatVerificationEvidence>)
-  | { operation: 'delete'; deletedChallengePrefix: string };
+  | { operation: 'delete'; deletedChallengePrefix: string; cleanupVerified: true };
 
 export interface ExecuteVerificationChallengeCommandOptions {
   command: VerificationChallengeCommand;
@@ -158,6 +163,13 @@ WHERE id = ${sqlString(supplied.userId)}
   );`;
 }
 
+export function buildVerifyDeletionSql(challengeId: string, userId: string): string {
+  const supplied = validateSuppliedVerificationValues(userId, challengeId);
+  return `SELECT
+  (SELECT COUNT(*) FROM reward_challenges WHERE id = ${sqlString(supplied.challengeId)}) AS challenge_count,
+  (SELECT COUNT(*) FROM users WHERE id = ${sqlString(supplied.userId)}) AS user_count;`;
+}
+
 export function formatVerificationEvidence(row: VerificationChallengeRow) {
   return {
     challengePrefix: row.id.slice(0, 8),
@@ -195,9 +207,9 @@ export function runRemoteSql(sql: string): D1CommandResult {
   return JSON.parse(output) as D1CommandResult;
 }
 
-function firstRow(result: D1CommandResult): VerificationChallengeRow | null {
+function firstRow<T>(result: D1CommandResult): T | null {
   const row = result.flatMap((item) => item.results ?? [])[0];
-  return row ? (row as VerificationChallengeRow) : null;
+  return row ? (row as T) : null;
 }
 
 export function executeVerificationChallengeCommand({
@@ -232,7 +244,9 @@ export function executeVerificationChallengeCommand({
   );
 
   if (command === 'inspect') {
-    const row = firstRow(runSql(buildSelectVerificationChallengeSql(challengeId)));
+    const row = firstRow<VerificationChallengeRow>(
+      runSql(buildSelectVerificationChallengeSql(challengeId))
+    );
     if (!row || !row.user_id.startsWith(VERIFICATION_USER_PREFIX)) {
       throw new Error('AdMob verification challenge was not found.');
     }
@@ -246,9 +260,16 @@ export function executeVerificationChallengeCommand({
 
   const userId = requireEnv(env, 'ADMOB_SSV_TEST_USER_ID');
   runSql(buildDeleteVerificationChallengeSql(challengeId, userId));
+  const cleanup = firstRow<VerificationCleanupRow>(
+    runSql(buildVerifyDeletionSql(challengeId, userId))
+  );
+  if (!cleanup || cleanup.challenge_count !== 0 || cleanup.user_count !== 0) {
+    throw new Error('AdMob verification challenge cleanup verification failed.');
+  }
   const evidence: VerificationChallengeEvidence = {
     operation: 'delete',
-    deletedChallengePrefix: challengeId.slice(0, 8)
+    deletedChallengePrefix: challengeId.slice(0, 8),
+    cleanupVerified: true
   };
   log(JSON.stringify(evidence));
   return evidence;
