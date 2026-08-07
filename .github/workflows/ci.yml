@@ -79,8 +79,8 @@ jobs:
         run: ./gradlew :app:ktlintCheck
       - name: Android Lint
         run: ./gradlew :app:lintDebug
-      - name: Paywall screenshot tests
-        run: ./gradlew :app:validateDebugScreenshotTest
+      - name: Play store and paywall screenshot tests
+        run: ./gradlew :app:validateDebugScreenshotTest -Pandroid.experimental.enableScreenshotTest=true -Pandroid.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
       - name: Device smoke APK compile

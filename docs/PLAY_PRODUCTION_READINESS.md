@@ -46,8 +46,9 @@ Run `backend-ssv-transition-rollback` with confirmation `REMOVE_TRANSITION_ROUTE
 - Account deletion is declared as supported and links to `https://astrology.parsfilo.com/delete-account`.
 - Ads declaration, content rating, target audience, app access, privacy policy, and subscription/product declarations are current.
 - Store screenshots, feature graphic, icon, Turkish/English text, support contact, and release notes are current.
-- The existing production listing currently reports that data cannot be deleted; update this declaration before the next production submission.
+- The public Play page must show account deletion is supported and link to `https://astrology.parsfilo.com/delete-account`; verify this after the Console save and review approval.
 - Keep `ENABLE_PRODUCTION_RELEASE=false` until all manual checks and internal QA are complete.
+- Production release `1102` is currently completed at 100% (`1.0`). Policy/listing work must not mutate that track. A future/staged release may use a 10% cap only after policy, visual, crash/ANR, and conversion evidence is reviewed in a separate rollout decision.
 
 ## Rollback
 

@@ -1,1 +1,1 @@
-Ilk public surum. Onboarding, gunluk icerik, uyum, premium ve bildirim akislarini icerir.
+Aylık ve haftalık premium plan seçimi iyileştirildi. Plan yükleme hataları için tekrar deneme desteği eklendi; abonelik ekranı ve arka uç doğrulama akışı güçlendirildi.

@@ -7,18 +7,59 @@ on:
     paths:
       - Astroloji/play/**
       - scripts/validate-play-metadata.mjs
-      - scripts/publish-play-metadata.mjs
+      - scripts/lib/play-*.mjs
+      - scripts/*play-metadata.mjs
+      - scripts/cleanup-play-locales.mjs
       - .github/workflows/android-metadata.yml
   workflow_dispatch:
     inputs:
+      mode:
+        description: Play metadata operation
+        required: true
+        default: validate
+        type: choice
+        options:
+          - validate
+          - backup
+          - diff
+          - publish
+          - cleanup
+          - readback
+          - restore
+      backup_run_id:
+        description: Workflow run ID containing play-metadata-backup-<run-id>
+        required: false
+        default: ''
+        type: string
+      backup_sha256:
+        description: Exact 64-character SHA-256 of the downloaded backup
+        required: false
+        default: ''
+        type: string
+      state_digest:
+        description: Exact 64-character live state digest from cleanup dry-run
+        required: false
+        default: ''
+        type: string
+      removal_count:
+        description: Exact unsupported locale count from cleanup dry-run
+        required: false
+        default: ''
+        type: string
+      confirmation:
+        description: Exact digest-bound publication, cleanup, or restore confirmation
+        required: false
+        default: ''
+        type: string
       track:
-        description: Optional track name to also update release notes for
+        description: Optional release-notes track for publish mode
         required: false
         default: ''
         type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: android-metadata-${{ github.ref }}
@@ -32,27 +73,227 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - name: Validate Play metadata
-        run: node scripts/validate-play-metadata.mjs
+      - name: Validate Play metadata and assets
+        run: |
+          node scripts/validate-play-metadata.mjs
+          node --test \
+            scripts/play-store-config.test.mjs \
+            scripts/play-copy-quality.test.mjs \
+            scripts/play-assets.test.mjs \
+            scripts/play-diff.test.mjs \
+            scripts/play-publication.test.mjs \
+            scripts/play-locale-cleanup.test.mjs \
+            scripts/play-workflow-contract.test.mjs \
+            scripts/android-metadata-workflow.test.mjs
 
-  publish-metadata:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'MakerParsDev/Astroloji' && vars.ENABLE_METADATA_PUBLISH == 'true'
+  play-readonly:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.mode == 'backup' || inputs.mode == 'diff' || inputs.mode == 'readback')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
+    timeout-minutes: 20
     needs: validate-metadata
     env:
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      PLAY_PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 24
-      - name: Install Doppler CLI
+      - name: Install pinned Doppler CLI
+        if: inputs.mode == 'backup' || inputs.mode == 'readback'
+        env:
+          DOPPLER_VERSION: 3.76.1
+          DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2
+        run: |
+          set -euo pipefail
+          archive="doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/${archive}"
+          curl --fail --location --silent --show-error "$url" -o "$RUNNER_TEMP/$archive"
+          echo "$DOPPLER_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" doppler
+          sudo install -m 0755 "$RUNNER_TEMP/doppler" /usr/local/bin/doppler
+          doppler --version
+      - name: Download Doppler secrets
+        if: inputs.mode == 'backup' || inputs.mode == 'readback'
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+        run: |
+          if [ -n "$DOPPLER_TOKEN" ]; then
+            doppler secrets download \
+              --project "${DOPPLER_PROJECT:-mobil-apps}" \
+              --config "${DOPPLER_CONFIG:-astrology}" \
+              --format json \
+              --no-file \
+              > "$RUNNER_TEMP/doppler-secrets.json"
+            chmod 600 "$RUNNER_TEMP/doppler-secrets.json"
+          else
+            echo "DOPPLER_TOKEN is not set; relying on GitHub environment secrets."
+          fi
+      - name: Write Play service account credentials
+        if: inputs.mode == 'backup' || inputs.mode == 'readback'
+        env:
+          DOPPLER_SECRETS_JSON_PATH: ${{ runner.temp }}/doppler-secrets.json
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          umask 077
+          node -e "const fs=require('fs'); const p=process.env.DOPPLER_SECRETS_JSON_PATH; let s=''; if (p && fs.existsSync(p)) { const parsed=JSON.parse(fs.readFileSync(p,'utf8')); const pick=(key)=> typeof parsed[key]==='string' ? parsed[key] : parsed[key]?.computed || ''; s = pick('PLAY_SERVICE_ACCOUNT_JSON') || pick('GOOGLE_SERVICE_ACCOUNT_JSON'); } s = process.env.PLAY_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON || s; if (!s) { console.error('Missing Play service account JSON from GitHub secrets or Doppler.'); process.exit(1); } fs.writeFileSync(process.env.RUNNER_TEMP + '/play-service-account.json', s, {mode:0o600});"
+          chmod 600 "$RUNNER_TEMP/play-service-account.json"
+      - name: Create secret-safe Play backup
+        if: inputs.mode == 'backup'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: |
+          mkdir -p "$RUNNER_TEMP/play-backup"
+          chmod 700 "$RUNNER_TEMP/play-backup"
+          export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
+          node scripts/backup-play-metadata.mjs \
+            --output "$RUNNER_TEMP/play-backup/play-backup.json"
+          sha256sum "$RUNNER_TEMP/play-backup/play-backup.json" \
+            | tee "$RUNNER_TEMP/play-backup/play-backup.sha256"
+      - name: Upload backup artifact
+        if: inputs.mode == 'backup'
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-metadata-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/play-backup/
+          retention-days: 3
+          if-no-files-found: error
+      - name: Require prior backup run
+        if: inputs.mode == 'diff'
+        env:
+          BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+        run: test -n "$BACKUP_RUN_ID"
+      - name: Download prior backup artifact
+        if: inputs.mode == 'diff'
+        uses: actions/download-artifact@v4
+        with:
+          name: play-metadata-backup-${{ inputs.backup_run_id }}
+          path: ${{ runner.temp }}/play-input
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.backup_run_id }}
+      - name: Produce Play metadata dry-run diff
+        if: inputs.mode == 'diff'
+        run: |
+          chmod 600 "$RUNNER_TEMP/play-input/play-backup.json"
+          node scripts/diff-play-metadata.mjs \
+            --backup "$RUNNER_TEMP/play-input/play-backup.json" \
+            --expected-root "$GITHUB_WORKSPACE"
+      - name: Upload dry-run diff artifact
+        if: always() && inputs.mode == 'diff'
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-metadata-diff-${{ github.run_id }}
+          path: ${{ runner.temp }}/play-input/play-backup.json.diff.json
+          retention-days: 3
+          if-no-files-found: warn
+      - name: Independent Play read-back
+        if: inputs.mode == 'readback'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: |
+          export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
+          node scripts/readback-play-metadata.mjs \
+            --expected-root "$GITHUB_WORKSPACE"
+      - name: Summarize read-only operation
+        if: always()
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          {
+            echo "## Play metadata read-only operation"
+            echo "- Mode: $MODE"
+            echo "- No listing, track, subscription, or policy mutation is performed by this job."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove temporary credentials
+        if: always()
+        run: |
+          rm -f \
+            "$RUNNER_TEMP/play-service-account.json" \
+            "$RUNNER_TEMP/doppler-secrets.json"
+
+  reject-invalid-mutation:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
+      (github.ref != 'refs/heads/main' ||
+       github.repository != 'MakerParsDev/Astroloji' ||
+       vars.ENABLE_METADATA_PUBLISH != 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject unsafe metadata mutation request
+        run: |
+          echo "Metadata mutation requires main, MakerParsDev/Astroloji, production approval, and ENABLE_METADATA_PUBLISH=true." >&2
+          exit 1
+
+  play-mutation:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'MakerParsDev/Astroloji' &&
+      vars.ENABLE_METADATA_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: production
+    needs: validate-metadata
+    env:
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      PLAY_PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
+      PLAY_METADATA_TRACK: ${{ inputs.track }}
+      MODE: ${{ inputs.mode }}
+      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
+      BACKUP_SHA256: ${{ inputs.backup_sha256 }}
+      CONFIRMATION: ${{ inputs.confirmation }}
+      STATE_DIGEST: ${{ inputs.state_digest }}
+      REMOVAL_COUNT: ${{ inputs.removal_count }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Require immutable backup inputs
+        run: |
+          test -n "$BACKUP_RUN_ID"
+          test -n "$BACKUP_SHA256"
+          test -n "$CONFIRMATION"
+      - name: Download approved backup artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: play-metadata-backup-${{ inputs.backup_run_id }}
+          path: ${{ runner.temp }}/play-input
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.backup_run_id }}
+      - name: Verify approved backup SHA-256
+        run: |
+          chmod 600 "$RUNNER_TEMP/play-input/play-backup.json"
+          actual_sha="$(sha256sum "$RUNNER_TEMP/play-input/play-backup.json" | awk '{print $1}')"
+          test "$actual_sha" = "$BACKUP_SHA256"
+      - name: Re-run dry-run diff before mutation
+        if: inputs.mode == 'publish'
+        run: |
+          node scripts/diff-play-metadata.mjs \
+            --backup "$RUNNER_TEMP/play-input/play-backup.json" \
+            --expected-root "$GITHUB_WORKSPACE"
+      - name: Install pinned Doppler CLI
+        env:
+          DOPPLER_VERSION: 3.76.1
+          DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2
+        run: |
+          set -euo pipefail
+          archive="doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/${archive}"
+          curl --fail --location --silent --show-error "$url" -o "$RUNNER_TEMP/$archive"
+          echo "$DOPPLER_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" doppler
+          sudo install -m 0755 "$RUNNER_TEMP/doppler" /usr/local/bin/doppler
+          doppler --version
       - name: Download Doppler secrets
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
@@ -64,6 +305,7 @@ jobs:
               --format json \
               --no-file \
               > "$RUNNER_TEMP/doppler-secrets.json"
+            chmod 600 "$RUNNER_TEMP/doppler-secrets.json"
           else
             echo "DOPPLER_TOKEN is not set; relying on GitHub environment secrets."
           fi
@@ -73,11 +315,98 @@ jobs:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: |
-          node -e "const fs=require('fs'); const p=process.env.DOPPLER_SECRETS_JSON_PATH; let s=''; if (p && fs.existsSync(p)) { const parsed=JSON.parse(fs.readFileSync(p,'utf8')); const pick=(key)=> typeof parsed[key]==='string' ? parsed[key] : parsed[key]?.computed || ''; s = pick('PLAY_SERVICE_ACCOUNT_JSON') || pick('GOOGLE_SERVICE_ACCOUNT_JSON'); } s = process.env.PLAY_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON || s; if (!s) { console.error('Missing Play service account JSON from GitHub secrets or Doppler.'); process.exit(1); } fs.writeFileSync(process.env.RUNNER_TEMP + '/play-service-account.json', s);"
-      - name: Publish Play metadata edit
+          umask 077
+          node -e "const fs=require('fs'); const p=process.env.DOPPLER_SECRETS_JSON_PATH; let s=''; if (p && fs.existsSync(p)) { const parsed=JSON.parse(fs.readFileSync(p,'utf8')); const pick=(key)=> typeof parsed[key]==='string' ? parsed[key] : parsed[key]?.computed || ''; s = pick('PLAY_SERVICE_ACCOUNT_JSON') || pick('GOOGLE_SERVICE_ACCOUNT_JSON'); } s = process.env.PLAY_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON || s; if (!s) { console.error('Missing Play service account JSON from GitHub secrets or Doppler.'); process.exit(1); } fs.writeFileSync(process.env.RUNNER_TEMP + '/play-service-account.json', s, {mode:0o600});"
+          chmod 600 "$RUNNER_TEMP/play-service-account.json"
+      - name: Verify approved backup still matches live Play state
+        if: inputs.mode == 'publish'
         env:
           PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
-          PLAY_PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
-          PLAY_METADATA_ROOT: Astroloji/play
-          PLAY_METADATA_TRACK: ${{ inputs.track }}
-        run: node scripts/publish-play-metadata.mjs
+        run: |
+          export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
+          node scripts/verify-play-backup-current.mjs \
+            --backup "$RUNNER_TEMP/play-input/play-backup.json"
+      - name: Publish Turkish and English text and images
+        if: inputs.mode == 'publish'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: |
+          export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
+          node scripts/publish-play-metadata.mjs \
+            --backup "$RUNNER_TEMP/play-input/play-backup.json" \
+            --confirmation "$CONFIRMATION"
+      - name: Remove unsupported live locales
+        if: inputs.mode == 'cleanup'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: |
+          test -n "$STATE_DIGEST"
+          test -n "$REMOVAL_COUNT"
+          export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
+          node scripts/cleanup-play-locales.mjs \
+            --backup "$RUNNER_TEMP/play-input/play-backup.json" \
+            --backup-sha256 "$BACKUP_SHA256" \
+            --state-digest "$STATE_DIGEST" \
+            --removal-count "$REMOVAL_COUNT" \
+            --confirmation "$CONFIRMATION"
+      - name: Restore exact backed-up listing state
+        if: inputs.mode == 'restore'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: |
+          export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
+          node scripts/restore-play-metadata.mjs \
+            --backup "$RUNNER_TEMP/play-input/play-backup.json" \
+            --confirmation "$CONFIRMATION"
+      - name: Summarize mutation and gate reset requirement
+        if: always()
+        run: |
+          {
+            echo "## Play metadata mutation"
+            echo "- Mode: $MODE"
+            echo "- Backup run: $BACKUP_RUN_ID"
+            echo "- Restore repository variable immediately: ENABLE_METADATA_PUBLISH=false"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove temporary credentials
+        if: always()
+        run: |
+          rm -f \
+            "$RUNNER_TEMP/play-service-account.json" \
+            "$RUNNER_TEMP/doppler-secrets.json"
+
+  verify-metadata-gate-closed:
+    if: >-
+      always() && github.event_name == 'workflow_dispatch' &&
+      (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
+      needs.play-mutation.result != 'skipped'
+    needs: play-mutation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ secrets.METADATA_VARIABLES_READ_TOKEN }}
+    steps:
+      - name: Require metadata-variable read token
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "METADATA_VARIABLES_READ_TOKEN is required to verify the publication gate is closed." >&2
+            exit 1
+          fi
+      - name: Verify ENABLE_METADATA_PUBLISH returned to false
+        run: |
+          current_value="$(gh api \
+            repos/${{ github.repository }}/actions/variables/ENABLE_METADATA_PUBLISH \
+            --jq '.value' | tr '[:upper:]' '[:lower:]')"
+          if [ "$current_value" != "false" ]; then
+            echo "ENABLE_METADATA_PUBLISH must be restored to false after the approved window." >&2
+            exit 1
+          fi
+      - name: Record gate closure
+        if: always()
+        run: |
+          {
+            echo "## Metadata publication gate"
+            echo "- Required final state: ENABLE_METADATA_PUBLISH=false"
+            echo "- Dynamic repository-variable check executed after the mutation job."
+          } >> "$GITHUB_STEP_SUMMARY"

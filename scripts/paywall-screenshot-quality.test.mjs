@@ -20,7 +20,7 @@ test('paywall screenshot tests are configured and enforced in CI', () => {
   assert.ok(existsSync(previewPath), 'Paywall screenshot preview source must exist.');
   assert.match(readFileSync(previewPath, 'utf8'), /@PreviewTest/);
   assert.match(readFileSync(previewPath, 'utf8'), /PremiumOfferCard/);
-  assert.match(ci, /name:\s*Paywall screenshot tests[\s\S]*?validateDebugScreenshotTest/);
+  assert.match(ci, /name:\s*Play store and paywall screenshot tests[\s\S]*?validateDebugScreenshotTest/);
   assert.match(ci, /android\.sync\.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE/);
 });
 
