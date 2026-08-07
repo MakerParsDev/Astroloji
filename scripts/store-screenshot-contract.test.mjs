@@ -3,27 +3,72 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 const sourcePath = 'Astroloji/app/src/screenshotTest/kotlin/com/parsfilo/astrology/store/StoreListingScreenshotTest.kt';
+const fixturePath = 'Astroloji/app/src/screenshotTest/kotlin/com/parsfilo/astrology/store/StoreScreenshotFixtures.kt';
+const scenePath = 'Astroloji/play/assets/source/store-scenes.json';
 
-test('store listing screenshot source defines twelve localized previews', () => {
+const previews = [
+  'StoreDailyEnglishScreenshot', 'StoreGuidanceEnglishScreenshot', 'StoreToolsEnglishScreenshot',
+  'StoreCompatibilityEnglishScreenshot', 'StorePersonalityEnglishScreenshot', 'StorePremiumEnglishScreenshot',
+  'StoreDailyTurkishScreenshot', 'StoreGuidanceTurkishScreenshot', 'StoreToolsTurkishScreenshot',
+  'StoreCompatibilityTurkishScreenshot', 'StorePersonalityTurkishScreenshot', 'StorePremiumTurkishScreenshot',
+];
+const captureScenes = ['daily', 'weekly', 'monthly', 'compatibility', 'profile', 'premium'];
+
+test('phone previews keep stable names and use real-device marketing frames', () => {
   assert.ok(fs.existsSync(sourcePath), 'Store listing screenshot source must exist.');
   const source = fs.readFileSync(sourcePath, 'utf8');
-  for (const scene of ['Daily', 'Guidance', 'Compatibility', 'Personality', 'Tools', 'Premium']) {
-    assert.match(source, new RegExp(`Store${scene}EnglishScreenshot`));
-    assert.match(source, new RegExp(`Store${scene}TurkishScreenshot`));
-  }
+  for (const preview of previews) assert.match(source, new RegExp(preview));
   assert.equal((source.match(/@PreviewTest/g) ?? []).length, 12);
+  assert.match(source, /spec:width=360dp,height=800dp,dpi=480/);
+  assert.match(source, /painterResource/);
+  assert.match(source, /ContentScale\.Crop/);
+  assert.match(source, /FontWeight\.ExtraBold/);
+  assert.match(source, /maxLines\s*=\s*2/);
+  assert.doesNotMatch(source, /InsightMeter\(/);
+  assert.doesNotMatch(source, /PremiumOfferCard\(/);
+  assert.doesNotMatch(source, /AstrologyCard\s*\{/);
   assert.doesNotMatch(source, /email|token|firebase|device id|test user/i);
 });
 
-test('store scenes use production visual components and monthly plus weekly plans only', () => {
-  assert.ok(fs.existsSync(sourcePath), 'Store listing screenshot source must exist.');
+test('all twelve raw device captures are wired into phone previews', () => {
   const source = fs.readFileSync(sourcePath, 'utf8');
-  for (const component of ['CosmicBackground', 'AstrologyCard', 'AstroSectionTitle', 'PremiumOfferCard']) {
-    assert.match(source, new RegExp(component));
+  for (const locale of ['en', 'tr']) {
+    for (const scene of captureScenes) {
+      assert.match(source, new RegExp(`R\\.drawable\\.store_capture_${locale}_${scene}`));
+    }
   }
-  assert.match(source, /premium_monthly/);
-  assert.match(source, /premium_weekly/);
-  assert.doesNotMatch(source, /premium_yearly/);
+});
+
+test('phone scene manifest declares real-device sources in capture order', () => {
+  const manifest = JSON.parse(fs.readFileSync(scenePath, 'utf8'));
+  const phones = manifest.scenes.filter((scene) => scene.role === 'phoneScreenshot');
+  assert.equal(phones.length, 12);
+  assert.ok(phones.every((scene) => scene.sourceKind === 'realDeviceCapture'));
+  for (const locale of ['en-US', 'tr-TR']) {
+    const rows = phones.filter((scene) => scene.locale === locale).sort((a, b) => a.order - b.order);
+    assert.deepEqual(rows.map((row) => row.order), [1, 2, 3, 4, 5, 6]);
+    assert.deepEqual(rows.map((row) => row.path.split('/').at(-1)), [
+      '01-daily.png', '02-weekly.png', '03-monthly.png', '04-compatibility.png', '05-profile.png', '06-premium.png',
+    ]);
+  }
+});
+
+test('localized marketing copy uses the six approved headlines per locale', () => {
+  const fixtures = fs.readFileSync(fixturePath, 'utf8');
+  for (const headline of [
+    "See today's horoscope at a glance",
+    'See the rhythm of your week ahead',
+    'Explore the bigger picture this month',
+    'Compare zodiac compatibility clearly',
+    'Personalize your zodiac profile',
+    'Choose monthly or weekly Premium',
+    'Bugünün burç yorumunu tek bakışta gör',
+    'Haftanın ritmini önceden yakala',
+    'Ayın büyük resmini keşfet',
+    'Burç uyumunu net puanlarla karşılaştır',
+    'Burç profilini kişiselleştir',
+    'Aylık veya haftalık Premium seç',
+  ]) assert.match(fixtures, new RegExp(headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
 test('CI explicitly validates paywall and Play store screenshot suites', () => {
@@ -34,42 +79,14 @@ test('CI explicitly validates paywall and Play store screenshot suites', () => {
   assert.match(ci, /android\.sync\.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE/);
 });
 
-test('feature graphics and shared icon have deterministic Compose previews', () => {
+test('feature graphics and shared icon retain deterministic Compose previews', () => {
   const featurePath = 'Astroloji/app/src/screenshotTest/kotlin/com/parsfilo/astrology/store/StoreFeatureGraphicScreenshotTest.kt';
-  assert.ok(fs.existsSync(featurePath), 'Feature graphic screenshot source must exist.');
   const source = fs.readFileSync(featurePath, 'utf8');
-  for (const preview of [
-    'StoreFeatureGraphicEnglishScreenshot',
-    'StoreFeatureGraphicTurkishScreenshot',
-    'StoreAppIconScreenshot',
-  ]) {
+  for (const preview of ['StoreFeatureGraphicEnglishScreenshot', 'StoreFeatureGraphicTurkishScreenshot', 'StoreAppIconScreenshot']) {
     assert.match(source, new RegExp(preview));
   }
   assert.equal((source.match(/@PreviewTest/g) ?? []).length, 3);
   assert.match(source, /spec:width=1024dp,height=500dp,dpi=160/);
   assert.match(source, /spec:width=512dp,height=512dp,dpi=160/);
   assert.doesNotMatch(source, /rating|award|testimonial|countdown|discount/i);
-});
-
-test('all visible store-scene labels are supplied by localized copy and premium prices use matching micros', () => {
-  const scene = fs.readFileSync(sourcePath, 'utf8');
-  const fixtures = fs.readFileSync(
-    'Astroloji/app/src/screenshotTest/kotlin/com/parsfilo/astrology/store/StoreScreenshotFixtures.kt',
-    'utf8',
-  );
-  for (const hardcoded of [
-    '"Aries"', '"Today"', '"A confident start"', '"Energy"', '"Love"', '"Work"',
-    '"Best day · Thursday"', '"Friendship"', '"Fire · Mars"', '"Deeper insight"',
-    '"♈  Today · 88%"',
-  ]) {
-    assert.doesNotMatch(scene, new RegExp(hardcoded.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-  }
-  for (const localized of [
-    'Koç', 'Bugün', 'Güçlü bir başlangıç', 'Enerji', 'Aşk', 'İş', 'En güçlü gün · Perşembe',
-    'Arkadaşlık', 'Ateş · Mars', 'Daha derin içgörü', 'Aylık', 'Haftalık',
-  ]) {
-    assert.match(fixtures, new RegExp(localized));
-  }
-  assert.match(fixtures, /monthlyPriceMicros = if \(isTurkish\) 394_990_000L else 6_990_000L/);
-  assert.match(fixtures, /weeklyPriceMicros = if \(isTurkish\) 129_990_000L else 2_290_000L/);
 });
