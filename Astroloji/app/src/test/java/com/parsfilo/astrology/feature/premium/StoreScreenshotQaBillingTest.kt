@@ -16,6 +16,9 @@ class StoreScreenshotQaBillingTest {
         assertThat(tr[1].price).isEqualTo("₺129,99")
 
         val en = storeScreenshotQaPlans("en")
+        assertThat(en.map { it.productId }).containsExactly("premium_monthly", "premium_weekly").inOrder()
+        assertThat(en.map { it.basePlanId }).containsExactly("monthly", "weekly").inOrder()
+        assertThat(en.map { it.billingPeriod }).containsExactly("P1M", "P1W").inOrder()
         assertThat(en[0].price).isEqualTo("$6.99")
         assertThat(en[1].price).isEqualTo("$2.29")
     }
