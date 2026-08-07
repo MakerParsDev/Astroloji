@@ -18,3 +18,4 @@ tmp_*.pb
 *.aab
 *.apk
 *.apks
+app/src/storeQa/google-services.json
