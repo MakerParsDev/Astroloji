@@ -26,6 +26,8 @@ describe('worker runtime routes', () => {
           project_id: 'demo-project'
         }),
         PLAY_WEBHOOK_SECRET: 'play-secret',
+        PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
+        PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
         ADMIN_SECRET: 'admin-secret',
         ADMOB_REWARDED_ID: 'ca-app-pub-3940256099942544/5224354917'
       }
@@ -70,7 +72,17 @@ describe('worker runtime routes', () => {
     });
   });
 
-  it('accepts the play webhook secret and validates RTDN payload shape', async () => {
+  it('rejects the play webhook without an authenticated identity', async () => {
+    const response = await worker.fetch('http://127.0.0.1/api/v1/webhooks/play-rtdn', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({})
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it('keeps the Phase A play webhook secret and then validates RTDN payload shape', async () => {
     const response = await worker.fetch('http://127.0.0.1/api/v1/webhooks/play-rtdn', {
       method: 'POST',
       headers: {
