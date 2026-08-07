@@ -3,7 +3,34 @@
 **Package:** `com.parsfilo.astrology`  
 **Supported store locales:** `en-US`, `tr-TR`  
 **Canonical source:** `Astroloji/play/`  
-**Production mutation gate:** `ENABLE_METADATA_PUBLISH` must be `true` only for an approved publication window and must return to `false` immediately afterward.
+**Production mutation authorization:** `ENABLE_METADATA_PUBLISH` remains `false`. GitHub mutation jobs require an exact workflow run ID in `METADATA_PUBLISH_AUTH_RUN_ID` plus `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH` no more than 300 seconds in the future; both are closed immediately after authorization.
+
+
+## Run-scoped GitHub mutation authorization
+
+Production metadata writes are authorized only after the workflow has been dispatched and its exact workflow run ID is known. `ENABLE_METADATA_PUBLISH` is a legacy defense-in-depth variable and must remain `false`; it no longer grants mutation authority. The workflow accepts only an authorization whose `METADATA_PUBLISH_AUTH_RUN_ID` equals its exact `github.run_id` and whose expiry is positive and at most **300 seconds (5 minutes)** away.
+
+On MSI Ubuntu, install cleanup before writing authorization variables:
+
+```bash
+close_metadata_authorization() {
+  gh variable set METADATA_PUBLISH_AUTH_RUN_ID --repo MakerParsDev/Astroloji --body disabled
+  gh variable set METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH --repo MakerParsDev/Astroloji --body 0
+  gh variable set ENABLE_METADATA_PUBLISH --repo MakerParsDev/Astroloji --body false
+}
+trap close_metadata_authorization EXIT INT TERM
+
+# Dispatch first and discover the exact new workflow run ID.
+# Then authorize only that run for <= 300 seconds:
+gh variable set METADATA_PUBLISH_AUTH_RUN_ID --repo MakerParsDev/Astroloji --body "$RUN_ID"
+gh variable set METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH --repo MakerParsDev/Astroloji --body "$(( $(date +%s) + 300 ))"
+
+# After authorize-mutation succeeds and play-mutation starts:
+close_metadata_authorization
+trap - EXIT INT TERM
+```
+
+A dispatch failure happens before authorization is written. Job-start failure, cancellation, operator interruption, timeout, and success all execute the closure path. Even if the operator host crashes before cleanup, the exact-run match prevents reuse by another workflow run and the authorization expires within five minutes. The workflow's final job independently requires `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0`, and `ENABLE_METADATA_PUBLISH=false`.
 
 ## Safety model
 
@@ -107,12 +134,11 @@ node scripts/readback-play-metadata.mjs \
   --expected-root /absolute/path/to/merged/repository
 ```
 
-The current production rollout drift can make the read-back fail by design; that failure is evidence, not a reason to bypass the guard.
+Any future production rollout drift from the approved `1.0` contract makes read-back fail by design; that failure is evidence, not a reason to bypass the guard.
 
 The publication command must not be run until the dry-run has no blockers:
 
 ```bash
-ENABLE_METADATA_PUBLISH=true \
 PLAY_PACKAGE_NAME=com.parsfilo.astrology \
 PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
 node scripts/publish-play-metadata.mjs \
@@ -145,7 +171,6 @@ REQUIRED CONFIRMATION
 Apply only by copying all four values exactly:
 
 ```bash
-ENABLE_METADATA_PUBLISH=true \
 PLAY_PACKAGE_NAME=com.parsfilo.astrology \
 PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
 node scripts/cleanup-play-locales.mjs \
@@ -182,7 +207,6 @@ node scripts/restore-play-metadata.mjs \
 The dry-run validates backup restore invariants before printing any actionable confirmation. Apply is permitted only after separately verifying the SHA-256 above and supplying the exact backup-derived confirmation:
 
 ```bash
-ENABLE_METADATA_PUBLISH=true \
 PLAY_PACKAGE_NAME=com.parsfilo.astrology \
 PLAY_SERVICE_ACCOUNT_JSON_PATH=/absolute/private/play-service-account.json \
 node scripts/restore-play-metadata.mjs \
@@ -196,12 +220,22 @@ Historical backups such as `play-before-locale-cleanup-20260806T171159Z.json` pr
 
 ## Windows PowerShell operator equivalents
 
-The production operator host is MSI Ubuntu, so the Bash commands above are canonical for live execution. On Windows, use PowerShell syntax rather than translating Bash line continuations. Read-only commands remain ungated. Every mutation example sets the gate only for the exact apply and removes it in `finally`, including command failure or interruption handled by PowerShell.
+The production operator host is MSI Ubuntu, so the Bash commands above are canonical for live execution. On Windows, use PowerShell syntax rather than translating Bash line continuations. Read-only direct CLI commands remain ungated. Direct recovery commands rely on their digest-bound confirmations and state checks; the GitHub workflow uses the separate exact-run authorization above.
+
+For any direct recovery session, create the credential outside the repository and delete it in `finally`. Populate it from the approved secret manager without printing its contents, then execute the selected command(s) from the examples below inside the `try` body:
 
 ```powershell
-# Common identity and credential variables
 $env:PLAY_PACKAGE_NAME = 'com.parsfilo.astrology'
-$env:PLAY_SERVICE_ACCOUNT_JSON_PATH = 'C:\private\play-service-account.json'
+$credentialPath = Join-Path ([IO.Path]::GetTempPath()) ("astro-play-" + [guid]::NewGuid().ToString('N') + '.json')
+$env:PLAY_SERVICE_ACCOUNT_JSON_PATH = $credentialPath
+try {
+  # Populate $credentialPath from the approved secret manager without printing it.
+  # Execute the selected read-only or recovery command(s) below before leaving this block.
+  Get-Item $credentialPath | Out-Null
+} finally {
+  Remove-Item -Force $credentialPath -ErrorAction SilentlyContinue
+  Remove-Item Env:PLAY_SERVICE_ACCOUNT_JSON_PATH -ErrorAction SilentlyContinue
+}
 ```
 
 Read-only backup, checksum, diff, fresh-state verification, and read-back:
@@ -217,13 +251,8 @@ node scripts/readback-play-metadata.mjs --expected-root $PWD.Path
 Publication apply:
 
 ```powershell
-$env:ENABLE_METADATA_PUBLISH = 'true'
-try {
-  node scripts/publish-play-metadata.mjs --backup 'C:\private\play-before-operation.json' --confirmation 'PUBLISH_TR_EN_METADATA_<exact-backup-sha-prefix>'
-  if ($LASTEXITCODE -ne 0) { throw "Play metadata publication failed with exit code $LASTEXITCODE." }
-} finally {
-  Remove-Item Env:ENABLE_METADATA_PUBLISH -ErrorAction SilentlyContinue
-}
+node scripts/publish-play-metadata.mjs --backup 'C:\private\play-before-operation.json' --confirmation 'PUBLISH_TR_EN_METADATA_<exact-backup-sha-prefix>'
+if ($LASTEXITCODE -ne 0) { throw "Play metadata publication failed with exit code $LASTEXITCODE." }
 ```
 
 Locale cleanup dry-run remains read-only:
@@ -235,13 +264,8 @@ node scripts/cleanup-play-locales.mjs --backup 'C:\private\fresh-pre-cleanup-bac
 Locale cleanup apply:
 
 ```powershell
-$env:ENABLE_METADATA_PUBLISH = 'true'
-try {
-  node scripts/cleanup-play-locales.mjs --backup 'C:\private\fresh-pre-cleanup-backup.json' --backup-sha256 '<exact-64-character-backup-sha256>' --state-digest '<exact-64-character-live-state-sha256>' --removal-count '<exact-count>' --confirmation 'REMOVE_<exact-count>_UNSUPPORTED_PLAY_LOCALES_<exact-state-prefix>'
-  if ($LASTEXITCODE -ne 0) { throw "Play locale cleanup failed with exit code $LASTEXITCODE." }
-} finally {
-  Remove-Item Env:ENABLE_METADATA_PUBLISH -ErrorAction SilentlyContinue
-}
+node scripts/cleanup-play-locales.mjs --backup 'C:\private\fresh-pre-cleanup-backup.json' --backup-sha256 '<exact-64-character-backup-sha256>' --state-digest '<exact-64-character-live-state-sha256>' --removal-count '<exact-count>' --confirmation 'REMOVE_<exact-count>_UNSUPPORTED_PLAY_LOCALES_<exact-state-prefix>'
+if ($LASTEXITCODE -ne 0) { throw "Play locale cleanup failed with exit code $LASTEXITCODE." }
 ```
 
 Restore dry-run remains read-only:
@@ -253,13 +277,8 @@ node scripts/restore-play-metadata.mjs --backup 'C:\private\play-backup.json'
 Restore apply:
 
 ```powershell
-$env:ENABLE_METADATA_PUBLISH = 'true'
-try {
-  node scripts/restore-play-metadata.mjs --backup 'C:\private\play-backup.json' --confirmation 'RESTORE_PLAY_METADATA_<exact-backup-sha-prefix>'
-  if ($LASTEXITCODE -ne 0) { throw "Play metadata restore failed with exit code $LASTEXITCODE." }
-} finally {
-  Remove-Item Env:ENABLE_METADATA_PUBLISH -ErrorAction SilentlyContinue
-}
+node scripts/restore-play-metadata.mjs --backup 'C:\private\play-backup.json' --confirmation 'RESTORE_PLAY_METADATA_<exact-backup-sha-prefix>'
+if ($LASTEXITCODE -ne 0) { throw "Play metadata restore failed with exit code $LASTEXITCODE." }
 ```
 
 Never persist the service-account JSON in the repository or PowerShell history. Prefer the guarded GitHub workflow over direct operator apply.

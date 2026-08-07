@@ -221,14 +221,78 @@ jobs:
       github.event_name == 'workflow_dispatch' &&
       (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
       (github.ref != 'refs/heads/main' ||
-       github.repository != 'MakerParsDev/Astroloji' ||
-       vars.ENABLE_METADATA_PUBLISH != 'true')
+       github.repository != 'MakerParsDev/Astroloji')
     runs-on: ubuntu-latest
     steps:
       - name: Reject unsafe metadata mutation request
         run: |
-          echo "Metadata mutation requires main, MakerParsDev/Astroloji, production approval, and ENABLE_METADATA_PUBLISH=true." >&2
+          echo "Metadata mutation requires main and MakerParsDev/Astroloji. Run-scoped authorization is validated separately." >&2
           exit 1
+
+  authorize-mutation:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
+      github.ref == 'refs/heads/main' &&
+      github.repository == 'MakerParsDev/Astroloji'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: validate-metadata
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ secrets.METADATA_VARIABLES_READ_TOKEN }}
+    steps:
+      - name: Require metadata-variable read token
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "METADATA_VARIABLES_READ_TOKEN is required for run-scoped mutation authorization." >&2
+            exit 1
+          fi
+      - name: Wait for exact expiring run authorization
+        run: |
+          set -euo pipefail
+          deadline="$(( $(date +%s) + 180 ))"
+          while :; do
+            now="$(date +%s)"
+            auth_run_id="$(gh api \
+              repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_RUN_ID \
+              --jq '.value' 2>/dev/null || true)"
+            expires_at="$(gh api \
+              repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH \
+              --jq '.value' 2>/dev/null || true)"
+            legacy_gate="$(gh api \
+              repos/${{ github.repository }}/actions/variables/ENABLE_METADATA_PUBLISH \
+              --jq '.value' 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)"
+
+            if [ "$legacy_gate" != "false" ]; then
+              echo "ENABLE_METADATA_PUBLISH must remain false; run-scoped authorization is required." >&2
+              exit 1
+            fi
+
+            if [ "$auth_run_id" = "$GITHUB_RUN_ID" ] && [[ "$expires_at" =~ ^[0-9]+$ ]]; then
+              remaining="$(( expires_at - now ))"
+              if [ "$remaining" -gt 0 ] && [ "$remaining" -le 300 ]; then
+                echo "Exact workflow run authorization accepted with bounded expiry."
+                break
+              fi
+            fi
+
+            if [ "$now" -ge "$deadline" ]; then
+              echo "Timed out waiting for exact run-scoped metadata authorization." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+      - name: Record bounded authorization
+        run: |
+          {
+            echo "## Metadata mutation authorization"
+            echo "- Authorization scope: exact workflow run ID"
+            echo "- Maximum accepted lifetime: 300 seconds"
+            echo "- Legacy ENABLE_METADATA_PUBLISH gate remained false"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   play-mutation:
     if: >-
@@ -236,11 +300,13 @@ jobs:
       (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
       github.ref == 'refs/heads/main' &&
       github.repository == 'MakerParsDev/Astroloji' &&
-      vars.ENABLE_METADATA_PUBLISH == 'true'
+      needs.authorize-mutation.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment: production
-    needs: validate-metadata
+    needs:
+      - validate-metadata
+      - authorize-mutation
     env:
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
@@ -358,14 +424,16 @@ jobs:
           node scripts/restore-play-metadata.mjs \
             --backup "$RUNNER_TEMP/play-input/play-backup.json" \
             --confirmation "$CONFIRMATION"
-      - name: Summarize mutation and gate reset requirement
+      - name: Summarize mutation authorization closure requirement
         if: always()
         run: |
           {
             echo "## Play metadata mutation"
             echo "- Mode: $MODE"
             echo "- Backup run: $BACKUP_RUN_ID"
-            echo "- Restore repository variable immediately: ENABLE_METADATA_PUBLISH=false"
+            echo "- Required operator cleanup: METADATA_PUBLISH_AUTH_RUN_ID=disabled"
+            echo "- Required operator cleanup: METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0"
+            echo "- Legacy gate must remain: ENABLE_METADATA_PUBLISH=false"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Remove temporary credentials
         if: always()
@@ -374,12 +442,14 @@ jobs:
             "$RUNNER_TEMP/play-service-account.json" \
             "$RUNNER_TEMP/doppler-secrets.json"
 
-  verify-metadata-gate-closed:
+  verify-metadata-authorization-closed:
     if: >-
       always() && github.event_name == 'workflow_dispatch' &&
       (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
-      needs.play-mutation.result != 'skipped'
-    needs: play-mutation
+      (needs.authorize-mutation.result != 'skipped' || needs.play-mutation.result != 'skipped')
+    needs:
+      - authorize-mutation
+      - play-mutation
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -390,23 +460,39 @@ jobs:
       - name: Require metadata-variable read token
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "METADATA_VARIABLES_READ_TOKEN is required to verify the publication gate is closed." >&2
+            echo "METADATA_VARIABLES_READ_TOKEN is required to verify mutation authorization is closed." >&2
             exit 1
           fi
-      - name: Verify ENABLE_METADATA_PUBLISH returned to false
+      - name: Verify mutation authorization returned to closed state
         run: |
-          current_value="$(gh api \
+          legacy_gate="$(gh api \
             repos/${{ github.repository }}/actions/variables/ENABLE_METADATA_PUBLISH \
             --jq '.value' | tr '[:upper:]' '[:lower:]')"
-          if [ "$current_value" != "false" ]; then
-            echo "ENABLE_METADATA_PUBLISH must be restored to false after the approved window." >&2
+          auth_run_id="$(gh api \
+            repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_RUN_ID \
+            --jq '.value')"
+          expires_at="$(gh api \
+            repos/${{ github.repository }}/actions/variables/METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH \
+            --jq '.value')"
+          if [ "$legacy_gate" != "false" ]; then
+            echo "ENABLE_METADATA_PUBLISH=false is required after metadata operations." >&2
             exit 1
           fi
-      - name: Record gate closure
+          if [ "$auth_run_id" != "disabled" ]; then
+            echo "METADATA_PUBLISH_AUTH_RUN_ID=disabled is required after metadata operations." >&2
+            exit 1
+          fi
+          if [ "$expires_at" != "0" ]; then
+            echo "METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0 is required after metadata operations." >&2
+            exit 1
+          fi
+      - name: Record authorization closure
         if: always()
         run: |
           {
-            echo "## Metadata publication gate"
-            echo "- Required final state: ENABLE_METADATA_PUBLISH=false"
-            echo "- Dynamic repository-variable check executed after the mutation job."
+            echo "## Metadata mutation authorization closure"
+            echo "- ENABLE_METADATA_PUBLISH=false"
+            echo "- METADATA_PUBLISH_AUTH_RUN_ID=disabled"
+            echo "- METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0"
+            echo "- Independent repository-variable read-back executed after the mutation flow."
           } >> "$GITHUB_STEP_SUMMARY"

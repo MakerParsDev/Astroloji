@@ -16,7 +16,7 @@
 - Subscriptions remain `premium_monthly/monthly` and `premium_weekly/weekly`.
 - Metadata tooling never mutates rollout or subscription state.
 - Every Play mutation uses a fresh backup, exact digest-bound confirmation, fresh-state guard, edit-local verification, and independent post-commit read-back.
-- `ENABLE_METADATA_PUBLISH` returns to `false` after each mutation dispatch.
+- `ENABLE_METADATA_PUBLISH` remains `false`; mutation authority is an exact workflow-run ID plus an expiry of at most 300 seconds. Authorization variables are explicitly reset to `disabled/0` after each mutation flow.
 - No secret/token/private key or full account identity is printed or committed.
 
 ---
@@ -104,7 +104,7 @@ Merge only when the PR is same-repository, author/head owner are MakerParsDev, `
 
 - [ ] **Step 1: Fresh backup/read-back**
 
-From merged main, use a temporary mode-`0600` Play service-account file sourced through Doppler. Capture a new backup outside the repository and record only backup path, SHA-256, locale count, rollout/status, and subscription pairs.
+From merged main, create a temporary mode-`0600` Play service-account file outside the repository and source it through Doppler without printing the secret. On MSI Ubuntu, register `trap 'rm -f "$PLAY_SERVICE_ACCOUNT_JSON_PATH"' EXIT INT TERM` immediately after file creation. On PowerShell, wrap use in `try/finally` and call `Remove-Item -Force $env:PLAY_SERVICE_ACCOUNT_JSON_PATH -ErrorAction SilentlyContinue` in `finally`. Credential cleanup covers success, failure, timeout, cancellation, and every handled exit. Capture a new backup outside the repository and record only backup path, SHA-256, locale count, rollout/status, and subscription pairs.
 
 - [ ] **Step 2: Dry-run diff**
 
@@ -116,7 +116,7 @@ Use the backup SHA-256 to derive `PUBLISH_TR_EN_METADATA_<sha-prefix>` exactly. 
 
 - [ ] **Step 4: Controlled workflow dispatch**
 
-Publication gate reset: use a Bash trap/finally path; reset is unconditional. The reset path must cover dispatch failure, job-start failure, cancellation, confirmation timeout, and successful runs. Set `ENABLE_METADATA_PUBLISH=true` only inside that guarded block, dispatch `.github/workflows/android-metadata.yml` in `publish` mode with the exact backup run ID/SHA/confirmation, confirm the mutation job starts, then explicitly set the variable to `false`; the trap/finally path repeats the reset on every abnormal exit.
+Keep `ENABLE_METADATA_PUBLISH=false`. Dispatch `.github/workflows/android-metadata.yml` in `publish` mode first with the exact backup run ID/SHA/confirmation, then capture the exact workflow run ID. Before authorizing it, install an unconditional Bash trap/finally cleanup that writes `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0`, and `ENABLE_METADATA_PUBLISH=false`. Set `METADATA_PUBLISH_AUTH_RUN_ID` to that exact workflow run ID and set `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH` to no more than 300 seconds (5 minutes) in the future. Wait for `authorize-mutation` to succeed and `play-mutation` to start, then explicitly clear all three values; the trap repeats closure on dispatch failure, job-start failure, cancellation, confirmation timeout, or any handled exit. The workflow's final verifier must independently read back the exact closed values and fail otherwise.
 
 - [ ] **Step 5: Verify publication**
 
@@ -140,7 +140,7 @@ Run `scripts/cleanup-play-locales.mjs --backup <fresh-backup>`. Freeze the retur
 
 - [ ] **Step 3: Controlled cleanup workflow dispatch**
 
-Cleanup gate reset: use a Bash trap/finally path; reset is unconditional. The same guarded block covers dispatch failure, job-start failure, cancellation, confirmation timeout, and successful runs. Set `ENABLE_METADATA_PUBLISH=true` only inside that block, dispatch the metadata workflow in `cleanup` mode with all frozen values, confirm the mutation job starts, then explicitly restore the gate to `false`; the trap/finally path repeats the reset on every abnormal exit.
+Keep `ENABLE_METADATA_PUBLISH=false`. Dispatch the metadata workflow in `cleanup` mode with all frozen values, capture the exact workflow run ID, and install the same unconditional authorization cleanup before setting any authorization variable. Set `METADATA_PUBLISH_AUTH_RUN_ID` to that exact workflow run ID and `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH` to no more than 300 seconds (5 minutes) in the future. Wait for `authorize-mutation` success and `play-mutation` start, then set `METADATA_PUBLISH_AUTH_RUN_ID=disabled`, `METADATA_PUBLISH_AUTH_EXPIRES_AT_EPOCH=0`, and `ENABLE_METADATA_PUBLISH=false`. The trap/finally path covers dispatch failure, job-start failure, cancellation, confirmation timeout, and success; the workflow's final independent read-back must fail unless all three values are closed.
 
 - [ ] **Step 4: Verify cleanup**
 
