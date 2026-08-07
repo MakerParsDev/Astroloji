@@ -1,6 +1,7 @@
 import type { Next } from 'hono';
 
-import type { AppContext, AppMiddleware } from '@/types';
+import { verifyPlayRtdnIdentity } from '@/services/playRtdnAuth';
+import type { AppContext, AppMiddleware, Env } from '@/types';
 import { verifyAppJwt } from '@/utils/jwt';
 import { matchesSecret } from '@/utils/security';
 import { parseBooleanFlag } from '@/utils/validators';
@@ -75,6 +76,30 @@ export const contentCacheBypassMiddleware: AppMiddleware = async (c, next: Next)
 
   await next();
 };
+
+type PlayWebhookIdentityVerifier = (env: Env, token: string) => Promise<void>;
+
+export async function requirePlayWebhookAuth(
+  c: AppContext,
+  verifyIdentity: PlayWebhookIdentityVerifier = verifyPlayRtdnIdentity
+): Promise<{ method: 'oidc' | 'legacy' } | Response> {
+  const bearer = getBearerToken(c.req.header('authorization'));
+  if (bearer) {
+    try {
+      await verifyIdentity(c.env, bearer);
+      return { method: 'oidc' };
+    } catch {
+      return jsonError(c, 403, 'FORBIDDEN', 'Play webhook identity is invalid.');
+    }
+  }
+
+  const querySecret = new URL(c.req.url).searchParams.get('token');
+  const legacySecret = querySecret ?? c.req.header('x-play-secret');
+  if (matchesSecret(c.env.PLAY_WEBHOOK_SECRET, legacySecret)) {
+    return { method: 'legacy' };
+  }
+  return jsonError(c, 403, 'FORBIDDEN', 'Play webhook identity is invalid.');
+}
 
 export function requirePlayWebhookSecret(c: AppContext): Response | null {
   const querySecret = new URL(c.req.url).searchParams.get('token');

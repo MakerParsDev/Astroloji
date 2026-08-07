@@ -62,6 +62,8 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
       project_id: 'demo-project'
     }),
     PLAY_WEBHOOK_SECRET: 'play-secret',
+    PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
+    PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
     ADMIN_SECRET: 'admin-secret',
     ADMOB_REWARDED_ID: 'ca-app-pub-3940256099942544/5224354917',
     ...overrides

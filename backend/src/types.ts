@@ -95,7 +95,12 @@ interface SecretBindings {
   ADMOB_REWARDED_ID: string;
 }
 
-export type Env = CloudflareEnv & SecretBindings;
+interface RuntimeConfigBindings {
+  PLAY_RTDN_AUDIENCE: string;
+  PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: string;
+}
+
+export type Env = CloudflareEnv & SecretBindings & RuntimeConfigBindings;
 
 export interface RewardEnv {
   DB: D1Database;
