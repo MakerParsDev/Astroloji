@@ -37,7 +37,7 @@ test('production readiness requires public deletion verification and keeps futur
   assert.match(readiness, /public Play page[^\n]*account deletion[^\n]*supported/i);
   assert.match(readiness, /https:\/\/astrology\.parsfilo\.com\/delete-account/i);
   assert.match(readiness, /currently completed at 100%/i);
-  assert.match(readiness, /currently completed at 100%/i);
+  assert.match(readiness, /Policy\/listing work must not mutate that track/i);
   assert.match(readiness, /future\/staged release[^\n]*10% cap[^\n]*separate rollout decision/i);
   assert.doesNotMatch(readiness, /existing production listing currently reports that data cannot be deleted/i);
 });

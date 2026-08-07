@@ -121,8 +121,8 @@ test('committed baseline is redacted, fixed-window, and records the observed liv
 test('measurement governance rejects causal claims and records the approved completed rollout contract', () => {
   const doc = fs.readFileSync(measurementPath, 'utf8');
   assert.match(doc, /does not prove causation/i);
-  assert.match(doc, /production rollout.*1\.0|100%/i);
-  assert.match(doc, /approved.*1\.0|100%.*approved/i);
+  assert.match(doc, /production rollout[^\n]*(?:1\.0|100%)/i);
+  assert.match(doc, /approved[^\n]*(?:1\.0|100%)/i);
   assert.match(doc, /future.*rollout.*decision|separate.*rollout.*decision/i);
   assert.match(doc, /metadata publication.*1\.0|1\.0.*metadata publication/i);
   assert.match(doc, /observation window/i);

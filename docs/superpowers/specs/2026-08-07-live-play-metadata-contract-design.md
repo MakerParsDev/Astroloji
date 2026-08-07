@@ -16,7 +16,7 @@ Publish the already-reviewed canonical Turkish and English Google Play listing m
 - Canonical subscriptions remain exactly `premium_monthly/monthly` and `premium_weekly/weekly`.
 - Every Play mutation requires a fresh backup, exact digest-bound confirmation, fresh live-state verification immediately before mutation, edit-local verification before commit, and independent read-back after commit.
 - Publication and unsupported-locale cleanup are separate Play edits and separate state-bound operations.
-- Production repository gate `ENABLE_METADATA_PUBLISH` is enabled only for the exact workflow dispatch window and restored to `false` immediately after the mutation job starts.
+- Production repository gate `ENABLE_METADATA_PUBLISH` is enabled only for the exact workflow dispatch window. A Bash trap/finally-equivalent reset restores it to `false` unconditionally on dispatch failure, job-start failure, cancellation, timeout, or success.
 - Service-account material stays in mode-`0600` temporary files and is never printed or committed.
 - No Google Play purchase is performed.
 

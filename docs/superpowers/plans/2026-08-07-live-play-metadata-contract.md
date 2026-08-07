@@ -40,6 +40,8 @@ Add assertions that the real store config owns rollout `1.0`, that a live `1.0` 
 
 - [ ] **Step 2: Verify RED**
 
+Execution host: MSI Ubuntu or GitHub Ubuntu (Bash); shell wildcard/glob behavior in this plan assumes Bash-compatible execution.
+
 Run:
 
 ```bash
@@ -53,6 +55,8 @@ Expected: failures showing the current canonical value is `0.1` and diff expecta
 Change only `Astroloji/play/store-config.json` to `"productionRolloutFraction": 1.0`, update the affected fixture expectations, and update runbook/verification language to record the explicit A decision. Do not add any code that updates a Play track.
 
 - [ ] **Step 4: Verify GREEN and full local gate**
+
+Execution host: MSI Ubuntu or GitHub Ubuntu (Bash); `scripts/*.test.mjs` and `.github/workflows/*.yml` rely on shell glob expansion.
 
 Run:
 
@@ -112,7 +116,7 @@ Use the backup SHA-256 to derive `PUBLISH_TR_EN_METADATA_<sha-prefix>` exactly. 
 
 - [ ] **Step 4: Controlled workflow dispatch**
 
-Temporarily set repository variable `ENABLE_METADATA_PUBLISH=true`, dispatch `.github/workflows/android-metadata.yml` in `publish` mode with exact backup run ID/SHA/confirmation, confirm the mutation job starts, then immediately set the repository variable back to `false`.
+Publication gate reset: use a Bash trap/finally path; reset is unconditional. The reset path must cover dispatch failure, job-start failure, cancellation, confirmation timeout, and successful runs. Set `ENABLE_METADATA_PUBLISH=true` only inside that guarded block, dispatch `.github/workflows/android-metadata.yml` in `publish` mode with the exact backup run ID/SHA/confirmation, confirm the mutation job starts, then explicitly set the variable to `false`; the trap/finally path repeats the reset on every abnormal exit.
 
 - [ ] **Step 5: Verify publication**
 
@@ -136,7 +140,7 @@ Run `scripts/cleanup-play-locales.mjs --backup <fresh-backup>`. Freeze the retur
 
 - [ ] **Step 3: Controlled cleanup workflow dispatch**
 
-Temporarily set `ENABLE_METADATA_PUBLISH=true`, dispatch the metadata workflow in `cleanup` mode with all frozen values, confirm the mutation job starts, then immediately restore the gate to `false`.
+Cleanup gate reset: use a Bash trap/finally path; reset is unconditional. The same guarded block covers dispatch failure, job-start failure, cancellation, confirmation timeout, and successful runs. Set `ENABLE_METADATA_PUBLISH=true` only inside that block, dispatch the metadata workflow in `cleanup` mode with all frozen values, confirm the mutation job starts, then explicitly restore the gate to `false`; the trap/finally path repeats the reset on every abnormal exit.
 
 - [ ] **Step 4: Verify cleanup**
 

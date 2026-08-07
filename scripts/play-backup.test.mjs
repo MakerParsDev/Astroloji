@@ -52,6 +52,7 @@ test('backup captures listings, images, tracks, and subscription identifiers wit
   assert.deepEqual(backup.listings.map((listing) => listing.locale), ['en-US', 'tr-TR']);
   assert.equal(backup.listings[0].images.phoneScreenshots.length, 1);
   assert.equal(backup.tracks.production.releases[0].status, 'completed');
+  assert.deepEqual(backup.tracks.production.releases[0].versionCodes, ['1102']);
   assert.equal(backup.tracks.production.releases[0].userFraction, null);
   assert.deepEqual(backup.subscriptions, [
     { productId: 'premium_monthly', basePlans: [{ basePlanId: 'monthly', state: 'ACTIVE' }] },
