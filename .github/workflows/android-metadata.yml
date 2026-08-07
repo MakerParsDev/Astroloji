@@ -276,8 +276,8 @@ jobs:
           deadline="$(( $(date +%s) + 180 ))"
           while :; do
             now="$(date +%s)"
-            combined="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/status")"
-            status_json="$(jq -c --arg context "$context" '[.statuses[] | select(.context == $context)][0] // empty' <<<"$combined")"
+            statuses="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/statuses?per_page=100")"
+            status_json="$(jq -c --arg context "$context" '[.[] | select(.context == $context)] | sort_by(.updated_at) | last // empty' <<<"$statuses")"
             if [ -n "$status_json" ]; then
               state="$(jq -r '.state' <<<"$status_json")"
               description="$(jq -r '.description // ""' <<<"$status_json")"
@@ -486,8 +486,8 @@ jobs:
           fi
           context="metadata-auth/$AUTHORIZATION_CORRELATION"
           expected_target="https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-          combined="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/status")"
-          status_json="$(jq -c --arg context "$context" '[.statuses[] | select(.context == $context)][0] // empty' <<<"$combined")"
+          statuses="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/statuses?per_page=100")"
+          status_json="$(jq -c --arg context "$context" '[.[] | select(.context == $context)] | sort_by(.updated_at) | last // empty' <<<"$statuses")"
           if [ -z "$status_json" ]; then
             echo "Missing closed metadata authorization status for $context." >&2
             exit 1
