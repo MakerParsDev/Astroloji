@@ -9,6 +9,7 @@ test('verification evidence contains no full email address and records canonical
   assert.match(evidence, /MakerParsDev\/Astroloji/);
   assert.match(evidence, /PR #56|pull\/56/);
   assert.match(evidence, /PR #57|pull\/57/);
+  assert.match(evidence, /second post-publication Play backup[^\n]*(?:backup ID|digest)[^\n]*cleanup rollback/i);
   assert.match(evidence, /final verification tree:\s*cd1ce0a46b17187f4d745f52f21c0e69cf4ed3ab/i);
   assert.match(evidence, /verification tree parent:\s*164fb24ce01d8c3c303a9517aaec74f209e3ef06/i);
   assert.match(evidence, /base implementation ancestor:\s*955f6146d55bb0f3be0d666fad553cafcc73b57d/i);

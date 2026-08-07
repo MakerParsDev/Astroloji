@@ -238,9 +238,10 @@ The following are intentionally incomplete:
 2. Merge PR #57 only after all current checks and review findings are green.
 3. Make a new post-merge Play backup and dry-run diff.
 4. Publish the canonical Turkish/English metadata and 15 assets only while fresh live rollout remains `1.0` and exact-run authorization is active.
-5. Perform independent post-publication read-back and verify mutation authorization is closed.
-6. Remove unsupported locales only through a new post-publication state-bound cleanup flow.
-7. Reconcile UI-only Play Data Safety/account-deletion settings and verify public propagation.
-8. Mark the post-change measurement timestamp and compare a later observation window without claiming causation.
+5. Take a second post-publication Play backup; record its backup ID or digest as the cleanup rollback point.
+6. Perform independent post-publication read-back and verify mutation authorization is closed.
+7. Remove unsupported locales only through a new post-publication state-bound cleanup flow using that second backup.
+8. Reconcile UI-only Play Data Safety/account-deletion settings and verify public propagation.
+9. Mark the post-change measurement timestamp and compare a later observation window without claiming causation.
 
 No Google Play metadata, locale cleanup, policy form, or rollout mutation was executed while completing this verification.
