@@ -89,6 +89,11 @@ test('delete removes only the D1 challenge and requires manual temporary-secret 
   assert.match(workflow, /Delete these temporary repository secrets manually/);
   assert.match(workflow, /ADMOB_SSV_TEST_USER_ID/);
   assert.match(workflow, /ADMOB_SSV_TEST_CUSTOM_DATA/);
+  assert.match(
+    workflow,
+    /delete: \['operation', 'deletedChallengePrefix', 'cleanupVerified'\]/
+  );
+  assert.match(workflow, /name: Remove temporary evidence[\s\S]*if: always\(\)/);
 
   ordered(workflow, [
     'Delete verification challenge from D1',
