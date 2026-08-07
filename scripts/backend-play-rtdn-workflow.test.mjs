@@ -33,12 +33,15 @@ test('Phase A production deploy reads back RTDN schema before Worker deploy', ()
   assert.ok(schemaReadback < workerDeploy, 'RTDN schema read-back must precede Worker deployment.');
   assert.match(deploy, /play-rtdn-schema\.json/);
   assert.match(deploy, /PRAGMA index_list\(play_rtdn_messages\)/);
+  assert.match(deploy, /PRAGMA index_info\(idx_play_rtdn_messages_received_at\)/);
   assert.match(deploy, /sqlite_master/);
   assert.match(deploy, /lease_token/);
   assert.match(deploy, /lease_expires_at/);
   assert.match(deploy, /notnull/);
   assert.match(deploy, /pk/);
   assert.match(deploy, /idx_play_rtdn_messages_received_at/);
+  assert.match(deploy, /indexColumns\.length !== 1/);
+  assert.match(deploy, /indexColumns\[0\]\?\.name !== 'received_at'/);
   assert.match(deploy, /CHECK \(status IN \('processing', 'processed'\)\)/);
   assert.match(deploy, /rm -f[^\n]*doppler-secrets\.json[^\n]*play-rtdn-schema\.json/);
 });

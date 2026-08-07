@@ -619,7 +619,7 @@ After `Apply tracked D1 migrations`, add a read-only schema assertion:
 
 ```bash
 npx wrangler d1 execute astrology-db --remote \
-  --command "PRAGMA table_info(play_rtdn_messages); PRAGMA index_list(play_rtdn_messages); SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'play_rtdn_messages';" --json \
+  --command "PRAGMA table_info(play_rtdn_messages); PRAGMA index_list(play_rtdn_messages); PRAGMA index_info(idx_play_rtdn_messages_received_at); SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'play_rtdn_messages';" --json \
   > "$RUNNER_TEMP/play-rtdn-schema.json"
 node - <<'NODE'
 const fs = require('node:fs');
@@ -627,6 +627,7 @@ const payload = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/play-rtdn
 const resultSets = payload.map((entry) => entry.results ?? []);
 const columns = resultSets.find((rows) => rows.some((row) => Object.hasOwn(row, 'cid'))) ?? [];
 const indexes = resultSets.find((rows) => rows.some((row) => Object.hasOwn(row, 'origin'))) ?? [];
+const indexColumns = resultSets.find((rows) => rows.some((row) => Object.hasOwn(row, 'seqno'))) ?? [];
 const schemaRows = resultSets.find((rows) => rows.some((row) => typeof row.sql === 'string')) ?? [];
 const expectedColumns = [
   ['message_id', 'TEXT', 1, 1], ['package_name', 'TEXT', 1, 0],
@@ -643,6 +644,7 @@ for (const [name, type, notnull, pk] of expectedColumns) {
   }
 }
 if (!indexes.some((row) => row.name === 'idx_play_rtdn_messages_received_at')) throw new Error('Play RTDN received_at index is missing.');
+if (indexColumns.length !== 1 || indexColumns[0]?.name !== 'received_at') throw new Error('Play RTDN received_at index definition is invalid.');
 if (!indexes.some((row) => Number(row.unique) === 1 && row.origin === 'pk')) throw new Error('Play RTDN primary-key uniqueness is missing.');
 const tableSql = schemaRows[0]?.sql?.replace(/\s+/g, ' ') ?? '';
 if (!tableSql.includes("CHECK (status IN ('processing', 'processed'))")) throw new Error('Play RTDN status CHECK is missing.');
