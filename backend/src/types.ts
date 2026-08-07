@@ -204,6 +204,24 @@ export interface SubscriptionRow {
   updated_at: string;
 }
 
+export type PlayRtdnMessageStatus = 'processing' | 'processed';
+export type PlayRtdnOutcome =
+  | 'test'
+  | 'processed'
+  | 'reconciliation_pending'
+  | 'ignored_unknown_purchase';
+
+export interface PlayRtdnMessageRow {
+  message_id: string;
+  package_name: string;
+  message_fingerprint: string;
+  notification_type: string | null;
+  status: PlayRtdnMessageStatus;
+  received_at: string;
+  processed_at: string | null;
+  outcome: PlayRtdnOutcome | null;
+}
+
 export type RewardChallengeStatus = 'pending' | 'verified' | 'consumed';
 
 export interface RewardChallengeRow {

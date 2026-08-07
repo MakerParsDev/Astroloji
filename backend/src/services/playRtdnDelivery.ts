@@ -1,3 +1,5 @@
+import type { PlayRtdnMessageRow, PlayRtdnOutcome } from '@/types';
+
 export type ParsedPlayRtdnMessage =
   | {
       kind: 'test';
@@ -140,4 +142,97 @@ export async function fingerprintPlayRtdnMessage(
 export async function shortPlayRtdnMessageRef(messageId: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(messageId));
   return toHex(digest).slice(0, 12);
+}
+export interface PlayRtdnClaimInput {
+  messageId: string;
+  packageName: string;
+  fingerprint: string;
+  notificationType: string;
+  receivedAt: string;
+}
+
+export type PlayRtdnClaimResult =
+  | 'claimed'
+  | 'duplicate_processed'
+  | 'duplicate_processing'
+  | 'mismatch';
+
+type ExistingPlayRtdnClaim = Pick<
+  PlayRtdnMessageRow,
+  'package_name' | 'message_fingerprint' | 'status'
+>;
+
+export async function claimPlayRtdnMessage(
+  db: D1Database,
+  input: PlayRtdnClaimInput
+): Promise<PlayRtdnClaimResult> {
+  const insert = await db.prepare(
+    `INSERT INTO play_rtdn_messages
+     (message_id, package_name, message_fingerprint, notification_type, status, received_at)
+     VALUES (?, ?, ?, ?, 'processing', ?)
+     ON CONFLICT(message_id) DO NOTHING`
+  ).bind(input.messageId, input.packageName, input.fingerprint, input.notificationType, input.receivedAt).run();
+  if (Number(insert.meta?.changes ?? 0) === 1) {
+    return 'claimed';
+  }
+
+  const existing = await db.prepare(
+    `SELECT package_name, message_fingerprint, status
+     FROM play_rtdn_messages
+     WHERE message_id = ?`
+  ).bind(input.messageId).first<ExistingPlayRtdnClaim>();
+
+  if (!existing) {
+    throw new Error('Play RTDN delivery claim disappeared after conflict.');
+  }
+  if (
+    existing.package_name !== input.packageName ||
+    existing.message_fingerprint !== input.fingerprint
+  ) {
+    return 'mismatch';
+  }
+  return existing.status === 'processed' ? 'duplicate_processed' : 'duplicate_processing';
+}
+
+export async function releasePlayRtdnClaim(
+  db: D1Database,
+  messageId: string,
+  fingerprint: string
+): Promise<void> {
+  await db.prepare(
+    `DELETE FROM play_rtdn_messages
+     WHERE message_id = ? AND message_fingerprint = ? AND status = 'processing'`
+  ).bind(messageId, fingerprint).run();
+}
+export function createPlayRtdnFinalizeStatement(
+  db: D1Database,
+  messageId: string,
+  fingerprint: string,
+  outcome: PlayRtdnOutcome,
+  processedAt: string
+): D1PreparedStatement {
+  return db.prepare(
+    `UPDATE play_rtdn_messages
+     SET status = 'processed', processed_at = ?, outcome = ?
+     WHERE message_id = ? AND message_fingerprint = ? AND status = 'processing'`
+  ).bind(processedAt, outcome, messageId, fingerprint);
+}
+
+export async function finalizePlayRtdnMessage(
+  db: D1Database,
+  messageId: string,
+  fingerprint: string,
+  outcome: PlayRtdnOutcome,
+  processedAt = new Date().toISOString()
+): Promise<void> {
+  const result = await createPlayRtdnFinalizeStatement(
+    db,
+    messageId,
+    fingerprint,
+    outcome,
+    processedAt
+  ).run();
+  if (Number(result.meta?.changes ?? 0) !== 1) {
+    throw new Error('Play RTDN delivery finalize guard did not match.');
+  }
 }
