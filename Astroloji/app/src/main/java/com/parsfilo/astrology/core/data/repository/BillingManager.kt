@@ -15,6 +15,7 @@ import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryProductDetailsResult
 import com.android.billingclient.api.QueryPurchasesParams
+import com.parsfilo.astrology.BuildConfig
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.remote.VerifySubscriptionRequest
 import com.parsfilo.astrology.core.domain.model.SubscriptionStatus
@@ -161,6 +162,13 @@ class BillingManager
             activity: Activity,
             planId: String,
         ) {
+            if (BuildConfig.STORE_SCREENSHOT_QA) {
+                _purchaseState.value =
+                    AppResult.Error(
+                        AppException.BillingException(stringsProvider.get(R.string.billing_purchase_failed)),
+                    )
+                return
+            }
             scope.launch {
                 _purchaseState.value = AppResult.Loading
                 val readyResult = ensureReady()
@@ -210,6 +218,12 @@ class BillingManager
         }
 
         suspend fun restorePurchases(): AppResult<SubscriptionStatus> {
+            if (BuildConfig.STORE_SCREENSHOT_QA) {
+                return AppResult
+                    .Error(
+                        AppException.BillingException(stringsProvider.get(R.string.billing_restore_failed)),
+                    ).also { _purchaseState.value = it }
+            }
             _purchaseState.value = AppResult.Loading
             val readyResult = ensureReady()
             if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
