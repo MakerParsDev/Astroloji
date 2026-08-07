@@ -9,8 +9,8 @@ Canonical repository and Git identity:
 ```text
 repository: MakerParsDev/Astroloji
 branch: feat/global-play-store-optimization-20260806
-verified implementation HEAD: 955f6146d55bb0f3be0d666fad553cafcc73b57d
-author/committer: MakerParsDev <makerpars@gmail.com>
+verified base implementation HEAD: 955f6146d55bb0f3be0d666fad553cafcc73b57d
+author/committer account: MakerParsDev
 origin: https://github.com/MakerParsDev/Astroloji.git
 ```
 
@@ -19,26 +19,31 @@ Review-fix commits on the final implementation tree:
 ```text
 cc847ae fix(play): address metadata review findings
 955f614 fix(play): fully localize Turkish store screenshots
+164fb24 fix(play): harden guarded publication review
 ```
 
-No fork is part of the approved delivery path. No current upstream PR exists at the time of this evidence capture.
+No fork is part of the approved delivery path. The branch is pushed directly to the canonical repository.
 
 ## Upstream GitHub state
 
-A read-only push dry-run against `MakerParsDev/Astroloji` was performed after the final implementation commits. It failed before any remote mutation because the active `MakerParsDev` GitHub CLI credential is invalid:
+`MakerParsDev` authentication was restored and independently verified with repository `admin` and `push` permission. The canonical same-repository pull request is:
 
 ```text
-remote: Invalid username or token.
-push dry-run status: 128
+PR #56: https://github.com/MakerParsDev/Astroloji/pull/56
+author: MakerParsDev
+head owner: MakerParsDev
+head: feat/global-play-store-optimization-20260806
+base: main
+cross-repository: false
 ```
 
-Other locally configured GitHub accounts were not used as a fallback. The branch therefore remains local until `MakerParsDev` authentication is restored.
+No alternate GitHub account is used as a push, commit, fork, or PR identity for this project.
 
 ## Final local repository verification
 
 Fresh verification on the final implementation tree:
 
-- `node --test scripts/*.test.mjs`: **191/191 passed**.
+- `node --test scripts/*.test.mjs`: **214/214 passed**.
 - `node scripts/validate-play-metadata.mjs`: passed for exactly `en-US` and `tr-TR`.
 - `node scripts/scan-secrets.mjs`: passed.
 - `git diff --check`: passed before the final implementation commits.
@@ -184,24 +189,33 @@ The automated review performed before the prior PR was removed identified one cr
 - post-commit error messages carrying the committed edit id and restore direction,
 - shared fail-fast CLI argument parsing,
 - release-note supported-locale filtering,
-- Turkish store-scene localization and locale-correct premium price micros.
+- Turkish store-scene localization and locale-correct premium price micros,
+- checksum-pinned Doppler installation with no token in installer scope,
+- physical-path backup protection against symlink escape,
+- fresh live-state digest verification immediately before publication,
+- bounded restore image downloads and mandatory independent restore read-back,
+- safe edit abandonment that preserves the original failure,
+- repeated subscription pagination-token rejection and access-token cache coverage,
+- exact policy field/value conflict detection,
+- duplicate Android-to-Play locale mapping rejection,
+- identifier-safe baseline source strings and strict baseline CLI parsing,
+- canonical metadata-root enforcement plus explicit release-note skip logging,
+- Ubuntu Bash and Windows PowerShell operator equivalents with mutation-gate documentation.
 
-The resulting script/workflow test suite is **191/191 green**.
+The resulting script/workflow test suite is **214/214 green**.
 
 ## Remaining gated actions
 
 The following are intentionally incomplete:
 
-1. Restore valid `MakerParsDev` GitHub authentication on MSI.
-2. Push this branch directly to `MakerParsDev/Astroloji`.
-3. Open a PR inside `MakerParsDev/Astroloji` and run fresh GitHub CI/review on the final commits.
-4. Merge only after those checks are green.
-5. Make a new post-merge Play backup and dry-run diff.
-6. Resolve the separate live rollout `1.0` versus canonical mutation-guard `0.1` decision.
-7. Publish the canonical Turkish/English metadata and 15 assets only after that guard is intentionally reconciled.
-8. Perform independent post-publication read-back.
-9. Remove 84 unsupported locales only through the state-bound cleanup flow.
-10. Reconcile UI-only Play Data Safety/account-deletion settings and verify public propagation.
-11. Mark the post-change measurement timestamp and compare a later observation window without claiming causation.
+1. Push the review-resolution and evidence commits to PR #56 and complete fresh GitHub CI/automated review.
+2. Merge PR #56 only after all required checks and review findings are green.
+3. Make a new post-merge Play backup and dry-run diff.
+4. Resolve the separate live rollout `1.0` versus canonical mutation-guard `0.1` decision.
+5. Publish the canonical Turkish/English metadata and 15 assets only after that guard is intentionally reconciled.
+6. Perform independent post-publication read-back.
+7. Remove 84 unsupported locales only through the state-bound cleanup flow.
+8. Reconcile UI-only Play Data Safety/account-deletion settings and verify public propagation.
+9. Mark the post-change measurement timestamp and compare a later observation window without claiming causation.
 
 No Google Play metadata, locale cleanup, policy form, or rollout mutation was executed while completing this verification.
