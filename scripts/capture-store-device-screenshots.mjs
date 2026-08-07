@@ -47,6 +47,7 @@ const anchors = {
 };
 
 function execFileResult(command, args, options = {}) {
+  const timeoutMs = options.timeoutMs ?? 120_000;
   return new Promise((resolve, reject) => {
     execFile(
       command,
@@ -55,11 +56,16 @@ function execFileResult(command, args, options = {}) {
         encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8',
         maxBuffer: options.maxBuffer ?? 32 * 1024 * 1024,
         env: options.env ?? process.env,
+        timeout: options.timeoutMs ?? 120_000,
+        killSignal: 'SIGKILL',
       },
       (error, stdout, stderr) => {
         if (error) {
           error.stdout = stdout;
           error.stderr = stderr;
+          if (error.killed) {
+            error.message = `${command} timed out after ${timeoutMs}ms: ${error.message}`;
+          }
           reject(error);
           return;
         }
@@ -166,8 +172,19 @@ async function readPhysicalSize(serial, adbFn) {
   return { width: Number(match[1]), height: Number(match[2]) };
 }
 
-async function tapTextUsing(serial, visibleText, adbFn, sleepFn = defaultSleep) {
+async function resetScrollToTopUsing(serial, size, adbFn, sleepFn) {
+  const x = Math.floor(size.width / 2);
+  const startY = Math.floor(size.height * 0.30);
+  const endY = Math.floor(size.height * 0.78);
+  for (let swipe = 0; swipe < 4; swipe += 1) {
+    await adbFn(serial, ['shell', 'input', 'swipe', String(x), String(startY), String(x), String(endY), '250']);
+  }
+  await sleepFn(150);
+}
+
+export async function tapTextUsing(serial, visibleText, adbFn, sleepFn = defaultSleep) {
   const size = await readPhysicalSize(serial, adbFn);
+  await resetScrollToTopUsing(serial, size, adbFn, sleepFn);
   let lastError;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {

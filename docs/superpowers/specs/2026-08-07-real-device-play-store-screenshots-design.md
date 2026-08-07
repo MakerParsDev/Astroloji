@@ -3,7 +3,7 @@
 Date: 2026-08-07
 Owner: MakerParsDev
 Repository: MakerParsDev/Astroloji
-Status: approved design, implementation pending
+Status: implemented; retained as the historical approved design record
 
 ## Problem
 
@@ -40,13 +40,13 @@ Synthetic Compose store scenes will no longer be the canonical source for Play p
 The order is fixed for both locales:
 
 1. **Daily horoscope** — real Home screen, cropped to the strongest daily energy/commentary section.
-2. **Weekly and monthly outlook** — real guidance content, emphasizing forward-looking value rather than dense body copy.
-3. **Compatibility** — real Compatibility screen with the pair and score clearly visible.
-4. **Personal profile** — real Profile/sign identity area, emphasizing personalization.
-5. **Daily routine/tools** — a real in-app routine/reminder/widget-related surface that exists in the current product. Do not invent UI that is not shipped.
+2. **Weekly outlook** — real Weekly screen, emphasizing forward-looking value rather than dense body copy.
+3. **Monthly outlook** — real Monthly screen, showing the longer-range guidance separately from weekly content.
+4. **Compatibility** — real Compatibility screen with the pair and score clearly visible.
+5. **Personal profile** — real Profile/sign identity area, emphasizing personalization.
 6. **Premium** — real current paywall UI with monthly and weekly plans, no purchase action.
 
-If the current app has no real screen supporting story 5, replace that story with another shipped, high-value screen rather than fabricating a tool card.
+This implemented sequence is the canonical scene contract: `daily`, `weekly`, `monthly`, `compatibility`, `profile`, `premium`.
 
 ## Marketing frame
 

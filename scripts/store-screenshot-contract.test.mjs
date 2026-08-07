@@ -34,7 +34,7 @@ test('phone previews keep stable names and use real-device marketing frames', ()
 
 test('screenshot-only raw captures are included in the debug resource table', () => {
   const build = fs.readFileSync(buildPath, 'utf8');
-  assert.match(build, /if \(screenshotTestsEnabled\) \{[\s\S]*sourceSets\.named\("debug"\)[\s\S]*res\.directories\s*\+=\s*"src\/screenshotTest\/res"/);
+  assert.match(build, /if \(screenshotTestsEnabled\) \{[\s\S]{0,400}sourceSets\.named\("debug"\)[\s\S]{0,400}res\.directories\s*\+=\s*"src\/screenshotTest\/res"/);
 });
 
 test('all twelve raw device captures are wired into phone previews', () => {

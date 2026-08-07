@@ -22,7 +22,7 @@ test('storeQa Firebase config uses an ignored local file with a sanitized build 
   assert.ok(fs.existsSync(examplePath), 'storeQa sanitized Firebase example must exist');
   const example = fs.readFileSync(examplePath, 'utf8');
   assert.match(example, /"package_name"\s*:\s*"com\.parsfilo\.astrology\.storeqa"/);
-  assert.doesNotMatch(example, /AIza[0-9A-Za-z\\-_]{20,}/);
+  assert.doesNotMatch(example, /AIza[0-9A-Za-z_-]{20,}/);
   assert.match(gradle, /prepareStoreQaGoogleServices/);
   assert.match(gradle, /google-services\.example\.json/);
   assert.match(gradle, /processStoreQaGoogleServices[\s\S]{0,160}dependsOn\(prepareStoreQaGoogleServices\)/);

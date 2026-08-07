@@ -36,4 +36,24 @@ class StoreScreenshotQaBillingTest {
                 com.parsfilo.astrology.core.data.repository.BillingCatalogueLoadResult.Success::class.java,
             )
         }
+
+    @Test
+    fun `non qa catalogue calls live loader once and returns its result`() =
+        runTest {
+            var liveCalls = 0
+            val expected =
+                com.parsfilo.astrology.core.data.repository.BillingCatalogueLoadResult.Failure(
+                    message = "live catalogue result",
+                    diagnostics = emptyList(),
+                )
+
+            val result =
+                resolvePremiumCatalogue(storeScreenshotQa = false, language = "en") {
+                    liveCalls += 1
+                    expected
+                }
+
+            assertThat(liveCalls).isEqualTo(1)
+            assertThat(result).isEqualTo(expected)
+        }
 }

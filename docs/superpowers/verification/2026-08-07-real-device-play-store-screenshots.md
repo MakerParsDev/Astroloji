@@ -116,6 +116,17 @@ node scripts/scan-secrets.mjs
 git diff --check
 ```
 
+Windows/PowerShell operator equivalent (not part of the historical MSI execution above):
+
+```powershell
+Set-Location <repo-root>
+node --test scripts/*.test.mjs
+node scripts/validate-play-metadata.mjs
+node scripts/scan-secrets.mjs
+Get-ChildItem .github/workflows -Filter *.yml | ForEach-Object { actionlint $_.FullName }
+git diff --check
+```
+
 Result:
 
 - Node release/tooling/contract tests: **246 passed, 0 failed**
@@ -141,6 +152,27 @@ GRADLE_USER_HOME=/home/msi/.gradle bash ./gradlew \
 ```
 
 Result: **BUILD SUCCESSFUL in 1m 23s**, 186 actionable tasks, 12 executed and 174 up-to-date. This gate includes unit tests, Detekt, ktlint, Android Lint, debug APK, isolated storeQa APK, Android instrumentation-test compilation, and Compose screenshot pixel validation.
+
+Windows/PowerShell operator equivalent for a Windows checkout uses the Windows Gradle wrapper and local Android SDK path:
+
+```powershell
+Set-Location <repo-root>\Astroloji
+$env:ANDROID_HOME = '<path-to-Android-Sdk>'
+$env:ANDROID_SDK_ROOT = $env:ANDROID_HOME
+$env:GRADLE_USER_HOME = Join-Path $HOME '.gradle'
+$env:GRADLE_OPTS = '-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8 -Dorg.gradle.workers.max=2'
+.\gradlew.bat `
+  :app:testDebugUnitTest `
+  detekt `
+  ktlintCheck `
+  lint `
+  :app:assembleDebug `
+  :app:assembleStoreQa `
+  :app:compileDebugAndroidTestKotlin `
+  -Pandroid.experimental.enableScreenshotTest=true `
+  :app:validateDebugScreenshotTest
+```
+
 
 ## Human Visual QA
 
