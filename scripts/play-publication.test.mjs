@@ -11,6 +11,7 @@ import {
   publishPreparedMetadata,
   restoreConfirmation,
   restorePreparedMetadata,
+  verifySupportedPublishedState,
 } from './lib/play-publication.mjs';
 
 function writeFile(root, relativePath, content) {
@@ -234,6 +235,80 @@ test('successful publication replaces supported images, commits, then performs i
   assert.equal(client.calls.filter((call) => call[0] === 'uploadImage').length, 15);
 });
 
+test('phone-only publication mutates only phone screenshot slots', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  let additionalMutationCalls = 0;
+
+  await publishPreparedMetadata({
+    client,
+    backup,
+    backupDigest,
+    confirmation: backupConfirmation(backupDigest),
+    proposed,
+    imageTypes: new Set(['phoneScreenshots']),
+    now: new Date('2026-08-06T15:10:00.000Z'),
+    maxAgeMinutes: 30,
+    additionalEditMutation: async () => { additionalMutationCalls += 1; },
+    independentReadback: async () => [],
+  });
+
+  assert.deepEqual(
+    client.calls
+      .filter((call) => call[0] === 'deleteAllImages')
+      .map((call) => [call[2], call[3]]),
+    [
+      ['en-US', 'phoneScreenshots'],
+      ['tr-TR', 'phoneScreenshots'],
+    ],
+  );
+  assert.equal(client.calls.filter((call) => call[0] === 'updateListing').length, 0);
+  assert.equal(client.calls.filter((call) => call[0] === 'uploadImage').length, 12);
+  assert.equal(additionalMutationCalls, 0);
+});
+
+test('phone-only readback preserves backup state outside phone screenshots', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const live = structuredClone(backup);
+  for (const listing of live.listings) {
+    listing.images.phoneScreenshots = proposed.listings[listing.locale].images.phoneScreenshots.map(
+      (image, index) => ({ id: `phone-${index}`, sha256: image.sha256, url: null }),
+    );
+  }
+
+  const clientFrom = (state) => ({
+    packageName: state.packageName,
+    async createEdit() { return { id: 'edit-readback' }; },
+    async listListings() { return state.listings.map((listing) => ({ language: listing.locale })); },
+    async getListing(_editId, locale) { return state.listings.find((listing) => listing.locale === locale); },
+    async listImages(_editId, locale, imageType) {
+      return state.listings.find((listing) => listing.locale === locale).images[imageType] ?? [];
+    },
+    async getTrack(_editId, track) { return state.tracks[track] ?? { track, releases: [] }; },
+    async listSubscriptions() { return state.subscriptions; },
+    async deleteEdit() {},
+  });
+
+  assert.deepEqual(
+    await verifySupportedPublishedState(clientFrom(live), proposed, {
+      imageTypes: new Set(['phoneScreenshots']),
+      baseline: backup,
+    }),
+    [],
+  );
+
+  const drifted = structuredClone(live);
+  drifted.listings[0].title = 'Unexpected listing mutation';
+  const errors = await verifySupportedPublishedState(clientFrom(drifted), proposed, {
+    imageTypes: new Set(['phoneScreenshots']),
+    baseline: backup,
+  });
+  assert.ok(errors.some((error) => /listing drift/i.test(error)));
+});
+
 test('restore reconstructs listing text and backed-up images in a new edit', async () => {
   const backup = backupFixture();
   const backupDigest = digest(backup);
@@ -275,6 +350,7 @@ test('publisher CLI integration refuses missing digest-bound confirmation before
       repositoryRoot: process.cwd(),
       backupPath,
       confirmation: '',
+      imageScope: 'phoneScreenshots',
       client,
       now: new Date('2026-08-06T15:10:00.000Z'),
     }),
@@ -555,6 +631,30 @@ test('approved backup state digest must match fresh live state', () => {
   );
 });
 
+test('publisher refuses a missing image scope before opening a mutation edit', async () => {
+  const { publishPlayMetadata } = await import('./publish-play-metadata.mjs');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'play-publisher-scope-'));
+  const backup = backupFixture();
+  const backupPath = path.join(directory, 'backup.json');
+  fs.writeFileSync(backupPath, `${JSON.stringify(backup, null, 2)}\n`);
+  const backupDigest = crypto.createHash('sha256').update(fs.readFileSync(backupPath)).digest('hex');
+  const client = fakeClient();
+
+  await assert.rejects(
+    publishPlayMetadata({
+      repositoryRoot: process.cwd(),
+      backupPath,
+      confirmation: backupConfirmation(backupDigest),
+      client,
+      captureCurrentState: async () => backup,
+      independentReadback: async () => [],
+      now: new Date('2026-08-06T15:10:00.000Z'),
+    }),
+    /image-scope.*phoneScreenshots/i,
+  );
+  assert.equal(client.calls.length, 0);
+});
+
 test('publisher CLI rejects fresh live-state drift before opening a mutation edit', async () => {
   const { publishPlayMetadata } = await import('./publish-play-metadata.mjs');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'play-publisher-live-guard-'));
@@ -570,6 +670,7 @@ test('publisher CLI rejects fresh live-state drift before opening a mutation edi
       repositoryRoot: process.cwd(),
       backupPath,
       confirmation: backupConfirmation(crypto.createHash('sha256').update(fs.readFileSync(backupPath)).digest('hex')),
+      imageScope: 'phoneScreenshots',
       client,
       captureCurrentState: async () => current,
       now: new Date('2026-08-06T15:10:00.000Z'),
@@ -591,8 +692,12 @@ test('release-note mutation logs why publication is skipped', async () => {
   assert.match(logs.shift(), /release-note.*does not exist/i);
 });
 
-test('publisher uses only the canonical metadata root and exposes no environment override', async () => {
+test('publisher loads canonical state and exposes no release-note mutation path', async () => {
   const source = fs.readFileSync('scripts/publish-play-metadata.mjs', 'utf8');
+  const start = source.indexOf('export async function publishPlayMetadata');
+  const end = source.indexOf('const invokedPath', start);
+  const publishBody = source.slice(start, end);
   assert.doesNotMatch(source, /PLAY_METADATA_ROOT/);
-  assert.match(source, /path\.join\(resolvedRepositoryRoot, 'Astroloji', 'play'\)/);
+  assert.match(publishBody, /loadCanonicalPlayState\(resolvedRepositoryRoot\)/);
+  assert.doesNotMatch(publishBody, /releaseNotesMutation|PLAY_METADATA_TRACK|updateTrack/);
 });

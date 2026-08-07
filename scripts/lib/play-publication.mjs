@@ -11,6 +11,28 @@ const CONFIRMATION_PREFIX_LENGTH = 12;
 const DEFAULT_MAX_BACKUP_AGE_MINUTES = 30;
 const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 60_000;
 
+function normalizePublicationImageTypes(imageTypes = new Set(IMAGE_TYPES)) {
+  if (!(imageTypes instanceof Set) || imageTypes.size === 0) {
+    throw new Error('Publication imageTypes must be a non-empty Set.');
+  }
+  const normalized = new Set(imageTypes);
+  const invalid = [...normalized].filter((imageType) => !IMAGE_TYPES.includes(imageType));
+  if (invalid.length > 0) {
+    throw new Error(`Unsupported publication image type(s): ${invalid.join(', ')}`);
+  }
+  const isFullState =
+    normalized.size === IMAGE_TYPES.length && IMAGE_TYPES.every((imageType) => normalized.has(imageType));
+  const isPhoneOnly = normalized.size === 1 && normalized.has('phoneScreenshots');
+  if (!isFullState && !isPhoneOnly) {
+    throw new Error('Publication imageTypes must be the full image set or exactly phoneScreenshots.');
+  }
+  return normalized;
+}
+
+function isPhoneOnlyImageScope(imageTypes) {
+  return imageTypes.size === 1 && imageTypes.has('phoneScreenshots');
+}
+
 function normalizeText(value) {
   return String(value ?? '').replace(/\r\n/g, '\n').trim();
 }
@@ -82,9 +104,9 @@ function sortedHashes(images, context) {
     .sort();
 }
 
-function assertProposedImageHashes(proposed) {
+function assertProposedImageHashes(proposed, imageTypes = new Set(IMAGE_TYPES)) {
   for (const locale of proposed.locales ?? []) {
-    for (const imageType of IMAGE_TYPES) {
+    for (const imageType of imageTypes) {
       sortedHashes(proposed.listings?.[locale]?.images?.[imageType] ?? [], `${locale}/${imageType}`);
     }
   }
@@ -118,17 +140,21 @@ export function assertBackupRestorable(backup) {
   }
 }
 
-async function verifyEditLocalState(client, editId, proposed) {
+async function verifyEditLocalState(client, editId, proposed, imageTypes = new Set(IMAGE_TYPES)) {
+  const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
+  const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
   for (const locale of proposed.locales) {
     const expectedListing = proposed.listings[locale];
-    const actualListing = await client.getListing(editId, locale);
-    for (const field of ['title', 'shortDescription', 'fullDescription']) {
-      if (normalizeText(actualListing[field]) !== normalizeText(expectedListing[field])) {
-        throw new Error(`Edit-local listing verification failed for ${locale}/${field}.`);
+    if (!phoneOnly) {
+      const actualListing = await client.getListing(editId, locale);
+      for (const field of ['title', 'shortDescription', 'fullDescription']) {
+        if (normalizeText(actualListing[field]) !== normalizeText(expectedListing[field])) {
+          throw new Error(`Edit-local listing verification failed for ${locale}/${field}.`);
+        }
       }
     }
 
-    for (const imageType of IMAGE_TYPES) {
+    for (const imageType of normalizedImageTypes) {
       const expectedImages = expectedListing.images[imageType] ?? [];
       const actualImages = await client.listImages(editId, locale, imageType);
       if (actualImages.length !== expectedImages.length) {
@@ -147,17 +173,21 @@ async function verifyEditLocalState(client, editId, proposed) {
   }
 }
 
-async function applyProposedState(client, editId, proposed) {
+async function applyProposedState(client, editId, proposed, imageTypes = new Set(IMAGE_TYPES)) {
+  const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
+  const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
   for (const locale of proposed.locales) {
     const listing = proposed.listings[locale];
-    await client.updateListing(editId, locale, {
-      language: locale,
-      title: listing.title,
-      shortDescription: listing.shortDescription,
-      fullDescription: listing.fullDescription,
-    });
+    if (!phoneOnly) {
+      await client.updateListing(editId, locale, {
+        language: locale,
+        title: listing.title,
+        shortDescription: listing.shortDescription,
+        fullDescription: listing.fullDescription,
+      });
+    }
 
-    for (const imageType of IMAGE_TYPES) {
+    for (const imageType of normalizedImageTypes) {
       await client.deleteAllImages(editId, locale, imageType);
       for (const image of listing.images[imageType] ?? []) {
         await client.uploadImage(editId, locale, imageType, image.filePath);
@@ -172,6 +202,7 @@ export async function publishPreparedMetadata({
   backupDigest,
   confirmation,
   proposed,
+  imageTypes = new Set(IMAGE_TYPES),
   now = new Date(),
   maxAgeMinutes = DEFAULT_MAX_BACKUP_AGE_MINUTES,
   independentReadback,
@@ -179,7 +210,9 @@ export async function publishPreparedMetadata({
   changesNotSentForReview = false,
 }) {
   assertPackageAgreement(client, backup, proposed);
-  assertProposedImageHashes(proposed);
+  const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
+  const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
+  assertProposedImageHashes(proposed, normalizedImageTypes);
   assertFreshBackup(backup, { now, maxAgeMinutes });
   assertConfirmation(confirmation, backupConfirmation(backupDigest));
   const diff = buildPlayDiff(backup, proposed);
@@ -193,16 +226,21 @@ export async function publishPreparedMetadata({
   const edit = await client.createEdit();
   let committed = false;
   try {
-    await applyProposedState(client, edit.id, proposed);
-    await additionalEditMutation(client, edit.id);
-    await verifyEditLocalState(client, edit.id, proposed);
+    await applyProposedState(client, edit.id, proposed, normalizedImageTypes);
+    if (!phoneOnly) {
+      await additionalEditMutation(client, edit.id);
+    }
+    await verifyEditLocalState(client, edit.id, proposed, normalizedImageTypes);
     await client.commitEdit(edit.id, {
       changesNotSentForReview,
       changesInReviewBehavior: 'ERROR_IF_IN_REVIEW',
     });
     committed = true;
 
-    const readbackErrors = await independentReadback(proposed);
+    const readbackErrors = await independentReadback(proposed, {
+      imageTypes: normalizedImageTypes,
+      baseline: backup,
+    });
     if (readbackErrors.length > 0) {
       throw new Error(`Committed edit ${edit.id} but post-commit Play read-back failed: ${readbackErrors.join(' | ')}. Restore from the approved backup before retrying.`);
     }
@@ -409,9 +447,31 @@ function supportedContentErrors(diff) {
   return errors;
 }
 
-export async function verifySupportedPublishedState(client, proposed) {
+function scopedExpectedPublishedState(proposed, baseline, imageTypes) {
+  const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
+  if (!isPhoneOnlyImageScope(normalizedImageTypes)) return proposed;
+  if (!baseline) {
+    throw new Error('Phone screenshot read-back requires the approved backup baseline.');
+  }
+  const expected = backupAsProposed(baseline);
+  for (const locale of proposed.locales) {
+    if (!expected.listings[locale]) {
+      throw new Error(`Approved backup is missing supported locale ${locale}.`);
+    }
+    expected.listings[locale].images.phoneScreenshots =
+      proposed.listings[locale].images.phoneScreenshots;
+  }
+  return expected;
+}
+
+export async function verifySupportedPublishedState(
+  client,
+  proposed,
+  { imageTypes = new Set(IMAGE_TYPES), baseline } = {},
+) {
   const live = await capturePlayBackup(client);
-  return supportedContentErrors(buildPlayDiff(live, proposed));
+  const expected = scopedExpectedPublishedState(proposed, baseline, imageTypes);
+  return supportedContentErrors(buildPlayDiff(live, expected));
 }
 
 export async function verifyBackupRestoredState(client, backup) {
