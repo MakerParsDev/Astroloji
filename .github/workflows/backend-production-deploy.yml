@@ -30,6 +30,8 @@ jobs:
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      PLAY_RTDN_AUDIENCE: ${{ vars.PLAY_RTDN_AUDIENCE }}
+      PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: ${{ vars.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
     steps:
       - uses: actions/checkout@v6
@@ -43,13 +45,18 @@ jobs:
       - name: Validate deployment configuration
         run: |
           missing=0
-          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID; do
+          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID PLAY_RTDN_AUDIENCE PLAY_RTDN_SERVICE_ACCOUNT_EMAIL; do
             if [ -z "${!name:-}" ]; then
               echo "Missing required production setting: $name"
               missing=1
             fi
           done
           exit "$missing"
+
+      - name: Mask Play RTDN runtime configuration
+        run: |
+          echo "::add-mask::$PLAY_RTDN_AUDIENCE"
+          echo "::add-mask::$PLAY_RTDN_SERVICE_ACCOUNT_EMAIL"
 
       - name: Install dependencies
         run: npm ci
@@ -110,6 +117,21 @@ jobs:
 
       - name: Apply tracked D1 migrations
         run: npx wrangler d1 migrations apply astrology-db --remote
+
+      - name: Verify Play RTDN D1 schema
+        run: |
+          npx wrangler d1 execute astrology-db --remote \
+            --command "PRAGMA table_info(play_rtdn_messages)" --json \
+            > "$RUNNER_TEMP/play-rtdn-schema.json"
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/play-rtdn-schema.json', 'utf8'));
+          const rows = payload.flatMap((entry) => entry.results ?? []);
+          const names = new Set(rows.map((row) => row.name));
+          const required = ['message_id','package_name','message_fingerprint','notification_type','status','received_at','processed_at','outcome'];
+          if (!required.every((name) => names.has(name))) throw new Error('Play RTDN schema read-back failed.');
+          console.log('Play RTDN schema read-back passed.');
+          NODE
 
       - name: Sync Worker secrets and deploy
         run: npm run deploy:doppler
@@ -176,4 +198,4 @@ jobs:
 
       - name: Remove deployment secret files
         if: always()
-        run: rm -f "$RUNNER_TEMP/doppler-secrets.json"
+        run: rm -f "$RUNNER_TEMP/doppler-secrets.json" "$RUNNER_TEMP/play-rtdn-schema.json"

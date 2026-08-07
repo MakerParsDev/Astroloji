@@ -35,7 +35,7 @@ Cloudflare secret store'a giden anahtarlar:
 - `JWT_SECRET`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
-- `PLAY_WEBHOOK_SECRET`
+- `PLAY_WEBHOOK_SECRET` (Phase A migration fallback; OIDC-only cutover sonrasi kaldirilir)
 - `ADMIN_SECRET`
 - `ADMOB_REWARDED_ID`
 
@@ -65,7 +65,7 @@ Cloudflare secret store'a giden anahtarlar:
 - `GET /api/v1/rewards/ssv` AdMob imzalı callback endpoint'idir ve istemci kimliğiyle erişim vermez.
 - `POST /api/v1/rewards/claim` yalnızca doğrulanmış challenge kimliğini tüketir.
 - `POST /api/v1/events/track` uygulama JWT'si ister.
-- `POST /api/v1/webhooks/play-rtdn?token=...` query token ile korunur. `X-Play-Secret` sadece gecis donemi fallback olarak aciktir.
+- `POST /api/v1/webhooks/play-rtdn` icin tercih edilen kimlik dogrulama, Pub/Sub tarafindan gonderilen Google-imzali OIDC bearer kimligidir. Phase A boyunca query/header shared-secret yalnizca gecici rollback/migration fallback olarak kalir.
 - `POST /api/v1/notifications/send` sadece `X-Admin-Secret` ile korunur.
 - `GET /api/v1/admin/play/subscriptions` sadece `X-Admin-Secret` ile korunur.
 - `PATCH /api/v1/admin/play/subscriptions/:productId` sadece `X-Admin-Secret` ile korunur; `apply=true` verilmezse preview modunda kalir.
@@ -73,7 +73,9 @@ Cloudflare secret store'a giden anahtarlar:
 - `GET /api/v1/admin/play/reviews` sadece `X-Admin-Secret` ile korunur.
 - `POST /api/v1/admin/play/reviews/:reviewId/reply` sadece `X-Admin-Secret` ile korunur; `apply=true` verilmezse preview modunda kalir.
 - Secret compare akisi timing-safe helper uzerinden yapilir.
-- RTDN lookup authoritative snapshot donmezse entitlement mutate edilmez; `sync_pending` event'i yazilip sonraki reconciliation'a birakilir.
+- RTDN OIDC istegi yalniz resmi Pub/Sub envelope, zorunlu `messageId` ve server-configured package ile eslesen developer notification kabul eder.
+- `testNotification` yalniz transport/auth/idempotency kanitidir; musteri subscription veya entitlement state'ini degistirmez.
+- RTDN lookup authoritative Google Play snapshot donmezse entitlement mutate edilmez; `sync_pending` event'i yazilip sonraki reconciliation'a birakilir.
 
 ## Cache ve Rate Limit
 
@@ -87,7 +89,7 @@ Cloudflare secret store'a giden anahtarlar:
 ## Operasyon Runbook
 
 - Trial offer kontrolu: `GET /api/v1/admin/play/subscriptions` ile aylik/yillik urunleri cek; secili offer icinde sifir fiyatli pricing phase olup olmadigini dogrula.
-- RTDN migration: Pub/Sub push URL'ini `https://<worker>/api/v1/webhooks/play-rtdn?token=<PLAY_WEBHOOK_SECRET>` formatina tasiyin.
+- RTDN Phase A migration: Pub/Sub push endpointini secret icermeyen `/api/v1/webhooks/play-rtdn` yoluna ve authenticated OIDC push kimligine tasiyin; shared-secret fallback yalniz rollback guvencesi olarak gecici tutulur. Production caller/audience degerlerini public dokumana yazmayin.
 - Sync pending audit: `GET /api/v1/admin/subscriptions/audit` ile son 30 gundeki bekleyen webhook kayitlarini Play snapshot'i ile reconcile edin.
 - Fiyat veya offer degisikligi: once `PATCH /api/v1/admin/play/subscriptions/:productId` body'sini `apply=false` ile preview edin, sonra ayni payload'i `apply=true` ile uygulayin.
 
@@ -102,7 +104,7 @@ CREATE INDEX IF NOT EXISTS idx_users_subscription_state ON users(subscription_st
 
 ## Notlar
 
-- RTDN webhook parse akisi tip guvenli tutulur; eksik payload durumunda 400 doner.
+- RTDN parse akisi strict Pub/Sub envelope, message-level D1 idempotency ve server-side package binding kullanir; raw payload veya purchase token audit loglarina yazilmaz.
 - FCM tarafinda `registration-token-not-registered` / `UNREGISTERED` token'lari otomatik silinir.
 - Worker binding tipleri elle yazilmaz; `npm run types:generate` ile `worker-configuration.d.ts` uretilir.
 - `nodejs_compat` bilerek acik degil; mevcut Worker kodu web-standard API'lerle calisiyor ve ekstra Node polyfill yuzeyi tasinmiyor.
