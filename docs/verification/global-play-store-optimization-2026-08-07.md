@@ -52,16 +52,19 @@ completed-rollout contract branch: fix/play-metadata-live-contract-20260807
 completed-rollout design tree: 2ebb73d5040a83d911c673cb1e8948fed715375e
 completed-rollout implementation tree: 8d8759d59515815db4c47447f93e27c68f8fdca7
 completed-rollout review-fix tree: c0f962b10fc1a4a11235713a6ab9ec38abff5fe1
+completed-rollout run-auth tree: 822eb7341cdb6b7cbcdf8d0b977e1fb3abf2b2de
+PR #57: https://github.com/MakerParsDev/Astroloji/pull/57
+PR author/head owner: MakerParsDev / MakerParsDev
 base main tree: adf992fba503d19013b9b4eb8feb8691e572697f
 ```
 
-The implementation tree changes only the metadata safety contract, its tests, and operator/evidence documentation. It adds no Play track mutation path. Local verification after this implementation passed `218/218` script tests, metadata validation, secret scan, actionlint, and `git diff --check` after the review-fix tree and before this evidence-only follow-up commit.
+The completed-rollout chain changes the metadata safety contract, its tests, operator documentation, and the metadata workflow authorization boundary; it adds no Play track mutation path. Fresh local verification on the run-auth tree `822eb7341cdb6b7cbcdf8d0b977e1fb3abf2b2de` passed `219/219` script tests, metadata validation, secret scan, actionlint, and `git diff --check` before this evidence-only follow-up commit.
 
-## Final local repository verification
+## Historical global-optimization local verification
 
-Fresh verification on the exact `cd1ce0a46b17187f4d745f52f21c0e69cf4ed3ab` tree recorded above. The follow-up review-round changes after that tree are documentation/test-strengthening only and are revalidated separately before push:
+The earlier global-optimization verification on exact tree `cd1ce0a46b17187f4d745f52f21c0e69cf4ed3ab` predated the completed-rollout contract work. Its script-suite result was **214/214**; completed-rollout verification is recorded separately above.
 
-- `node --test scripts/*.test.mjs`: **218/218 passed**.
+- `node --test scripts/*.test.mjs`: **214/214 passed**.
 - `node scripts/validate-play-metadata.mjs`: passed for exactly `en-US` and `tr-TR`.
 - `node scripts/scan-secrets.mjs`: passed.
 - `git diff --check`: passed before the final implementation commits.
@@ -220,17 +223,17 @@ The automated review performed before the prior PR was removed identified one cr
 - canonical metadata-root enforcement plus explicit release-note skip logging,
 - Ubuntu Bash and Windows PowerShell operator equivalents with mutation-gate documentation.
 
-The resulting script/workflow test suite is **218/218 green**.
+The current completed-rollout script/workflow test suite is **219/219 green**.
 
 ## Remaining gated actions
 
 The following are intentionally incomplete:
 
-1. Push the review-resolution and evidence commits to PR #56 and complete fresh GitHub CI/automated review.
-2. Merge PR #56 only after all required checks and review findings are green.
+1. Push this evidence follow-up to PR #57 and complete fresh GitHub CI/automated review on the exact final head.
+2. Merge PR #57 only after all current checks and review findings are green.
 3. Make a new post-merge Play backup and dry-run diff.
-4. Publish the canonical Turkish/English metadata and 15 assets only while fresh live rollout remains `1.0`.
-5. Perform independent post-publication read-back.
+4. Publish the canonical Turkish/English metadata and 15 assets only while fresh live rollout remains `1.0` and exact-run authorization is active.
+5. Perform independent post-publication read-back and verify mutation authorization is closed.
 6. Remove unsupported locales only through a new post-publication state-bound cleanup flow.
 7. Reconcile UI-only Play Data Safety/account-deletion settings and verify public propagation.
 8. Mark the post-change measurement timestamp and compare a later observation window without claiming causation.
