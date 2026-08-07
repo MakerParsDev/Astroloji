@@ -56,6 +56,27 @@ Allowed event metadata remains categorical and bounded: source, step, result, pl
 - Clearing local app data or uninstalling removes the last daily feedback category and other DataStore values.
 - Anonymous or aggregated provider records may remain only where they can no longer be associated with the deleted account or where legal/provider retention applies.
 
+## Canonical Play Console answer set
+
+- Canonical operator source: `docs/PLAY_POLICY_ANSWER_SET_2026.md`.
+- Account deletion: **Supported** through the authenticated in-app flow and the public deletion-information route.
+- The Play Console answer set must be compared with this engineering matrix and the exact release artifact before any save or submission.
+
+### Active provider inventory
+
+The exact active provider names used by automated policy validation are:
+
+- Firebase Authentication
+- Firebase Analytics
+- Firebase Crashlytics
+- Firebase Cloud Messaging
+- Firebase Remote Config
+- Firebase Installations
+- Google Mobile Ads/UMP
+- Google Play Billing
+- Google Play Developer API
+- Cloudflare
+
 ## Release gate
 
 Before publishing any release, attach evidence for all of the following:

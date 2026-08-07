@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-08-07T04:07:40.000Z",
+  "window": {
+    "start": "2026-07-04",
+    "end": "2026-08-02"
+  },
+  "play": {
+    "productionRolloutFraction": {
+      "value": 1,
+      "source": "Google Play Android Publisher API live track read-back"
+    },
+    "ratings": {
+      "value": null,
+      "unavailableReason": "The bounded Google Play review/vitals summary provider returned PROVIDER_ERROR during this capture; no rating value was inferred."
+    },
+    "reviews": {
+      "value": null,
+      "unavailableReason": "The bounded Google Play review/vitals summary provider returned PROVIDER_ERROR during this capture; no review count was inferred."
+    }
+  },
+  "stability": {
+    "crashRate": {
+      "value": null,
+      "unavailableReason": "The bounded Google Play review/vitals summary provider returned PROVIDER_ERROR during this capture; no crash-rate value was inferred."
+    },
+    "anrRate": {
+      "value": null,
+      "unavailableReason": "The bounded Google Play review/vitals summary provider returned PROVIDER_ERROR during this capture; no ANR-rate value was inferred."
+    }
+  },
+  "analytics": {
+    "activeUsers": {
+      "value": null,
+      "unavailableReason": "The available GA4 summary is property-level and could not be proven to isolate the Astroloji Android app stream; property-wide counts were intentionally excluded."
+    },
+    "sessions": {
+      "value": null,
+      "unavailableReason": "The available GA4 summary is property-level and could not be proven to isolate the Astroloji Android app stream; property-wide counts were intentionally excluded."
+    },
+    "events": {
+      "value": null,
+      "unavailableReason": "The available GA4 summary is property-level and could not be proven to isolate the Astroloji Android app stream; property-wide counts were intentionally excluded."
+    }
+  },
+  "subscriptions": {
+    "premiumScreenViews": {
+      "value": 0,
+      "source": "Cloudflare D1 aggregate COUNT for user_events.event_type=paywall_viewed in the fixed window"
+    },
+    "purchaseStarts": {
+      "value": 0,
+      "source": "Cloudflare D1 aggregate COUNT for user_events.event_type=purchase_started in the fixed window"
+    },
+    "verifiedPurchases": {
+      "value": 0,
+      "source": "Cloudflare D1 aggregate COUNT(DISTINCT purchase_token) for subscription_events.event_type=purchased in the fixed window"
+    }
+  },
+  "ads": {
+    "requests": {
+      "value": 202,
+      "source": "AdMob network report filtered to the Astroloji Android app for the fixed window"
+    },
+    "matchedRequests": {
+      "value": 154,
+      "source": "AdMob network report filtered to the Astroloji Android app for the fixed window"
+    },
+    "impressions": {
+      "value": 22,
+      "source": "AdMob network report filtered to the Astroloji Android app for the fixed window"
+    }
+  }
+}

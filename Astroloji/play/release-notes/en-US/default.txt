@@ -1,1 +1,1 @@
-First public release with onboarding, daily content, compatibility, premium, and notifications.
+Improved monthly and weekly premium plan selection. Added retry support for plan loading errors and strengthened the subscription screen and backend verification flow.

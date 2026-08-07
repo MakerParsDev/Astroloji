@@ -1,194 +1,121 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { createPlayClient } from './lib/play-api-client.mjs';
+import { loadCanonicalPlayState } from './lib/play-diff.mjs';
+import {
+  backupConfirmation,
+  publishPreparedMetadata,
+  readBackupFile,
+  verifySupportedPublishedState,
+} from './lib/play-publication.mjs';
 
-const packageName = process.env.PLAY_PACKAGE_NAME;
-const credentialsPath = process.env.PLAY_SERVICE_ACCOUNT_JSON_PATH;
-const metadataRoot = path.resolve(process.cwd(), process.env.PLAY_METADATA_ROOT ?? path.join('Astroloji', 'play'));
-const listingsRoot = path.join(metadataRoot, 'listings');
-const releaseNotesRoot = path.join(metadataRoot, 'release-notes');
-const changesNotSentForReview = process.env.PLAY_CHANGES_NOT_SENT_FOR_REVIEW?.toLowerCase() === 'true';
-const releaseNotesTrack = process.env.PLAY_METADATA_TRACK?.trim();
+const changesNotSentForReview =
+  process.env.PLAY_CHANGES_NOT_SENT_FOR_REVIEW?.toLowerCase() === 'true';
 
-if (!packageName) {
-  throw new Error('PLAY_PACKAGE_NAME is required.');
-}
-
-if (!credentialsPath || !fs.existsSync(credentialsPath)) {
-  throw new Error('PLAY_SERVICE_ACCOUNT_JSON_PATH must point to a readable service account JSON file.');
-}
-
-if (!fs.existsSync(listingsRoot)) {
-  throw new Error(`Missing listings directory: ${listingsRoot}`);
-}
-
-function base64Url(input) {
-  return Buffer.from(input).toString('base64url');
-}
-
-function loadServiceAccount() {
-  return JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
-}
-
-async function fetchJson(url, init) {
-  const response = await fetch(url, init);
-  const text = await response.text();
-  const body = text ? JSON.parse(text) : {};
-  if (!response.ok) {
-    throw new Error(`Google Play API request failed (${response.status} ${response.statusText}): ${text}`);
-  }
-  return body;
-}
-
-async function createAccessToken(serviceAccount) {
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const header = { alg: 'RS256', typ: 'JWT' };
-  const payload = {
-    iss: serviceAccount.client_email,
-    scope: 'https://www.googleapis.com/auth/androidpublisher',
-    aud: 'https://oauth2.googleapis.com/token',
-    exp: nowSeconds + 3600,
-    iat: nowSeconds,
-  };
-  const unsigned = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(payload))}`;
-  const signer = crypto.createSign('RSA-SHA256');
-  signer.update(unsigned);
-  signer.end();
-  const signature = signer.sign(serviceAccount.private_key).toString('base64url');
-  const assertion = `${unsigned}.${signature}`;
-
-  const body = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-    assertion,
-  });
-
-  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  });
-
-  const tokenText = await tokenResponse.text();
-  if (!tokenResponse.ok) {
-    throw new Error(`Access token request failed (${tokenResponse.status}): ${tokenText}`);
-  }
-  return JSON.parse(tokenText).access_token;
+function argument(name) {
+  const equalsPrefix = `--${name}=`;
+  const equalsValue = process.argv.find((value) => value.startsWith(equalsPrefix));
+  if (equalsValue) return equalsValue.slice(equalsPrefix.length);
+  const index = process.argv.indexOf(`--${name}`);
+  return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
 function readLocaleFiles(rootDir) {
   return fs.readdirSync(rootDir, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
-    .map((entry) => ({
-      locale: entry.name,
-      path: path.join(rootDir, entry.name),
-    }));
+    .map((entry) => ({ locale: entry.name, path: path.join(rootDir, entry.name) }))
+    .sort((a, b) => a.locale.localeCompare(b.locale));
 }
 
 function readTrimmed(filePath) {
   return fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n').trim();
 }
 
-async function main() {
-  const serviceAccount = loadServiceAccount();
-  const accessToken = await createAccessToken(serviceAccount);
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json; charset=utf-8',
-  };
-
-  const edit = await fetchJson(
-    `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/edits`,
-    {
-      method: 'POST',
-      headers,
-      body: '{}',
-    },
-  );
-
-  const editId = edit.id;
-  const listings = readLocaleFiles(listingsRoot);
-  if (listings.length === 0) {
-    throw new Error(`No listings found under ${listingsRoot}`);
-  }
-
-  for (const listing of listings) {
-    const payload = {
-      language: listing.locale,
-      title: readTrimmed(path.join(listing.path, 'title.txt')),
-      shortDescription: readTrimmed(path.join(listing.path, 'short-description.txt')),
-      fullDescription: readTrimmed(path.join(listing.path, 'full-description.txt')),
-    };
-
-    await fetchJson(
-      `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/edits/${editId}/listings/${encodeURIComponent(listing.locale)}`,
-      {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(payload),
-      },
-    );
-  }
-
-  if (releaseNotesTrack && fs.existsSync(releaseNotesRoot)) {
-    const releaseNotesLocales = readLocaleFiles(releaseNotesRoot)
-      .map(({ locale, path: localePath }) => ({
-        language: locale,
-        text: readTrimmed(path.join(localePath, 'default.txt')),
-      }));
-
-    if (releaseNotesLocales.length > 0) {
-      const track = await fetchJson(
-        `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/edits/${editId}/tracks/${encodeURIComponent(releaseNotesTrack)}`,
-        {
-          method: 'GET',
-          headers,
-        },
-      );
-
-      if (!track.releases?.length) {
-        throw new Error(`Track '${releaseNotesTrack}' has no releases to attach release notes to.`);
-      }
-
-      const [primaryRelease, ...otherReleases] = track.releases;
-      const updatedTrack = {
-        ...track,
-        releases: [
-          {
-            ...primaryRelease,
-            releaseNotes: releaseNotesLocales,
-          },
-          ...otherReleases,
-        ],
-      };
-
-      await fetchJson(
-        `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/edits/${editId}/tracks/${encodeURIComponent(releaseNotesTrack)}`,
-        {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify(updatedTrack),
-        },
-      );
+function releaseNotesMutation(releaseNotesRoot, releaseNotesTrack) {
+  if (!releaseNotesTrack || !fs.existsSync(releaseNotesRoot)) return async () => {};
+  const releaseNotes = readLocaleFiles(releaseNotesRoot).map(({ locale, path: localePath }) => ({
+    language: locale,
+    text: readTrimmed(path.join(localePath, 'default.txt')),
+  }));
+  return async (client, editId) => {
+    if (releaseNotes.length === 0) return;
+    const track = await client.getTrack(editId, releaseNotesTrack);
+    if (!track.releases?.length) {
+      throw new Error(`Track '${releaseNotesTrack}' has no releases to attach release notes to.`);
     }
-  }
-
-  const commitUrl = new URL(
-    `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${packageName}/edits/${editId}:commit`,
-  );
-  if (changesNotSentForReview) {
-    commitUrl.searchParams.set('changesNotSentForReview', 'true');
-  }
-
-  await fetchJson(commitUrl.toString(), {
-    method: 'POST',
-    headers,
-    body: '{}',
-  });
-
-  console.log(`Published Play metadata edit ${editId} for ${listings.length} locale(s).`);
+    const [primaryRelease, ...otherReleases] = track.releases;
+    await client.updateTrack(editId, releaseNotesTrack, {
+      ...track,
+      releases: [{ ...primaryRelease, releaseNotes }, ...otherReleases],
+    });
+  };
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+export async function publishPlayMetadata({
+  packageName = process.env.PLAY_PACKAGE_NAME,
+  credentialsPath = process.env.PLAY_SERVICE_ACCOUNT_JSON_PATH,
+  repositoryRoot = process.cwd(),
+  metadataRoot = path.resolve(
+    repositoryRoot,
+    process.env.PLAY_METADATA_ROOT ?? path.join('Astroloji', 'play'),
+  ),
+  backupPath = argument('backup') ?? process.env.PLAY_METADATA_BACKUP_PATH,
+  confirmation = argument('confirmation') ?? process.env.PLAY_METADATA_CONFIRMATION,
+  maxAgeMinutes = Number(
+    argument('max-backup-age-minutes') ??
+      process.env.PLAY_METADATA_BACKUP_MAX_AGE_MINUTES ??
+      30,
+  ),
+  releaseNotesTrack = process.env.PLAY_METADATA_TRACK?.trim(),
+  deferReview = changesNotSentForReview,
+  fetchImpl = fetch,
+  client: injectedClient,
+  independentReadback,
+  now = new Date(),
+} = {}) {
+  if (!backupPath) throw new Error('Provide a fresh backup with --backup=<absolute-path>.');
+  const resolvedRepositoryRoot = path.resolve(repositoryRoot);
+  const resolvedMetadataRoot = path.resolve(metadataRoot);
+  const expectedMetadataRoot = path.join(resolvedRepositoryRoot, 'Astroloji', 'play');
+  if (resolvedMetadataRoot !== expectedMetadataRoot) {
+    throw new Error(`Metadata root must be canonical: ${expectedMetadataRoot}`);
+  }
+
+  const { backup, backupDigest } = readBackupFile(path.resolve(backupPath));
+  const expectedConfirmation = backupConfirmation(backupDigest);
+  if (!confirmation) {
+    throw new Error(`Missing publication confirmation. Expected exactly: ${expectedConfirmation}`);
+  }
+
+  const proposed = loadCanonicalPlayState(resolvedRepositoryRoot);
+  const client = injectedClient ?? createPlayClient({ packageName, credentialsPath, fetchImpl });
+  const result = await publishPreparedMetadata({
+    client,
+    backup,
+    backupDigest,
+    confirmation,
+    proposed,
+    now,
+    maxAgeMinutes,
+    changesNotSentForReview: deferReview,
+    additionalEditMutation: releaseNotesMutation(
+      path.join(resolvedMetadataRoot, 'release-notes'),
+      releaseNotesTrack,
+    ),
+    independentReadback:
+      independentReadback ?? ((state) => verifySupportedPublishedState(client, state)),
+  });
+  console.log(
+    `Published verified Play metadata edit ${result.editId} for ${proposed.locales.length} supported locale(s).`,
+  );
+  return { ...result, backupDigest };
+}
+
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  publishPlayMetadata().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

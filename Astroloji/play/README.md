@@ -1,9 +1,19 @@
 # Play metadata source of truth
 
-Bu klasor Google Play store listing ve release notes dosyalarinin repo icindeki canonical kaynagidir.
+Bu klasör Google Play mağaza metinleri, sürüm notları ve global yayın yapılandırmasının repo içindeki canonical kaynağıdır.
 
-## Yapi
+## Desteklenen diller
 
+`store-config.json`, Android uygulamasının `locales_config.xml` dosyasıyla birebir eşleşen mağaza dillerini tanımlar. İlk global kalite aşamasında yalnızca:
+
+- `en-US`
+- `tr-TR`
+
+desteklenir. Android uygulamasında bulunmayan bir dil için Play listing yayımlanamaz.
+
+## Yapı
+
+- `store-config.json`
 - `listings/<locale>/title.txt`
 - `listings/<locale>/short-description.txt`
 - `listings/<locale>/full-description.txt`
@@ -11,14 +21,16 @@ Bu klasor Google Play store listing ve release notes dosyalarinin repo icindeki 
 
 ## Kurallar
 
-1. Baslik 30 karakteri gecmemeli.
-2. Kisa aciklama 80 karakteri gecmemeli.
-3. Tam aciklama 4000 karakteri gecmemeli.
-4. Keyword stuffing, asiri `|` ayiricisi ve politika riski tasiyan marka/app referanslari kullanma.
-5. Metadata degisikligini binary release ile ayni PR'a koymak zorunda degilsin; `android-metadata` workflow'u bunu ayri yonetir.
+1. Başlık 30 karakteri geçmemeli.
+2. Kısa açıklama 80 karakteri geçmemeli.
+3. Tam açıklama 4000 karakteri geçmemeli.
+4. Keyword stuffing, aşırı `|` ayırıcısı ve politika riski taşıyan marka/app referansları kullanılmamalı.
+5. Play locale listesi Android uygulama locale listesiyle birebir eşleşmeli.
+6. Metadata değişikliği binary release ile aynı PR içinde olmak zorunda değildir; `android-metadata` workflow’u ayrı yönetir.
+7. Canlı yayın; backup, dry-run, açık diff ve bağımsız read-back olmadan yapılmaz.
 
-## Workflow kullanimi
+## Workflow kullanımı
 
-- `android-metadata` push'ta dogrulama yapar.
-- Ayni workflow manuel tetiklenirse Play edit olusturup metadata'yi yukler.
-- Varsayilan olarak degisiklikler Play tarafindan otomatik incelemeye gonderilir; yalniz desteklenen hesaplarda `PLAY_CHANGES_NOT_SENT_FOR_REVIEW=true` ile bekletme istenebilir.
+- `android-metadata` push sırasında doğrulama yapar.
+- Manuel yayın işlemi yalnız güvenlik kapısı açıkken çalışır.
+- Production rollout oranı metadata yayını tarafından değiştirilmez.

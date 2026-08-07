@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "scenes": [
+    { "preview": "StoreAppIconScreenshot", "locale": "shared", "role": "icon", "order": 0, "path": "shared/icon/icon.png" },
+    { "preview": "StoreFeatureGraphicEnglishScreenshot", "locale": "en-US", "role": "featureGraphic", "order": 0, "path": "en-US/featureGraphic/feature-graphic.png" },
+    { "preview": "StoreDailyEnglishScreenshot", "locale": "en-US", "role": "phoneScreenshot", "order": 1, "path": "en-US/phoneScreenshots/01-daily.png" },
+    { "preview": "StoreGuidanceEnglishScreenshot", "locale": "en-US", "role": "phoneScreenshot", "order": 2, "path": "en-US/phoneScreenshots/02-guidance.png" },
+    { "preview": "StoreCompatibilityEnglishScreenshot", "locale": "en-US", "role": "phoneScreenshot", "order": 3, "path": "en-US/phoneScreenshots/03-compatibility.png" },
+    { "preview": "StorePersonalityEnglishScreenshot", "locale": "en-US", "role": "phoneScreenshot", "order": 4, "path": "en-US/phoneScreenshots/04-personality.png" },
+    { "preview": "StoreToolsEnglishScreenshot", "locale": "en-US", "role": "phoneScreenshot", "order": 5, "path": "en-US/phoneScreenshots/05-tools.png" },
+    { "preview": "StorePremiumEnglishScreenshot", "locale": "en-US", "role": "phoneScreenshot", "order": 6, "path": "en-US/phoneScreenshots/06-premium.png" },
+    { "preview": "StoreFeatureGraphicTurkishScreenshot", "locale": "tr-TR", "role": "featureGraphic", "order": 0, "path": "tr-TR/featureGraphic/feature-graphic.png" },
+    { "preview": "StoreDailyTurkishScreenshot", "locale": "tr-TR", "role": "phoneScreenshot", "order": 1, "path": "tr-TR/phoneScreenshots/01-daily.png" },
+    { "preview": "StoreGuidanceTurkishScreenshot", "locale": "tr-TR", "role": "phoneScreenshot", "order": 2, "path": "tr-TR/phoneScreenshots/02-guidance.png" },
+    { "preview": "StoreCompatibilityTurkishScreenshot", "locale": "tr-TR", "role": "phoneScreenshot", "order": 3, "path": "tr-TR/phoneScreenshots/03-compatibility.png" },
+    { "preview": "StorePersonalityTurkishScreenshot", "locale": "tr-TR", "role": "phoneScreenshot", "order": 4, "path": "tr-TR/phoneScreenshots/04-personality.png" },
+    { "preview": "StoreToolsTurkishScreenshot", "locale": "tr-TR", "role": "phoneScreenshot", "order": 5, "path": "tr-TR/phoneScreenshots/05-tools.png" },
+    { "preview": "StorePremiumTurkishScreenshot", "locale": "tr-TR", "role": "phoneScreenshot", "order": 6, "path": "tr-TR/phoneScreenshots/06-premium.png" }
+  ]
+}
