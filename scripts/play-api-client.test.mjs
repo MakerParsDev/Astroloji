@@ -216,3 +216,119 @@ test('Play client caches access tokens until the refresh window', async () => {
   await client.createEdit();
   assert.equal(tokenExchanges, 2);
 });
+
+test('idempotent Play DELETE retries transient 503 responses with bounded exponential backoff', async () => {
+  let deleteAttempts = 0;
+  const delays = [];
+  const fetchImpl = async (url, init = {}) => {
+    if (String(url) === 'https://oauth2.googleapis.com/token') {
+      return response(200, { access_token: 'token' });
+    }
+    const pathname = new URL(String(url)).pathname;
+    if (pathname.endsWith('/edits/edit/listings/fa-IR') && init.method === 'DELETE') {
+      deleteAttempts += 1;
+      if (deleteAttempts < 3) return response(503, { error: { status: 'UNAVAILABLE' } });
+      return response(200, {});
+    }
+    throw new Error(`Unexpected request ${init.method ?? 'GET'} ${url}`);
+  };
+  const client = createPlayClient({
+    packageName: 'com.parsfilo.astrology',
+    credentialsPath: credentialsFile(),
+    fetchImpl,
+    maxTransientRetries: 3,
+    retryBaseDelayMs: 10,
+    sleep: async (ms) => delays.push(ms),
+  });
+
+  assert.deepEqual(await client.deleteListing('edit', 'fa-IR'), {});
+  assert.equal(deleteAttempts, 3);
+  assert.deepEqual(delays, [10, 20]);
+});
+
+test('ambiguous DELETE success is accepted when a transient retry is followed by 404', async () => {
+  let deleteAttempts = 0;
+  const fetchImpl = async (url, init = {}) => {
+    if (String(url) === 'https://oauth2.googleapis.com/token') {
+      return response(200, { access_token: 'token' });
+    }
+    const pathname = new URL(String(url)).pathname;
+    if (pathname.endsWith('/edits/edit/listings/fa-IR') && init.method === 'DELETE') {
+      deleteAttempts += 1;
+      if (deleteAttempts === 1) return response(503, { error: { status: 'UNAVAILABLE' } });
+      return response(404, { error: { status: 'NOT_FOUND' } });
+    }
+    throw new Error(`Unexpected request ${init.method ?? 'GET'} ${url}`);
+  };
+  const client = createPlayClient({
+    packageName: 'com.parsfilo.astrology',
+    credentialsPath: credentialsFile(),
+    fetchImpl,
+    retryBaseDelayMs: 1,
+    sleep: async () => {},
+  });
+
+  assert.deepEqual(await client.deleteListing('edit', 'fa-IR'), {});
+  assert.equal(deleteAttempts, 2);
+});
+
+test('non-idempotent Play POST requests are never retried on transient 503 responses', async () => {
+  let createAttempts = 0;
+  const delays = [];
+  const fetchImpl = async (url, init = {}) => {
+    if (String(url) === 'https://oauth2.googleapis.com/token') {
+      return response(200, { access_token: 'token' });
+    }
+    const pathname = new URL(String(url)).pathname;
+    if (pathname.endsWith('/edits') && init.method === 'POST') {
+      createAttempts += 1;
+      return response(503, { error: { status: 'UNAVAILABLE' } });
+    }
+    throw new Error(`Unexpected request ${init.method ?? 'GET'} ${url}`);
+  };
+  const client = createPlayClient({
+    packageName: 'com.parsfilo.astrology',
+    credentialsPath: credentialsFile(),
+    fetchImpl,
+    maxTransientRetries: 3,
+    retryBaseDelayMs: 1,
+    sleep: async (ms) => delays.push(ms),
+  });
+
+  await assert.rejects(client.createEdit(), /503.*UNAVAILABLE/i);
+  assert.equal(createAttempts, 1);
+  assert.deepEqual(delays, []);
+});
+
+test('transient responses cancel unread bodies before idempotent retry', async () => {
+  let attempts = 0;
+  let cancels = 0;
+  const fetchImpl = async (url, init = {}) => {
+    if (String(url) === 'https://oauth2.googleapis.com/token') {
+      return response(200, { access_token: 'token' });
+    }
+    const pathname = new URL(String(url)).pathname;
+    if (pathname.endsWith('/edits/edit/listings/fa-IR') && init.method === 'DELETE') {
+      attempts += 1;
+      if (attempts === 1) {
+        return {
+          ...response(503, { error: { status: 'UNAVAILABLE' } }),
+          body: { async cancel() { cancels += 1; } },
+        };
+      }
+      return response(200, {});
+    }
+    throw new Error(`Unexpected request ${init.method ?? 'GET'} ${url}`);
+  };
+  const client = createPlayClient({
+    packageName: 'com.parsfilo.astrology',
+    credentialsPath: credentialsFile(),
+    fetchImpl,
+    retryBaseDelayMs: 1,
+    sleep: async () => {},
+  });
+
+  await client.deleteListing('edit', 'fa-IR');
+  assert.equal(attempts, 2);
+  assert.equal(cancels, 1);
+});

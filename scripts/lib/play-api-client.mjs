@@ -5,6 +5,13 @@ const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const API_ROOT = 'https://androidpublisher.googleapis.com/androidpublisher/v3/applications';
 const UPLOAD_ROOT = 'https://androidpublisher.googleapis.com/upload/androidpublisher/v3/applications';
 
+const RETRYABLE_METHODS = new Set(['GET', 'PUT', 'DELETE']);
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+function defaultSleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function base64Url(input) {
   return Buffer.from(input).toString('base64url');
 }
@@ -56,8 +63,25 @@ async function parseJsonResponse(response, context) {
   return parsed ?? {};
 }
 
-export function createPlayClient({ packageName, credentialsPath, fetchImpl = fetch, now = Date.now, requestTimeoutMs = 30_000, uploadTimeoutMs = 120_000 }) {
+export function createPlayClient({
+  packageName,
+  credentialsPath,
+  fetchImpl = fetch,
+  now = Date.now,
+  requestTimeoutMs = 30_000,
+  uploadTimeoutMs = 120_000,
+  maxTransientRetries = 3,
+  retryBaseDelayMs = 500,
+  sleep = defaultSleep,
+}) {
   if (!packageName) throw new Error('PLAY_PACKAGE_NAME is required.');
+  if (!Number.isInteger(maxTransientRetries) || maxTransientRetries < 0 || maxTransientRetries > 5) {
+    throw new Error('maxTransientRetries must be an integer between 0 and 5.');
+  }
+  if (!Number.isFinite(retryBaseDelayMs) || retryBaseDelayMs < 0 || retryBaseDelayMs > 10_000) {
+    throw new Error('retryBaseDelayMs must be between 0 and 10000 milliseconds.');
+  }
+  if (typeof sleep !== 'function') throw new Error('sleep must be a function.');
   const credentials = readCredentials(credentialsPath);
   let cachedToken;
   let tokenExpiresAt = 0;
@@ -84,19 +108,37 @@ export function createPlayClient({ packageName, credentialsPath, fetchImpl = fet
   }
 
   async function request(relativePath, { method = 'GET', body, headers = {}, allowNotFound = false } = {}) {
-    const token = await accessToken();
-    const response = await fetchImpl(`${API_ROOT}/${encodeURIComponent(packageName)}${relativePath}`, {
-      method,
-      signal: AbortSignal.timeout(requestTimeoutMs),
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json; charset=utf-8' }),
-        ...headers,
-      },
-      ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
-    });
-    if (allowNotFound && response.status === 404) return null;
-    return parseJsonResponse(response, `Google Play API ${method} ${relativePath}`);
+    const normalizedMethod = String(method).toUpperCase();
+    const canRetry = RETRYABLE_METHODS.has(normalizedMethod);
+    let sawTransientFailure = false;
+
+    for (let attempt = 0; ; attempt += 1) {
+      const token = await accessToken();
+      const response = await fetchImpl(`${API_ROOT}/${encodeURIComponent(packageName)}${relativePath}`, {
+        method: normalizedMethod,
+        signal: AbortSignal.timeout(requestTimeoutMs),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json; charset=utf-8' }),
+          ...headers,
+        },
+        ...(body === undefined ? {} : { body: typeof body === 'string' ? body : JSON.stringify(body) }),
+      });
+      if (allowNotFound && response.status === 404) return null;
+      if (normalizedMethod === 'DELETE' && response.status === 404 && sawTransientFailure) return {};
+      if (
+        !response.ok &&
+        canRetry &&
+        RETRYABLE_STATUSES.has(response.status) &&
+        attempt < maxTransientRetries
+      ) {
+        sawTransientFailure = true;
+        await response.body?.cancel?.();
+        await sleep(retryBaseDelayMs * (2 ** attempt));
+        continue;
+      }
+      return parseJsonResponse(response, `Google Play API ${normalizedMethod} ${relativePath}`);
+    }
   }
 
   async function uploadImage(editId, locale, imageType, filePath) {
