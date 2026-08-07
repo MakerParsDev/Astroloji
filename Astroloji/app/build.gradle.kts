@@ -259,6 +259,12 @@ android {
         kotlin.directories += "src/debug/java"
     }
 
+    if (screenshotTestsEnabled) {
+        sourceSets.named("debug") {
+            res.directories += "src/screenshotTest/res"
+        }
+    }
+
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_21

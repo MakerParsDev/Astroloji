@@ -5,6 +5,7 @@ import test from 'node:test';
 const sourcePath = 'Astroloji/app/src/screenshotTest/kotlin/com/parsfilo/astrology/store/StoreListingScreenshotTest.kt';
 const fixturePath = 'Astroloji/app/src/screenshotTest/kotlin/com/parsfilo/astrology/store/StoreScreenshotFixtures.kt';
 const scenePath = 'Astroloji/play/assets/source/store-scenes.json';
+const buildPath = 'Astroloji/app/build.gradle.kts';
 
 const previews = [
   'StoreDailyEnglishScreenshot', 'StoreGuidanceEnglishScreenshot', 'StoreToolsEnglishScreenshot',
@@ -28,6 +29,12 @@ test('phone previews keep stable names and use real-device marketing frames', ()
   assert.doesNotMatch(source, /PremiumOfferCard\(/);
   assert.doesNotMatch(source, /AstrologyCard\s*\{/);
   assert.doesNotMatch(source, /email|token|firebase|device id|test user/i);
+});
+
+
+test('screenshot-only raw captures are included in the debug resource table', () => {
+  const build = fs.readFileSync(buildPath, 'utf8');
+  assert.match(build, /if \(screenshotTestsEnabled\) \{[\s\S]*sourceSets\.named\("debug"\)[\s\S]*res\.directories\s*\+=\s*"src\/screenshotTest\/res"/);
 });
 
 test('all twelve raw device captures are wired into phone previews', () => {

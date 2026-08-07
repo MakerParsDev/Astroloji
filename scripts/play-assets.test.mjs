@@ -55,12 +55,12 @@ function validFixture() {
       ...writeAsset(root, `${locale}/featureGraphic/feature-graphic.png`, 1024, 500, uniqueByte++),
     });
     for (let order = 1; order <= 6; order += 1) {
-      const slug = ['daily', 'guidance', 'compatibility', 'personality', 'tools', 'premium'][order - 1];
+      const slug = ['daily', 'weekly', 'monthly', 'compatibility', 'profile', 'premium'][order - 1];
       assets.push({
         locale,
         role: 'phoneScreenshot',
         order,
-        ...writeAsset(root, `${locale}/phoneScreenshots/0${order}-${slug}.png`, 1080, 1920, uniqueByte++),
+        ...writeAsset(root, `${locale}/phoneScreenshots/0${order}-${slug}.png`, 1080, 2400, uniqueByte++),
       });
     }
   }
@@ -78,6 +78,11 @@ const config = {
     icon: { width: 512, height: 512 },
   },
 };
+
+test('asset contract keeps icon and feature graphic dimensions unchanged', () => {
+  assert.deepEqual(config.assets.icon, { width: 512, height: 512 });
+  assert.deepEqual(config.assets.featureGraphic, { width: 1024, height: 500 });
+});
 
 test('reads PNG dimensions and validates checksum', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'play-image-'));

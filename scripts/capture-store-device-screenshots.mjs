@@ -22,7 +22,7 @@ const anchors = {
     weeklyReady: 'Genel',
     homeNav: 'Ana Sayfa',
     monthlyButton: 'Aylık',
-    monthlyReady: 'Takvim görünümü',
+    monthlyReady: 'Aylık detaylar premium ile açılır.',
     compatibilityNav: 'Uyum',
     compatibilityReady: 'Uyum Analizi',
     profileNav: 'Profil',
@@ -36,7 +36,7 @@ const anchors = {
     weeklyReady: 'Overview',
     homeNav: 'Home',
     monthlyButton: 'Monthly',
-    monthlyReady: 'Calendar view',
+    monthlyReady: 'Monthly details unlock with premium.',
     compatibilityNav: 'Compatibility',
     compatibilityReady: 'Compatibility Reading',
     profileNav: 'Profile',
@@ -52,7 +52,7 @@ function execFileResult(command, args, options = {}) {
       command,
       args,
       {
-        encoding: options.encoding ?? 'utf8',
+        encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8',
         maxBuffer: options.maxBuffer ?? 32 * 1024 * 1024,
         env: options.env ?? process.env,
       },
@@ -110,17 +110,9 @@ function nodeAttributes(node) {
   return attributes;
 }
 
-export function parseBounds(xml, visibleText) {
-  const matches = [...xml.matchAll(/<node\b[^>]*>/g)]
-    .map((match) => nodeAttributes(match[0]))
-    .filter((attrs) => attrs.text === visibleText || attrs['content-desc'] === visibleText)
-    .filter((attrs) => /^\[\d+,\d+\]\[\d+,\d+\]$/.test(attrs.bounds ?? ''));
-  const attrs = matches.find((candidate) => candidate.clickable === 'true') ?? matches[0];
-  if (!attrs) {
-    throw new Error(`Visible text not found in UI hierarchy: ${visibleText}`);
-  }
-  const bounds = attrs.bounds.match(/^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/);
-  if (!bounds) throw new Error(`Invalid bounds for ${visibleText}: ${attrs.bounds}`);
+function parseBoundsValue(value, visibleText) {
+  const bounds = String(value ?? '').match(/^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/);
+  if (!bounds) throw new Error(`Invalid bounds for ${visibleText}: ${String(value ?? '')}`);
   return {
     left: Number(bounds[1]),
     top: Number(bounds[2]),
@@ -129,24 +121,77 @@ export function parseBounds(xml, visibleText) {
   };
 }
 
+export function parseBounds(xml, visibleText) {
+  const stack = [];
+  const candidates = [];
+  for (const match of xml.matchAll(/<\/?node\b[^>]*>/g)) {
+    const token = match[0];
+    if (token.startsWith('</node')) {
+      stack.pop();
+      continue;
+    }
+    const attrs = nodeAttributes(token);
+    const ancestors = [...stack];
+    if (attrs.text === visibleText || attrs['content-desc'] === visibleText) {
+      candidates.push({ attrs, ancestors });
+    }
+    if (!token.endsWith('/>')) stack.push(attrs);
+  }
+
+  const candidate = candidates.find(({ attrs }) => attrs.clickable === 'true') ?? candidates[0];
+  if (!candidate) {
+    throw new Error(`Visible text not found in UI hierarchy: ${visibleText}`);
+  }
+  if (candidate.attrs.clickable === 'true') {
+    return parseBoundsValue(candidate.attrs.bounds, visibleText);
+  }
+  const clickableAncestor = [...candidate.ancestors]
+    .reverse()
+    .find((attrs) => attrs.clickable === 'true' && /^\[\d+,\d+\]\[\d+,\d+\]$/.test(attrs.bounds ?? ''));
+  return parseBoundsValue(clickableAncestor?.bounds ?? candidate.attrs.bounds, visibleText);
+}
+
 async function uiXml(serial, adbFn) {
   await adbFn(serial, ['shell', 'uiautomator', 'dump', '/sdcard/window.xml']);
   const { stdout } = await adbFn(serial, ['shell', 'cat', '/sdcard/window.xml']);
   return String(stdout);
 }
 
-async function tapTextUsing(serial, visibleText, adbFn) {
-  const bounds = parseBounds(await uiXml(serial, adbFn), visibleText);
-  const x = Math.floor((bounds.left + bounds.right) / 2);
-  const y = Math.floor((bounds.top + bounds.bottom) / 2);
-  await adbFn(serial, ['shell', 'input', 'tap', String(x), String(y)]);
+const defaultSleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+async function readPhysicalSize(serial, adbFn) {
+  const { stdout } = await adbFn(serial, ['shell', 'wm', 'size']);
+  const match = String(stdout).match(/Physical size:\s*(\d+)x(\d+)/);
+  if (!match) throw new Error('Could not read physical device size');
+  return { width: Number(match[1]), height: Number(match[2]) };
+}
+
+async function tapTextUsing(serial, visibleText, adbFn, sleepFn = defaultSleep) {
+  const size = await readPhysicalSize(serial, adbFn);
+  let lastError;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      const bounds = parseBounds(await uiXml(serial, adbFn), visibleText);
+      const x = Math.floor((bounds.left + bounds.right) / 2);
+      const y = Math.floor((bounds.top + bounds.bottom) / 2);
+      await adbFn(serial, ['shell', 'input', 'tap', String(x), String(y)]);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 5) break;
+      const x = Math.floor(size.width / 2);
+      const startY = Math.floor(size.height * 0.78);
+      const endY = Math.floor(size.height * 0.30);
+      await adbFn(serial, ['shell', 'input', 'swipe', String(x), String(startY), String(x), String(endY), '350']);
+      await sleepFn(350);
+    }
+  }
+  throw new Error(`Visible text not found after scrolling: ${visibleText}. ${lastError?.message ?? ''}`);
 }
 
 export async function tapText(serial, visibleText) {
-  return tapTextUsing(serial, visibleText, adb);
+  return tapTextUsing(serial, visibleText, adb, defaultSleep);
 }
-
-const defaultSleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 async function waitForTextUsing(serial, visibleText, timeoutMs, adbFn, sleepFn) {
   const deadline = Date.now() + timeoutMs;
@@ -243,10 +288,7 @@ async function productionSnapshot(serial, adbFn) {
 }
 
 async function assertPhysicalSize(serial, expected, adbFn) {
-  const { stdout } = await adbFn(serial, ['shell', 'wm', 'size']);
-  const match = String(stdout).match(/Physical size:\s*(\d+)x(\d+)/);
-  if (!match) throw new Error('Could not read physical device size');
-  const actual = { width: Number(match[1]), height: Number(match[2]) };
+  const actual = await readPhysicalSize(serial, adbFn);
   if (actual.width !== expected.width || actual.height !== expected.height) {
     throw new Error(`Physical device must be ${expected.width}x${expected.height}, got ${actual.width}x${actual.height}`);
   }
@@ -295,25 +337,27 @@ export async function captureStoreScreenshots(config, dependencies = {}) {
   };
 
   await capture('daily');
-  await tapTextUsing(serial, text.weeklyButton, adbFn);
+  await tapTextUsing(serial, text.weeklyButton, adbFn, sleepFn);
   await waitForTextUsing(serial, text.weeklyReady, 15000, adbFn, sleepFn);
   await capture('weekly');
 
-  await tapTextUsing(serial, text.homeNav, adbFn);
+  await adbFn(serial, ['shell', 'input', 'keyevent', 'KEYCODE_BACK']);
   await waitForTextUsing(serial, text.home, 15000, adbFn, sleepFn);
-  await tapTextUsing(serial, text.monthlyButton, adbFn);
+  await tapTextUsing(serial, text.monthlyButton, adbFn, sleepFn);
   await waitForTextUsing(serial, text.monthlyReady, 15000, adbFn, sleepFn);
   await capture('monthly');
+  await adbFn(serial, ['shell', 'input', 'keyevent', 'KEYCODE_BACK']);
+  await waitForTextUsing(serial, text.home, 15000, adbFn, sleepFn);
 
-  await tapTextUsing(serial, text.compatibilityNav, adbFn);
+  await tapTextUsing(serial, text.compatibilityNav, adbFn, sleepFn);
   await waitForTextUsing(serial, text.compatibilityReady, 15000, adbFn, sleepFn);
   await capture('compatibility');
 
-  await tapTextUsing(serial, text.profileNav, adbFn);
+  await tapTextUsing(serial, text.profileNav, adbFn, sleepFn);
   await waitForTextUsing(serial, text.profileReady, 15000, adbFn, sleepFn);
   await capture('profile');
 
-  await tapTextUsing(serial, text.premiumNav, adbFn);
+  await tapTextUsing(serial, text.premiumNav, adbFn, sleepFn);
   await waitForTextUsing(serial, text.premiumReady, 15000, adbFn, sleepFn);
   await capture('premium');
 

@@ -26,7 +26,7 @@ function listPngFiles(rootDir) {
 function expectedDimensions(role) {
   if (role === 'icon') return { width: 512, height: 512 };
   if (role === 'featureGraphic') return { width: 1024, height: 500 };
-  if (role === 'phoneScreenshot') return { width: 1080, height: 1920 };
+  if (role === 'phoneScreenshot') return { width: 1080, height: 2400 };
   throw new Error(`Unsupported Play asset role: ${role}`);
 }
 

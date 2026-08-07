@@ -17,10 +17,18 @@ test('storeQa runtime is deterministic and side-effect isolated', () => {
   assert.match(manifest, /android:exported="true"/);
   assert.match(source, /updateOnboarding\(true,\s*"aries",\s*locale\)/);
   assert.match(source, /AppLanguageManager\.applyLanguage\(this@StoreQaBootstrapActivity, locale\)/);
+  assert.match(source, /database\.clearAllTables\(\)/);
+  assert.match(source, /withContext\(Dispatchers\.IO\)\s*\{\s*database\.clearAllTables\(\)\s*\}/);
+  assert.match(source, /preferencesRepository\.clearAll\(\)/);
+  assert.ok(source.indexOf('database.clearAllTables()') < source.indexOf('updateOnboarding(true, "aries", locale)'));
+  assert.ok(source.indexOf('preferencesRepository.clearAll()') < source.indexOf('updateOnboarding(true, "aries", locale)'));
   assert.match(mainActivity, /private fun launchStartupWork\(\) \{\s*if \(BuildConfig\.STORE_SCREENSHOT_QA\) return/);
   assert.match(manifest, /firebase_analytics_collection_enabled/);
   assert.match(manifest, /firebase_crashlytics_collection_enabled/);
   assert.match(source, /setOf\("tr",\s*"en"\)/);
+  assert.match(source, /AppCompatDelegate\.getApplicationLocales\(\)\.toLanguageTags\(\)/);
+  assert.match(source, /if \(currentLocale != locale\) \{[\s\S]*AppLanguageManager\.applyLanguage\(this@StoreQaBootstrapActivity, locale\)[\s\S]*return/);
+  assert.ok(source.indexOf('if (currentLocale != locale)') < source.indexOf('database.clearAllTables()'));
 
   const invalidLocale = source.match(/if \(locale !in setOf\("tr",\s*"en"\)\) \{([\s\S]*?)\n\s*\}/);
   assert.ok(invalidLocale, 'invalid locale guard must exist');

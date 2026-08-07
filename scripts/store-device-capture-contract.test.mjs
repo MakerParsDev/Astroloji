@@ -46,12 +46,21 @@ test('runner exposes safe argument, bounds, screenshot, and navigation contracts
     runner.parseBounds('<node text="Profil" clickable="true" bounds="[10,20][210,120]"/>', 'Profil'),
     { left: 10, top: 20, right: 210, bottom: 120 },
   );
+  assert.deepEqual(
+    runner.parseBounds(
+      '<hierarchy><node clickable="true" bounds="[0,100][300,300]"><node text="Home" clickable="false" bounds="[50,220][120,250]"/></node></hierarchy>',
+      'Home',
+    ),
+    { left: 0, top: 100, right: 300, bottom: 300 },
+  );
 
   const source = fs.readFileSync(runnerPath, 'utf8');
   assert.match(source, /uiautomator/);
   assert.match(source, /parseBounds/);
   assert.match(source, /\['exec-out', 'screencap', '-p'\]/);
   assert.match(source, /assertApkPackage/);
+  assert.match(source, /monthlyReady: 'Aylık detaylar premium ile açılır\.'/);
+  assert.match(source, /monthlyReady: 'Monthly details unlock with premium\.'/);
   assert.doesNotMatch(source, /pm['"],\s*['"]clear/);
 });
 
@@ -61,10 +70,12 @@ test('mocked capture preserves production and writes six validated PNGs', async 
   const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'astro-store-capture-'));
   const apk = path.resolve('/tmp/app-storeQa.apk');
   const allText = [
-    'Bugünün Yorumu', 'Haftalık', 'Genel', 'Ana Sayfa', 'Aylık', 'Takvim görünümü',
+    'Bugünün Yorumu', 'Haftalık', 'Genel', 'Ana Sayfa', 'Aylık', 'Aylık detaylar premium ile açılır.',
     'Uyum', 'Uyum Analizi', 'Profil', 'Premium Durumu', 'Premium', 'Sınırsız Astroloji',
   ];
-  const xml = `<hierarchy>${allText.map((text, index) => `<node text="${text}" clickable="true" bounds="[${10 + index},20][${210 + index},120]"/>`).join('')}</hierarchy>`;
+  const initiallyVisible = allText.filter((text) => !['Haftalık', 'Aylık'].includes(text));
+  let scrolled = false;
+  const xmlFor = (texts) => `<hierarchy>${texts.map((text, index) => `<node text="${text}" clickable="true" bounds="[${10 + index},20][${210 + index},120]"/>`).join('')}</hierarchy>`;
 
   const fakeAdb = async (_serial, args) => {
     calls.push(args);
@@ -75,7 +86,13 @@ test('mocked capture preserves production and writes six validated PNGs', async 
     if (joined === 'shell dumpsys package com.parsfilo.astrology') {
       return { stdout: 'versionCode=1100\nversionName=1.0.100-smoke\nsignatures=[abc123]\n', stderr: '' };
     }
-    if (joined === 'shell cat /sdcard/window.xml') return { stdout: xml, stderr: '' };
+    if (joined.startsWith('shell input swipe ')) {
+      scrolled = true;
+      return { stdout: '', stderr: '' };
+    }
+    if (joined === 'shell cat /sdcard/window.xml') {
+      return { stdout: xmlFor(scrolled ? allText : initiallyVisible), stderr: '' };
+    }
     return { stdout: '', stderr: '' };
   };
 
@@ -102,6 +119,8 @@ test('mocked capture preserves production and writes six validated PNGs', async 
   assert.equal(calls.filter((args) => args.join(' ') === 'shell dumpsys package com.parsfilo.astrology').length, 2);
   assert.ok(calls.some((args) => args.join(' ') === 'shell am force-stop com.parsfilo.astrology.storeqa'));
   assert.ok(calls.some((args) => args[0] === 'shell' && args[1] === 'input' && args[2] === 'tap'));
+  assert.ok(calls.some((args) => args[0] === 'shell' && args[1] === 'input' && args[2] === 'swipe'));
+  assert.equal(calls.filter((args) => args.join(' ') === 'shell input keyevent KEYCODE_BACK').length, 2);
   assert.ok(!calls.some((args) => args.includes('clear') || args.includes('uninstall')));
 });
 
