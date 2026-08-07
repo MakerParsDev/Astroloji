@@ -198,3 +198,19 @@ After every operation, record only redacted evidence:
 - propagation or inaccessible-field notes.
 
 Never commit or print service-account JSON, access tokens, tester identities, private backup contents, or browser screenshots containing account information.
+
+## Measurement baseline
+
+The canonical pre-publication measurement baseline is:
+
+```text
+docs/PLAY_STORE_BASELINE_2026-08-06.json
+window: 2026-07-04..2026-08-02
+captured: 2026-08-07T04:07:40Z
+```
+
+Interpretation rules are in `docs/PLAY_STORE_MEASUREMENT.md`.
+
+Observed live baseline facts include production rollout `1.0`, backend paywall views `0`, purchase starts `0`, distinct verified purchase tokens `0`, and Astroloji AdMob aggregates `202` requests / `154` matched requests / `22` impressions. GA4 app-specific usage and Play ratings/reviews/crash/ANR remain unavailable in this baseline because the available sources did not provide a proven app-isolated or successful value. Do not replace those nulls with zero.
+
+Metadata publication does not establish causation. After any successful store publication, mark the propagation timestamp and compare a comparable 30-day observation window. Do not combine that comparison with a rollout mutation. The current `1.0` versus approved `0.1` rollout mismatch must be resolved through a separate release/rollout decision before the guarded metadata publication or locale cleanup path can proceed.
