@@ -42,11 +42,25 @@ cross-repository: false
 
 No alternate GitHub account is used as a push, commit, fork, or PR identity for this project.
 
+
+## Completed-rollout metadata contract decision — 2026-08-07
+
+The operator explicitly selected approach A: keep production `1102` completed at rollout fraction `1.0` and align the metadata safety precondition to that live state without mutating the Play track.
+
+```text
+completed-rollout contract branch: fix/play-metadata-live-contract-20260807
+completed-rollout design tree: 2ebb73d5040a83d911c673cb1e8948fed715375e
+completed-rollout implementation tree: 8d8759d59515815db4c47447f93e27c68f8fdca7
+base main tree: adf992fba503d19013b9b4eb8feb8691e572697f
+```
+
+The implementation tree changes only the metadata safety contract, its tests, and operator/evidence documentation. It adds no Play track mutation path. Local verification after this implementation passed `216/216` script tests, metadata validation, secret scan, actionlint, and `git diff --check` before the evidence-only follow-up commit.
+
 ## Final local repository verification
 
 Fresh verification on the exact `cd1ce0a46b17187f4d745f52f21c0e69cf4ed3ab` tree recorded above. The follow-up review-round changes after that tree are documentation/test-strengthening only and are revalidated separately before push:
 
-- `node --test scripts/*.test.mjs`: **215/215 passed**.
+- `node --test scripts/*.test.mjs`: **216/216 passed**.
 - `node scripts/validate-play-metadata.mjs`: passed for exactly `en-US` and `tr-TR`.
 - `node scripts/scan-secrets.mjs`: passed.
 - `git diff --check`: passed before the final implementation commits.
@@ -205,7 +219,7 @@ The automated review performed before the prior PR was removed identified one cr
 - canonical metadata-root enforcement plus explicit release-note skip logging,
 - Ubuntu Bash and Windows PowerShell operator equivalents with mutation-gate documentation.
 
-The resulting script/workflow test suite is **215/215 green**.
+The resulting script/workflow test suite is **216/216 green**.
 
 ## Remaining gated actions
 
