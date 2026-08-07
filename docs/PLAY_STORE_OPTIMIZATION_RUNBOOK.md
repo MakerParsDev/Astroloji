@@ -28,7 +28,7 @@ Every locale cleanup additionally requires:
 6. an edit containing exactly `en-US` and `tr-TR` before commit,
 7. independent verification that exactly those two locales remain.
 
-## Current live blocker evidence — 2026-08-06
+## Historical pre-decision blocker evidence — 2026-08-06
 
 The latest read-only cleanup dry-run produced:
 
@@ -45,6 +45,8 @@ Result: blocked before cleanup edit creation
 ```
 
 No destructive confirmation was generated because the rollout contract does not match. Do not construct a confirmation manually and do not bypass the guard.
+
+This snapshot is historical. On 2026-08-07 the operator explicitly selected approach A, keeping production at `1.0` and changing the metadata safety precondition to `1.0`. The historical `0.1` blocker must not be reused for a current mutation plan.
 
 The backup is mode `0600` in a mode `0700` directory. It contains listing text, image metadata, track metadata, and subscription identifiers; it contains no access token, service-account key, or tester identity.
 
@@ -275,7 +277,7 @@ Data Safety, account deletion, app access, target audience, content rating, supp
 
 ## Rollout governance
 
-Metadata tools never change production rollout. The live production release is currently completed at `1.0`, while the approved store optimization design expects `0.1`. This mismatch blocks publication and cleanup until it is reconciled through a separate release/rollout decision. Never alter `store-config.json` merely to silence the guard.
+Metadata tools never change production rollout. The production release is completed at `1.0`, and the explicitly approved metadata safety contract now requires that same `1.0` live state. Any rollout value other than `1.0` blocks publication and cleanup. This field is a read-only precondition for metadata operations; changing it never updates a Play track.
 
 ## Evidence and cleanup
 
@@ -308,4 +310,4 @@ Interpretation rules are in `docs/PLAY_STORE_MEASUREMENT.md`.
 
 Observed live baseline facts include production rollout `1.0`, backend paywall views `0`, purchase starts `0`, distinct verified purchase tokens `0`, and Astroloji AdMob aggregates `202` requests / `154` matched requests / `22` impressions. GA4 app-specific usage and Play ratings/reviews/crash/ANR remain unavailable in this baseline because the available sources did not provide a proven app-isolated or successful value. Do not replace those nulls with zero.
 
-Metadata publication does not establish causation. After any successful store publication, mark the propagation timestamp and compare a comparable 30-day observation window. Do not combine that comparison with a rollout mutation. The current `1.0` versus approved `0.1` rollout mismatch must be resolved through a separate release/rollout decision before the guarded metadata publication or locale cleanup path can proceed.
+Metadata publication does not establish causation. After any successful store publication, mark the propagation timestamp and compare a comparable 30-day observation window. Do not combine that comparison with a rollout mutation. The approved live-state contract is now `1.0`; guarded metadata publication and locale cleanup may proceed only while fresh Play read-back still reports production at `1.0`.

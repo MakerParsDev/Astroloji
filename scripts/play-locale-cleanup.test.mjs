@@ -8,7 +8,7 @@ import {
 } from './cleanup-play-locales.mjs';
 import { computePlayStateDigest } from './lib/play-diff.mjs';
 
-function backupFixture({ rollout = 0.1, locales = ['de-DE', 'en-US', 'fr-FR', 'tr-TR'] } = {}) {
+function backupFixture({ rollout = 1, locales = ['de-DE', 'en-US', 'fr-FR', 'tr-TR'] } = {}) {
   return {
     schemaVersion: 1,
     capturedAt: '2026-08-06T15:00:00.000Z',
@@ -47,7 +47,7 @@ function buildValidPlan(overrides = {}) {
     backup,
     current,
     supportedLocales: ['en-US', 'tr-TR'],
-    expectedRolloutFraction: 0.1,
+    expectedRolloutFraction: 1,
     expectedStateDigest: stateDigest,
     expectedBackupDigest: backupDigest,
     actualBackupDigest: backupDigest,
@@ -86,7 +86,7 @@ test('cleanup refuses missing supported locales', () => {
     backup,
     current,
     supportedLocales: ['en-US', 'tr-TR'],
-    expectedRolloutFraction: 0.1,
+    expectedRolloutFraction: 1,
     expectedStateDigest: computePlayStateDigest(current),
     expectedBackupDigest: digest,
     actualBackupDigest: digest,
@@ -104,15 +104,15 @@ test('cleanup refuses removal-count and backup checksum mismatch', () => {
   assert.ok(plan.blockingErrors.some((error) => /backup checksum/i.test(error)));
 });
 
-test('cleanup refuses production rollout other than ten percent', () => {
-  const current = backupFixture({ rollout: 1 });
+test('cleanup refuses production rollout other than fully rolled out', () => {
+  const current = backupFixture({ rollout: 0.1 });
   const backup = structuredClone(current);
   const digest = fileDigest(backup);
   const plan = buildLocaleCleanupPlan({
     backup,
     current,
     supportedLocales: ['en-US', 'tr-TR'],
-    expectedRolloutFraction: 0.1,
+    expectedRolloutFraction: 1,
     expectedStateDigest: computePlayStateDigest(current),
     expectedBackupDigest: digest,
     actualBackupDigest: digest,

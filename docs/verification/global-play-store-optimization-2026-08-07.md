@@ -130,12 +130,12 @@ canonical locales: 2 (en-US, tr-TR)
 unsupported live locales: 84
 missing supported locales: none
 production rollout: 1.0 / completed
-canonical metadata safety contract rollout: 0.1
+canonical metadata safety contract rollout: 1.0 (explicitly approved 2026-08-07)
 subscriptions: premium_monthly/monthly, premium_weekly/weekly
 read-back: blocked by design with 2 drift findings
 ```
 
-The read-back opened no committed Play mutation. Metadata publication and unsupported-locale cleanup remain fail-closed because live production is already fully rolled out while the canonical metadata mutation guard deliberately expects a separately approved 10% release state.
+The read-back opened no committed Play mutation. The operator explicitly approved keeping production fully rolled out and aligning the metadata safety contract to live `1.0`; metadata publication and locale cleanup remain fail-closed against any future rollout drift.
 
 ## Backup / restore evidence
 
@@ -214,11 +214,10 @@ The following are intentionally incomplete:
 1. Push the review-resolution and evidence commits to PR #56 and complete fresh GitHub CI/automated review.
 2. Merge PR #56 only after all required checks and review findings are green.
 3. Make a new post-merge Play backup and dry-run diff.
-4. Resolve the separate live rollout `1.0` versus canonical mutation-guard `0.1` decision.
-5. Publish the canonical Turkish/English metadata and 15 assets only after that guard is intentionally reconciled.
-6. Perform independent post-publication read-back.
-7. Remove 84 unsupported locales only through the state-bound cleanup flow.
-8. Reconcile UI-only Play Data Safety/account-deletion settings and verify public propagation.
-9. Mark the post-change measurement timestamp and compare a later observation window without claiming causation.
+4. Publish the canonical Turkish/English metadata and 15 assets only while fresh live rollout remains `1.0`.
+5. Perform independent post-publication read-back.
+6. Remove unsupported locales only through a new post-publication state-bound cleanup flow.
+7. Reconcile UI-only Play Data Safety/account-deletion settings and verify public propagation.
+8. Mark the post-change measurement timestamp and compare a later observation window without claiming causation.
 
 No Google Play metadata, locale cleanup, policy form, or rollout mutation was executed while completing this verification.

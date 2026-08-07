@@ -118,13 +118,13 @@ test('committed baseline is redacted, fixed-window, and records the observed liv
   assert.doesNotMatch(serialized, /\"(?:userId|user_id|deviceId|device_id|accountEmail|purchaseToken)\"\s*:/i);
 });
 
-test('measurement governance rejects causal claims and treats rollout drift as a separate decision', () => {
+test('measurement governance rejects causal claims and records the approved completed rollout contract', () => {
   const doc = fs.readFileSync(measurementPath, 'utf8');
   assert.match(doc, /does not prove causation/i);
   assert.match(doc, /production rollout.*1\.0|100%/i);
-  assert.match(doc, /approved.*0\.1|10%/i);
-  assert.match(doc, /separate.*rollout.*decision/i);
-  assert.match(doc, /metadata publication.*blocked|block.*metadata publication/i);
+  assert.match(doc, /approved.*1\.0|100%.*approved/i);
+  assert.match(doc, /future.*rollout.*decision|separate.*rollout.*decision/i);
+  assert.match(doc, /metadata publication.*1\.0|1\.0.*metadata publication/i);
   assert.match(doc, /observation window/i);
 });
 

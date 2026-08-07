@@ -54,7 +54,7 @@ function proposedFixture() {
         images: makeImages('tr-TR'),
       },
     },
-    productionRolloutFraction: 0.1,
+    productionRolloutFraction: 1,
     subscriptions: [
       { productId: 'premium_monthly', basePlanId: 'monthly' },
       { productId: 'premium_weekly', basePlanId: 'weekly' },
@@ -99,7 +99,7 @@ function backupFixture(capturedAt = '2026-08-06T15:00:00.000Z') {
     tracks: {
       production: {
         track: 'production',
-        releases: [{ status: 'inProgress', userFraction: 0.1, versionCodes: ['1102'] }],
+        releases: [{ status: 'completed', versionCodes: ['1102'] }],
       },
       internal: { track: 'internal', releases: [{ status: 'completed', versionCodes: ['1101'] }] },
     },
