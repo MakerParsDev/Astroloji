@@ -14,6 +14,7 @@ function parseCiContract(source) {
 
   let section = null;
   let subsection = null;
+  let onField = null;
   for (const rawLine of lines) {
     const line = rawLine.replace(/\s+$/, '');
     const trimmed = line.trim();
@@ -23,16 +24,21 @@ function parseCiContract(source) {
     if (indent === 0) {
       section = trimmed.endsWith(':') ? trimmed.slice(0, -1) : null;
       subsection = null;
+      onField = null;
       continue;
     }
 
     if (section === 'on') {
       if (indent === 2 && trimmed.endsWith(':')) {
         subsection = trimmed.slice(0, -1);
+        onField = null;
         continue;
       }
-      if (indent === 4 && trimmed === 'branches:') continue;
-      if (indent === 6 && trimmed.startsWith('- ')) {
+      if (indent === 4 && trimmed.endsWith(':')) {
+        onField = trimmed.slice(0, -1);
+        continue;
+      }
+      if (indent === 6 && onField === 'branches' && trimmed.startsWith('- ')) {
         const value = trimmed.slice(2).replace(/^['"]|['"]$/g, '');
         if (subsection === 'push') result.pushBranches.push(value);
         if (subsection === 'pull_request') result.pullRequestBranches.push(value);
@@ -62,4 +68,11 @@ test('CI runs once for feature PR updates and still validates main pushes', () =
 test('CI cancels superseded runs for the same PR or ref', () => {
   assert.equal(contract.concurrency.group, 'ci-${{ github.event.pull_request.number || github.ref }}');
   assert.equal(contract.concurrency['cancel-in-progress'], true);
+});
+
+test('trigger parser never treats paths lists as branch filters', () => {
+  const pathsOnly = `name: ci\non:\n  push:\n    paths:\n      - main\n  pull_request:\n    paths:\n      - main\n`;
+  const parsed = parseCiContract(pathsOnly);
+  assert.deepEqual(parsed.pushBranches, []);
+  assert.deepEqual(parsed.pullRequestBranches, []);
 });
