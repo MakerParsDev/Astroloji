@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -24,16 +25,15 @@ import com.parsfilo.astrology.core.ui.components.PremiumMetricRing
 import com.parsfilo.astrology.core.ui.components.PremiumPill
 import com.parsfilo.astrology.core.ui.components.PremiumSectionHeader
 import com.parsfilo.astrology.ui.theme.AstrolojiTheme
-import com.parsfilo.astrology.ui.theme.Midnight900
 
 @Composable
-private fun PremiumDesignSystemGolden() {
-    AstrolojiTheme(darkTheme = true) {
+private fun PremiumDesignSystemGolden(darkTheme: Boolean) {
+    AstrolojiTheme(darkTheme = darkTheme) {
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .background(Midnight900)
+                    .background(MaterialTheme.colorScheme.background)
                     .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -88,5 +88,18 @@ private fun PremiumDesignSystemGolden() {
 )
 @Composable
 fun PremiumDesignSystemTurkishScreenshot() {
-    PremiumDesignSystemGolden()
+    PremiumDesignSystemGolden(darkTheme = true)
+}
+
+@PreviewTest
+@Preview(
+    name = "Premium design system light Turkish",
+    widthDp = 360,
+    heightDp = 800,
+    locale = "tr-rTR",
+    showBackground = true,
+)
+@Composable
+fun PremiumDesignSystemLightTurkishScreenshot() {
+    PremiumDesignSystemGolden(darkTheme = false)
 }
