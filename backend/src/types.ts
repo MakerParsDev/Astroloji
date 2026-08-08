@@ -74,6 +74,17 @@ export const USER_EVENT_TYPES = [
 ] as const;
 export const CONTENT_TYPES = ['daily', 'weekly', 'monthly', 'compat', 'personality'] as const;
 export const REWARD_TYPES = ['daily', 'weekly'] as const;
+export const ADMIN_CAPABILITIES = ['content-ops', 'notification-ops', 'play-read', 'play-write'] as const;
+export const ADMIN_OPERATIONS = [
+  'content.backfill',
+  'content.cache_bypass',
+  'notification.send',
+  'play.subscription_list',
+  'play.subscription_update',
+  'play.subscription_audit',
+  'play.review_list',
+  'play.review_reply'
+] as const;
 
 export type Sign = (typeof SIGNS)[number];
 export type Language = (typeof LANGUAGES)[number];
@@ -85,12 +96,18 @@ export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
 export type UserEventType = (typeof USER_EVENT_TYPES)[number];
 export type ContentType = (typeof CONTENT_TYPES)[number];
 export type RewardType = (typeof REWARD_TYPES)[number];
+export type AdminCapability = (typeof ADMIN_CAPABILITIES)[number];
+export type AdminOperation = (typeof ADMIN_OPERATIONS)[number];
 
 interface SecretBindings {
   JWT_SECRET: string;
   GOOGLE_SERVICE_ACCOUNT_JSON: string;
   FIREBASE_SERVICE_ACCOUNT_JSON: string;
   ADMIN_SECRET: string;
+  ADMIN_CONTENT_SECRET: string;
+  ADMIN_NOTIFICATION_SECRET: string;
+  ADMIN_PLAY_READ_SECRET: string;
+  ADMIN_PLAY_WRITE_SECRET: string;
   ADMOB_REWARDED_ID: string;
 }
 
@@ -122,7 +139,6 @@ export interface AuthContext {
 export interface AppVariables {
   auth: AuthContext;
   requestId: string;
-  isAdmin: boolean;
   bypassCache: boolean;
 }
 

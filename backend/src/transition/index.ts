@@ -35,7 +35,6 @@ function createLocalRewardApp(
 
   app.use('*', async (c, next) => {
     c.set('requestId', crypto.randomUUID());
-    c.set('isAdmin', false);
     c.set('bypassCache', false);
     c.header('x-request-id', c.get('requestId'));
     await next();
