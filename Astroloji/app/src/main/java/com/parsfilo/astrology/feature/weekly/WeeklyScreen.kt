@@ -30,11 +30,12 @@ import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ads.AdaptiveBannerAd
 import com.parsfilo.astrology.core.ads.RewardedAdRequest
 import com.parsfilo.astrology.core.ads.adsEntryPoint
-import com.parsfilo.astrology.core.ui.components.AstroSectionTitle
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
+import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
+import com.parsfilo.astrology.core.util.ZodiacSign
 import kotlinx.coroutines.launch
 
 @Composable
@@ -144,9 +145,12 @@ fun WeeklyScreen(
                             null
                         }
 
-                    AstroSectionTitle(
+                    val weeklySign = ZodiacSign.fromKey(weekly.sign)
+                    PremiumHeroCard(
+                        symbol = weeklySign.symbol,
+                        eyebrow = weeklySign.localizedName(weekly.language),
                         title = stringResource(R.string.weekly_label_week, weekly.week),
-                        eyebrow = "${weekly.weekStart} - ${weekly.weekEnd}",
+                        subtitle = "${weekly.weekStart} - ${weekly.weekEnd}",
                     )
 
                     AstrologyCard {

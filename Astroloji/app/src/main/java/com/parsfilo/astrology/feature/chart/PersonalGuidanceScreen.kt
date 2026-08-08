@@ -32,10 +32,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.domain.model.GuidanceSignal
 import com.parsfilo.astrology.core.domain.model.PersonalGuidance
-import com.parsfilo.astrology.core.ui.components.AstroSectionTitle
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
+import com.parsfilo.astrology.core.ui.components.PremiumSectionHeader
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -119,13 +119,10 @@ private fun PersonalGuidanceContent(
             TextButton(onClick = callbacks.onNavigateBack) {
                 Text(stringResource(R.string.chart_back))
             }
-            AstroSectionTitle(
+            PremiumSectionHeader(
                 title = stringResource(R.string.chart_title),
                 eyebrow = stringResource(R.string.chart_beta_label),
-            )
-            Text(
-                text = stringResource(R.string.chart_intro),
-                style = MaterialTheme.typography.bodyLarge,
+                supportingText = stringResource(R.string.chart_intro),
             )
             GuidancePrivacyCards()
             GuidanceInputCard(
