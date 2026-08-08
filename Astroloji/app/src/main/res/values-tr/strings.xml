@@ -16,7 +16,6 @@
     <string name="home_today_commentary">Bugünün Yorumu</string>
     <string name="home_unlock_caption">Aşkı, parayı ve sağlığı kapsayan tam yorumu açarak bugünün rehberliğini derinleştir.</string>
     <string name="home_unlock_cta">Tam yorumu aç</string>
-    <string name="home_unlock_more">Devamını aç</string>
     <string name="home_view_details">Detayları gör</string>
     <string name="home_do_this_today">Bugün şunu yap</string>
     <string name="home_streak_title">Seri</string>
@@ -96,14 +95,10 @@
     <string name="premium_success_title">Premium aktif</string>
     <string name="premium_success_body">Hesabın artık tam erişim modunda.</string>
     <string name="compatibility_title">Uyum Analizi</string>
-    <string name="compatibility_your_sign">Senin burcun</string>
-    <string name="compatibility_selected_sign">Seçilen burç</string>
     <string name="compatibility_label">Uyum</string>
     <string name="compatibility_love_score">Aşk</string>
     <string name="compatibility_friendship_score">Arkadaşlık</string>
     <string name="compatibility_work_score">İş</string>
-    <string name="compatibility_score_locked">🔒 Premium</string>
-    <string name="compatibility_overall_score">Genel</string>
     <string name="compatibility_strengths_title">Güçlü Yönler</string>
     <string name="compatibility_challenges_title">Zorluklar</string>
     <string name="compatibility_premium_title">Premium analiz</string>
@@ -114,7 +109,6 @@
     <string name="compatibility_share_message">%1$s ve %2$s, Astrology uygulamasında %% %3$d uyumlu görünüyor. %4$s</string>
     <string name="settings_title">Profil</string>
     <string name="settings_change_sign">Değiştir</string>
-    <string name="settings_sign_range">%1$s</string>
     <string name="settings_premium_title">Premium Durumu</string>
     <string name="settings_premium_active">Aktif Şimdi</string>
     <string name="settings_premium_inactive">Aktif Değil</string>

@@ -27,6 +27,7 @@ import com.parsfilo.astrology.core.ui.components.PremiumPill
 import com.parsfilo.astrology.core.ui.components.PremiumSectionHeader
 import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
+import java.time.LocalDate
 
 private const val SCORE_MAX = 100
 
@@ -43,7 +44,7 @@ internal fun DailyPremiumSummary(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         PremiumSectionHeader(
-            eyebrow = TimeUtils.displayDate(horoscope.language),
+            eyebrow = TimeUtils.displayDate(horoscope.language, LocalDate.parse(horoscope.date)),
             title = stringResource(R.string.daily_title),
         )
         PremiumHeroCard(

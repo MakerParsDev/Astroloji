@@ -57,8 +57,8 @@ internal fun HomePremiumDashboard(
     onOpenMonthly: () -> Unit,
     onOpenPersonality: () -> Unit,
     onOpenPremium: () -> Unit,
-    alertContent: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
+    alertContent: (@Composable () -> Unit)? = null,
 ) {
     val signName = sign.localizedName(language)
     Column(

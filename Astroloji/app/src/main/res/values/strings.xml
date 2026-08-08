@@ -16,7 +16,6 @@
     <string name="home_today_commentary">Today’s Horoscope</string>
     <string name="home_unlock_caption">Unlock the full reading with love, money, and health guidance crafted for today.</string>
     <string name="home_unlock_cta">Unlock full reading</string>
-    <string name="home_unlock_more">Unlock more</string>
     <string name="home_view_details">View details</string>
     <string name="home_do_this_today">Do this today</string>
     <string name="home_streak_title">Your streak</string>
@@ -96,14 +95,10 @@
     <string name="premium_success_title">Premium is active</string>
     <string name="premium_success_body">Your account is now in full-access mode.</string>
     <string name="compatibility_title">Compatibility Reading</string>
-    <string name="compatibility_your_sign">Your sign</string>
-    <string name="compatibility_selected_sign">Selected sign</string>
     <string name="compatibility_label">Compatibility</string>
     <string name="compatibility_love_score">Love</string>
     <string name="compatibility_friendship_score">Friendship</string>
     <string name="compatibility_work_score">Work</string>
-    <string name="compatibility_score_locked">🔒 Premium</string>
-    <string name="compatibility_overall_score">Overall</string>
     <string name="compatibility_strengths_title">Strengths</string>
     <string name="compatibility_challenges_title">Challenges</string>
     <string name="compatibility_premium_title">Premium advice</string>
@@ -114,7 +109,6 @@
     <string name="compatibility_share_message">%1$s and %2$s are %3$d%% compatible on Astrology. %4$s</string>
     <string name="settings_title">Profile</string>
     <string name="settings_change_sign">Change</string>
-    <string name="settings_sign_range">%1$s</string>
     <string name="settings_premium_title">Premium Status</string>
     <string name="settings_premium_active">Active now</string>
     <string name="settings_premium_inactive">Not active</string>
