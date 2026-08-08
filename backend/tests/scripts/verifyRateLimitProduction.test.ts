@@ -85,11 +85,19 @@ describe('production request deadlines', () => {
     const stalledFetch = createStalledFetch();
     await expect(fetchProductionHealthDate('https://astrology.parsfilo.com', stalledFetch, 5)).rejects.toBeDefined();
     expect(stalledFetch).toHaveBeenCalledTimes(1);
+    expect(stalledFetch).toHaveBeenCalledWith(
+      'https://astrology.parsfilo.com/api/v1/health',
+      expect.objectContaining({ signal: expect.anything() })
+    );
   });
 
   it('aborts a chart probe at its bounded deadline', async () => {
     const stalledFetch = createStalledFetch();
     await expect(fetchChartProbe('https://astrology.parsfilo.com', 'ephemeral-token', stalledFetch, 5)).rejects.toBeDefined();
     expect(stalledFetch).toHaveBeenCalledTimes(1);
+    expect(stalledFetch).toHaveBeenCalledWith(
+      'https://astrology.parsfilo.com/api/v1/chart/natal',
+      expect.objectContaining({ signal: expect.anything() })
+    );
   });
 });
