@@ -198,7 +198,7 @@ describe('verifyPlayRtdnIdentity', () => {
   });
 });
 
-describe('requirePlayWebhookAuth Phase A compatibility', () => {
+describe('requirePlayWebhookAuth OIDC-only boundary', () => {
   it('accepts a valid bearer through OIDC', async () => {
     const verifyIdentity = vi.fn(async () => undefined);
     const result = await requirePlayWebhookAuth(
@@ -209,14 +209,18 @@ describe('requirePlayWebhookAuth Phase A compatibility', () => {
     expect(result).toEqual({ method: 'oidc' });
     expect(verifyIdentity).toHaveBeenCalledTimes(1);
   });
-  it('accepts the legacy secret only when no bearer is present', async () => {
+  it.each([
+    ['query token', { queryToken: 'play-secret' }],
+    ['legacy header', { headerSecret: 'play-secret' }]
+  ])('rejects the historical %s without invoking identity verification', async (_name, legacyInput) => {
     const verifyIdentity = vi.fn(async () => undefined);
     const result = await requirePlayWebhookAuth(
-      createAuthContext({ queryToken: 'play-secret' }),
+      createAuthContext(legacyInput),
       verifyIdentity
     );
 
-    expect(result).toEqual({ method: 'legacy' });
+    expect(result).toBeInstanceOf(Response);
+    expect((result as Response).status).toBe(403);
     expect(verifyIdentity).not.toHaveBeenCalled();
   });
 
@@ -234,7 +238,7 @@ describe('requirePlayWebhookAuth Phase A compatibility', () => {
     expect(verifyIdentity).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects requests without bearer or a valid legacy secret', async () => {
+  it('rejects requests without a bearer identity', async () => {
     const result = await requirePlayWebhookAuth(createAuthContext({}));
     expect(result).toBeInstanceOf(Response);
     expect((result as Response).status).toBe(403);

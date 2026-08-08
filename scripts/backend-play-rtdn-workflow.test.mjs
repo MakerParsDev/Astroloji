@@ -53,18 +53,33 @@ test('production deployment summary never renders RTDN runtime configuration val
   assert.doesNotMatch(summary, /PLAY_RTDN_AUDIENCE/);
   assert.doesNotMatch(summary, /PLAY_RTDN_SERVICE_ACCOUNT_EMAIL/);
 });
-test('Phase A smoke proves unauthenticated rejection and temporary legacy compatibility', () => {
-  assert.match(smoke, /unauthorized_status=/);
-  assert.match(smoke, /test "\$unauthorized_status" = "403"/);
-  assert.match(smoke, /x-play-secret: \$play_secret/);
-  assert.match(smoke, /authorized_status=/);
-  assert.match(smoke, /test "\$authorized_status" = "400"/);
-  assert.doesNotMatch(smoke, /\?token=/);
-
+test('Phase B smoke contains no shared-secret loading or value exposure', () => {
+  assert.doesNotMatch(smoke, /DOPPLER_TOKEN|doppler secrets|get PLAY_WEBHOOK_SECRET|play_secret/);
   const summaryStart = smoke.indexOf("echo '## Play RTDN production smoke'");
   assert.notEqual(summaryStart, -1);
   const summary = smoke.slice(summaryStart);
-  assert.doesNotMatch(summary, /PLAY_WEBHOOK_SECRET/);
-  assert.doesNotMatch(summary, /play_secret/);
-  assert.doesNotMatch(summary, /Secret source/i);
+  assert.doesNotMatch(summary, /PLAY_WEBHOOK_SECRET|legacy-disabled|Secret source/i);
+});
+
+test('Phase B active production paths contain no legacy Play webhook secret dependency', () => {
+  const readme = readFileSync('backend/README.md', 'utf8');
+  const shared = readFileSync('backend/scripts/shared.ts', 'utf8');
+  const active = [deploy, smoke, readme, shared].join('\n');
+  const configurationPaths = [deploy, readme, shared].join('\n');
+  assert.doesNotMatch(active, /PLAY_WEBHOOK_SECRET/);
+  assert.doesNotMatch(configurationPaths, /x-play-secret/i);
+  assert.doesNotMatch(configurationPaths, /\?token=/);
+});
+
+test('Phase B smoke rejects missing, query-token, and header-secret authentication', () => {
+  assert.match(smoke, /unauthorized_status=/);
+  assert.match(smoke, /query_token_status=/);
+  assert.match(smoke, /header_secret_status=/);
+  assert.match(smoke, /test "\$unauthorized_status" = "403"/);
+  assert.match(smoke, /test "\$query_token_status" = "403"/);
+  assert.match(smoke, /test "\$header_secret_status" = "403"/);
+  assert.match(smoke, /jq -e '\.error\.code == \"FORBIDDEN\"'/);
+  assert.match(smoke, /play-webhook-unauthorized\.json/);
+  assert.match(smoke, /play-webhook-query\.json/);
+  assert.match(smoke, /play-webhook-header\.json/);
 });

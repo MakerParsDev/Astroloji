@@ -82,31 +82,15 @@ type PlayWebhookIdentityVerifier = (env: Env, token: string) => Promise<void>;
 export async function requirePlayWebhookAuth(
   c: AppContext,
   verifyIdentity: PlayWebhookIdentityVerifier = verifyPlayRtdnIdentity
-): Promise<{ method: 'oidc' | 'legacy' } | Response> {
+): Promise<{ method: 'oidc' } | Response> {
   const bearer = getBearerToken(c.req.header('authorization'));
-  if (bearer) {
-    try {
-      await verifyIdentity(c.env, bearer);
-      return { method: 'oidc' };
-    } catch {
-      return jsonError(c, 403, 'FORBIDDEN', 'Play webhook identity is invalid.');
-    }
+  if (!bearer) {
+    return jsonError(c, 403, 'FORBIDDEN', 'Play webhook identity is invalid.');
   }
-
-  const querySecret = new URL(c.req.url).searchParams.get('token');
-  const legacySecret = querySecret ?? c.req.header('x-play-secret');
-  if (matchesSecret(c.env.PLAY_WEBHOOK_SECRET, legacySecret)) {
-    return { method: 'legacy' };
+  try {
+    await verifyIdentity(c.env, bearer);
+    return { method: 'oidc' };
+  } catch {
+    return jsonError(c, 403, 'FORBIDDEN', 'Play webhook identity is invalid.');
   }
-  return jsonError(c, 403, 'FORBIDDEN', 'Play webhook identity is invalid.');
-}
-
-export function requirePlayWebhookSecret(c: AppContext): Response | null {
-  const querySecret = new URL(c.req.url).searchParams.get('token');
-  const secret = querySecret ?? c.req.header('x-play-secret');
-  if (!matchesSecret(c.env.PLAY_WEBHOOK_SECRET, secret)) {
-    return jsonError(c, 403, 'FORBIDDEN', 'Play webhook secret is invalid.');
-  }
-
-  return null;
 }

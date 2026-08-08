@@ -61,7 +61,6 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
       token_uri: 'https://oauth2.googleapis.com/token',
       project_id: 'demo-project'
     }),
-    PLAY_WEBHOOK_SECRET: 'play-secret',
     PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
     PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
     ADMIN_SECRET: 'admin-secret',

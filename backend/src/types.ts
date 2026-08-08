@@ -90,7 +90,6 @@ interface SecretBindings {
   JWT_SECRET: string;
   GOOGLE_SERVICE_ACCOUNT_JSON: string;
   FIREBASE_SERVICE_ACCOUNT_JSON: string;
-  PLAY_WEBHOOK_SECRET: string;
   ADMIN_SECRET: string;
   ADMOB_REWARDED_ID: string;
 }
