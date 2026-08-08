@@ -101,15 +101,6 @@ export function requireAdminCapability(
   return (c, next) => runAdminCapability(c, next, capability, operation);
 }
 
-export const adminSecretMiddleware: AppMiddleware = async (c, next: Next) => {
-  const adminSecret = c.req.header('x-admin-secret');
-  if (!matchesSecret(c.env.ADMIN_SECRET, adminSecret)) {
-    return jsonError(c, 403, 'FORBIDDEN', 'Admin secret is invalid.');
-  }
-
-  await next();
-};
-
 export const contentCacheBypassMiddleware: AppMiddleware = async (c, next: Next) => {
   const wantsBypass = parseBooleanFlag(c.req.header('x-cache-bypass'));
   c.set('bypassCache', false);

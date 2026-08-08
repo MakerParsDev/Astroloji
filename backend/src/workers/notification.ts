@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 
+import { requireAdminCapability } from '@/middleware/auth';
 import { sendBatchNotifications } from '@/services/fcm';
 import type { AppBindings, NotificationTargetRow } from '@/types';
 import { sanitizeNotificationData, validateNotificationBody } from '@/utils/validators';
@@ -39,7 +40,10 @@ async function getTargets(
 }
 
 export function registerNotificationRoutes(app: Hono<AppBindings>) {
-  app.post('/notifications/send', async (c) => {
+  app.post(
+    '/notifications/send',
+    requireAdminCapability('notification-ops', 'notification.send'),
+    async (c) => {
     const body = validateNotificationBody(await c.req.json());
     const targets = await getTargets(c.env.DB, {
       userId: body.user_id,
@@ -59,5 +63,6 @@ export function registerNotificationRoutes(app: Hono<AppBindings>) {
     );
 
     return c.json(result);
-  });
+    }
+  );
 }

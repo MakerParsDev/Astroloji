@@ -4,7 +4,6 @@ import { Hono } from 'hono';
 import { ZodError } from 'zod';
 
 import {
-  adminSecretMiddleware,
   contentCacheBypassMiddleware,
   jwtAuthMiddleware
 } from '@/middleware/auth';
@@ -170,7 +169,6 @@ export function createApp(options: CreateAppOptions = {}) {
     return c.json({ ok: true });
   });
 
-  apiAdminRoutes.use('*', adminSecretMiddleware);
   registerContentAdminRoutes(apiAdminRoutes);
   registerNotificationRoutes(apiAdminRoutes);
   registerSubscriptionAdminRoutes(apiAdminRoutes);
