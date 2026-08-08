@@ -65,7 +65,7 @@ Required automated cases include:
 - object failure returns `503` and business side effects remain zero;
 - `429` paths execute no downstream business mutation.
 
-Public evidence records aggregate allow/reject results only. It must not publish production principal IDs, IPs, Durable Object IDs, bucket keys, or defensive production identifiers.
+Public evidence records sanitized boolean/status outcomes only. Exact allow/reject counts remain private to automated tests and restricted verifier process memory; public evidence must not publish production principal IDs, IPs, Durable Object IDs, bucket keys, counters, thresholds/windows, or other defensive production identifiers.
 ## Architecture: administrative capabilities
 
 The single administrative authority is replaced by four independent capabilities. Each capability has its own Worker credential binding:
@@ -172,7 +172,7 @@ Phase A must also prove credential rotation for at least one capability without 
 
 A third reviewed change switches every protected route from KV counters to `RateLimitBucket` and removes the legacy admin fallback from runtime code.
 
-Production verification must demonstrate strict concurrent enforcement using a synthetic, non-customer principal and a state-safe verification path. The restricted evidence records only aggregate allowed/rejected counts and whether they exactly matched the configured contract.
+Production verification must demonstrate strict concurrent enforcement with a fresh synthetic authenticated user principal that cannot share a customer or source-IP bucket. The workflow creates one temporary non-premium D1 user with random identifiers and no related customer-state rows, signs an ephemeral app JWT in restricted runner memory, and sends a concurrent malformed request burst to the authenticated chart boundary. Limiter-admitted requests must stop at request validation and excess requests must be rate-limited. The synthetic row is deleted unconditionally and absence is read back before success is accepted. Exact counts stay restricted to verifier memory; public evidence records boolean/status outcomes only.
 
 The scoped privilege matrix is repeated after enforcement. The legacy credential must receive `403` on privileged routes.
 
@@ -189,9 +189,9 @@ Phase A can roll back only to the verified Phase 0 version. Phase B can roll bac
 During a Phase B rollback, the four scoped credentials remain provisioned and are sufficient for Phase A authorization. If legacy retirement already occurred, rollback does not recreate or depend on the retired credential. Durable Object state is left intact rather than destructively reset.
 ## Production verification safeguards
 
-Strict limiter production smoke uses an existing state-safe boundary rather than a customer account. Concurrent requests intentionally fail later authentication or validation, so successful limiter admission cannot create or mutate customer state.
+Strict limiter production smoke uses a temporary synthetic D1 user and the authenticated chart validation boundary, never registration/source-IP quota and never a customer account. The synthetic principal is fresh for the run, has no FCM/subscription/reward/event rows, and its malformed chart requests stop at validation after limiter admission, before chart computation or customer mutation. Cleanup is unconditional and the user row must be independently absent before the smoke can pass.
 
-The production check derives the expected configured limit from reviewed code/config internally and publishes only whether aggregate enforcement matched exactly. It does not publish the principal, source IP, object identity, bucket key, or defensive threshold.
+The production check derives the expected configured limit from reviewed code/config internally and keeps exact allow/reject counts in restricted process memory. Public output records only whether enforcement, isolation, validation-boundary behavior, retry metadata, and cleanup matched the contract. It does not publish the synthetic IDs/JWT, source IP, object identity, bucket key, live counts, threshold, or window.
 
 Privilege verification never sends a real notification, changes a Play subscription, replies to a review, or triggers a content rewrite. Authorized paths use malformed or dry-run inputs where available; read-only Play calls keep response bodies restricted and out of evidence.
 
@@ -224,7 +224,7 @@ Because scoped credentials are not sourced from the broad Doppler config or gene
 
 ## Definition of done
 
-#7 is complete only after Phase 0, Phase A, and Phase B are each reviewed and merged from exact-head CI; production read-back proves strict limiter enforcement, least-privilege capability isolation, credential rotation/revocation behavior, sanitized audit events, and legacy `ADMIN_SECRET` retirement; a sanitized evidence PR is merged; and issue #7 is closed with independent state read-back.
+Issue `#7` is complete only after Phase 0, Phase A, and Phase B are each reviewed and merged from exact-head CI; production read-back proves strict limiter enforcement, least-privilege capability isolation, credential rotation/revocation behavior, sanitized audit events, and legacy `ADMIN_SECRET` retirement; a sanitized evidence PR is merged; and issue #7 is closed with independent state read-back.
 ## Storage boundary after migration
 
 The existing `CACHE` KV namespace remains in service for content caching. Phase B removes only rate-limit counter reads/writes from KV; #7 does not replace or migrate the content cache itself.

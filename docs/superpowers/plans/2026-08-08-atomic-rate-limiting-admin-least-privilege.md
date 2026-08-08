@@ -20,6 +20,8 @@
 - Keep scoped admin credentials outside the broad shared Doppler config and generic backend deploy secret allowlist.
 - `ENABLE_PRODUCTION_RELEASE=false` throughout #7; no Android rollout, Play product/pricing mutation, customer entitlement mutation, RTDN reconfiguration, or rewarded-entitlement change.
 - Phase 0 establishes the Durable Object lifecycle rollback floor; later rollback must never target a pre-Phase-0 Worker version.
+- This approved execution runs local/operator commands on the authorized MSI Ubuntu host and CI commands on GitHub Ubuntu; Bash snippets are for those Ubuntu hosts. If a future executor runs locally on Windows, stop and translate local commands to PowerShell first as required by `AGENTS.md` rather than running the Bash snippets unchanged.
+- Before implementation changes, read `AGENTS.md`, `README.md`, `backend/README.md`, `RELEASE_RUNBOOK.md`, the approved design, and this plan. After every behavior patch run the relevant focused tests; after the final patch of each reviewed phase run the complete build/test chain specified by that phase.
 
 ---
 ## File Structure
@@ -38,7 +40,7 @@
 - Modify `.github/workflows/content-backfill.yml`: consume only `ADMIN_CONTENT_SECRET`, never broad Doppler fallback.
 - Modify `.github/workflows/backend-production-deploy.yml`, `backend/scripts/shared.ts`, and secret-sync tests in Phase B: stop requiring/resyncing legacy `ADMIN_SECRET` without touching the four scoped Worker secrets.
 - Modify `backend/wrangler.transition.toml`: bind the transition Worker externally to the main Worker's `RateLimitBucket` namespace in Phase B; never provision a second limiter namespace.
-- Create `backend/scripts/verify-rate-limit-production.ts`, `.github/workflows/backend-rate-limit-smoke.yml`, and focused tests/contracts for state-safe exact production concurrency verification.
+- Create `backend/scripts/verify-rate-limit-production.ts`, `.github/workflows/backend-rate-limit-smoke.yml`, and focused tests/contracts for isolated exact production concurrency verification using a temporary synthetic D1 user and the authenticated chart boundary; never use a customer or source-IP bucket for production load proof.
 - Create root workflow-contract tests for admin capability isolation and production rate-limit verification behavior.
 - Create `docs/verification/atomic-rate-limiting-admin-least-privilege-2026-08-08.md` only after all production verification succeeds.
 
@@ -50,6 +52,8 @@
 - [ ] Merge only the exact reviewed docs head with head-match protection and verify the merge parents independently.
 - [ ] Fetch the new `origin/main`; verify both `docs/superpowers/specs/2026-08-08-atomic-rate-limiting-admin-least-privilege-design.md` and this plan are present there.
 - [ ] Create the Phase 0 branch/worktree fresh from that merged `origin/main`. Do not implement Phase 0 on the docs worktree.
+- [ ] In the fresh Phase 0 worktree, read `AGENTS.md`, `README.md`, `backend/README.md`, `RELEASE_RUNBOOK.md`, the merged design, and this plan before the first code edit. Treat the plan's Ubuntu Bash commands as MSI/GitHub Ubuntu-only.
+- [ ] For every implementation patch, run the task's focused tests immediately after the patch. Before each phase PR, run that phase's complete build/test/audit chain; do not defer general validation to CI.
 
 ### Task 1: Phase 0 — Declare the Durable Object lifecycle without changing traffic
 
@@ -203,11 +207,23 @@ export interface RateLimitDecision {
   retryAfterSeconds: number;
 }
 
+export function assertRateLimitConfig(limit: number, windowSeconds: number): void {
+  if (
+    !Number.isSafeInteger(limit) ||
+    limit <= 0 ||
+    !Number.isSafeInteger(windowSeconds) ||
+    windowSeconds <= 0
+  ) {
+    throw new RangeError('Rate-limit policy values must be positive safe integers.');
+  }
+}
+
 export async function claimRateLimitWindow(
   storage: Pick<DurableObjectStorage, 'transaction'>,
   nowMs: number,
   input: { limit: number; windowSeconds: number }
 ): Promise<RateLimitDecision> {
+  assertRateLimitConfig(input.limit, input.windowSeconds);
   const windowMs = input.windowSeconds * 1000;
   const windowStartMs = Math.floor(nowMs / windowMs) * windowMs;
   return storage.transaction(async (txn) => {
@@ -243,8 +259,10 @@ export async function enforceStrictRateLimit(
   limit: number,
   windowSeconds: number
 ): Promise<{ status: 'ok'; decision: RateLimitDecision } | { status: 'unavailable' }> {
+  assertRateLimitConfig(limit, windowSeconds);
+  const name = await buildRateLimitObjectName(routeClass, principal);
+
   try {
-    const name = await buildRateLimitObjectName(routeClass, principal);
     const stub = env.RATE_LIMITER.getByName(name);
     return { status: 'ok', decision: await stub.check({ limit, windowSeconds }) };
   } catch {
@@ -253,7 +271,7 @@ export async function enforceStrictRateLimit(
 }
 ```
 
-Keep `index.ts`, `user.ts`, `reward.ts`, and `subscription.ts` calling `enforceKvRateLimit` during Phase A. Do not route production traffic to the Durable Object yet.
+Configuration validation and deterministic object-name construction are deliberately outside the availability `try/catch`; invalid policy/programming errors must propagate to tests rather than being mislabeled as `RATE_LIMIT_UNAVAILABLE`. Only namespace/stub RPC or remote storage failure is converted to the fail-closed availability result. Keep `index.ts`, `user.ts`, `reward.ts`, and `subscription.ts` calling `enforceKvRateLimit` during Phase A. Do not route production traffic to the Durable Object yet.
 
 - [ ] **Step 5: Verify Phase A limiter implementation GREEN**
 
@@ -468,11 +486,11 @@ Use these non-destructive authorized expectations:
 ```text
 content-ops      POST /admin/content/backfill                    -> 400 INVALID_REQUEST with malformed JSON
 notification-ops POST /notifications/send                        -> 400 INVALID_REQUEST with malformed JSON
-play-read        GET  /admin/play/subscriptions                   -> 200, body kept in runner temp and never printed
+play-read        GET  /admin/play/subscriptions                   -> 200, response body discarded and never retained
 play-write       PATCH /admin/play/subscriptions/verification-id  -> 400 INVALID_REQUEST with empty regions
 ```
 
-Never print response bodies from the read-only Play call. Remove every temporary response file in an `if: always()` cleanup step.
+For the read-only Play call, use status-only handling such as `curl --output /dev/null --write-out '%{http_code}'`; never write or retain the upstream body in `$RUNNER_TEMP`, and never include it in failure diagnostics. Other malformed-request response files, if any, remain restricted and are removed in an `if: always()` cleanup step.
 
 - [ ] **Step 5: Migrate content backfill to its scoped environment**
 
@@ -697,57 +715,68 @@ git add backend/src/middleware/auth.ts backend/src/types.ts backend/tests backen
 git rm .github/workflows/backend-admin-secret-sync.yml
 git commit -m "security: retire legacy admin authorization"
 ```
-### Task 10: Phase B — Add a state-safe production concurrency smoke
+### Task 10: Phase B — Add an isolated production concurrency smoke
 
 **Files:**
 - Create: `backend/scripts/verify-rate-limit-production.ts`
 - Create: `backend/tests/scripts/verifyRateLimitProduction.test.ts`
 - Create: `.github/workflows/backend-rate-limit-smoke.yml`
 - Create: `scripts/backend-rate-limit-smoke-workflow.test.mjs`
-- Modify: `backend/src/services/rateLimit.ts` only if a read-only policy export is needed by the verifier.
+- Modify: `backend/src/services/rateLimit.ts` only to expose the already-reviewed chart policy to the verifier without changing its value.
 
 **Interfaces:**
-- The verifier imports the reviewed registration policy internally; it never prints limit/window values.
-- Live target is `POST /api/v1/users/register` without Authorization, so admitted requests stop at backend-owned `401 UNAUTHORIZED` before Firebase verification or customer mutation.
-- Excess requests must be backend-owned `429 RATE_LIMITED` with `Retry-After`.
-- Public output is boolean-only: `strictRateLimitMatched`, `admittedRequestsWereUnauthorized`, `rejectedRequestsWereRateLimited`, `retryAfterPresent`, `customerMutationPathNotReached`.
+- The verifier imports the reviewed chart policy internally; it never prints limit/window values or live allow/reject counts.
+- The workflow creates one temporary synthetic `users` row with random identifiers and no FCM, subscription, reward, or event rows, then signs an ephemeral HS256 app JWT in runner memory from `JWT_SECRET`.
+- Live target is authenticated `POST /api/v1/chart/natal` with an intentionally invalid body. Admitted requests stop at backend-owned `400 INVALID_REQUEST` before chart computation; excess requests are backend-owned `429 RATE_LIMITED` with `Retry-After`.
+- Because the limiter principal is the fresh synthetic user ID, the live burst cannot consume a customer or shared source-IP bucket. The synthetic row is deleted in an unconditional cleanup step and absence is independently read back.
+- Public output is boolean/status-only: `strictRateLimitMatched`, `admittedRequestsHitValidation`, `rejectedRequestsWereRateLimited`, `retryAfterPresent`, `syntheticPrincipalIsolated`, `syntheticUserCleanupVerified`.
+
 - [ ] **Step 1: Write RED verifier tests before the live script**
 
-Refactor the existing reviewed route thresholds into an internal `RATE_LIMIT_POLICIES` export without changing any value. Test a pure `classifyLiveRateLimitResponses()` helper with synthetic responses so it accepts only this exact pattern: admitted responses are backend JSON `401/UNAUTHORIZED`, excess responses are backend JSON `429/RATE_LIMITED`, and every `429` has `Retry-After`.
+Refactor the existing reviewed route thresholds into an internal `RATE_LIMIT_POLICIES` export without changing any value. Test a pure `classifyLiveRateLimitResponses()` helper with synthetic responses so it accepts only this exact pattern: exactly the configured number of admitted responses are backend JSON `400/INVALID_REQUEST`, all excess responses are backend JSON `429/RATE_LIMITED`, and every `429` has `Retry-After`.
 
 ```ts
 expect(result).toMatchObject({
   strictRateLimitMatched: true,
-  admittedRequestsWereUnauthorized: true,
+  admittedRequestsHitValidation: true,
   rejectedRequestsWereRateLimited: true,
   retryAfterPresent: true
 });
 ```
 
-Add negative fixtures for upstream/non-JSON `401`/`429`, missing `Retry-After`, too many admitted responses, and too few admitted responses.
+Keep exact counts private to the test process. Add negative fixtures for upstream/non-JSON `400`/`429`, missing `Retry-After`, too many/few admitted responses, and any response that reaches successful chart computation.
 
 - [ ] **Step 2: Run focused verifier tests and verify RED**
 
-Run: `cd backend && npx vitest run tests/scripts/verifyRateLimitProduction.test.ts`.
+Run on MSI Ubuntu: `cd backend && npx vitest run tests/scripts/verifyRateLimitProduction.test.ts`.
 
 Expected: FAIL because the production verifier/classifier does not exist yet.
 
-- [ ] **Step 3: Implement the fresh-window live verifier**
+- [ ] **Step 3: Implement the isolated live verifier**
 
-`verify-rate-limit-production.ts` imports only the registration policy. First send state-safe unauthenticated registration probes sequentially until the backend returns its own `429/RATE_LIMITED`; require all pre-limit responses to be backend `401/UNAUTHORIZED`. Read `Retry-After` into memory, sleep for that duration plus a small safety margin, then send one concurrent burst larger than the configured limit into the fresh window. Use an empty JSON object and no Authorization header throughout. Cap the priming loop from the internal reviewed policy so an unexpected boundary cannot run unbounded.
+`verify-rate-limit-production.ts` accepts the fixed backend base URL plus masked `VERIFY_USER_ID`, `VERIFY_FIREBASE_UID`, and `JWT_SECRET` from environment. Create a short-lived HS256 JWT with the same `user_id`, `firebase_uid`, and `is_premium=false` claims expected by `verifyAppJwt()`; do not print the token or identifiers.
 
-The script must parse every response body and reject any response that is not backend-owned JSON with the expected error code. It writes only the five boolean result fields to stdout/GitHub output; it never prints the threshold, window, priming count, source IP, response body, request ID, object/bucket identity, or raw burst counts.
-- [ ] **Step 4: Add the guarded production smoke workflow and contract test**
+Before the burst, read the public health response `Date` header and use the internal chart `windowSeconds` only in process memory. If the remaining fixed-window time is too short for a single burst, wait until just after the next boundary. Then send one concurrent burst larger than the configured chart limit to `/api/v1/chart/natal` with `Authorization: Bearer <ephemeral JWT>`, `content-type: application/json`, and `{}`. Parse every response and reject any response that is not backend-owned `400/INVALID_REQUEST` or `429/RATE_LIMITED` in the exact private count pattern.
 
-Create `backend-rate-limit-smoke.yml` as `workflow_dispatch` only, main-only, `environment: production`, with a typed confirmation such as `VERIFY_RATE_LIMIT`. Require `ENABLE_PRODUCTION_RELEASE=false`, install the exact backend dependencies, and run only `verify-rate-limit-production.ts` against the fixed backend base URL. The job receives no admin credential, Doppler token, customer JWT, Firebase token, or purchase token.
+The script writes only the boolean/status fields to stdout/GitHub output. It never prints the policy values, live counts, synthetic IDs, JWT, response bodies, request IDs, Durable Object identity, or bucket name.
 
-`scripts/backend-rate-limit-smoke-workflow.test.mjs` must assert main-only dispatch, release-gate false, absence of privileged secrets, use of the reviewed verifier script, and cleanup of any runner-temp result file.
+- [ ] **Step 4: Add the guarded Ubuntu production smoke workflow**
 
-- [ ] **Step 5: Run the production-smoke tests GREEN**
+Create `backend-rate-limit-smoke.yml` as `workflow_dispatch` only, main-only, `environment: production`, with typed confirmation `VERIFY_RATE_LIMIT`. Require `ENABLE_PRODUCTION_RELEASE=false` and exact checked-out `main` SHA. The GitHub-hosted job is Ubuntu-only.
+
+Load only `JWT_SECRET` and `CLOUDFLARE_API_TOKEN` from the existing restricted Doppler production config; mask them immediately. The workflow must not load or reference `ADMIN_SECRET`, any scoped admin credential, Firebase/Play service-account JSON, purchase tokens, or customer JWTs.
+
+Generate random synthetic user/Firebase identifiers in runner memory and mask both. With `umask 077`, write an insert SQL file under `$RUNNER_TEMP` that creates exactly one non-premium synthetic `users` row. Execute it remotely with Wrangler while redirecting raw CLI JSON away from logs. Do not create FCM, subscription, reward, or event rows.
+
+Run the verifier, then use an `if: always()` cleanup step to execute a restricted delete SQL file matching both random identifiers. Read back only a zero/nonzero count and require `syntheticUserCleanupVerified=true`; remove SQL/result files regardless of success. If setup, verification, or cleanup cannot prove isolation, the workflow fails.
+
+- [ ] **Step 5: Add workflow/source contracts and verify GREEN**
+
+`scripts/backend-rate-limit-smoke-workflow.test.mjs` must assert main-only dispatch, release-gate false, Ubuntu host, temporary synthetic-user insert/delete with unconditional cleanup, no registration/source-IP probe, no admin/service-account/customer credentials, boolean-only published output, and no raw D1/HTTP response diagnostics.
 
 Run: `cd backend && npx vitest run tests/scripts/verifyRateLimitProduction.test.ts`; from repo root run `node --test scripts/backend-rate-limit-smoke-workflow.test.mjs scripts/backend-rate-limit-contract.test.mjs`.
 
-Expected: classifier tests pass; workflow contains no privileged credential and cannot run with the production release gate enabled.
+Expected: classifier and workflow isolation contracts pass; no live call is made by tests.
 
 - [ ] **Step 6: Include the smoke in the Phase B local gate and commit**
 
@@ -755,7 +784,7 @@ Run the complete backend build/unit/runtime/transition suite, root contracts, se
 
 ```bash
 git add backend/src/services/rateLimit.ts backend/scripts/verify-rate-limit-production.ts backend/tests/scripts/verifyRateLimitProduction.test.ts .github/workflows/backend-rate-limit-smoke.yml scripts/backend-rate-limit-smoke-workflow.test.mjs
-git commit -m "test: add strict rate limit production smoke"
+git commit -m "test: add isolated rate limit production smoke"
 ```
 ### Task 11: Phase B — Review, merge, deploy both Workers, and prove strict enforcement
 
@@ -765,7 +794,7 @@ git commit -m "test: add strict rate limit production smoke"
 
 **Interfaces:**
 - Consumes: exact reviewed Phase B branch, permanent main `RateLimitBucket` namespace, Phase A scoped credentials, Phase A main rollback version.
-- Produces: exact Phase B main Worker + transition Worker deployments, strict production concurrency proof, Phase B privilege matrix/audit proof, and capability revocation/restoration proof.
+- Produces: exact Phase B main Worker + transition Worker deployments, isolated synthetic-principal strict production concurrency proof, Phase B privilege matrix/audit proof, and capability revocation/restoration proof.
 - Legacy `ADMIN_SECRET` remains present in secret stores during this task but runtime code no longer accepts it.
 
 - [ ] **Step 1: Run the complete Phase B pre-PR gate from a fresh install**
@@ -805,13 +834,14 @@ Dispatch `backend-rate-limit-smoke.yml` from exact Phase B `main`. Require a suc
 
 ```text
 strictRateLimitMatched=true
-admittedRequestsWereUnauthorized=true
+admittedRequestsHitValidation=true
 rejectedRequestsWereRateLimited=true
 retryAfterPresent=true
-customerMutationPathNotReached=true
+syntheticPrincipalIsolated=true
+syntheticUserCleanupVerified=true
 ```
 
-Do not publish or copy the observed allow/reject counts, configured threshold/window, runner IP, request IDs, or response bodies into issue/PR evidence.
+Require the workflow's unconditional D1 cleanup to verify the temporary synthetic user is absent before accepting the run. Do not publish or copy the observed allow/reject counts, configured threshold/window, synthetic identifiers/JWT, request IDs, Durable Object identity, or response bodies into issue/PR evidence; counts remain private to the verifier process.
 
 - [ ] **Step 8: Repeat the full scoped privilege matrix after legacy removal**
 
