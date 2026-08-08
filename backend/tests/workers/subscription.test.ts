@@ -542,7 +542,7 @@ describe('subscription worker', () => {
   it.each([
     ['query token', '/api/v1/webhooks/play-rtdn?token=play-secret', {}],
     ['legacy header', '/api/v1/webhooks/play-rtdn', { 'x-play-secret': 'play-secret' }]
-  ])('keeps Phase A %s fallback with the official envelope', async (_name, path, extraHeaders) => {
+  ])('rejects the historical %s path before payload validation', async (_name, path, extraHeaders) => {
     const { db, claims } = createRtdnDb({ subscriptionOwner: null });
     const response = await createApp({ subscription: { verifyPlayRtdnIdentity: acceptingVerifier() } }).request(
       path,
@@ -552,8 +552,9 @@ describe('subscription worker', () => {
       },
       createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' })
     );
-    expect(response.status).toBe(200);
-    expect(claims.get(`legacy-${_name}`)?.status).toBe('processed');
+    expect(response.status).toBe(403);
+    expect(claims.size).toBe(0);
+    expect(getSubscriptionStatusMock).not.toHaveBeenCalled();
   });
 
   it('batches sync_pending event and message finalization when live state is unavailable', async () => {

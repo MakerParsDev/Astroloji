@@ -35,7 +35,6 @@ Cloudflare secret store'a giden anahtarlar:
 - `JWT_SECRET`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
-- `PLAY_WEBHOOK_SECRET` (Phase A migration fallback; OIDC-only cutover sonrasi kaldirilir)
 - `ADMIN_SECRET`
 - `ADMOB_REWARDED_ID`
 
@@ -65,7 +64,7 @@ Cloudflare secret store'a giden anahtarlar:
 - `GET /api/v1/rewards/ssv` AdMob imzalı callback endpoint'idir ve istemci kimliğiyle erişim vermez.
 - `POST /api/v1/rewards/claim` yalnızca doğrulanmış challenge kimliğini tüketir.
 - `POST /api/v1/events/track` uygulama JWT'si ister.
-- `POST /api/v1/webhooks/play-rtdn` icin tercih edilen kimlik dogrulama, Pub/Sub tarafindan gonderilen Google-imzali OIDC bearer kimligidir. Phase A boyunca query/header shared-secret yalnizca gecici rollback/migration fallback olarak kalir.
+- `POST /api/v1/webhooks/play-rtdn` yalnizca Pub/Sub tarafindan gonderilen Google-imzali OIDC bearer kimligini kabul eder; endpoint secret-free'dir ve query/header shared-secret auth yoktur.
 - `POST /api/v1/notifications/send` sadece `X-Admin-Secret` ile korunur.
 - `GET /api/v1/admin/play/subscriptions` sadece `X-Admin-Secret` ile korunur.
 - `PATCH /api/v1/admin/play/subscriptions/:productId` sadece `X-Admin-Secret` ile korunur; `apply=true` verilmezse preview modunda kalir.
@@ -89,7 +88,7 @@ Cloudflare secret store'a giden anahtarlar:
 ## Operasyon Runbook
 
 - Trial offer kontrolu: `GET /api/v1/admin/play/subscriptions` ile aylik/yillik urunleri cek; secili offer icinde sifir fiyatli pricing phase olup olmadigini dogrula.
-- RTDN Phase A migration: Pub/Sub push endpointini secret icermeyen `/api/v1/webhooks/play-rtdn` yoluna ve authenticated OIDC push kimligine tasiyin; shared-secret fallback yalniz rollback guvencesi olarak gecici tutulur. Production caller/audience degerlerini public dokumana yazmayin.
+- RTDN production: Pub/Sub push endpointi secret icermeyen `/api/v1/webhooks/play-rtdn` yolunu, expected OIDC service identity/audience dogrulamasini, bounded retry ve dead-letter policy read-back'ini kullanir. Production caller/audience degerlerini public dokumana yazmayin.
 - Sync pending audit: `GET /api/v1/admin/subscriptions/audit` ile son 30 gundeki bekleyen webhook kayitlarini Play snapshot'i ile reconcile edin.
 - Fiyat veya offer degisikligi: once `PATCH /api/v1/admin/play/subscriptions/:productId` body'sini `apply=false` ile preview edin, sonra ayni payload'i `apply=true` ile uygulayin.
 

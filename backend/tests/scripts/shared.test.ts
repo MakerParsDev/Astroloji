@@ -10,6 +10,10 @@ function createSecrets(): Record<string, string> {
 }
 
 describe('Cloudflare secret resolution', () => {
+  it('does not sync the retired Play webhook shared secret', () => {
+    expect(CLOUDFLARE_SECRET_NAMES).not.toContain('PLAY_WEBHOOK_SECRET');
+  });
+
   it('uses environment overrides without changing other Doppler secrets', () => {
     const resolved = resolveCloudflareSecrets(createSecrets(), {
       ADMIN_SECRET: 'github-admin-secret',
