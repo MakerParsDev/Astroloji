@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 
-import { enforceKvRateLimit } from '@/services/rateLimit';
+import { enforceStrictRateLimit, mapStrictRateLimitResult } from '@/services/rateLimit';
 import {
   AdmobSsvVerificationError,
   type AdmobSsvErrorCode,
@@ -117,15 +117,16 @@ export function registerRewardRoutes<E extends RewardEnv>(
   app.post('/rewards/prepare', async (c) => {
     const body = validateRewardPrepareBody(await c.req.json());
     const auth = c.get('auth');
-    const allowed = await enforceKvRateLimit(
-      c.env,
-      `reward-prepare:${auth.userId}`,
-      PREPARE_RATE_LIMIT,
-      PREPARE_RATE_WINDOW_SECONDS
+    const rateLimitFailure = mapStrictRateLimitResult(
+      await enforceStrictRateLimit(
+        c.env,
+        'reward-prepare',
+        auth.userId,
+        PREPARE_RATE_LIMIT,
+        PREPARE_RATE_WINDOW_SECONDS
+      )
     );
-    if (!allowed) {
-      return jsonError(429, 'RATE_LIMITED', 'Too many reward preparation attempts.');
-    }
+    if (rateLimitFailure) return rateLimitFailure;
     const createdAtMs = nowMs();
     if (
       await hasRewardEntitlement(

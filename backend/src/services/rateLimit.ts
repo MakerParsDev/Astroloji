@@ -92,21 +92,21 @@ export async function enforceStrictRateLimit(
   }
 }
 
-export async function enforceKvRateLimit(
-  env: Pick<Env, 'CACHE'>,
-  key: string,
-  limit: number,
-  windowSeconds: number
-): Promise<boolean> {
-  const fullKey = `ratelimit:${key}`;
-  const current = Number((await env.CACHE.get(fullKey)) ?? '0');
-
-  if (current >= limit) {
-    return false;
+export function mapStrictRateLimitResult(result: StrictRateLimitResult): Response | null {
+  if (result.status === 'unavailable') {
+    return Response.json(
+      { error: { code: 'RATE_LIMIT_UNAVAILABLE', message: 'Rate limit service unavailable.' } },
+      { status: 503 }
+    );
   }
 
-  await env.CACHE.put(fullKey, String(current + 1), {
-    expirationTtl: windowSeconds
-  });
-  return true;
+  if (result.decision.allowed) return null;
+
+  return Response.json(
+    { error: { code: 'RATE_LIMITED', message: 'Too many requests.' } },
+    {
+      status: 429,
+      headers: { 'retry-after': String(Math.max(1, result.decision.retryAfterSeconds)) }
+    }
+  );
 }

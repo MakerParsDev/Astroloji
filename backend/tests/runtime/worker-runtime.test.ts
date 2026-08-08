@@ -56,6 +56,21 @@ describe('worker runtime routes', () => {
     await worker?.stop();
   });
 
+  it('admits exactly the registration limit under a concurrent unauthenticated burst', async () => {
+    const responses = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        worker.fetch('http://127.0.0.1/api/v1/users/register', {
+          method: 'POST',
+          headers: { 'cf-connecting-ip': '198.51.100.44', 'content-type': 'application/json' },
+          body: JSON.stringify({})
+        })
+      )
+    );
+    const statuses = responses.map((response) => response.status);
+    expect(statuses.filter((status) => status === 401)).toHaveLength(10);
+    expect(statuses.filter((status) => status === 429)).toHaveLength(10);
+  });
+
   it('rejects notification sends without the admin secret', async () => {
     const response = await worker.fetch('http://127.0.0.1/api/v1/notifications/send', {
       method: 'POST',

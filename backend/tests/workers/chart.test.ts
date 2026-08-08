@@ -1,10 +1,31 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
-import { createTestEnv } from '../helpers/env';
+import { createRateLimiterNamespace, createTestEnv } from '../helpers/env';
 
 describe('chart routes', () => {
+  it.each([
+    ['denied', async () => ({ allowed: false, remaining: 0, retryAfterSeconds: 8 }), 429, 'RATE_LIMITED'],
+    ['unavailable', async () => { throw new Error('rate limiter unavailable'); }, 503, 'RATE_LIMIT_UNAVAILABLE']
+  ])('fails closed before chart body handling when limiter is %s', async (_name, check, status, code) => {
+    const limiterCheck = vi.fn(check);
+    const env = createTestEnv({ RATE_LIMITER: createRateLimiterNamespace(limiterCheck) });
+    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
+    const response = await createApp().request(
+      '/api/v1/chart/natal',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: 'not-json'
+      },
+      env
+    );
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ error: { code } });
+    expect(limiterCheck).toHaveBeenCalledTimes(1);
+  });
+
   it('requires an authenticated app session', async () => {
     const response = await createApp().request(
       '/api/v1/chart/natal',

@@ -5,7 +5,7 @@ import { AdmobSsvVerificationError, type ParsedAdmobSsvCallback } from '@/servic
 import { cleanupRewardChallenges } from '@/workers/reward';
 import type { Env, RewardChallengeRow } from '@/types';
 import { signAppJwt } from '@/utils/jwt';
-import { createTestEnv } from '../helpers/env';
+import { createRateLimiterNamespace, createTestEnv } from '../helpers/env';
 
 const CHALLENGE_ID = '11111111-1111-4111-8111-111111111111';
 const SECOND_CHALLENGE_ID = '22222222-2222-4222-8222-222222222222';
@@ -196,6 +196,33 @@ function testApp(args: {
 }
 
 describe('rewarded access SSV routes', () => {
+  it.each([
+    ['denied', async () => ({ allowed: false, remaining: 0, retryAfterSeconds: 7 }), 429, 'RATE_LIMITED'],
+    ['unavailable', async () => { throw new Error('rate limiter unavailable'); }, 503, 'RATE_LIMIT_UNAVAILABLE']
+  ])('fails closed before reward entitlement/challenge work when limiter is %s', async (_name, check, status, code) => {
+    const { db, rows } = createRewardDb();
+    const limiterCheck = vi.fn(check);
+    const env = createTestEnv({
+      DB: db,
+      ADMOB_REWARDED_ID: AD_UNIT,
+      RATE_LIMITER: createRateLimiterNamespace(limiterCheck)
+    });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    const response = await testApp().request(
+      '/api/v1/rewards/prepare',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+      },
+      env
+    );
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ error: { code } });
+    expect(limiterCheck).toHaveBeenCalledTimes(1);
+    expect(rows.size).toBe(0);
+  });
+
   it('rejects the legacy client-only claim payload', async () => {
     const { db } = createRewardDb();
     const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });

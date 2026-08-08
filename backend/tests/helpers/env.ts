@@ -1,5 +1,22 @@
 import type { Env } from '@/types';
 
+export interface TestRateLimitDecision {
+  allowed: boolean;
+  remaining: number;
+  retryAfterSeconds: number;
+}
+
+export function createRateLimiterNamespace(
+  check: (input: { limit: number; windowSeconds: number }) => Promise<TestRateLimitDecision> =
+    async () => ({ allowed: true, remaining: 999, retryAfterSeconds: 0 })
+): Env['RATE_LIMITER'] {
+  return {
+    getByName() {
+      return { check };
+    }
+  } as unknown as Env['RATE_LIMITER'];
+}
+
 export function createTestEnv(overrides: Partial<Env> = {}): Env {
   return {
     DB: {
@@ -43,7 +60,7 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
         return;
       }
     } as unknown as KVNamespace,
-    RATE_LIMITER: {} as Env['RATE_LIMITER'],
+    RATE_LIMITER: createRateLimiterNamespace(),
     ENVIRONMENT: 'test',
     PACKAGE_NAME: 'com.example.astrology',
     PREMIUM_MONTHLY_PRODUCT_ID: 'premium_monthly',

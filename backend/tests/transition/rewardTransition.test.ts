@@ -192,6 +192,15 @@ function transitionEnv(overrides: Partial<TransitionEnv> = {}): TransitionEnv {
   return {
     DB: {} as D1Database,
     CACHE: {} as KVNamespace,
+    RATE_LIMITER: {
+      getByName() {
+        return {
+          async check() {
+            return { allowed: true, remaining: 999, retryAfterSeconds: 0 };
+          }
+        };
+      }
+    } as unknown as TransitionEnv['RATE_LIMITER'],
     JWT_SECRET: 'transition-jwt-secret',
     ADMOB_REWARDED_ID: 'ca-app-pub-1234567890123456/1234567890',
     LEGACY_REWARD_FORWARD_UNTIL: DEADLINE,

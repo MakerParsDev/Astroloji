@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 
-import { enforceKvRateLimit } from '@/services/rateLimit';
+import { enforceStrictRateLimit, mapStrictRateLimitResult } from '@/services/rateLimit';
 import { deleteFirebaseUser, isFirebaseAccountDeletionError } from '@/services/firebaseAuth';
 import type {
   AppBindings,
@@ -160,10 +160,10 @@ function toUserProfile(user: UserRow, token: FcmTokenRow | null): UserProfileRes
 export function registerUserRoutes(app: Hono<AppBindings>) {
   app.post('/users/register', async (c) => {
     const ip = c.req.header('cf-connecting-ip') ?? 'unknown';
-    const allowed = await enforceKvRateLimit(c.env, `register:${ip}`, 10, 60);
-    if (!allowed) {
-      return jsonError(429, 'RATE_LIMITED', 'Too many register attempts.');
-    }
+    const rateLimitFailure = mapStrictRateLimitResult(
+      await enforceStrictRateLimit(c.env, 'register', ip, 10, 60)
+    );
+    if (rateLimitFailure) return rateLimitFailure;
 
     const authHeader = c.req.header('authorization');
     if (!authHeader) {

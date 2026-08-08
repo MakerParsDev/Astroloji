@@ -121,6 +121,7 @@ export type Env = CloudflareEnv & SecretBindings & RuntimeConfigBindings;
 export interface RewardEnv {
   DB: D1Database;
   CACHE: KVNamespace;
+  RATE_LIMITER: Env['RATE_LIMITER'];
   JWT_SECRET: string;
   ADMOB_REWARDED_ID: string;
 }
