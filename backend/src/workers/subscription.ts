@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 
-import { enforceRateLimit } from '@/services/cache';
+import { enforceKvRateLimit } from '@/services/rateLimit';
 import { verifyPlayRtdnIdentity } from '@/services/playRtdnAuth';
 import {
   claimPlayRtdnMessage,
@@ -391,7 +391,7 @@ export function registerSubscriptionRoutes(
 ) {
   app.post('/subscriptions/verify', async (c) => {
     const userId = c.get('auth').userId;
-    const allowed = await enforceRateLimit(c.env, `verify:${userId}`, 5, 60);
+    const allowed = await enforceKvRateLimit(c.env, `verify:${userId}`, 5, 60);
     if (!allowed) {
       return jsonError(429, 'RATE_LIMITED', 'Too many subscription verify attempts.');
     }
