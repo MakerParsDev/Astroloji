@@ -23,7 +23,7 @@
 
 - Production deploy workflow run `31244710546` succeeded on exact merged Phase A `main`.
 - Tracked D1 migration and the ten-column idempotency schema, primary-key, status-check, and received-time index read-back succeeded before Worker deployment.
-- Production Pub/Sub read-back reported only sanitized booleans: secret-free endpoint, OIDC configured, audience match, caller match, dead-letter configured, maximum delivery attempts set to 5, and bounded retry policy configured.
+- Production Pub/Sub read-back reported sanitized configuration summaries: secret-free endpoint, OIDC configured, audience match, caller match, dead-letter configured, maximum delivery attempts set to 5, and bounded retry policy configured.
 - Google Play Console test delivery was observed as an authenticated `testNotification` reaching D1 with `status=processed` and `outcome=test`.
 - The Phase A provider test did not create subscription events or subscription state updates.
 - Compatibility smoke workflow run `31245014236` succeeded on exact Phase A `main`, proving unauthenticated requests were rejected while the temporary legacy fallback still reached payload validation.
