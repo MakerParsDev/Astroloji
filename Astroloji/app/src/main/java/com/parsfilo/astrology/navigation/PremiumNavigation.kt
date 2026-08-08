@@ -52,7 +52,7 @@ internal fun PremiumNavigationBar(
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
-                    icon = { Icon(item.icon, contentDescription = item.label) },
+                    icon = { Icon(item.icon, contentDescription = null) },
                     label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
                 )
             }

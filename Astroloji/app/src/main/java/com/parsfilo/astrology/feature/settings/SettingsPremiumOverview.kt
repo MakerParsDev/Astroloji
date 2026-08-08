@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -15,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
@@ -43,13 +47,21 @@ internal fun SettingsPremiumOverview(
             subtitle = currentSign.localizedDateRange(language),
         )
         FlowRow(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ZodiacSign.entries.forEach { sign ->
                 val selected = sign.key == currentSign.key
                 Surface(
+                    modifier =
+                        Modifier
+                            .heightIn(min = 48.dp)
+                            .selectable(
+                                selected = selected,
+                                role = Role.RadioButton,
+                                onClick = { onChangeSign(sign.key) },
+                            ),
                     shape = RoundedCornerShape(14.dp),
                     color =
                         if (selected) {
@@ -67,7 +79,6 @@ internal fun SettingsPremiumOverview(
                                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.66f)
                             },
                         ),
-                    onClick = { onChangeSign(sign.key) },
                 ) {
                     Text(
                         text = "${sign.symbol} ${sign.localizedName(language)}",

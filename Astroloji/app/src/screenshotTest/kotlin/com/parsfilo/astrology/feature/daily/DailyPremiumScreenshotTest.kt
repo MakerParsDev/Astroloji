@@ -53,3 +53,23 @@ fun DailyPremiumTurkishScreenshot() {
         }
     }
 }
+
+@PreviewTest
+@Preview(
+    name = "Premium daily invalid date Turkish",
+    widthDp = 360,
+    heightDp = 680,
+    locale = "tr-rTR",
+    showBackground = true,
+)
+@Composable
+fun DailyPremiumInvalidDateTurkishScreenshot() {
+    AstrolojiTheme(darkTheme = true) {
+        CosmicBackground(modifier = Modifier.fillMaxSize()) {
+            DailyPremiumSummary(
+                horoscope = dailyGolden.copy(date = "not-a-date"),
+                modifier = Modifier.padding(16.dp),
+            )
+        }
+    }
+}

@@ -31,6 +31,14 @@ import java.time.LocalDate
 
 private const val SCORE_MAX = 100
 
+private fun dailyDisplayDate(
+    language: String,
+    rawDate: String,
+): String? =
+    runCatching { LocalDate.parse(rawDate) }
+        .getOrNull()
+        ?.let { TimeUtils.displayDate(language, it) }
+
 @Suppress("LongMethod")
 @Composable
 internal fun DailyPremiumSummary(
@@ -44,7 +52,7 @@ internal fun DailyPremiumSummary(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         PremiumSectionHeader(
-            eyebrow = TimeUtils.displayDate(horoscope.language, LocalDate.parse(horoscope.date)),
+            eyebrow = dailyDisplayDate(horoscope.language, horoscope.date),
             title = stringResource(R.string.daily_title),
         )
         PremiumHeroCard(

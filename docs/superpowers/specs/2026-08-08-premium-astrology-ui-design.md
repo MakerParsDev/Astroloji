@@ -49,13 +49,13 @@ Out of scope:
 ## Shared Compose Components
 
 Create or evolve reusable primitives in the shared UI layer instead of duplicating screen styling:
-- `PremiumCard`: glass-like surface, premium border, configurable content padding.
-- `GoldActionButton`: primary CTA with accessible contrast and disabled/loading states.
-- `CosmicHeroCard`: reusable zodiac/feature hero with atmospheric gradient and optional icon/symbol slot.
-- `PremiumSectionHeader`: consistent eyebrow, title, and optional trailing action.
-- `MetricRing`: compact circular score visualization for energy/love/focus-style metrics.
-- `PremiumInfoTile`: compact lucky number/color or metadata tile.
-- `PremiumSegmentedControl`: compatibility/settings plan or section switching.
+- `PremiumGlassCard`: glass-like surface, premium border, configurable content padding.
+- `PremiumGoldButton`: primary CTA with accessible contrast and disabled/loading states.
+- `PremiumHeroCard`: reusable zodiac/feature hero with atmospheric gradient and optional icon/symbol slot.
+- `PremiumSectionHeader`: consistent eyebrow, title, and optional supporting text.
+- `PremiumMetricRing`: compact circular score visualization for energy/love/focus-style metrics.
+- `PremiumIconTile`: compact quick-access action tile.
+- `PremiumPill`: compact lucky number/color or metadata pill.
 
 Existing `CosmicBackground`, `AstrologyCard`, `AstroSectionTitle`, chips, loading, and error primitives should be migrated or wrapped rather than abandoned when practical.
 
@@ -63,7 +63,7 @@ Existing `CosmicBackground`, `AstrologyCard`, `AstroSectionTitle`, chips, loadin
 
 ### Home
 - Lead with a zodiac hero card showing the selected sign, localized name/date range, and a clear change/select affordance when supported by existing navigation.
-- Place five compact quick-access actions for Daily, Weekly, Monthly, Compatibility, and Personality.
+- Place the four compact quick-access actions exposed by the current Home API: Daily, Weekly, Monthly, and Personality. Compatibility remains accessible through existing navigation, without inventing a Home callback.
 - Present today's insight as a premium editorial card, not a dense dashboard.
 - Keep streak, moon phase, subscription warnings, ads, and current data semantics, but reduce their visual competition with the hero.
 
@@ -76,7 +76,7 @@ Existing `CosmicBackground`, `AstrologyCard`, `AstroSectionTitle`, chips, loadin
 ### Premium
 - Use a focused premium header with restrained celestial ornament.
 - Show benefits in a compact vertical list with consistent icon containers.
-- Preserve actual monthly/yearly catalogue state and purchase behavior.
+- Preserve actual monthly/weekly catalogue state and purchase behavior.
 - Make the selected plan visually dominant without inventing discounts or prices.
 - Use one strong gold CTA; loading/error/retry states remain explicit.
 
@@ -93,7 +93,7 @@ Existing `CosmicBackground`, `AstrologyCard`, `AstroSectionTitle`, chips, loadin
 
 ## Navigation and motion
 
-Keep the current navigation graph and destination contracts. Restyle the bottom navigation into a low-profile premium bar using gold only for the selected destination. Motion should be short and functional: fades, small scale transitions, and progress animation. Avoid continuous background animation that increases battery/GPU cost.
+Keep the current navigation graph and destination contracts. Restyle the bottom navigation into a low-profile premium bar using gold only for the selected destination. Motion should be short and functional: fades, small scale transitions, and progress animations. Avoid continuous background animation that increases battery/GPU cost.
 
 ## Accessibility and responsiveness
 
