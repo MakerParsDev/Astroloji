@@ -158,7 +158,7 @@ describe('monetization routes', () => {
       {
         method: 'PATCH',
         headers: {
-          'x-admin-secret': 'admin-secret',
+          'x-admin-secret': 'play-write-secret',
           'content-type': 'application/json'
         },
         body: JSON.stringify({

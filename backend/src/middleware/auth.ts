@@ -1,7 +1,8 @@
 import type { Next } from 'hono';
 
+import { logAdminOperation } from '@/services/adminAudit';
 import { verifyPlayRtdnIdentity } from '@/services/playRtdnAuth';
-import type { AppContext, AppMiddleware, Env } from '@/types';
+import type { AdminCapability, AdminOperation, AppContext, AppMiddleware, Env } from '@/types';
 import { verifyAppJwt } from '@/utils/jwt';
 import { matchesSecret } from '@/utils/security';
 import { parseBooleanFlag } from '@/utils/validators';
@@ -54,27 +55,63 @@ export const jwtAuthMiddleware: AppMiddleware = async (c, next: Next) => {
   }
 };
 
-export const adminSecretMiddleware: AppMiddleware = async (c, next: Next) => {
-  const adminSecret = c.req.header('x-admin-secret');
-  if (!matchesSecret(c.env.ADMIN_SECRET, adminSecret)) {
+const ADMIN_SECRET_BINDINGS = {
+  'content-ops': 'ADMIN_CONTENT_SECRET',
+  'notification-ops': 'ADMIN_NOTIFICATION_SECRET',
+  'play-read': 'ADMIN_PLAY_READ_SECRET',
+  'play-write': 'ADMIN_PLAY_WRITE_SECRET'
+} as const satisfies Record<AdminCapability, keyof Env>;
+
+function matchesAdminCapability(c: AppContext, capability: AdminCapability): boolean {
+  const provided = c.req.header('x-admin-secret');
+  const scoped = c.env[ADMIN_SECRET_BINDINGS[capability]];
+  return matchesSecret(scoped, provided) || matchesSecret(c.env.ADMIN_SECRET, provided);
+}
+
+async function runAdminCapability(
+  c: AppContext,
+  next: Next,
+  capability: AdminCapability,
+  operation: AdminOperation,
+  beforeNext?: () => void
+): Promise<Response | void> {
+  const audit = (outcome: 'authorized' | 'rejected' | 'completed' | 'failed') =>
+    logAdminOperation({ requestId: c.get('requestId'), capability, operation, outcome });
+
+  if (!matchesAdminCapability(c, capability)) {
+    audit('rejected');
     return jsonError(c, 403, 'FORBIDDEN', 'Admin secret is invalid.');
   }
 
-  c.set('isAdmin', true);
-  await next();
-};
+  audit('authorized');
+  beforeNext?.();
+  try {
+    await next();
+    audit(c.res.status < 400 ? 'completed' : 'failed');
+  } catch (error) {
+    audit('failed');
+    throw error;
+  }
+}
+
+export function requireAdminCapability(
+  capability: AdminCapability,
+  operation: AdminOperation
+): AppMiddleware {
+  return (c, next) => runAdminCapability(c, next, capability, operation);
+}
 
 export const contentCacheBypassMiddleware: AppMiddleware = async (c, next: Next) => {
   const wantsBypass = parseBooleanFlag(c.req.header('x-cache-bypass'));
-  const adminSecret = c.req.header('x-admin-secret');
-  const bypassCache = wantsBypass && matchesSecret(c.env.ADMIN_SECRET, adminSecret);
-
-  c.set('bypassCache', bypassCache);
-  if (bypassCache) {
-    c.set('isAdmin', true);
+  c.set('bypassCache', false);
+  if (!wantsBypass) {
+    await next();
+    return;
   }
 
-  await next();
+  return runAdminCapability(c, next, 'content-ops', 'content.cache_bypass', () => {
+    c.set('bypassCache', true);
+  });
 };
 
 type PlayWebhookIdentityVerifier = (env: Env, token: string) => Promise<void>;

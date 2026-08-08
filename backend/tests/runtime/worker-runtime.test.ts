@@ -43,6 +43,10 @@ describe('worker runtime routes', () => {
         PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
         PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
         ADMIN_SECRET: 'admin-secret',
+        ADMIN_CONTENT_SECRET: 'runtime-content-secret',
+        ADMIN_NOTIFICATION_SECRET: 'runtime-notification-secret',
+        ADMIN_PLAY_READ_SECRET: 'runtime-play-read-secret',
+        ADMIN_PLAY_WRITE_SECRET: 'runtime-play-write-secret',
         ADMOB_REWARDED_ID: 'ca-app-pub-3940256099942544/5224354917'
       }
     });
@@ -64,7 +68,34 @@ describe('worker runtime routes', () => {
     expect(response.status).toBe(403);
   });
 
-  it('accepts the admin secret and then validates the body', async () => {
+  it('accepts the notification scoped secret and then validates the body', async () => {
+    const response = await worker.fetch('http://127.0.0.1/api/v1/notifications/send', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-admin-secret': 'runtime-notification-secret'
+      },
+      body: JSON.stringify({})
+    });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('rejects the content scoped secret at the notification boundary', async () => {
+    const response = await worker.fetch('http://127.0.0.1/api/v1/notifications/send', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-admin-secret': 'runtime-content-secret'
+      },
+      body: JSON.stringify({})
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } });
+  });
+
+  it('keeps the legacy admin secret as Phase A notification compatibility', async () => {
     const response = await worker.fetch('http://127.0.0.1/api/v1/notifications/send', {
       method: 'POST',
       headers: {

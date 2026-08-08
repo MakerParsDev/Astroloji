@@ -1,0 +1,513 @@
+name: backend-admin-capability-sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      capability:
+        description: "Administrative capability to sync and verify."
+        required: true
+        type: choice
+        options:
+          - content-ops
+          - notification-ops
+          - play-read
+          - play-write
+      confirm:
+        description: "Type SYNC_ADMIN_CAPABILITY to update exactly one scoped Worker secret."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-admin-capability-sync-${{ inputs.capability }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CONFIRM: ${{ inputs.confirm }}
+    steps:
+      - name: Validate confirmation input
+        shell: bash
+        run: |
+          if [ "$CONFIRM" != 'SYNC_ADMIN_CAPABILITY' ]; then
+            echo 'confirm must be SYNC_ADMIN_CAPABILITY'
+            exit 1
+          fi
+
+  content:
+    if: ${{ github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'SYNC_ADMIN_CAPABILITY' && inputs.capability == 'content-ops' }}
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-admin-content
+    defaults:
+      run:
+        working-directory: backend
+        shell: bash
+    env:
+      ADMIN_CAPABILITY_SECRET: ${{ secrets.ADMIN_CONTENT_SECRET }}
+      WORKER_SECRET_NAME: ADMIN_CONTENT_SECRET
+      OWN_CAPABILITY: content-ops
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Validate scoped rotation configuration
+        run: |
+          missing=0
+          for name in ADMIN_CAPABILITY_SECRET CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required scoped rotation setting: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit "$missing"; fi
+          echo "::add-mask::$ADMIN_CAPABILITY_SECRET"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Sync selected capability secret to Cloudflare
+        run: printf '%s' "$ADMIN_CAPABILITY_SECRET" | npx wrangler secret put "$WORKER_SECRET_NAME" --name astrology-backend
+
+      - name: Verify capability matrix row
+        run: |
+          set -euo pipefail
+          content_url="${BACKEND_BASE_URL%/}/api/v1/admin/content/backfill"
+          notification_url="${BACKEND_BASE_URL%/}/api/v1/notifications/send"
+          play_read_url="${BACKEND_BASE_URL%/}/api/v1/admin/play/subscriptions"
+          play_write_url="${BACKEND_BASE_URL%/}/api/v1/admin/play/subscriptions/verification-id"
+
+          request_json() {
+            local name="$1"
+            local method="$2"
+            local url="$3"
+            local data="$4"
+            local file="$RUNNER_TEMP/admin-capability-${name}.json"
+            curl --silent --show-error \
+              --output "$file" \
+              --write-out '%{http_code}' \
+              --request "$method" \
+              --header 'content-type: application/json' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" \
+              --data "$data" \
+              "$url" || true
+          }
+
+          assert_error() {
+            local name="$1"
+            local status="$2"
+            local expected_status="$3"
+            local expected_code="$4"
+            local file="$RUNNER_TEMP/admin-capability-${name}.json"
+            test "$status" = "$expected_status"
+            jq -e --arg code "$expected_code" '.error.code == $code' "$file" > /dev/null
+          }
+
+          content_status="$(request_json content POST "$content_url" 'not-json')"
+          notification_status="$(request_json notification POST "$notification_url" 'not-json')"
+          play_write_status="$(request_json play-write PATCH "$play_write_url" '{}')"
+
+          if [ "$OWN_CAPABILITY" = 'play-read' ]; then
+            play_read_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" "$play_read_url" || true)"
+            test "$play_read_status" = '200'
+          else
+            play_read_status="$(curl --silent --show-error \
+              --output "$RUNNER_TEMP/admin-capability-play-read.json" \
+              --write-out '%{http_code}' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" \
+              "$play_read_url" || true)"
+            assert_error play-read "$play_read_status" 403 FORBIDDEN
+          fi
+
+          if [ "$OWN_CAPABILITY" = 'content-ops' ]; then
+            assert_error content "$content_status" 400 INVALID_REQUEST
+          else
+            assert_error content "$content_status" 403 FORBIDDEN
+          fi
+          if [ "$OWN_CAPABILITY" = 'notification-ops' ]; then
+            assert_error notification "$notification_status" 400 INVALID_REQUEST
+          else
+            assert_error notification "$notification_status" 403 FORBIDDEN
+          fi
+          if [ "$OWN_CAPABILITY" = 'play-write' ]; then
+            assert_error play-write "$play_write_status" 400 INVALID_REQUEST
+          else
+            assert_error play-write "$play_write_status" 403 FORBIDDEN
+          fi
+
+          echo 'rowReady=true' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove capability verification response files
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/admin-capability-*.json
+  notification:
+    if: ${{ github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'SYNC_ADMIN_CAPABILITY' && inputs.capability == 'notification-ops' }}
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-admin-notification
+    defaults:
+      run:
+        working-directory: backend
+        shell: bash
+    env:
+      ADMIN_CAPABILITY_SECRET: ${{ secrets.ADMIN_NOTIFICATION_SECRET }}
+      WORKER_SECRET_NAME: ADMIN_NOTIFICATION_SECRET
+      OWN_CAPABILITY: notification-ops
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Validate scoped rotation configuration
+        run: |
+          missing=0
+          for name in ADMIN_CAPABILITY_SECRET CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required scoped rotation setting: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit "$missing"; fi
+          echo "::add-mask::$ADMIN_CAPABILITY_SECRET"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Sync selected capability secret to Cloudflare
+        run: printf '%s' "$ADMIN_CAPABILITY_SECRET" | npx wrangler secret put "$WORKER_SECRET_NAME" --name astrology-backend
+
+      - name: Verify capability matrix row
+        run: |
+          set -euo pipefail
+          content_url="${BACKEND_BASE_URL%/}/api/v1/admin/content/backfill"
+          notification_url="${BACKEND_BASE_URL%/}/api/v1/notifications/send"
+          play_read_url="${BACKEND_BASE_URL%/}/api/v1/admin/play/subscriptions"
+          play_write_url="${BACKEND_BASE_URL%/}/api/v1/admin/play/subscriptions/verification-id"
+
+          request_json() {
+            local name="$1"
+            local method="$2"
+            local url="$3"
+            local data="$4"
+            local file="$RUNNER_TEMP/admin-capability-${name}.json"
+            curl --silent --show-error \
+              --output "$file" \
+              --write-out '%{http_code}' \
+              --request "$method" \
+              --header 'content-type: application/json' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" \
+              --data "$data" \
+              "$url" || true
+          }
+
+          assert_error() {
+            local name="$1"
+            local status="$2"
+            local expected_status="$3"
+            local expected_code="$4"
+            local file="$RUNNER_TEMP/admin-capability-${name}.json"
+            test "$status" = "$expected_status"
+            jq -e --arg code "$expected_code" '.error.code == $code' "$file" > /dev/null
+          }
+
+          content_status="$(request_json content POST "$content_url" 'not-json')"
+          notification_status="$(request_json notification POST "$notification_url" 'not-json')"
+          play_write_status="$(request_json play-write PATCH "$play_write_url" '{}')"
+
+          if [ "$OWN_CAPABILITY" = 'play-read' ]; then
+            play_read_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" "$play_read_url" || true)"
+            test "$play_read_status" = '200'
+          else
+            play_read_status="$(curl --silent --show-error \
+              --output "$RUNNER_TEMP/admin-capability-play-read.json" \
+              --write-out '%{http_code}' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" \
+              "$play_read_url" || true)"
+            assert_error play-read "$play_read_status" 403 FORBIDDEN
+          fi
+
+          if [ "$OWN_CAPABILITY" = 'content-ops' ]; then
+            assert_error content "$content_status" 400 INVALID_REQUEST
+          else
+            assert_error content "$content_status" 403 FORBIDDEN
+          fi
+          if [ "$OWN_CAPABILITY" = 'notification-ops' ]; then
+            assert_error notification "$notification_status" 400 INVALID_REQUEST
+          else
+            assert_error notification "$notification_status" 403 FORBIDDEN
+          fi
+          if [ "$OWN_CAPABILITY" = 'play-write' ]; then
+            assert_error play-write "$play_write_status" 400 INVALID_REQUEST
+          else
+            assert_error play-write "$play_write_status" 403 FORBIDDEN
+          fi
+
+          echo 'rowReady=true' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove capability verification response files
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/admin-capability-*.json
+  play_read:
+    if: ${{ github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'SYNC_ADMIN_CAPABILITY' && inputs.capability == 'play-read' }}
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-admin-play-read
+    defaults:
+      run:
+        working-directory: backend
+        shell: bash
+    env:
+      ADMIN_CAPABILITY_SECRET: ${{ secrets.ADMIN_PLAY_READ_SECRET }}
+      WORKER_SECRET_NAME: ADMIN_PLAY_READ_SECRET
+      OWN_CAPABILITY: play-read
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Validate scoped rotation configuration
+        run: |
+          missing=0
+          for name in ADMIN_CAPABILITY_SECRET CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required scoped rotation setting: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit "$missing"; fi
+          echo "::add-mask::$ADMIN_CAPABILITY_SECRET"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Sync selected capability secret to Cloudflare
+        run: printf '%s' "$ADMIN_CAPABILITY_SECRET" | npx wrangler secret put "$WORKER_SECRET_NAME" --name astrology-backend
+
+      - name: Verify capability matrix row
+        run: |
+          set -euo pipefail
+          content_url="${BACKEND_BASE_URL%/}/api/v1/admin/content/backfill"
+          notification_url="${BACKEND_BASE_URL%/}/api/v1/notifications/send"
+          play_read_url="${BACKEND_BASE_URL%/}/api/v1/admin/play/subscriptions"
+          play_write_url="${BACKEND_BASE_URL%/}/api/v1/admin/play/subscriptions/verification-id"
+
+          request_json() {
+            local name="$1"
+            local method="$2"
+            local url="$3"
+            local data="$4"
+            local file="$RUNNER_TEMP/admin-capability-${name}.json"
+            curl --silent --show-error \
+              --output "$file" \
+              --write-out '%{http_code}' \
+              --request "$method" \
+              --header 'content-type: application/json' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" \
+              --data "$data" \
+              "$url" || true
+          }
+
+          assert_error() {
+            local name="$1"
+            local status="$2"
+            local expected_status="$3"
+            local expected_code="$4"
+            local file="$RUNNER_TEMP/admin-capability-${name}.json"
+            test "$status" = "$expected_status"
+            jq -e --arg code "$expected_code" '.error.code == $code' "$file" > /dev/null
+          }
+
+          content_status="$(request_json content POST "$content_url" 'not-json')"
+          notification_status="$(request_json notification POST "$notification_url" 'not-json')"
+          play_write_status="$(request_json play-write PATCH "$play_write_url" '{}')"
+
+          if [ "$OWN_CAPABILITY" = 'play-read' ]; then
+            play_read_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" "$play_read_url" || true)"
+            test "$play_read_status" = '200'
+          else
+            play_read_status="$(curl --silent --show-error \
+              --output "$RUNNER_TEMP/admin-capability-play-read.json" \
+              --write-out '%{http_code}' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" \
+              "$play_read_url" || true)"
+            assert_error play-read "$play_read_status" 403 FORBIDDEN
+          fi
+
+          if [ "$OWN_CAPABILITY" = 'content-ops' ]; then
+            assert_error content "$content_status" 400 INVALID_REQUEST
+          else
+            assert_error content "$content_status" 403 FORBIDDEN
+          fi
+          if [ "$OWN_CAPABILITY" = 'notification-ops' ]; then
+            assert_error notification "$notification_status" 400 INVALID_REQUEST
+          else
+            assert_error notification "$notification_status" 403 FORBIDDEN
+          fi
+          if [ "$OWN_CAPABILITY" = 'play-write' ]; then
+            assert_error play-write "$play_write_status" 400 INVALID_REQUEST
+          else
+            assert_error play-write "$play_write_status" 403 FORBIDDEN
+          fi
+
+          echo 'rowReady=true' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove capability verification response files
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/admin-capability-*.json
+  play_write:
+    if: ${{ github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'SYNC_ADMIN_CAPABILITY' && inputs.capability == 'play-write' }}
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-admin-play-write
+    defaults:
+      run:
+        working-directory: backend
+        shell: bash
+    env:
+      ADMIN_CAPABILITY_SECRET: ${{ secrets.ADMIN_PLAY_WRITE_SECRET }}
+      WORKER_SECRET_NAME: ADMIN_PLAY_WRITE_SECRET
+      OWN_CAPABILITY: play-write
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Validate scoped rotation configuration
+        run: |
+          missing=0
+          for name in ADMIN_CAPABILITY_SECRET CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required scoped rotation setting: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then exit "$missing"; fi
+          echo "::add-mask::$ADMIN_CAPABILITY_SECRET"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Sync selected capability secret to Cloudflare
+        run: printf '%s' "$ADMIN_CAPABILITY_SECRET" | npx wrangler secret put "$WORKER_SECRET_NAME" --name astrology-backend
+
+      - name: Verify capability matrix row
+        run: |
+          set -euo pipefail
+          content_url="${BACKEND_BASE_URL%/}/api/v1/admin/content/backfill"
+          notification_url="${BACKEND_BASE_URL%/}/api/v1/notifications/send"
+          play_read_url="${BACKEND_BASE_URL%/}/api/v1/admin/play/subscriptions"
+          play_write_url="${BACKEND_BASE_URL%/}/api/v1/admin/play/subscriptions/verification-id"
+
+          request_json() {
+            local name="$1"
+            local method="$2"
+            local url="$3"
+            local data="$4"
+            local file="$RUNNER_TEMP/admin-capability-${name}.json"
+            curl --silent --show-error \
+              --output "$file" \
+              --write-out '%{http_code}' \
+              --request "$method" \
+              --header 'content-type: application/json' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" \
+              --data "$data" \
+              "$url" || true
+          }
+
+          assert_error() {
+            local name="$1"
+            local status="$2"
+            local expected_status="$3"
+            local expected_code="$4"
+            local file="$RUNNER_TEMP/admin-capability-${name}.json"
+            test "$status" = "$expected_status"
+            jq -e --arg code "$expected_code" '.error.code == $code' "$file" > /dev/null
+          }
+
+          content_status="$(request_json content POST "$content_url" 'not-json')"
+          notification_status="$(request_json notification POST "$notification_url" 'not-json')"
+          play_write_status="$(request_json play-write PATCH "$play_write_url" '{}')"
+
+          if [ "$OWN_CAPABILITY" = 'play-read' ]; then
+            play_read_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" "$play_read_url" || true)"
+            test "$play_read_status" = '200'
+          else
+            play_read_status="$(curl --silent --show-error \
+              --output "$RUNNER_TEMP/admin-capability-play-read.json" \
+              --write-out '%{http_code}' \
+              --header "x-admin-secret: $ADMIN_CAPABILITY_SECRET" \
+              "$play_read_url" || true)"
+            assert_error play-read "$play_read_status" 403 FORBIDDEN
+          fi
+
+          if [ "$OWN_CAPABILITY" = 'content-ops' ]; then
+            assert_error content "$content_status" 400 INVALID_REQUEST
+          else
+            assert_error content "$content_status" 403 FORBIDDEN
+          fi
+          if [ "$OWN_CAPABILITY" = 'notification-ops' ]; then
+            assert_error notification "$notification_status" 400 INVALID_REQUEST
+          else
+            assert_error notification "$notification_status" 403 FORBIDDEN
+          fi
+          if [ "$OWN_CAPABILITY" = 'play-write' ]; then
+            assert_error play-write "$play_write_status" 400 INVALID_REQUEST
+          else
+            assert_error play-write "$play_write_status" 403 FORBIDDEN
+          fi
+
+          echo 'rowReady=true' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove capability verification response files
+        if: always()
+        run: rm -f "$RUNNER_TEMP"/admin-capability-*.json

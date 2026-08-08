@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 
-import { enforceRateLimit } from '@/services/cache';
+import { enforceKvRateLimit } from '@/services/rateLimit';
 import {
   AdmobSsvVerificationError,
   type AdmobSsvErrorCode,
@@ -117,7 +117,7 @@ export function registerRewardRoutes<E extends RewardEnv>(
   app.post('/rewards/prepare', async (c) => {
     const body = validateRewardPrepareBody(await c.req.json());
     const auth = c.get('auth');
-    const allowed = await enforceRateLimit(
+    const allowed = await enforceKvRateLimit(
       c.env,
       `reward-prepare:${auth.userId}`,
       PREPARE_RATE_LIMIT,

@@ -4,14 +4,13 @@ import { Hono } from 'hono';
 import { ZodError } from 'zod';
 
 import {
-  adminSecretMiddleware,
   contentCacheBypassMiddleware,
   jwtAuthMiddleware
 } from '@/middleware/auth';
 import { corsMiddleware } from '@/middleware/cors';
 import { renderAccountDeletion, renderPrivacyPolicy, renderTermsOfUse } from '@/pages/legal';
 import { parseShareSign, renderCompatibilityShare, renderDailyShare } from '@/pages/share';
-import { enforceRateLimit } from '@/services/cache';
+import { enforceKvRateLimit } from '@/services/rateLimit';
 import type { AppBindings } from '@/types';
 import type { RewardRouteDependencies } from '@/workers/reward';
 import { validateTrackEventBody } from '@/utils/validators';
@@ -42,7 +41,6 @@ export function createApp(options: CreateAppOptions = {}) {
   app.use('*', corsMiddleware);
   app.use('*', async (c, next) => {
     c.set('requestId', crypto.randomUUID());
-    c.set('isAdmin', false);
     c.set('bypassCache', false);
     c.header('x-request-id', c.get('requestId'));
     await next();
@@ -120,7 +118,7 @@ export function createApp(options: CreateAppOptions = {}) {
   apiRoutes.use('/content/*', jwtAuthMiddleware);
   apiRoutes.use('/content/*', contentCacheBypassMiddleware);
   apiRoutes.use('/content/*', async (c, next) => {
-    const allowed = await enforceRateLimit(
+    const allowed = await enforceKvRateLimit(
       c.env,
       buildContentRateLimitKey(c.req.path, c.get('auth').userId),
       60,
@@ -132,7 +130,7 @@ export function createApp(options: CreateAppOptions = {}) {
     await next();
   });
   apiRoutes.use('/chart/*', async (c, next) => {
-    const allowed = await enforceRateLimit(
+    const allowed = await enforceKvRateLimit(
       c.env,
       `chart:${c.get('auth').userId}`,
       30,
@@ -171,7 +169,6 @@ export function createApp(options: CreateAppOptions = {}) {
     return c.json({ ok: true });
   });
 
-  apiAdminRoutes.use('*', adminSecretMiddleware);
   registerContentAdminRoutes(apiAdminRoutes);
   registerNotificationRoutes(apiAdminRoutes);
   registerSubscriptionAdminRoutes(apiAdminRoutes);

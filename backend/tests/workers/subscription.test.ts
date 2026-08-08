@@ -655,7 +655,7 @@ describe('subscription worker', () => {
     const response = await createApp().request(
       '/api/v1/admin/subscriptions/audit',
       {
-        headers: { 'x-admin-secret': 'admin-secret' }
+        headers: { 'x-admin-secret': 'play-write-secret' }
       },
       env
     );

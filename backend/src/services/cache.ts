@@ -46,22 +46,3 @@ export async function getCachedJsonContent<T>(
   });
   return payload;
 }
-
-export async function enforceRateLimit(
-  env: Pick<Env, 'CACHE'>,
-  key: string,
-  limit: number,
-  windowSeconds: number
-): Promise<boolean> {
-  const fullKey = `ratelimit:${key}`;
-  const current = Number((await env.CACHE.get(fullKey)) ?? '0');
-
-  if (current >= limit) {
-    return false;
-  }
-
-  await env.CACHE.put(fullKey, String(current + 1), {
-    expirationTtl: windowSeconds
-  });
-  return true;
-}

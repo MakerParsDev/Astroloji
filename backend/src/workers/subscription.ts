@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 
-import { enforceRateLimit } from '@/services/cache';
+import { enforceKvRateLimit } from '@/services/rateLimit';
 import { verifyPlayRtdnIdentity } from '@/services/playRtdnAuth';
 import {
   claimPlayRtdnMessage,
@@ -21,7 +21,7 @@ import {
   replyToPlayReview,
   verifySubscriptionPurchase
 } from '@/services/playBilling';
-import { requirePlayWebhookAuth } from '@/middleware/auth';
+import { requireAdminCapability, requirePlayWebhookAuth } from '@/middleware/auth';
 import type {
   AppBindings,
   GooglePlaySubscription,
@@ -391,7 +391,7 @@ export function registerSubscriptionRoutes(
 ) {
   app.post('/subscriptions/verify', async (c) => {
     const userId = c.get('auth').userId;
-    const allowed = await enforceRateLimit(c.env, `verify:${userId}`, 5, 60);
+    const allowed = await enforceKvRateLimit(c.env, `verify:${userId}`, 5, 60);
     if (!allowed) {
       return jsonError(429, 'RATE_LIMITED', 'Too many subscription verify attempts.');
     }
@@ -730,7 +730,10 @@ export function registerSubscriptionRoutes(
 }
 
 export function registerSubscriptionAdminRoutes(app: Hono<AppBindings>) {
-  app.get('/admin/play/subscriptions', async (c) => {
+  app.get(
+    '/admin/play/subscriptions',
+    requireAdminCapability('play-read', 'play.subscription_list'),
+    async (c) => {
     const packageName = c.req.query('package_name') ?? c.env.PACKAGE_NAME;
     const subscriptions = await listPlaySubscriptions(c.env, packageName);
     return c.json({
@@ -738,9 +741,13 @@ export function registerSubscriptionAdminRoutes(app: Hono<AppBindings>) {
       package_name: packageName,
       subscriptions
     });
-  });
+    }
+  );
 
-  app.patch('/admin/play/subscriptions/:productId', async (c) => {
+  app.patch(
+    '/admin/play/subscriptions/:productId',
+    requireAdminCapability('play-write', 'play.subscription_update'),
+    async (c) => {
     const productId = c.req.param('productId');
     const body = (await c.req.json()) as {
       apply?: boolean;
@@ -779,9 +786,13 @@ export function registerSubscriptionAdminRoutes(app: Hono<AppBindings>) {
       package_name: packageName,
       result
     });
-  });
+    }
+  );
 
-  app.get('/admin/subscriptions/audit', async (c) => {
+  app.get(
+    '/admin/subscriptions/audit',
+    requireAdminCapability('play-write', 'play.subscription_audit'),
+    async (c) => {
     const pending = (await c.env.DB
       .prepare(
         `SELECT DISTINCT purchase_token, user_id
@@ -829,9 +840,13 @@ export function registerSubscriptionAdminRoutes(app: Hono<AppBindings>) {
       audited: results.length,
       results
     });
-  });
+    }
+  );
 
-  app.get('/admin/play/reviews', async (c) => {
+  app.get(
+    '/admin/play/reviews',
+    requireAdminCapability('play-read', 'play.review_list'),
+    async (c) => {
     const packageName = c.req.query('package_name') ?? c.env.PACKAGE_NAME;
     const maxResults = Number(c.req.query('max_results') ?? '20');
     const reviews = await listPlayReviews(c.env, packageName, Number.isFinite(maxResults) ? maxResults : 20);
@@ -840,9 +855,13 @@ export function registerSubscriptionAdminRoutes(app: Hono<AppBindings>) {
       package_name: packageName,
       reviews
     });
-  });
+    }
+  );
 
-  app.post('/admin/play/reviews/:reviewId/reply', async (c) => {
+  app.post(
+    '/admin/play/reviews/:reviewId/reply',
+    requireAdminCapability('play-write', 'play.review_reply'),
+    async (c) => {
     const reviewId = c.req.param('reviewId');
     const body = (await c.req.json()) as {
       apply?: boolean;
@@ -873,5 +892,6 @@ export function registerSubscriptionAdminRoutes(app: Hono<AppBindings>) {
       package_name: packageName,
       result
     });
-  });
+    }
+  );
 }

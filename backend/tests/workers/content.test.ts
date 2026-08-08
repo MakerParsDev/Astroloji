@@ -207,7 +207,7 @@ describe('content filters', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-admin-secret': 'admin-secret'
+          'x-admin-secret': 'content-secret'
         },
         body: JSON.stringify({
           seed_date: '2026-04-10',
@@ -245,7 +245,7 @@ describe('content filters', () => {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-admin-secret': 'admin-secret'
+          'x-admin-secret': 'content-secret'
         },
         body: JSON.stringify({
           seed_date: '2026-04-10',

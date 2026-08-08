@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 
+import { requireAdminCapability } from '@/middleware/auth';
 import { getCachedJsonContent } from '@/services/cache';
 import { assertSeedQuality, buildDocumentsForSeed } from '@/utils/contentSeed';
 import type { ContentSeedOptions, ContentSeedUpload } from '@/utils/contentSeed';
@@ -251,11 +252,15 @@ export function registerContentRoutes(app: Hono<AppBindings>) {
       language,
       ...filterCompatibilityContent(document, c.get('auth').isPremium)
     });
-  });
+    }
+  );
 }
 
 export function registerContentAdminRoutes(app: Hono<AppBindings>) {
-  app.post('/admin/content/backfill', async (c) => {
+  app.post(
+    '/admin/content/backfill',
+    requireAdminCapability('content-ops', 'content.backfill'),
+    async (c) => {
     const request = validateContentBackfillBody(await c.req.json());
     const uploads = await backfillContentDocuments(c.env, request);
 
