@@ -28,6 +28,9 @@ test('issue #7 evidence is complete and sanitized', () => {
 
   assert.doesNotMatch(text, /x-admin-secret/i);
   assert.doesNotMatch(text, /\bADMIN(?:_[A-Z]+)*_SECRET\s*=/);
+  assert.doesNotMatch(text, /\badmin(?:_[a-z]+)*_secret\s*[:=]/i);
+  assert.doesNotMatch(text, /\b(?:GITHUB_TOKEN|DOPPLER_TOKEN|CLOUDFLARE_API_TOKEN|JWT_SECRET)\s*[:=]/i);
+  assert.doesNotMatch(text, /\bauthorization\s*:\s*bearer\b/i);
   assert.doesNotMatch(text, /\b(?:\d{1,3}\.){3}\d{1,3}\b/);
   assert.doesNotMatch(text, /(?:\b[0-9a-f]{1,4}:){2,}[0-9a-f:]*\b/i);
   assert.doesNotMatch(text, /ratelimit:|RateLimitBucket|Durable Object|bucket\s+id|object\s+id/i);
@@ -36,5 +39,7 @@ test('issue #7 evidence is complete and sanitized', () => {
   assert.doesNotMatch(text, /request[_ ]?id|synthetic (?:user|principal)|jwt\b/i);
   assert.doesNotMatch(text, /notification.*body|review.*body/i);
   assert.doesNotMatch(text, /\b(?:limit|quota|window)\s*[=:]\s*\d+/i);
+  assert.doesNotMatch(text, /\b(?:windowSeconds|rateLimit|requestsPerWindow)\s*[:=]\s*["']?\d+/i);
+  assert.doesNotMatch(text, /["'](?:limit|quota|window(?:Seconds)?)["']\s*:\s*["']?\d+/i);
   assert.doesNotMatch(text, /\d+\s+requests?\s+(?:per|\/)/i);
 });
