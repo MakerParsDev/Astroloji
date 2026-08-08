@@ -33,3 +33,11 @@ ALLOWED_ORIGINS = "https://astrology.parsfilo.com"
 
 [triggers]
 crons = ["0 * * * *"]
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimitBucket"
+
+[exports.RateLimitBucket]
+type = "durable-object"
+storage = "sqlite"

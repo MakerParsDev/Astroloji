@@ -43,6 +43,7 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
         return;
       }
     } as unknown as KVNamespace,
+    RATE_LIMITER: {} as Env['RATE_LIMITER'],
     ENVIRONMENT: 'test',
     PACKAGE_NAME: 'com.example.astrology',
     PREMIUM_MONTHLY_PRODUCT_ID: 'premium_monthly',

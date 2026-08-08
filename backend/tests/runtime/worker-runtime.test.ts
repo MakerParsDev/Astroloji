@@ -1,7 +1,22 @@
+import { readFileSync } from 'node:fs';
+
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { unstable_dev } from 'wrangler';
 
 let worker: Awaited<ReturnType<typeof unstable_dev>>;
+
+describe("worker durable object lifecycle contract", () => {
+  it("declares the inert SQLite rate limiter namespace and export", () => {
+    const config = readFileSync("wrangler.toml", "utf8");
+
+    expect(config).toContain("[[durable_objects.bindings]]");
+    expect(config).toMatch(/name\s*=\s*"RATE_LIMITER"/);
+    expect(config).toMatch(/class_name\s*=\s*"RateLimitBucket"/);
+    expect(config).toContain("[exports.RateLimitBucket]");
+    expect(config).toMatch(/type\s*=\s*"durable-object"/);
+    expect(config).toMatch(/storage\s*=\s*"sqlite"/);
+  });
+});
 
 describe('worker runtime routes', () => {
   beforeAll(async () => {

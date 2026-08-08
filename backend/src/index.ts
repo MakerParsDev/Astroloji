@@ -1,3 +1,5 @@
+export { RateLimitBucket } from '@/durable/RateLimitBucket';
+
 import { Hono } from 'hono';
 import { ZodError } from 'zod';
 
