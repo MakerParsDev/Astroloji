@@ -12,6 +12,14 @@ export interface RateLimitPolicyInput {
   windowSeconds: number;
 }
 
+export const RATE_LIMIT_POLICIES = {
+  chart: {
+    routeClass: 'chart',
+    limit: 30,
+    windowSeconds: 60
+  }
+} as const;
+
 export type StrictRateLimitResult =
   | { status: 'ok'; decision: RateLimitDecision }
   | { status: 'unavailable' };

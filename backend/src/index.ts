@@ -10,7 +10,7 @@ import {
 import { corsMiddleware } from '@/middleware/cors';
 import { renderAccountDeletion, renderPrivacyPolicy, renderTermsOfUse } from '@/pages/legal';
 import { parseShareSign, renderCompatibilityShare, renderDailyShare } from '@/pages/share';
-import { enforceStrictRateLimit, mapStrictRateLimitResult } from '@/services/rateLimit';
+import { enforceStrictRateLimit, mapStrictRateLimitResult, RATE_LIMIT_POLICIES } from '@/services/rateLimit';
 import type { AppBindings } from '@/types';
 import type { RewardRouteDependencies } from '@/workers/reward';
 import { validateTrackEventBody } from '@/utils/validators';
@@ -131,8 +131,15 @@ export function createApp(options: CreateAppOptions = {}) {
     await next();
   });
   apiRoutes.use('/chart/*', async (c, next) => {
+    const chartPolicy = RATE_LIMIT_POLICIES.chart;
     const rateLimitFailure = mapStrictRateLimitResult(
-      await enforceStrictRateLimit(c.env, 'chart', c.get('auth').userId, 30, 60)
+      await enforceStrictRateLimit(
+        c.env,
+        chartPolicy.routeClass,
+        c.get('auth').userId,
+        chartPolicy.limit,
+        chartPolicy.windowSeconds
+      )
     );
     if (rateLimitFailure) return rateLimitFailure;
     await next();
