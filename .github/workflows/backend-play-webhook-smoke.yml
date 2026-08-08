@@ -34,6 +34,12 @@ jobs:
           test "$unauthorized_status" = "403"
           test "$query_token_status" = "403"
           test "$header_secret_status" = "403"
+          for response in \
+            "$RUNNER_TEMP/play-webhook-unauthorized.json" \
+            "$RUNNER_TEMP/play-webhook-query.json" \
+            "$RUNNER_TEMP/play-webhook-header.json"; do
+            jq -e '.error.code == "FORBIDDEN"' "$response" >/dev/null
+          done
           echo "Play RTDN OIDC-only boundary verified: missing=403 query=403 header=403."
 
       - name: Publish smoke summary

@@ -78,4 +78,8 @@ test('Phase B smoke rejects missing, query-token, and header-secret authenticati
   assert.match(smoke, /test "\$unauthorized_status" = "403"/);
   assert.match(smoke, /test "\$query_token_status" = "403"/);
   assert.match(smoke, /test "\$header_secret_status" = "403"/);
+  assert.match(smoke, /jq -e '\.error\.code == \"FORBIDDEN\"'/);
+  assert.match(smoke, /play-webhook-unauthorized\.json/);
+  assert.match(smoke, /play-webhook-query\.json/);
+  assert.match(smoke, /play-webhook-header\.json/);
 });
