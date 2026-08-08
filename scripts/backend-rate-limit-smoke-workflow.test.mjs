@@ -27,6 +27,12 @@ test('smoke isolates one synthetic user and cleans it unconditionally', () => {
 });
 
 test('smoke loads only bounded verification credentials and publishes boolean evidence', () => {
+  assert.match(workflow, /DOPPLER_VERSION: 3\.76\.1/);
+  assert.match(workflow, /DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2/);
+  assert.match(workflow, /sha256sum --check/);
+  assert.doesNotMatch(workflow, /cli\.doppler\.com\/install\.sh/);
+  assert.doesNotMatch(workflow, /^\s{6}DOPPLER_TOKEN:/m);
+  assert.equal((workflow.match(/DOPPLER_TOKEN: \$\{\{ secrets\.DOPPLER_TOKEN \}\}/g) ?? []).length, 1);
   assert.match(workflow, /doppler secrets get JWT_SECRET/);
   assert.match(workflow, /doppler secrets get CLOUDFLARE_API_TOKEN/);
   assert.doesNotMatch(workflow, /ADMIN_SECRET|ADMIN_CONTENT_SECRET|ADMIN_NOTIFICATION_SECRET|ADMIN_PLAY_READ_SECRET|ADMIN_PLAY_WRITE_SECRET/);

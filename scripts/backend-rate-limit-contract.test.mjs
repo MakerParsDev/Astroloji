@@ -22,7 +22,14 @@ test('runtime rate limiting has no KV compatibility path', () => {
 
 test('transition worker shares the main RateLimitBucket namespace', () => {
   const config = read('backend/wrangler.transition.toml');
-  assert.match(config, /\[\[durable_objects\.bindings\]\][\s\S]*?name\s*=\s*"RATE_LIMITER"[\s\S]*?class_name\s*=\s*"RateLimitBucket"[\s\S]*?script_name\s*=\s*"astrology-backend"/);
+  const bindingBlocks = config
+    .split('[[durable_objects.bindings]]')
+    .slice(1)
+    .map((section) => section.split(/\n\[\[/, 1)[0]);
+  const rateLimiterBinding = bindingBlocks.find((block) => /(?:^|\n)name\s*=\s*"RATE_LIMITER"(?:\n|$)/.test(block));
+  assert.ok(rateLimiterBinding, 'RATE_LIMITER durable object binding must exist.');
+  assert.match(rateLimiterBinding, /(?:^|\n)class_name\s*=\s*"RateLimitBucket"(?:\n|$)/);
+  assert.match(rateLimiterBinding, /(?:^|\n)script_name\s*=\s*"astrology-backend"(?:\n|$)/);
   assert.doesNotMatch(config, /\[exports\.RateLimitBucket\]/);
 
   const transitionSource = read('backend/src/transition/index.ts');

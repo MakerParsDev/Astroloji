@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { RATE_LIMIT_POLICIES } from '@/services/rateLimit';
 import {
   classifyLiveRateLimitResponses,
+  fetchChartProbe,
+  fetchProductionHealthDate,
   type LiveRateLimitResponse
 } from '../../scripts/verify-rate-limit-production';
 
@@ -61,5 +63,33 @@ describe('classifyLiveRateLimitResponses', () => {
     const bad429 = validBurst();
     bad429[bad429.length - 1] = { status: 429, retryAfter: '1', bodyText: 'rate limited' };
     expect(classifyLiveRateLimitResponses(bad429).strictRateLimitMatched).toBe(false);
+  });
+});
+
+
+describe('production request deadlines', () => {
+  function createStalledFetch() {
+    return vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal;
+        if (!signal) {
+          reject(new Error('missing abort signal'));
+          return;
+        }
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      })
+    );
+  }
+
+  it('aborts the production health preflight at its bounded deadline', async () => {
+    const stalledFetch = createStalledFetch();
+    await expect(fetchProductionHealthDate('https://astrology.parsfilo.com', stalledFetch, 5)).rejects.toBeDefined();
+    expect(stalledFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('aborts a chart probe at its bounded deadline', async () => {
+    const stalledFetch = createStalledFetch();
+    await expect(fetchChartProbe('https://astrology.parsfilo.com', 'ephemeral-token', stalledFetch, 5)).rejects.toBeDefined();
+    expect(stalledFetch).toHaveBeenCalledTimes(1);
   });
 });

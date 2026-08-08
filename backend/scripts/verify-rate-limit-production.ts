@@ -8,6 +8,7 @@ import { RATE_LIMIT_POLICIES } from '../src/services/rateLimit';
 const PRODUCTION_BASE_URL = 'https://astrology.parsfilo.com';
 const MIN_BURST_WINDOW_MS = 8_000;
 const BOUNDARY_SETTLE_MS = 300;
+const PRODUCTION_REQUEST_TIMEOUT_MS = 10_000;
 
 export interface LiveRateLimitResponse {
   status: number;
@@ -88,10 +89,43 @@ async function createEphemeralJwt(userId: string, firebaseUid: string, secret: s
     .sign(new TextEncoder().encode(secret));
 }
 
-async function alignWithFixedWindow(baseUrl: string): Promise<void> {
-  const response = await fetch(`${baseUrl}/api/v1/health`, { method: 'GET' });
+export async function fetchProductionHealthDate(
+  baseUrl: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = PRODUCTION_REQUEST_TIMEOUT_MS
+): Promise<string | null> {
+  const response = await fetchImpl(`${baseUrl}/api/v1/health`, {
+    method: 'GET',
+    signal: AbortSignal.timeout(timeoutMs)
+  });
   if (!response.ok) throw new Error('Production health preflight failed.');
-  const dateHeader = response.headers.get('date');
+  return response.headers.get('date');
+}
+
+export async function fetchChartProbe(
+  baseUrl: string,
+  token: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = PRODUCTION_REQUEST_TIMEOUT_MS
+): Promise<LiveRateLimitResponse> {
+  const response = await fetchImpl(`${baseUrl}/api/v1/chart/natal`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(timeoutMs),
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json'
+    },
+    body: '{}'
+  });
+  return {
+    status: response.status,
+    retryAfter: response.headers.get('retry-after'),
+    bodyText: await response.text()
+  };
+}
+
+async function alignWithFixedWindow(baseUrl: string): Promise<void> {
+  const dateHeader = await fetchProductionHealthDate(baseUrl);
   const serverNow = dateHeader ? Date.parse(dateHeader) : Number.NaN;
   if (!Number.isFinite(serverNow)) throw new Error('Production health response is missing a valid Date header.');
 
@@ -113,21 +147,7 @@ async function runProductionVerification(): Promise<void> {
   const token = await createEphemeralJwt(userId, firebaseUid, jwtSecret);
   const burstSize = RATE_LIMIT_POLICIES.chart.limit + Math.max(5, Math.ceil(RATE_LIMIT_POLICIES.chart.limit / 4));
   const responses = await Promise.all(
-    Array.from({ length: burstSize }, async (): Promise<LiveRateLimitResponse> => {
-      const response = await fetch(`${baseUrl}/api/v1/chart/natal`, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${token}`,
-          'content-type': 'application/json'
-        },
-        body: '{}'
-      });
-      return {
-        status: response.status,
-        retryAfter: response.headers.get('retry-after'),
-        bodyText: await response.text()
-      };
-    })
+    Array.from({ length: burstSize }, () => fetchChartProbe(baseUrl, token))
   );
 
   const classification = classifyLiveRateLimitResponses(responses);
