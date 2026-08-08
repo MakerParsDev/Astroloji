@@ -318,7 +318,11 @@ Expected: PASS.
 Run (Bash/CI): `git diff --check && git status --short && git diff --name-only e49d27796e56f5ad8673b278bed59231b1024e06...HEAD`
 
 Run (PowerShell): `git diff --check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; git status --short; git diff --name-only e49d27796e56f5ad8673b278bed59231b1024e06...HEAD`
-Expected: clean diff-check; changes limited to design spec/plan, Android theme/components/screens/tests/resources needed by the redesign; no backend files.
+
+Release AAB audit (Bash/CI): `if jar tf Astroloji/app/build/outputs/bundle/release/app-release.aab | grep -Eiq 'screenshotTest|reference/|store_capture'; then echo 'ERROR: screenshot-test assets found in release AAB'; exit 1; fi`
+
+Release AAB audit (PowerShell): `$bundleEntries = & jar tf Astroloji/app/build/outputs/bundle/release/app-release.aab; if ($bundleEntries | Select-String -Pattern 'screenshotTest|reference/|store_capture' -Quiet) { Write-Error 'Screenshot-test assets found in release AAB'; exit 1 }`
+Expected: clean diff-check; changes limited to design spec/plan, Android theme/components/screens/tests/resources needed by the redesign; no backend files; release AAB contains no screenshot-test/reference/store-capture assets.
 
 - [x] **Step 6: Commit any gate-only fixes**
 
@@ -331,3 +335,9 @@ Re-run the full gate from the final immutable head and record the exact commit S
 Bash/CI: `cd Astroloji && ./gradlew detekt ktlintCheck lintDebug :app:testDebugUnitTest :app:validateDebugScreenshotTest :app:assembleDebug :app:bundleRelease -Pandroid.experimental.enableScreenshotTest=true -Pandroid.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE`
 
 PowerShell: `Set-Location Astroloji; .\gradlew.bat detekt ktlintCheck lintDebug :app:testDebugUnitTest :app:validateDebugScreenshotTest :app:assembleDebug :app:bundleRelease -Pandroid.experimental.enableScreenshotTest=true -Pandroid.sync.suppressAgpWarnings=UNSUPPORTED_PROJECT_OPTION_USE`
+
+Then verify the generated release bundle does not contain screenshot-only assets.
+
+Bash/CI: `if jar tf app/build/outputs/bundle/release/app-release.aab | grep -Eiq 'screenshotTest|reference/|store_capture'; then echo 'ERROR: screenshot-test assets found in release AAB'; exit 1; fi`
+
+PowerShell: `$bundleEntries = & jar tf app/build/outputs/bundle/release/app-release.aab; if ($bundleEntries | Select-String -Pattern 'screenshotTest|reference/|store_capture' -Quiet) { Write-Error 'Screenshot-test assets found in release AAB'; exit 1 }`
