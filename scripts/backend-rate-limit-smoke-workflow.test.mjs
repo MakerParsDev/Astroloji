@@ -56,3 +56,10 @@ test('verifier keeps live policy details and sensitive diagnostics private', () 
   assert.match(verifier, /strictRateLimitMatched/);
   assert.match(verifier, /syntheticPrincipalIsolated: true/);
 });
+
+
+test('remote D1 verification uses command mode so JSON output is not polluted by file-upload progress', () => {
+  const commandCalls = workflow.match(/wrangler d1 execute astrology-db --remote --command "\$sql" --json/g) ?? [];
+  assert.equal(commandCalls.length, 2);
+  assert.doesNotMatch(workflow, /wrangler d1 execute astrology-db --remote --file="\$sql" --json/);
+});

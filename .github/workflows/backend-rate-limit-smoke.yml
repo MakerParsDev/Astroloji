@@ -97,17 +97,17 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          sql="$RUNNER_TEMP/rate-limit-insert.sql"
           result="$RUNNER_TEMP/rate-limit-insert.json"
           error_log="$RUNNER_TEMP/rate-limit-insert.err"
-          trap 'rm -f "$sql" "$result" "$error_log"' EXIT
+          trap 'rm -f "$result" "$error_log"' EXIT
           [[ "$VERIFY_USER_ID" =~ ^rate-limit-smoke-[0-9a-f-]{36}$ ]]
           [[ "$VERIFY_FIREBASE_UID" =~ ^rate-limit-smoke-[0-9a-f-]{36}$ ]]
-          cat > "$sql" <<SQL
+          sql="$(cat <<SQL
           INSERT INTO users (id, firebase_uid, sign, language, utc_offset, is_premium, subscription_state, created_at, last_seen_at) VALUES ('$VERIFY_USER_ID', '$VERIFY_FIREBASE_UID', 'aries', 'en', 0, 0, 'none', strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'));
           SELECT COUNT(*) AS synthetic_count FROM users WHERE id = '$VERIFY_USER_ID' AND firebase_uid = '$VERIFY_FIREBASE_UID';
           SQL
-          if ! npx wrangler d1 execute astrology-db --remote --file="$sql" --json > "$result" 2> "$error_log"; then
+          )"
+          if ! npx wrangler d1 execute astrology-db --remote --command "$sql" --json > "$result" 2> "$error_log"; then
             echo 'Synthetic user setup failed.'
             exit 1
           fi
@@ -132,18 +132,18 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          sql="$RUNNER_TEMP/rate-limit-delete.sql"
           result="$RUNNER_TEMP/rate-limit-delete.json"
           error_log="$RUNNER_TEMP/rate-limit-delete.err"
-          trap 'rm -f "$sql" "$result" "$error_log"' EXIT
+          trap 'rm -f "$result" "$error_log"' EXIT
           test -n "${VERIFY_USER_ID:-}"
           test -n "${VERIFY_FIREBASE_UID:-}"
           test -n "${CLOUDFLARE_API_TOKEN:-}"
-          cat > "$sql" <<SQL
+          sql="$(cat <<SQL
           DELETE FROM users WHERE id = '$VERIFY_USER_ID' AND firebase_uid = '$VERIFY_FIREBASE_UID';
           SELECT COUNT(*) AS synthetic_count FROM users WHERE id = '$VERIFY_USER_ID' OR firebase_uid = '$VERIFY_FIREBASE_UID';
           SQL
-          if ! npx wrangler d1 execute astrology-db --remote --file="$sql" --json > "$result" 2> "$error_log"; then
+          )"
+          if ! npx wrangler d1 execute astrology-db --remote --command "$sql" --json > "$result" 2> "$error_log"; then
             echo 'Synthetic user cleanup failed.'
             exit 1
           fi
