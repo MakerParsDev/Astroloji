@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
+import com.parsfilo.astrology.core.ui.components.PremiumSectionHeader
 
 @Composable
 internal fun PremiumActiveCard(
@@ -48,10 +49,8 @@ internal fun PremiumActiveCard(
 @Composable
 internal fun PremiumBenefitsCard() {
     AstrologyCard {
-        Text(
-            text = stringResource(R.string.premium_benefits_title),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
+        PremiumSectionHeader(
+            title = stringResource(R.string.premium_benefits_title),
         )
         premiumFeatureStrings().forEach { feature ->
             Row(
@@ -62,7 +61,7 @@ internal fun PremiumBenefitsCard() {
                 Text(
                     text = "✓",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
                     text = feature,
