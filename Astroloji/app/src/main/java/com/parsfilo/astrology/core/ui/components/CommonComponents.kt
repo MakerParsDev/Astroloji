@@ -235,6 +235,7 @@ fun StreakBadge(
                 androidx.compose.ui.res
                     .pluralStringResource(R.plurals.streak_badge_format, count, count),
             style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
     }

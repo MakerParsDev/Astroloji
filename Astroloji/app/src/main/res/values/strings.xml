@@ -33,6 +33,8 @@
         <item quantity="other">⭐ %1$d days. That is a full cosmic ritual now.</item>
     </plurals>
     <string name="home_weekly_summary">Weekly Summary</string>
+    <string name="home_quick_access">Quick access</string>
+    <string name="home_daily_button">Daily</string>
     <string name="home_weekly_button">Weekly</string>
     <string name="home_monthly_button">Monthly</string>
     <string name="home_personality_button">Personality</string>

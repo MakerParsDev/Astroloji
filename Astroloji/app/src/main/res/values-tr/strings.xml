@@ -33,6 +33,8 @@
         <item quantity="other">⭐ %1$d gün. Artık bu tam bir kozmik ritüel.</item>
     </plurals>
     <string name="home_weekly_summary">Haftalık Özet</string>
+    <string name="home_quick_access">Hızlı erişim</string>
+    <string name="home_daily_button">Günlük</string>
     <string name="home_weekly_button">Haftalık</string>
     <string name="home_monthly_button">Aylık</string>
     <string name="home_personality_button">Kişilik</string>

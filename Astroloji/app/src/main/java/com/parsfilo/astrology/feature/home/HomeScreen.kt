@@ -4,14 +4,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,7 +27,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -42,13 +37,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ads.AdaptiveBannerAd
-import com.parsfilo.astrology.core.ui.components.AstroSectionTitle
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.DetailChip
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
-import com.parsfilo.astrology.core.ui.components.StreakBadge
 import com.parsfilo.astrology.core.util.MoonPhase
 import com.parsfilo.astrology.core.util.MoonPhaseCalculator
 import com.parsfilo.astrology.core.util.TimeUtils
@@ -92,7 +85,6 @@ fun HomeScreen(
                 val configuration = LocalConfiguration.current
                 val language = TimeUtils.normalizeLanguageTag(configuration.locales[0].language)
                 val sign = ZodiacSign.fromKey(profile?.sign ?: "aries")
-                val signName = sign.localizedName(language)
                 val moonPhase =
                     MoonPhaseCalculator.calculate(
                         LocalDate.now(ZoneOffset.ofHours(profile?.utcOffset ?: 0)),
@@ -104,196 +96,45 @@ fun HomeScreen(
                         else -> stringResource(R.string.greeting_evening)
                     }
 
-                AstroSectionTitle(
-                    title = stringResource(R.string.home_greeting_format, greeting, signName),
-                    eyebrow = stringResource(R.string.home_brand),
+                HomePremiumDashboard(
+                    sign = sign,
+                    language = language,
+                    greeting = greeting,
+                    dateLabel = TimeUtils.displayDate(language),
+                    streakCount = uiState.streakCount,
+                    daily = uiState.daily,
+                    onOpenDaily = { onOpenDaily(sign.key) },
+                    onOpenWeekly = { onOpenWeekly(sign.key) },
+                    onOpenMonthly = { onOpenMonthly(sign.key) },
+                    onOpenPersonality = { onOpenPersonality(sign.key) },
+                    onOpenPremium = onOpenPremium,
+                    alertContent =
+                        uiState.profile
+                            ?.subscriptionState
+                            ?.takeIf { it == "grace_period" || it == "on_hold" }
+                            ?.let { subscriptionState ->
+                                {
+                                    SubscriptionWarningCard(
+                                        subscriptionState = subscriptionState,
+                                        onManageSubscription = { openSubscriptionManagement(context) },
+                                    )
+                                }
+                            },
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = TimeUtils.displayDate(language),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    StreakBadge(count = uiState.streakCount)
-                }
-
-                uiState.profile?.subscriptionState?.takeIf { it == "grace_period" || it == "on_hold" }?.let { subscriptionState ->
-                    SubscriptionWarningCard(
-                        subscriptionState = subscriptionState,
-                        onManageSubscription = { openSubscriptionManagement(context) },
-                    )
-                }
 
                 MoonPhaseBar(
                     phase = moonPhase.phase,
                     illuminationPercent = moonPhase.illuminationPercent,
                 )
 
-                uiState.daily?.let { daily ->
-                    AstrologyCard {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(18.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .weight(0.95f)
-                                        .aspectRatio(1f),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                CircularProgressIndicator(
-                                    progress = { daily.energy / 100f },
-                                    modifier = Modifier.fillMaxSize(),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    strokeWidth = 10.dp,
-                                )
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = TimeUtils.formatPercentage(daily.energy, language),
-                                        style = MaterialTheme.typography.displayLarge,
-                                        color = MaterialTheme.colorScheme.secondary,
-                                    )
-                                    Text(
-                                        text = stringResource(R.string.home_energy_label),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-
-                            Column(
-                                modifier = Modifier.weight(1.25f),
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                InsightBar(
-                                    label = stringResource(R.string.compatibility_love_score),
-                                    value = daily.loveScore,
-                                    accent = MaterialTheme.colorScheme.primary,
-                                    language = language,
-                                )
-                                InsightBar(
-                                    label = stringResource(R.string.home_money_label),
-                                    value = daily.moneyScore,
-                                    accent = MaterialTheme.colorScheme.secondary,
-                                    language = language,
-                                )
-                                InsightBar(
-                                    label = stringResource(R.string.compatibility_work_score),
-                                    value = daily.careerScore,
-                                    accent = MaterialTheme.colorScheme.tertiary,
-                                    language = language,
-                                )
-                                InsightBar(
-                                    label = stringResource(R.string.home_health_label),
-                                    value = daily.healthScore,
-                                    accent = sign.element.color,
-                                    language = language,
-                                )
-                            }
-                        }
-
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            HomeMiniInfoCard(
-                                title = stringResource(R.string.home_lucky_number_title),
-                                value = daily.luckyNumber.toString(),
-                            )
-                            HomeMiniInfoCard(
-                                title = stringResource(R.string.home_lucky_color_title),
-                                value = daily.luckyColor,
-                            )
-                        }
-                    }
-
+                uiState.daily?.dailyTip?.let { dailyTip ->
                     AstrologyCard {
                         Text(
-                            text = stringResource(R.string.home_today_commentary),
+                            text = stringResource(R.string.home_do_this_today),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                         )
-                        Text(
-                            text = daily.short,
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            text = daily.full ?: stringResource(R.string.home_unlock_caption),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-
-                        if (daily.full == null) {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(22.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(18.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                                ) {
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
-                                    ) {
-                                        Text(
-                                            text = "🔒",
-                                            modifier = Modifier.padding(12.dp),
-                                            style = MaterialTheme.typography.titleLarge,
-                                        )
-                                    }
-                                    Text(
-                                        text = stringResource(R.string.home_unlock_more),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                    Button(
-                                        onClick = onOpenPremium,
-                                        colors =
-                                            ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.primary,
-                                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                                            ),
-                                    ) {
-                                        Text(stringResource(R.string.home_unlock_cta))
-                                    }
-                                }
-                            }
-                        }
-
-                        Button(
-                            onClick = { onOpenDaily(daily.sign) },
-                            colors =
-                                ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                                ),
-                        ) {
-                            Text(stringResource(R.string.home_view_details))
-                        }
-                    }
-
-                    daily.dailyTip?.let {
-                        AstrologyCard {
-                            Text(
-                                text = stringResource(R.string.home_do_this_today),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            Text(text = it, style = MaterialTheme.typography.bodyLarge)
-                        }
+                        Text(text = dailyTip, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
 
@@ -525,81 +366,6 @@ private fun SubscriptionWarningCard(
             ) {
                 Text(stringResource(R.string.home_subscription_fix_action))
             }
-        }
-    }
-}
-
-@Suppress("FunctionNaming")
-@Composable
-private fun InsightBar(
-    label: String,
-    value: Int,
-    accent: Color,
-    language: String,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = label.uppercase(),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = TimeUtils.formatPercentage(value, language),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(999.dp),
-                    ),
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth(value.coerceIn(0, 100) / 100f)
-                        .height(6.dp)
-                        .background(accent, shape = RoundedCornerShape(999.dp)),
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeMiniInfoCard(
-    title: String,
-    value: String,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(0.48f),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
         }
     }
 }
