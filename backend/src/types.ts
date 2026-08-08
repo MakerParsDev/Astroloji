@@ -103,7 +103,6 @@ interface SecretBindings {
   JWT_SECRET: string;
   GOOGLE_SERVICE_ACCOUNT_JSON: string;
   FIREBASE_SERVICE_ACCOUNT_JSON: string;
-  ADMIN_SECRET: string;
   ADMIN_CONTENT_SECRET: string;
   ADMIN_NOTIFICATION_SECRET: string;
   ADMIN_PLAY_READ_SECRET: string;
@@ -121,6 +120,7 @@ export type Env = CloudflareEnv & SecretBindings & RuntimeConfigBindings;
 export interface RewardEnv {
   DB: D1Database;
   CACHE: KVNamespace;
+  RATE_LIMITER: Env['RATE_LIMITER'];
   JWT_SECRET: string;
   ADMOB_REWARDED_ID: string;
 }

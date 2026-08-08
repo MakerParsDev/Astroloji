@@ -35,8 +35,9 @@ Cloudflare secret store'a giden anahtarlar:
 - `JWT_SECRET`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
-- `ADMIN_SECRET`
 - `ADMOB_REWARDED_ID`
+
+Scoped admin credential'lari generic `npm run doppler:cf-secrets` / `deploy:doppler` akisi yonetmez. Bunlar `production-admin-content`, `production-admin-notification`, `production-admin-play-read` ve `production-admin-play-write` environment'larinda izole tutulur ve `backend-admin-capability-sync` ile capability bazinda senkronlanir.
 
 ## Scripts
 
@@ -65,12 +66,10 @@ Cloudflare secret store'a giden anahtarlar:
 - `POST /api/v1/rewards/claim` yalnızca doğrulanmış challenge kimliğini tüketir.
 - `POST /api/v1/events/track` uygulama JWT'si ister.
 - `POST /api/v1/webhooks/play-rtdn` yalnizca Pub/Sub tarafindan gonderilen Google-imzali OIDC bearer kimligini kabul eder; endpoint secret-free'dir ve query/header shared-secret auth yoktur.
-- `POST /api/v1/notifications/send` sadece `X-Admin-Secret` ile korunur.
-- `GET /api/v1/admin/play/subscriptions` sadece `X-Admin-Secret` ile korunur.
-- `PATCH /api/v1/admin/play/subscriptions/:productId` sadece `X-Admin-Secret` ile korunur; `apply=true` verilmezse preview modunda kalir.
-- `GET /api/v1/admin/subscriptions/audit` sadece `X-Admin-Secret` ile korunur.
-- `GET /api/v1/admin/play/reviews` sadece `X-Admin-Secret` ile korunur.
-- `POST /api/v1/admin/play/reviews/:reviewId/reply` sadece `X-Admin-Secret` ile korunur; `apply=true` verilmezse preview modunda kalir.
+- `POST /api/v1/notifications/send` yalniz `notification-ops` credential'i ile korunur.
+- `GET /api/v1/admin/play/subscriptions` ve `GET /api/v1/admin/play/reviews` yalniz `play-read` credential'i ile korunur.
+- `PATCH /api/v1/admin/play/subscriptions/:productId`, `GET /api/v1/admin/subscriptions/audit` ve `POST /api/v1/admin/play/reviews/:reviewId/reply` yalniz `play-write` credential'i ile korunur; mutation endpoint'leri `apply=true` verilmezse preview modunda kalir.
+- Content backfill ve explicit cache bypass yalniz `content-ops` credential'ini kabul eder; bir capability credential'i diger admin boundary'lerinde yetki vermez.
 - Secret compare akisi timing-safe helper uzerinden yapilir.
 - RTDN OIDC istegi yalniz resmi Pub/Sub envelope, zorunlu `messageId` ve server-configured package ile eslesen developer notification kabul eder.
 - `testNotification` yalniz transport/auth/idempotency kanitidir; musteri subscription veya entitlement state'ini degistirmez.

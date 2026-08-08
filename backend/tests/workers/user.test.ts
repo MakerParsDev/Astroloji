@@ -26,7 +26,7 @@ vi.mock('@/utils/jwt', async () => {
 import { createApp } from '@/index';
 import { FirebaseAccountDeletionError } from '@/services/firebaseAuth';
 import { signAppJwt, verifyAppJwt } from '@/utils/jwt';
-import { createTestEnv } from '../helpers/env';
+import { createRateLimiterNamespace, createTestEnv } from '../helpers/env';
 
 function createDeletionDb() {
   const batched: Array<{ sql: string; bindings: unknown[] }> = [];
@@ -65,6 +65,27 @@ function createDeletionDb() {
 }
 
 describe('user routes', () => {
+  it.each([
+    ['denied', async () => ({ allowed: false, remaining: 0, retryAfterSeconds: 9 }), 429, 'RATE_LIMITED'],
+    ['unavailable', async () => { throw new Error('rate limiter unavailable'); }, 503, 'RATE_LIMIT_UNAVAILABLE']
+  ])('fails closed before registration auth or mutation when strict limiter is %s', async (_name, check, status, code) => {
+    const limiterCheck = vi.fn(check);
+    const env = createTestEnv({ RATE_LIMITER: createRateLimiterNamespace(limiterCheck) });
+    const response = await createApp().request(
+      '/api/v1/users/register',
+      {
+        method: 'POST',
+        headers: { 'cf-connecting-ip': '203.0.113.9', 'content-type': 'application/json' },
+        body: JSON.stringify({ sign: 'aries', language: 'tr', utc_offset: 3, platform: 'android' })
+      },
+      env
+    );
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ error: { code } });
+    expect(limiterCheck).toHaveBeenCalledTimes(1);
+    expect(verifyFirebaseIdTokenMock).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     deleteFirebaseUserMock.mockReset();
     deleteFirebaseUserMock.mockResolvedValue(undefined);

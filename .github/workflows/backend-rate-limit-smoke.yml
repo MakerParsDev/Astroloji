@@ -1,0 +1,171 @@
+name: backend-rate-limit-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type VERIFY_RATE_LIMIT to run the isolated production concurrency smoke."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-rate-limit-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'VERIFY_RATE_LIMIT'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      ENABLE_PRODUCTION_RELEASE: ${{ vars.ENABLE_PRODUCTION_RELEASE }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+      DOPPLER_VERSION: 3.76.1
+      DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Validate immutable production verification gate
+        run: |
+          set -euo pipefail
+          test "$ENABLE_PRODUCTION_RELEASE" = 'false'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -n "$DOPPLER_PROJECT"
+          test -n "$DOPPLER_CONFIG"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install pinned Doppler CLI
+        run: |
+          set -euo pipefail
+          archive="doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/${archive}"
+          curl --fail --silent --show-error --location "$url" --output "$RUNNER_TEMP/$archive"
+          echo "$DOPPLER_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/doppler-bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/doppler-bin" doppler
+          chmod 0755 "$RUNNER_TEMP/doppler-bin/doppler"
+          echo "$RUNNER_TEMP/doppler-bin" >> "$GITHUB_PATH"
+
+      - name: Load bounded verification secrets
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          set -euo pipefail
+          jwt_secret="$(doppler secrets get JWT_SECRET --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
+          cf_token="$(doppler secrets get CLOUDFLARE_API_TOKEN --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
+          test -n "$jwt_secret"
+          test -n "$cf_token"
+          echo "::add-mask::$jwt_secret"
+          echo "::add-mask::$cf_token"
+          {
+            printf 'JWT_SECRET<<RATE_LIMIT_JWT\n%s\nRATE_LIMIT_JWT\n' "$jwt_secret"
+            printf 'CLOUDFLARE_API_TOKEN<<RATE_LIMIT_CF\n%s\nRATE_LIMIT_CF\n' "$cf_token"
+          } >> "$GITHUB_ENV"
+          unset jwt_secret cf_token
+
+      - name: Generate isolated synthetic principal
+        run: |
+          set -euo pipefail
+          verify_user_id="rate-limit-smoke-$(cat /proc/sys/kernel/random/uuid)"
+          verify_firebase_uid="rate-limit-smoke-$(cat /proc/sys/kernel/random/uuid)"
+          echo "::add-mask::$verify_user_id"
+          echo "::add-mask::$verify_firebase_uid"
+          printf 'VERIFY_USER_ID=%s\nVERIFY_FIREBASE_UID=%s\n' "$verify_user_id" "$verify_firebase_uid" >> "$GITHUB_ENV"
+
+      - name: Create isolated synthetic user
+        id: setup_user
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          umask 077
+          sql="$RUNNER_TEMP/rate-limit-insert.sql"
+          result="$RUNNER_TEMP/rate-limit-insert.json"
+          error_log="$RUNNER_TEMP/rate-limit-insert.err"
+          trap 'rm -f "$sql" "$result" "$error_log"' EXIT
+          [[ "$VERIFY_USER_ID" =~ ^rate-limit-smoke-[0-9a-f-]{36}$ ]]
+          [[ "$VERIFY_FIREBASE_UID" =~ ^rate-limit-smoke-[0-9a-f-]{36}$ ]]
+          cat > "$sql" <<SQL
+          INSERT INTO users (id, firebase_uid, sign, language, utc_offset, is_premium, subscription_state, created_at, last_seen_at) VALUES ('$VERIFY_USER_ID', '$VERIFY_FIREBASE_UID', 'aries', 'en', 0, 0, 'none', strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+          SELECT COUNT(*) AS synthetic_count FROM users WHERE id = '$VERIFY_USER_ID' AND firebase_uid = '$VERIFY_FIREBASE_UID';
+          SQL
+          if ! npx wrangler d1 execute astrology-db --remote --file="$sql" --json > "$result" 2> "$error_log"; then
+            echo 'Synthetic user setup failed.'
+            exit 1
+          fi
+          RESULT_FILE="$result" node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.RESULT_FILE, 'utf8'));
+          const rows = payload.flatMap((entry) => entry.results ?? []);
+          const row = rows.find((candidate) => Object.hasOwn(candidate, 'synthetic_count'));
+          if (Number(row?.synthetic_count) !== 1) process.exit(1);
+          NODE
+          echo 'syntheticPrincipalIsolated=true' >> "$GITHUB_OUTPUT"
+
+      - name: Verify strict concurrent enforcement
+        id: verify
+        working-directory: backend
+        run: npx tsx scripts/verify-rate-limit-production.ts
+
+      - name: Delete isolated synthetic user and verify absence
+        id: cleanup
+        if: always()
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          umask 077
+          sql="$RUNNER_TEMP/rate-limit-delete.sql"
+          result="$RUNNER_TEMP/rate-limit-delete.json"
+          error_log="$RUNNER_TEMP/rate-limit-delete.err"
+          trap 'rm -f "$sql" "$result" "$error_log"' EXIT
+          test -n "${VERIFY_USER_ID:-}"
+          test -n "${VERIFY_FIREBASE_UID:-}"
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          cat > "$sql" <<SQL
+          DELETE FROM users WHERE id = '$VERIFY_USER_ID' AND firebase_uid = '$VERIFY_FIREBASE_UID';
+          SELECT COUNT(*) AS synthetic_count FROM users WHERE id = '$VERIFY_USER_ID' OR firebase_uid = '$VERIFY_FIREBASE_UID';
+          SQL
+          if ! npx wrangler d1 execute astrology-db --remote --file="$sql" --json > "$result" 2> "$error_log"; then
+            echo 'Synthetic user cleanup failed.'
+            exit 1
+          fi
+          RESULT_FILE="$result" node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.RESULT_FILE, 'utf8'));
+          const rows = payload.flatMap((entry) => entry.results ?? []);
+          const row = rows.find((candidate) => Object.hasOwn(candidate, 'synthetic_count'));
+          if (Number(row?.synthetic_count) !== 0) process.exit(1);
+          NODE
+          echo 'syntheticUserCleanupVerified=true' >> "$GITHUB_OUTPUT"
+
+      - name: Publish boolean verification summary
+        if: always()
+        run: |
+          {
+            echo '## Strict rate-limit production smoke'
+            echo
+            echo '- strictRateLimitMatched=${{ steps.verify.outputs.strictRateLimitMatched || 'false' }}'
+            echo '- admittedRequestsHitValidation=${{ steps.verify.outputs.admittedRequestsHitValidation || 'false' }}'
+            echo '- rejectedRequestsWereRateLimited=${{ steps.verify.outputs.rejectedRequestsWereRateLimited || 'false' }}'
+            echo '- retryAfterPresent=${{ steps.verify.outputs.retryAfterPresent || 'false' }}'
+            echo '- syntheticPrincipalIsolated=${{ steps.setup_user.outputs.syntheticPrincipalIsolated || 'false' }}'
+            echo '- syntheticUserCleanupVerified=${{ steps.cleanup.outputs.syntheticUserCleanupVerified || 'false' }}'
+          } >> "$GITHUB_STEP_SUMMARY"

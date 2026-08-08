@@ -20,8 +20,7 @@ function env() {
     ADMIN_CONTENT_SECRET: scopedSecrets['content-ops'],
     ADMIN_NOTIFICATION_SECRET: scopedSecrets['notification-ops'],
     ADMIN_PLAY_READ_SECRET: scopedSecrets['play-read'],
-    ADMIN_PLAY_WRITE_SECRET: scopedSecrets['play-write'],
-    ADMIN_SECRET: 'legacy-admin-secret'
+    ADMIN_PLAY_WRITE_SECRET: scopedSecrets['play-write']
   });
 }
 
@@ -108,14 +107,15 @@ describe('requireAdminCapability', () => {
     ]);
   });
 
-  it('keeps the legacy admin credential as Phase A compatibility only', async () => {
+  it('rejects the historical legacy admin credential', async () => {
     const response = await protectedApp('play-write', 'play.subscription_update').request(
       '/protected',
       { headers: { 'x-admin-secret': 'legacy-admin-secret' } },
       env()
     );
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } });
   });
 
   it.each([undefined, 'wrong-secret'])('rejects missing or invalid credentials', async (secret) => {
@@ -201,7 +201,7 @@ describe('contentCacheBypassMiddleware', () => {
     expect(JSON.stringify(events)).not.toContain(scopedSecrets['content-ops']);
   });
 
-  it('keeps legacy cache bypass compatibility during Phase A', async () => {
+  it('rejects the historical legacy credential for cache bypass', async () => {
     const response = await cacheApp().request(
       '/content',
       {
@@ -213,7 +213,7 @@ describe('contentCacheBypassMiddleware', () => {
       env()
     );
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ bypassCache: true });
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } });
   });
 });

@@ -10,7 +10,7 @@ import {
 import { corsMiddleware } from '@/middleware/cors';
 import { renderAccountDeletion, renderPrivacyPolicy, renderTermsOfUse } from '@/pages/legal';
 import { parseShareSign, renderCompatibilityShare, renderDailyShare } from '@/pages/share';
-import { enforceKvRateLimit } from '@/services/rateLimit';
+import { enforceStrictRateLimit, mapStrictRateLimitResult, RATE_LIMIT_POLICIES } from '@/services/rateLimit';
 import type { AppBindings } from '@/types';
 import type { RewardRouteDependencies } from '@/workers/reward';
 import { validateTrackEventBody } from '@/utils/validators';
@@ -105,9 +105,9 @@ export function createApp(options: CreateAppOptions = {}) {
 
   const apiRoutes = new Hono<AppBindings>();
   const apiAdminRoutes = new Hono<AppBindings>();
-  const buildContentRateLimitKey = (path: string, userId: string) => {
+  const buildContentRateLimitClass = (path: string) => {
     const type = path.split('/').at(-1) ?? 'unknown';
-    return `content:${type}:${userId}`;
+    return `content:${type}`;
   };
 
   apiRoutes.use('/users/me', jwtAuthMiddleware);
@@ -118,27 +118,30 @@ export function createApp(options: CreateAppOptions = {}) {
   apiRoutes.use('/content/*', jwtAuthMiddleware);
   apiRoutes.use('/content/*', contentCacheBypassMiddleware);
   apiRoutes.use('/content/*', async (c, next) => {
-    const allowed = await enforceKvRateLimit(
-      c.env,
-      buildContentRateLimitKey(c.req.path, c.get('auth').userId),
-      60,
-      60
+    const rateLimitFailure = mapStrictRateLimitResult(
+      await enforceStrictRateLimit(
+        c.env,
+        buildContentRateLimitClass(c.req.path),
+        c.get('auth').userId,
+        60,
+        60
+      )
     );
-    if (!allowed) {
-      return jsonError(429, 'RATE_LIMITED', 'Too many content requests.');
-    }
+    if (rateLimitFailure) return rateLimitFailure;
     await next();
   });
   apiRoutes.use('/chart/*', async (c, next) => {
-    const allowed = await enforceKvRateLimit(
-      c.env,
-      `chart:${c.get('auth').userId}`,
-      30,
-      60
+    const chartPolicy = RATE_LIMIT_POLICIES.chart;
+    const rateLimitFailure = mapStrictRateLimitResult(
+      await enforceStrictRateLimit(
+        c.env,
+        chartPolicy.routeClass,
+        c.get('auth').userId,
+        chartPolicy.limit,
+        chartPolicy.windowSeconds
+      )
     );
-    if (!allowed) {
-      return jsonError(429, 'RATE_LIMITED', 'Too many chart requests.');
-    }
+    if (rateLimitFailure) return rateLimitFailure;
     await next();
   });
   apiRoutes.use('/subscriptions/verify', jwtAuthMiddleware);

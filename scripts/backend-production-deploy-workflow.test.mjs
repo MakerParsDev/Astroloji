@@ -6,7 +6,8 @@ const workflow = fs.readFileSync('.github/workflows/backend-production-deploy.ym
 
 test('backend production deploy loads operational secrets from Doppler', () => {
   assert.match(workflow, /Load and validate deployment secrets from Doppler/);
-  assert.match(workflow, /'ADMIN_SECRET'/);
+  assert.doesNotMatch(workflow, /ADMIN_SECRET/);
+  assert.doesNotMatch(workflow, /ADMIN_CONTENT_SECRET|ADMIN_NOTIFICATION_SECRET|ADMIN_PLAY_READ_SECRET|ADMIN_PLAY_WRITE_SECRET/);
   assert.match(workflow, /'CLOUDFLARE_API_TOKEN'/);
   assert.match(workflow, /'ADMOB_REWARDED_ID'/);
   assert.doesNotMatch(workflow, /ADMIN_SECRET: \$\{\{ secrets\.ADMIN_SECRET \}\}/);

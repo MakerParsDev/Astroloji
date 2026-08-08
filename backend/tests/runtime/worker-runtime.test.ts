@@ -56,6 +56,21 @@ describe('worker runtime routes', () => {
     await worker?.stop();
   });
 
+  it('admits exactly the registration limit under a concurrent unauthenticated burst', async () => {
+    const responses = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        worker.fetch('http://127.0.0.1/api/v1/users/register', {
+          method: 'POST',
+          headers: { 'cf-connecting-ip': '198.51.100.44', 'content-type': 'application/json' },
+          body: JSON.stringify({})
+        })
+      )
+    );
+    const statuses = responses.map((response) => response.status);
+    expect(statuses.filter((status) => status === 401)).toHaveLength(10);
+    expect(statuses.filter((status) => status === 429)).toHaveLength(10);
+  });
+
   it('rejects notification sends without the admin secret', async () => {
     const response = await worker.fetch('http://127.0.0.1/api/v1/notifications/send', {
       method: 'POST',
@@ -95,7 +110,7 @@ describe('worker runtime routes', () => {
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } });
   });
 
-  it('keeps the legacy admin secret as Phase A notification compatibility', async () => {
+  it('rejects the historical legacy admin secret at a scoped route', async () => {
     const response = await worker.fetch('http://127.0.0.1/api/v1/notifications/send', {
       method: 'POST',
       headers: {
@@ -105,7 +120,8 @@ describe('worker runtime routes', () => {
       body: JSON.stringify({})
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } });
   });
 
   it('keeps the AdMob SSV callback public but rejects malformed callbacks', async () => {

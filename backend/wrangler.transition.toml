@@ -16,6 +16,11 @@ database_id = "ccbbb9fa-56f6-4601-85d7-447288a11056"
 binding = "CACHE"
 id = "12c50600e61447c29ed0bcb122f5cc85"
 
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimitBucket"
+script_name = "astrology-backend"
+
 [vars]
 # Fail closed unless the reviewed deploy workflow supplies an explicit future UTC deadline.
 LEGACY_REWARD_FORWARD_UNTIL = "1970-01-01T00:00:00Z"

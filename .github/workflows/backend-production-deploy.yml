@@ -93,13 +93,12 @@ jobs:
             'JWT_SECRET',
             'GOOGLE_SERVICE_ACCOUNT_JSON',
             'FIREBASE_SERVICE_ACCOUNT_JSON',
-            'ADMIN_SECRET',
             'ADMOB_REWARDED_ID',
             'CLOUDFLARE_API_TOKEN',
           ];
           const missing = required.filter((name) => !value(name));
           if (missing.length) throw new Error(`Missing required Doppler secrets: ${missing.join(', ')}`);
-          for (const name of ['ADMIN_SECRET', 'CLOUDFLARE_API_TOKEN']) {
+          for (const name of ['CLOUDFLARE_API_TOKEN']) {
             const resolved = value(name);
             console.log(`::add-mask::${resolved}`);
             fs.appendFileSync(process.env.GITHUB_ENV, `${name}<<DOPPLER_${name}\n${resolved}\nDOPPLER_${name}\n`);

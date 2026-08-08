@@ -20,7 +20,7 @@ import { createApp } from '@/index';
 import type { GooglePlaySubscription } from '@/types';
 import type { SubscriptionRouteDependencies } from '@/workers/subscription';
 import { signAppJwt } from '@/utils/jwt';
-import { createTestEnv } from '../helpers/env';
+import { createRateLimiterNamespace, createTestEnv } from '../helpers/env';
 
 interface RecordingDbOptions {
   pendingRows?: Array<{ purchase_token: string; user_id: string }>;
@@ -315,6 +315,31 @@ async function authenticatedSubscriptionRequest(
 }
 
 describe('subscription worker', () => {
+  it.each([
+    ['denied', async () => ({ allowed: false, remaining: 0, retryAfterSeconds: 6 }), 429, 'RATE_LIMITED'],
+    ['unavailable', async () => { throw new Error('rate limiter unavailable'); }, 503, 'RATE_LIMIT_UNAVAILABLE']
+  ])('fails closed before Play/subscription work when limiter is %s', async (_name, check, status, code) => {
+    const { db, reads, writes } = createRecordingDb();
+    const limiterCheck = vi.fn(check);
+    const env = createTestEnv({ DB: db, RATE_LIMITER: createRateLimiterNamespace(limiterCheck) });
+    const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
+    const response = await createApp().request(
+      '/api/v1/subscriptions/verify',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ purchase_token: 'weekly-purchase-token', product_id: 'premium_weekly' })
+      },
+      env
+    );
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toMatchObject({ error: { code } });
+    expect(limiterCheck).toHaveBeenCalledTimes(1);
+    expect(verifySubscriptionPurchaseMock).not.toHaveBeenCalled();
+    expect(reads.some((read) => read.sql.includes('SELECT user_id FROM subscriptions'))).toBe(false);
+    expect(writes).toHaveLength(0);
+  });
+
   beforeEach(() => {
     vi.restoreAllMocks();
     getSubscriptionStatusMock.mockReset();

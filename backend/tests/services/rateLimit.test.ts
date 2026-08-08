@@ -4,6 +4,7 @@ import type { RateLimitBucket } from '@/durable/RateLimitBucket';
 import {
   buildRateLimitObjectName,
   enforceStrictRateLimit,
+  mapStrictRateLimitResult,
   type RateLimitDecision
 } from '@/services/rateLimit';
 
@@ -92,5 +93,38 @@ describe('enforceStrictRateLimit', () => {
       enforceStrictRateLimit({ RATE_LIMITER: namespace }, 'chart', 'user-123', 0, 60)
     ).rejects.toThrow(RangeError);
     expect(getByName).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('mapStrictRateLimitResult', () => {
+  it('returns null for an allowed strict decision', () => {
+    expect(
+      mapStrictRateLimitResult({
+        status: 'ok',
+        decision: { allowed: true, remaining: 2, retryAfterSeconds: 0 }
+      })
+    ).toBeNull();
+  });
+
+  it('maps quota denial to a sanitized 429 with Retry-After', async () => {
+    const response = mapStrictRateLimitResult({
+      status: 'ok',
+      decision: { allowed: false, remaining: 0, retryAfterSeconds: 17 }
+    });
+    expect(response?.status).toBe(429);
+    expect(response?.headers.get('retry-after')).toBe('17');
+    await expect(response?.json()).resolves.toEqual({
+      error: { code: 'RATE_LIMITED', message: 'Too many requests.' }
+    });
+  });
+
+  it('maps adapter failure to a sanitized fail-closed 503', async () => {
+    const response = mapStrictRateLimitResult({ status: 'unavailable' });
+    expect(response?.status).toBe(503);
+    expect(response?.headers.get('retry-after')).toBeNull();
+    await expect(response?.json()).resolves.toEqual({
+      error: { code: 'RATE_LIMIT_UNAVAILABLE', message: 'Rate limit service unavailable.' }
+    });
   });
 });
