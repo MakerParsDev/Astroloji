@@ -9,18 +9,11 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -76,48 +69,38 @@ fun AstrologyAppRoot(
     Scaffold(
         bottomBar = {
             if (isBottomBarVisible) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                    tonalElevation = 0.dp,
-                ) {
-                    val items =
-                        listOf(
-                            BottomItem(HomeRoute, stringResource(com.parsfilo.astrology.R.string.nav_home), Icons.Outlined.Home),
-                            BottomItem(
-                                CompatibilityRoute,
-                                stringResource(com.parsfilo.astrology.R.string.nav_compatibility),
-                                Icons.Outlined.AutoAwesome,
-                            ),
-                            BottomItem(SettingsRoute, stringResource(com.parsfilo.astrology.R.string.nav_profile), Icons.Outlined.Person),
-                            BottomItem(
-                                PremiumRoute(PaywallSource.NAV),
-                                stringResource(com.parsfilo.astrology.R.string.nav_premium),
-                                Icons.Outlined.Star,
-                            ),
-                        )
-                    items.forEach { item ->
-                        NavigationBarItem(
-                            selected = currentDestination?.hasRoute(item.route::class) == true,
-                            onClick = {
-                                navController.navigate(item.route) {
-                                    launchSingleTop = true
-                                    restoreState = true
-                                    popUpTo(navController.graph.startDestinationId) { saveState = true }
-                                }
-                            },
-                            colors =
-                                NavigationBarItemDefaults.colors(
-                                    selectedIconColor = MaterialTheme.colorScheme.secondary,
-                                    selectedTextColor = MaterialTheme.colorScheme.secondary,
-                                    indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.18f),
-                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                ),
-                            icon = { Icon(item.icon, contentDescription = item.label) },
-                            label = { Text(item.label) },
-                        )
-                    }
-                }
+                val items =
+                    listOf(
+                        BottomItem(HomeRoute, stringResource(com.parsfilo.astrology.R.string.nav_home), Icons.Outlined.Home),
+                        BottomItem(
+                            CompatibilityRoute,
+                            stringResource(com.parsfilo.astrology.R.string.nav_compatibility),
+                            Icons.Outlined.AutoAwesome,
+                        ),
+                        BottomItem(SettingsRoute, stringResource(com.parsfilo.astrology.R.string.nav_profile), Icons.Outlined.Person),
+                        BottomItem(
+                            PremiumRoute(PaywallSource.NAV),
+                            stringResource(com.parsfilo.astrology.R.string.nav_premium),
+                            Icons.Outlined.Star,
+                        ),
+                    )
+                PremiumNavigationBar(
+                    items =
+                        items.map { item ->
+                            PremiumNavigationItem(
+                                label = item.label,
+                                icon = item.icon,
+                                selected = currentDestination?.hasRoute(item.route::class) == true,
+                                onClick = {
+                                    navController.navigate(item.route) {
+                                        launchSingleTop = true
+                                        restoreState = true
+                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                    }
+                                },
+                            )
+                        },
+                )
             }
         },
     ) { padding ->
