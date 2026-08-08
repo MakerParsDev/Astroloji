@@ -81,7 +81,6 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
     }),
     PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
     PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
-    ADMIN_SECRET: 'admin-secret',
     ADMIN_CONTENT_SECRET: 'content-secret',
     ADMIN_NOTIFICATION_SECRET: 'notification-secret',
     ADMIN_PLAY_READ_SECRET: 'play-read-secret',

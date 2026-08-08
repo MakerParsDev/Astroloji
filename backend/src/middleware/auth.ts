@@ -55,7 +55,7 @@ export const jwtAuthMiddleware: AppMiddleware = async (c, next: Next) => {
   }
 };
 
-const ADMIN_SECRET_BINDINGS = {
+const ADMIN_CAPABILITY_SECRET_BINDINGS = {
   'content-ops': 'ADMIN_CONTENT_SECRET',
   'notification-ops': 'ADMIN_NOTIFICATION_SECRET',
   'play-read': 'ADMIN_PLAY_READ_SECRET',
@@ -64,8 +64,7 @@ const ADMIN_SECRET_BINDINGS = {
 
 function matchesAdminCapability(c: AppContext, capability: AdminCapability): boolean {
   const provided = c.req.header('x-admin-secret');
-  const scoped = c.env[ADMIN_SECRET_BINDINGS[capability]];
-  return matchesSecret(scoped, provided) || matchesSecret(c.env.ADMIN_SECRET, provided);
+  return matchesSecret(c.env[ADMIN_CAPABILITY_SECRET_BINDINGS[capability]], provided);
 }
 
 async function runAdminCapability(

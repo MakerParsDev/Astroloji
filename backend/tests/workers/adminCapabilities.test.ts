@@ -137,11 +137,12 @@ describe('admin route capability matrix', () => {
     });
   });
 
-  it('keeps the legacy credential as Phase A compatibility across a scoped route', async () => {
+  it('rejects the historical legacy credential across scoped routes', async () => {
     const response = await request('/api/v1/notifications/send', {
       method: 'POST', secret: credentials.legacy, body: 'not-json'
     });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } });
   });
 
   it('removes the callable global admin middleware from active source', () => {

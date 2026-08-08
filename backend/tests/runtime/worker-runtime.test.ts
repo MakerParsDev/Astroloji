@@ -110,7 +110,7 @@ describe('worker runtime routes', () => {
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } });
   });
 
-  it('keeps the legacy admin secret as Phase A notification compatibility', async () => {
+  it('rejects the historical legacy admin secret at a scoped route', async () => {
     const response = await worker.fetch('http://127.0.0.1/api/v1/notifications/send', {
       method: 'POST',
       headers: {
@@ -120,7 +120,8 @@ describe('worker runtime routes', () => {
       body: JSON.stringify({})
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } });
   });
 
   it('keeps the AdMob SSV callback public but rejects malformed callbacks', async () => {

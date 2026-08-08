@@ -41,9 +41,9 @@ Release almadan once su maddeler `PASS` olmali:
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
 - `PLAY_WEBHOOK_SECRET`
-- `ADMIN_SECRET`
 - `ADMOB_REWARDED_ID`
 - `CLOUDFLARE_API_TOKEN`
+- Scoped admin credentials generic backend secret setine dahil degildir. `ADMIN_CONTENT_SECRET`, `ADMIN_NOTIFICATION_SECRET`, `ADMIN_PLAY_READ_SECRET`, `ADMIN_PLAY_WRITE_SECRET` ayri `production-admin-*` environment'larinda tutulur.
 
 ## Android Release Adimlari
 
@@ -97,6 +97,12 @@ Custom data: acik yerel generator sayfasindaki Custom data
 ### Gecis rollback
 
 `backend-ssv-transition-rollback` workflow'unu `REMOVE_TRANSITION_ROUTE` onayi ile calistir. Workflow yalnizca exact reward route'unu siler, origin health'i `200`, eski SSV fall-through davranisini `403` olarak dogrular ve D1 migration'ini silmez. Worker silme secenegi route kaldirildiktan ve origin dogrulandiktan sonra kullanilabilir.
+
+## Scoped Admin Credential Operasyonu
+
+Admin yetkileri dort capability'ye ayridir: `content-ops`, `notification-ops`, `play-read`, `play-write`. Her capability yalniz kendi `production-admin-*` GitHub environment secret'ini kullanir. Generic `backend-production-deploy` bu credential'lari okumaz, yazmaz veya Cloudflare'a yeniden senkronlamaz.
+
+Rotasyon veya acil revocation icin yalniz ilgili environment credential'ini guncelle, sonra `backend-admin-capability-sync` workflow'unu `SYNC_ADMIN_CAPABILITY` onayi ve exact capability secimiyle calistir. Workflow kendi endpoint'inde non-destructive expected status'u ve diger capability boundary'lerinde `403/FORBIDDEN` izolasyonunu dogrular. Bir capability rotasyonu diger uc credential'i degistirmemelidir.
 
 ## Backend Deploy Adimlari
 

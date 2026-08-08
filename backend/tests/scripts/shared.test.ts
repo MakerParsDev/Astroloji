@@ -10,25 +10,30 @@ function createSecrets(): Record<string, string> {
 }
 
 describe('Cloudflare secret resolution', () => {
-  it('does not sync the retired Play webhook shared secret', () => {
+  it('keeps all admin credentials out of the generic deploy allowlist', () => {
+    expect(CLOUDFLARE_SECRET_NAMES).not.toContain('ADMIN_SECRET');
+    expect(CLOUDFLARE_SECRET_NAMES).not.toContain('ADMIN_CONTENT_SECRET');
+    expect(CLOUDFLARE_SECRET_NAMES).not.toContain('ADMIN_NOTIFICATION_SECRET');
+    expect(CLOUDFLARE_SECRET_NAMES).not.toContain('ADMIN_PLAY_READ_SECRET');
+    expect(CLOUDFLARE_SECRET_NAMES).not.toContain('ADMIN_PLAY_WRITE_SECRET');
     expect(CLOUDFLARE_SECRET_NAMES).not.toContain('PLAY_WEBHOOK_SECRET');
   });
 
   it('uses environment overrides without changing other Doppler secrets', () => {
     const resolved = resolveCloudflareSecrets(createSecrets(), {
-      ADMIN_SECRET: 'github-admin-secret',
+      JWT_SECRET: 'github-jwt-secret',
     });
 
-    expect(resolved.ADMIN_SECRET).toBe('github-admin-secret');
-    expect(resolved.JWT_SECRET).toBe('doppler-JWT_SECRET');
+    expect(resolved.JWT_SECRET).toBe('github-jwt-secret');
+    expect(resolved.ADMOB_REWARDED_ID).toBe('doppler-ADMOB_REWARDED_ID');
   });
 
-  it('requires every resolved Cloudflare secret', () => {
+  it('requires every generic Cloudflare secret', () => {
     const secrets = createSecrets();
-    delete secrets.ADMIN_SECRET;
+    delete secrets.JWT_SECRET;
 
     expect(() => resolveCloudflareSecrets(secrets, {})).toThrow(
-      'Required Cloudflare secret is missing: ADMIN_SECRET',
+      'Required Cloudflare secret is missing: JWT_SECRET',
     );
   });
 });

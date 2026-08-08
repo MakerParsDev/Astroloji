@@ -100,8 +100,8 @@ Repoda gercek secret tutulmaz. Asagidaki dosyalar lokal/CI secret store uzerinde
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
 - `PLAY_WEBHOOK_SECRET`
-- `ADMIN_SECRET`
 - `ADMOB_REWARDED_ID`
+- Scoped admin credentials are isolated by capability: `ADMIN_CONTENT_SECRET`, `ADMIN_NOTIFICATION_SECRET`, `ADMIN_PLAY_READ_SECRET`, `ADMIN_PLAY_WRITE_SECRET`. They are not owned by the generic backend deploy flow.
 
 ## Deploy Akisi
 
@@ -231,12 +231,12 @@ Kurallar:
 - `SEED_SKIP_STATIC_CONTENT=true` oldugunda `personality` ve `compat` dosyalari yeniden yuklenmez.
 - GitHub Actions `content-backfill` workflow'u ayni akisi zamanlanmis olarak calistirir.
 
-Gerekli GitHub environment secret veya Doppler anahtarlari:
+Gerekli GitHub environment secret:
 
-- `ADMIN_SECRET` veya `DOPPLER_TOKEN`
+- `production-admin-content` environment'inda `ADMIN_CONTENT_SECRET`
 
 Not: Zamanlanmis `content-backfill` workflow'u Cloudflare API token kullanmaz; deploy edilmis backend'deki
-`/api/v1/admin/content/backfill` endpoint'ini tetikler.
+`/api/v1/admin/content/backfill` endpoint'ini tetikler. Generic backend deploy scoped admin credential'larini senkronlamaz.
 
 ## Secret Rotation Checklist
 
@@ -244,8 +244,9 @@ Not: Zamanlanmis `content-backfill` workflow'u Cloudflare API token kullanmaz; d
 - Google Play service account rotate et.
 - `JWT_SECRET` rotate et.
 - `PLAY_WEBHOOK_SECRET` rotate et.
-- `ADMIN_SECRET` rotate et.
-- Rotate sonrasi Doppler ve Cloudflare secret store senkronunu tekrarla.
+- Admin credential rotasyonunu capability bazinda yap: `content-ops`, `notification-ops`, `play-read` veya `play-write`. Ilgili `production-admin-*` environment secret'ini guncelle ve `backend-admin-capability-sync` workflow'unu yalniz o capability icin calistir.
+- Scoped admin credential emergency revocation/rotation'i diger capability'leri degistirmemelidir; generic backend deploy bu credential'lari yonetmez.
+- Core secret rotate sonrasi Doppler ve Cloudflare secret store senkronunu tekrarla.
 
 ## Rollback
 
