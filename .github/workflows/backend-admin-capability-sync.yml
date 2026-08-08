@@ -25,8 +25,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CONFIRM: ${{ inputs.confirm }}
+    steps:
+      - name: Validate confirmation input
+        shell: bash
+        run: |
+          if [ "$CONFIRM" != 'SYNC_ADMIN_CAPABILITY' ]; then
+            echo 'confirm must be SYNC_ADMIN_CAPABILITY'
+            exit 1
+          fi
+
   content:
     if: ${{ github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'SYNC_ADMIN_CAPABILITY' && inputs.capability == 'content-ops' }}
+    needs: guard
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-admin-content
@@ -43,6 +58,8 @@ jobs:
       BACKEND_BASE_URL: https://astrology.parsfilo.com
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:
@@ -142,6 +159,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP"/admin-capability-*.json
   notification:
     if: ${{ github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'SYNC_ADMIN_CAPABILITY' && inputs.capability == 'notification-ops' }}
+    needs: guard
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-admin-notification
@@ -158,6 +176,8 @@ jobs:
       BACKEND_BASE_URL: https://astrology.parsfilo.com
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:
@@ -257,6 +277,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP"/admin-capability-*.json
   play_read:
     if: ${{ github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'SYNC_ADMIN_CAPABILITY' && inputs.capability == 'play-read' }}
+    needs: guard
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-admin-play-read
@@ -273,6 +294,8 @@ jobs:
       BACKEND_BASE_URL: https://astrology.parsfilo.com
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:
@@ -372,6 +395,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP"/admin-capability-*.json
   play_write:
     if: ${{ github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'SYNC_ADMIN_CAPABILITY' && inputs.capability == 'play-write' }}
+    needs: guard
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-admin-play-write
@@ -388,6 +412,8 @@ jobs:
       BACKEND_BASE_URL: https://astrology.parsfilo.com
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v6
         with:

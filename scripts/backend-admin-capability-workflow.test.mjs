@@ -56,3 +56,24 @@ test('capability secrets are synced through stdin and verification is non-destru
   const withoutMaskCommands = workflow.replaceAll('echo "::add-mask::$ADMIN_CAPABILITY_SECRET"', '');
   assert.doesNotMatch(withoutMaskCommands, /echo[^\n]*ADMIN_CAPABILITY_SECRET/);
 });
+
+
+test('mistyped confirmation fails before protected capability jobs can run', () => {
+  const workflow = source();
+  const guardStart = workflow.indexOf('\n  guard:');
+  assert.notEqual(guardStart, -1, 'non-environment confirmation guard job missing');
+  const firstCapabilityJob = workflow.indexOf('\n  content:', guardStart);
+  assert.notEqual(firstCapabilityJob, -1, 'content capability job missing after guard');
+  const guard = workflow.slice(guardStart, firstCapabilityJob);
+  assert.doesNotMatch(guard, /environment:/);
+  assert.match(guard, /inputs\.confirm/);
+  assert.match(guard, /SYNC_ADMIN_CAPABILITY/);
+  assert.match(guard, /exit 1/);
+  assert.equal((workflow.match(/\n    needs: guard\n/g) ?? []).length, capabilities.length);
+});
+
+test('production capability checkout steps never persist GitHub credentials', () => {
+  const workflow = source();
+  assert.equal((workflow.match(/uses: actions\/checkout@v6/g) ?? []).length, capabilities.length);
+  assert.equal((workflow.match(/persist-credentials:\s*false/g) ?? []).length, capabilities.length);
+});
