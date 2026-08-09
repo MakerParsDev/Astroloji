@@ -40,6 +40,7 @@ private fun StoreFeatureGraphic(
             modifier =
                 Modifier
                     .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
                     .background(
                         Brush.horizontalGradient(
                             listOf(
@@ -88,12 +89,13 @@ private fun StoreFeatureGraphic(
                     Text(
                         text = "ASTROLOJİ",
                         style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.secondary,
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
                         text = headline,
                         style = MaterialTheme.typography.displayLarge,
+                        color = MaterialTheme.colorScheme.onBackground,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(

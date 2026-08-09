@@ -35,7 +35,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.BuildConfig
 import com.parsfilo.astrology.R
-import com.parsfilo.astrology.core.ui.components.AstroSectionTitle
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.DetailChip
@@ -84,72 +83,13 @@ fun SettingsScreen(
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            AstroSectionTitle(
-                title = stringResource(R.string.settings_title),
-                eyebrow = stringResource(R.string.home_brand),
+            SettingsPremiumOverview(
+                currentSign = currentSign,
+                language = appLanguage,
+                onChangeSign = { signKey ->
+                    viewModel.onEvent(SettingsUiEvent.ChangeSign(signKey))
+                },
             )
-
-            AstrologyCard {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(
-                            text = currentSign.localizedName(appLanguage),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string.settings_sign_range,
-                                    currentSign.localizedDateRange(appLanguage),
-                                ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    OutlinedButton(onClick = {}) {
-                        Text(stringResource(R.string.settings_change_sign))
-                    }
-                }
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    ZodiacSign.entries.forEach { sign ->
-                        val selected = sign.key == currentSign.key
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color =
-                                if (selected) {
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.66f)
-                                },
-                            border =
-                                BorderStroke(
-                                    1.dp,
-                                    if (selected) {
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                                    } else {
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
-                                    },
-                                ),
-                            onClick = { viewModel.onEvent(SettingsUiEvent.ChangeSign(sign.key)) },
-                        ) {
-                            Text(
-                                text = "${sign.symbol} ${sign.localizedName(appLanguage)}",
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                        }
-                    }
-                }
-            }
 
             AstrologyCard {
                 Text(

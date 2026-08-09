@@ -1,17 +1,31 @@
+@file:Suppress("MagicNumber")
+
 package com.parsfilo.astrology.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val DarkBackground = Color(0xFF0D0D1A)
-val DarkSurface = Color(0xFF16162A)
-val DarkSurfaceVariant = Color(0xFF1E1E35)
-val DarkPrimary = Color(0xFF9B7FE8)
-val DarkPrimaryVariant = Color(0xFF7B5FC8)
-val DarkSecondary = Color(0xFFE8B97F)
-val DarkAccent = Color(0xFF7FC8E8)
+val Midnight900 = Color(0xFF070B1D)
+val Midnight850 = Color(0xFF0B1024)
+val Midnight800 = Color(0xFF10162D)
+val Midnight700 = Color(0xFF18213E)
+val CosmicPurple = Color(0xFF6E52B5)
+val CosmicViolet = Color(0xFF9C7BEF)
+val WarmGold = Color(0xFFD9B66F)
+val SoftGold = Color(0xFFF1D89B)
+val Starlight = Color(0xFFF7F2E8)
+val MoonMist = Color(0xFFB9B7CB)
+val CelestialBlue = Color(0xFF7DB9D9)
 
-val LightBackground = Color(0xFFF5F3FF)
-val LightSurface = Color(0xFFFFFFFF)
-val LightPrimary = Color(0xFF6B4DB8)
-val LightSecondary = Color(0xFFB87A30)
-val LightAccent = Color(0xFF4F7CCF)
+val DarkBackground = Midnight900
+val DarkSurface = Midnight800
+val DarkSurfaceVariant = Midnight700
+val DarkPrimary = WarmGold
+val DarkPrimaryVariant = SoftGold
+val DarkSecondary = CosmicViolet
+val DarkAccent = CelestialBlue
+
+val LightBackground = Color(0xFFF7F3EA)
+val LightSurface = Color(0xFFFFFCF6)
+val LightPrimary = Color(0xFF57408E)
+val LightSecondary = Color(0xFF9A6A25)
+val LightAccent = Color(0xFF356C8D)

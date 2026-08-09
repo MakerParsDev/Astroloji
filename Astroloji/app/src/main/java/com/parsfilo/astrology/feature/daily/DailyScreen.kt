@@ -3,17 +3,12 @@ package com.parsfilo.astrology.feature.daily
 import android.app.Activity
 import android.content.Intent
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,13 +32,11 @@ import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ads.AdaptiveBannerAd
 import com.parsfilo.astrology.core.ads.RewardedAdRequest
 import com.parsfilo.astrology.core.ads.adsEntryPoint
-import com.parsfilo.astrology.core.ui.components.AstroSectionTitle
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.HoroscopeCardRenderer
-import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.navigation.dailyShareLandingUrl
 import kotlinx.coroutines.Dispatchers
@@ -119,10 +112,7 @@ fun DailyScreen(
                 }
 
                 uiState.horoscope?.let { horoscope ->
-                    AstroSectionTitle(
-                        title = stringResource(R.string.daily_title),
-                        eyebrow = TimeUtils.displayDate(horoscope.language),
-                    )
+                    DailyPremiumSummary(horoscope = horoscope)
 
                     val shareLink = dailyShareLandingUrl(horoscope.sign)
                     val signName =
@@ -170,39 +160,6 @@ fun DailyScreen(
                         ) {
                             Text(shareChooserTitle)
                         }
-                    }
-
-                    AstrologyCard {
-                        Text(
-                            text = horoscope.short,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        DailyInsightBar(
-                            label = stringResource(R.string.home_energy_label),
-                            value = horoscope.energy,
-                            language = horoscope.language,
-                        )
-                        DailyInsightBar(
-                            label = stringResource(R.string.compatibility_love_score),
-                            value = horoscope.loveScore,
-                            language = horoscope.language,
-                        )
-                        DailyInsightBar(
-                            label = stringResource(R.string.compatibility_work_score),
-                            value = horoscope.careerScore,
-                            language = horoscope.language,
-                        )
-                        DailyInsightBar(
-                            label = stringResource(R.string.home_money_label),
-                            value = horoscope.moneyScore,
-                            language = horoscope.language,
-                        )
-                        DailyInsightBar(
-                            label = stringResource(R.string.home_health_label),
-                            value = horoscope.healthScore,
-                            language = horoscope.language,
-                        )
                     }
 
                     DailySectionCard(
@@ -287,35 +244,6 @@ private fun DailySectionCard(
                     Text(stringResource(R.string.reward_unlock_daily))
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun DailyInsightBar(
-    label: String,
-    value: Int,
-    language: String,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = label, style = MaterialTheme.typography.labelLarge)
-            Text(text = TimeUtils.formatPercentage(value, language), style = MaterialTheme.typography.labelLarge)
-        }
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(999.dp)),
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth(value.coerceIn(0, 100) / 100f)
-                        .height(8.dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(999.dp)),
-            )
         }
     }
 }

@@ -3,22 +3,14 @@
 package com.parsfilo.astrology.feature.premium
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -27,7 +19,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,59 +26,17 @@ import androidx.compose.ui.unit.dp
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
-import com.parsfilo.astrology.ui.theme.DarkBackground
-import com.parsfilo.astrology.ui.theme.DarkPrimary
-import com.parsfilo.astrology.ui.theme.DarkSecondary
+import com.parsfilo.astrology.core.ui.components.PremiumGoldButton
+import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
 
 @Composable
 internal fun PremiumHero() {
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            DarkPrimary.copy(alpha = 0.24f),
-                            DarkBackground.copy(alpha = 0.98f),
-                            DarkSecondary.copy(alpha = 0.18f),
-                        ),
-                    ),
-                    shape = RoundedCornerShape(30.dp),
-                ).padding(20.dp),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.38f),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)),
-            ) {
-                Text(
-                    text = "✦",
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.secondary,
-                )
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = stringResource(R.string.premium_title),
-                style = MaterialTheme.typography.headlineLarge,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = stringResource(R.string.premium_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
+    PremiumHeroCard(
+        symbol = "✦",
+        eyebrow = stringResource(R.string.home_brand),
+        title = stringResource(R.string.premium_title),
+        subtitle = stringResource(R.string.premium_subtitle),
+    )
 }
 
 @Composable
@@ -110,18 +59,12 @@ internal fun PremiumOfferCard(
             onSelect = callbacks.onSelectPlan,
         )
         PremiumOfferSummary(uiState, selected, purchaseReady)
-        Button(
+        PremiumGoldButton(
+            text = premiumCtaLabel(uiState, selected, purchaseReady),
             onClick = callbacks.onPurchase,
             enabled = purchaseReady,
             modifier = Modifier.fillMaxWidth(),
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-        ) {
-            Text(premiumCtaLabel(uiState, selected, purchaseReady))
-        }
+        )
         PremiumBillingDisclosure(uiState, selected, purchaseReady)
         OutlinedButton(
             onClick = callbacks.onContinueFree,

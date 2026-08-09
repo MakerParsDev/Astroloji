@@ -30,11 +30,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ads.AdaptiveBannerAd
 import com.parsfilo.astrology.core.ads.adsEntryPoint
-import com.parsfilo.astrology.core.ui.components.AstroSectionTitle
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
+import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
+import com.parsfilo.astrology.core.util.ZodiacSign
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -101,9 +102,12 @@ fun MonthlyScreen(
                 }
 
                 uiState.monthly?.let { monthly ->
-                    AstroSectionTitle(
+                    val monthlySign = ZodiacSign.fromKey(monthly.sign)
+                    PremiumHeroCard(
+                        symbol = monthlySign.symbol,
+                        eyebrow = monthlySign.localizedName(monthly.language),
                         title = stringResource(R.string.monthly_label_month, monthly.month),
-                        eyebrow =
+                        subtitle =
                             if (monthly.monthStart != null && monthly.monthEnd != null) {
                                 stringResource(R.string.monthly_range_label, monthly.monthStart, monthly.monthEnd)
                             } else {
