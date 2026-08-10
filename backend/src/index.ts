@@ -14,6 +14,7 @@ import { enforceStrictRateLimit, mapStrictRateLimitResult, RATE_LIMIT_POLICIES }
 import type { AppBindings } from '@/types';
 import type { RewardRouteDependencies } from '@/workers/reward';
 import { validateTrackEventBody } from '@/utils/validators';
+import { registerBirthDataRoutes } from '@/workers/birthData';
 import { registerChartRoutes } from '@/workers/chart';
 import { registerContentAdminRoutes, registerContentRoutes } from '@/workers/content';
 import { handleCron } from '@/workers/cron';
@@ -111,6 +112,7 @@ export function createApp(options: CreateAppOptions = {}) {
   };
 
   apiRoutes.use('/users/me', jwtAuthMiddleware);
+  apiRoutes.use('/users/me/birth-data', jwtAuthMiddleware);
   apiRoutes.use('/users/refresh-token', jwtAuthMiddleware);
   apiRoutes.use('/rewards/prepare', jwtAuthMiddleware);
   apiRoutes.use('/rewards/claim', jwtAuthMiddleware);
@@ -149,6 +151,7 @@ export function createApp(options: CreateAppOptions = {}) {
   apiRoutes.use('/events/track', jwtAuthMiddleware);
 
   registerUserRoutes(apiRoutes);
+  registerBirthDataRoutes(apiRoutes);
   registerChartRoutes(apiRoutes);
   registerRewardRoutes(apiRoutes, options.reward);
   registerContentRoutes(apiRoutes);

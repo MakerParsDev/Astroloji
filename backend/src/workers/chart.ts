@@ -16,7 +16,8 @@ export function registerChartRoutes(app: Hono<AppBindings>) {
     return context.json(
       createNatalChart({
         timestamp: request.timestamp,
-        timeCertainty: request.time_certainty
+        timeCertainty: request.time_certainty,
+        observer: request.observer
       })
     );
   });

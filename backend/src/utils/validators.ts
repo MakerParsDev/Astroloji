@@ -17,6 +17,7 @@ import {
   type RewardPrepareRequest,
   type RewardType,
   type RegisterRequest,
+  type SaveBirthDataRequest,
   type Sign,
   type SubscriptionVerifyRequest,
   type TrackEventRequest,
@@ -171,10 +172,35 @@ const utcTimestampSchema = z
 
 const birthTimeCertaintySchema = z.enum(['exact', 'approximate', 'unknown']);
 
+const geographicObserverSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180)
+});
+
 export const natalChartSchema = z.object({
   timestamp: utcTimestampSchema,
-  time_certainty: birthTimeCertaintySchema
+  time_certainty: birthTimeCertaintySchema,
+  observer: geographicObserverSchema.optional()
 });
+
+const localDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'local_date must be in YYYY-MM-DD form.');
+const localTimeSchema = z.string().regex(/^\d{2}:\d{2}:\d{2}$/, 'local_time must be in HH:mm:ss form.');
+
+export const saveBirthDataSchema = z
+  .object({
+    local_date: localDateSchema,
+    local_time: localTimeSchema.optional(),
+    time_certainty: birthTimeCertaintySchema,
+    city_id: z.string().min(1)
+  })
+  .superRefine((value, context) => {
+    if (value.time_certainty !== 'unknown' && !value.local_time) {
+      context.addIssue({
+        code: 'custom',
+        message: 'local_time is required unless time_certainty is "unknown".'
+      });
+    }
+  });
 
 export const transitChartSchema = z.object({
   natal_timestamp: utcTimestampSchema,
@@ -244,6 +270,10 @@ export function validateRewardClaimBody(payload: unknown): RewardClaimRequest {
 
 export function validateNatalChartBody(payload: unknown): NatalChartRequest {
   return natalChartSchema.parse(payload);
+}
+
+export function validateSaveBirthDataBody(payload: unknown): SaveBirthDataRequest {
+  return saveBirthDataSchema.parse(payload);
 }
 
 export function validateTransitChartBody(payload: unknown): TransitChartRequest {

@@ -108,6 +108,8 @@ interface SecretBindings {
   ADMIN_PLAY_READ_SECRET: string;
   ADMIN_PLAY_WRITE_SECRET: string;
   ADMOB_REWARDED_ID: string;
+  /** Base64-encoded 32-byte (AES-256) key. Generate with `openssl rand -base64 32`. See services/birthDataEncryption.ts. */
+  BIRTH_DATA_ENCRYPTION_KEY: string;
 }
 
 interface RuntimeConfigBindings {
@@ -406,9 +408,16 @@ export interface RewardClaimRequest {
 
 export type BirthTimeCertainty = 'exact' | 'approximate' | 'unknown';
 
+export interface GeographicObserverInput {
+  latitude: number;
+  longitude: number;
+}
+
 export interface NatalChartRequest {
   timestamp: string;
   time_certainty: BirthTimeCertainty;
+  /** Birth location — optional; without it, Ascendant/Midheaven/houses stay null. See ADR-0002. */
+  observer?: GeographicObserverInput;
 }
 
 export interface TransitChartRequest {
@@ -419,6 +428,30 @@ export interface TransitChartRequest {
 
 export interface PersonalGuidanceRequest extends TransitChartRequest {
   language: Language;
+}
+
+export interface UserBirthDataRow {
+  user_id: string;
+  time_certainty: BirthTimeCertainty;
+  encrypted_payload: string;
+  encryption_iv: string;
+  encryption_key_version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveBirthDataRequest {
+  /** "YYYY-MM-DD" in the birth city's local calendar. Always required — the Sun sign needs at least the date. */
+  local_date: string;
+  /** "HH:mm:ss" in the birth city's local time. Required unless time_certainty is "unknown"; when absent, local noon is used as an explicit placeholder and time-sensitive results (Moon, Ascendant, houses) stay unavailable. */
+  local_time?: string;
+  time_certainty: BirthTimeCertainty;
+  city_id: string;
+}
+
+export interface BirthDataResponse {
+  time_certainty: BirthTimeCertainty;
+  has_birth_data: boolean;
 }
 
 export interface ContentBackfillRequest {

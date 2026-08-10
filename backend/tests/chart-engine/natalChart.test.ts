@@ -55,6 +55,35 @@ describe('natal chart v1', () => {
     expect(chart.limitations).toContain('moon_position_time_sensitive');
   });
 
+  it('computes a real Ascendant, Midheaven, and Whole Sign houses when an observer and an exact birth time are both given', () => {
+    const chart = createNatalChart({
+      timestamp: '2026-08-05T00:00:00.000Z',
+      timeCertainty: 'exact',
+      observer: { latitude: 41.01, longitude: 28.98 }
+    });
+
+    expect(chart.ascendant).not.toBeNull();
+    expect(chart.midheaven).not.toBeNull();
+    expect(chart.houses?.system).toBe('whole_sign');
+    expect(chart.houses?.cusps).toHaveLength(12);
+    expect(chart.houses?.cusps[0].zodiac.sign).toBe(chart.ascendant?.zodiac.sign);
+    expect(chart.limitations).not.toContain('houses_and_ascendant_not_calculated');
+  });
+
+  it('still withholds the Ascendant/Midheaven/houses when an observer is given but the birth time is only approximate', () => {
+    const chart = createNatalChart({
+      timestamp: '2026-08-05T00:00:00.000Z',
+      timeCertainty: 'approximate',
+      observer: { latitude: 41.01, longitude: 28.98 }
+    });
+
+    expect(chart.ascendant).toBeNull();
+    expect(chart.midheaven).toBeNull();
+    expect(chart.houses).toBeNull();
+    expect(chart.limitations).toContain('houses_and_ascendant_not_calculated');
+    expect(chart.limitations).toContain('birth_time_uncertain');
+  });
+
   it('rejects non-ISO timestamps', () => {
     expect(() =>
       createNatalChart({

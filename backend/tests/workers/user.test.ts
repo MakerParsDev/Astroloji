@@ -383,6 +383,7 @@ describe('user routes', () => {
       'DELETE FROM reward_challenges WHERE user_id = ?',
       'DELETE FROM fcm_tokens WHERE user_id = ?',
       'DELETE FROM subscriptions WHERE user_id = ?',
+      'DELETE FROM user_birth_data WHERE user_id = ?',
       'DELETE FROM users WHERE id = ?'
     ]);
     expect(batched.every((statement) => statement.bindings[0] === 'user-1')).toBe(true);

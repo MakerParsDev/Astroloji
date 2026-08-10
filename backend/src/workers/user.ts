@@ -139,6 +139,7 @@ async function deleteUserData(env: AppBindings['Bindings'], userId: string): Pro
     env.DB.prepare('DELETE FROM reward_challenges WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM fcm_tokens WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(userId),
+    env.DB.prepare('DELETE FROM user_birth_data WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId)
   ]);
 }

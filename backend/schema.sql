@@ -91,6 +91,16 @@ CREATE TABLE IF NOT EXISTS user_events (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS user_birth_data (
+  user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  time_certainty TEXT NOT NULL CHECK (time_certainty IN ('exact', 'approximate', 'unknown')),
+  encrypted_payload TEXT NOT NULL,
+  encryption_iv TEXT NOT NULL,
+  encryption_key_version INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_sign ON users(sign);
 CREATE INDEX IF NOT EXISTS idx_users_is_premium ON users(is_premium);
 CREATE INDEX IF NOT EXISTS idx_users_subscription_state ON users(subscription_state);

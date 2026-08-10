@@ -1,4 +1,11 @@
 import {
+  calculateChartAngles,
+  calculateWholeSignHouses,
+  type ChartAngle,
+  type GeographicObserver,
+  type HouseCusps
+} from '@/chart-engine/houses';
+import {
   calculateGeocentricEclipticPositions,
   normalizeLongitude,
   type ChartBody,
@@ -37,8 +44,9 @@ export type NatalChartV1 = {
   referenceFrame: 'apparent-geocentric-true-ecliptic-of-date';
   positions: GeocentricEclipticPosition[];
   aspects: MajorAspect[];
-  ascendant: null;
-  houses: null;
+  ascendant: ChartAngle | null;
+  midheaven: ChartAngle | null;
+  houses: HouseCusps | null;
   limitations: Array<
     | 'houses_and_ascendant_not_calculated'
     | 'birth_time_uncertain'
@@ -101,6 +109,8 @@ export function calculateMajorAspects(positions: AspectPosition[]): MajorAspect[
 export function createNatalChart(input: {
   timestamp: string;
   timeCertainty: BirthTimeCertainty;
+  /** Birth location. Required (alongside an exact birth time) to compute the Ascendant, Midheaven, and houses — see ADR-0002. */
+  observer?: GeographicObserver;
 }): NatalChartV1 {
   if (!ISO_TIMESTAMP_PATTERN.test(input.timestamp)) {
     throw new Error('timestamp must be an ISO 8601 UTC timestamp.');
@@ -112,9 +122,25 @@ export function createNatalChart(input: {
   }
 
   const positions = calculateGeocentricEclipticPositions(date);
-  const limitations: NatalChartV1['limitations'] = ['houses_and_ascendant_not_calculated'];
+  const limitations: NatalChartV1['limitations'] = [];
   if (input.timeCertainty !== 'exact') {
     limitations.push('birth_time_uncertain', 'moon_position_time_sensitive');
+  }
+
+  // Ascendant/Midheaven/houses shift by roughly a degree per few minutes of
+  // birth time, so they are only computed when both a birth location and an
+  // exactly-known birth time are available. This is the gating ADR-0002
+  // flagged as still outstanding.
+  let ascendant: ChartAngle | null = null;
+  let midheaven: ChartAngle | null = null;
+  let houses: HouseCusps | null = null;
+  if (input.observer && input.timeCertainty === 'exact') {
+    const angles = calculateChartAngles(date, input.observer);
+    ascendant = angles.ascendant;
+    midheaven = angles.midheaven;
+    houses = calculateWholeSignHouses(angles.ascendant.longitude);
+  } else {
+    limitations.push('houses_and_ascendant_not_calculated');
   }
 
   return {
@@ -126,8 +152,9 @@ export function createNatalChart(input: {
     referenceFrame: 'apparent-geocentric-true-ecliptic-of-date',
     positions,
     aspects: calculateMajorAspects(positions),
-    ascendant: null,
-    houses: null,
+    ascendant,
+    midheaven,
+    houses,
     limitations
   };
 }
