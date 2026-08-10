@@ -24,6 +24,9 @@ bucket_name = "astrology-content"
 binding = "CACHE"
 id = "12c50600e61447c29ed0bcb122f5cc85"
 
+[ai]
+binding = "AI"
+
 [vars]
 ENVIRONMENT = "production"
 PACKAGE_NAME = "com.parsfilo.astrology"

@@ -61,6 +61,11 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
       }
     } as unknown as KVNamespace,
     RATE_LIMITER: createRateLimiterNamespace(),
+    AI: {
+      async run() {
+        throw new Error('AI binding is not stubbed in this test — inject a fake explicitly.');
+      }
+    } as unknown as Env['AI'],
     ENVIRONMENT: 'test',
     PACKAGE_NAME: 'com.example.astrology',
     PREMIUM_MONTHLY_PRODUCT_ID: 'premium_monthly',

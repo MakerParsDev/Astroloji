@@ -309,6 +309,56 @@ describe('content filters', () => {
     )).toBe(true);
   });
 
+  it('replaces daily sign content with LLM output when the AI binding succeeds, tagging provenance', async () => {
+    const puts: Array<{ key: string; payload: Record<string, unknown> }> = [];
+    const llmSignPayload = {
+      short: 'A bold, focused day.',
+      full: 'Today favors decisive action across every part of your life that matters most.',
+      love: 'Open, honest conversation strengthens a close bond today.',
+      career: 'A well-timed idea gets noticed by the right person.',
+      money: 'A small, considered purchase pays off later.',
+      health: 'Short bursts of movement lift your energy through the day.',
+      lucky_number: 7,
+      lucky_color: 'crimson',
+      energy: 72,
+      love_score: 65,
+      career_score: 80,
+      money_score: 58,
+      health_score: 70,
+      daily_tip: 'Pick one thing and finish it before starting the next.'
+    };
+
+    const env = createTestEnv({
+      AI: { async run() { return { response: JSON.stringify(llmSignPayload) }; } } as unknown as ReturnType<typeof createTestEnv>['AI'],
+      CONTENT: {
+        async head() {
+          return { size: 1 } as R2Object;
+        },
+        async get() {
+          return null;
+        },
+        async put(key: string, value: string | ReadableStream | ArrayBuffer | ArrayBufferView) {
+          puts.push({ key, payload: JSON.parse(String(value)) as Record<string, unknown> });
+        }
+      } as unknown as R2Bucket
+    });
+
+    await backfillContentDocuments(env, {
+      seed_date: '2026-04-10',
+      daily_days: 1,
+      skip_static_content: true,
+      editorial_status: 'approved',
+      approved_by: 'test-editor',
+      approval_reference: 'test:content-backfill'
+    });
+
+    const dailyUpload = puts.find(({ key }) => key.startsWith('content/daily/'));
+    expect(dailyUpload).toBeDefined();
+    const signs = dailyUpload?.payload.signs as Record<string, unknown>;
+    expect(signs.aries).toEqual(llmSignPayload);
+    expect(dailyUpload?.payload.source_signals).toContain('llm');
+  });
+
   it('fails before the first R2 write when generated content violates quality rules', async () => {
     const puts: string[] = [];
     const env = createTestEnv({

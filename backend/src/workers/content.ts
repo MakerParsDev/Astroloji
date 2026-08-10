@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 
+import { enhanceDailyUploadsWithLlm } from '@/llm/dailyContentEnhancer';
+import { buildDailyContentProviderChain } from '@/llm/dailyContentProviderChain';
 import { requireAdminCapability } from '@/middleware/auth';
 import { getCachedJsonContent } from '@/services/cache';
 import { assertSeedQuality, buildDocumentsForSeed } from '@/utils/contentSeed';
@@ -41,8 +43,11 @@ export async function backfillContentDocuments(
     skipStaticContent: request.skip_static_content
   });
   assertSeedQuality(uploads);
+
+  const enhancedUploads = await enhanceDailyUploadsWithLlm(env, buildDailyContentProviderChain(env), uploads);
+
   const approvedAt = new Date().toISOString();
-  const approvedUploads = uploads.map((item) => ({
+  const approvedUploads = enhancedUploads.map((item) => ({
     ...item,
     payload: {
       ...(item.payload as Record<string, unknown>),
