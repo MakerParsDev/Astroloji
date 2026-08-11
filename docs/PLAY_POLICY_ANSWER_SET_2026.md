@@ -13,9 +13,11 @@
 - Account deletion URL: https://astrology.parsfilo.com/delete-account
 - Privacy policy: https://astrology.parsfilo.com/privacy
 - Ads: Yes
-- Purchases: Google Play subscriptions
+- Purchases: Google Play subscriptions and Google Play in-app products (consumable credit packs)
 - Data deletion request: Available in app
-- Optional date of birth: Collected ephemerally for app functionality
+- Optional date of birth: Collected for app functionality. Two distinct flows — see `docs/DATA_SAFETY_2026.md` row "Saved birth date/time and birth city coordinates": the stateless Personal Guidance Beta remains ephemeral (never persisted), while the separate, optional saved-birth-data flow (`PUT /users/me/birth-data`, enabling personalized daily content and Ascendant/house calculation) is **persisted, encrypted at rest**, and independently deletable
+- Approximate or precise location: Birth city coordinates are collected as part of the optional saved-birth-data flow above (encrypted at rest, never returned in plaintext); the app does not otherwise collect device/GPS location
+- AI-generated content: Yes — daily/weekly/monthly/personality/compatibility content, AI deep-reading, and AI chat consultation are LLM-generated; declare per Play's AI-generated content policy
 
 ## Console operator table
 
@@ -29,12 +31,15 @@
 | Account deletion URL | https://astrology.parsfilo.com/delete-account | Public backend route | HTTPS 200 and instructions match the app |
 | Ads | Yes | Google Mobile Ads SDK, AdMob app, and six ad units | UMP and advertising declarations remain enabled |
 | App access | No access instructions required for review | Anonymous Firebase onboarding; no reviewer credential gate | Fresh install reaches the core experience without supplied credentials |
-| Purchases | Google Play subscriptions | BillingClient and backend verification | Products remain `premium_monthly`/`monthly` and `premium_weekly`/`weekly` |
-| Data: date of birth | Optional, collected ephemerally for app functionality | Personal Guidance request; not persisted | No analytics, D1, preference, or log storage exists |
+| Purchases | Google Play subscriptions and consumable in-app credit packs | BillingClient and backend verification | Subscription products remain `premium_monthly`/`monthly` and `premium_weekly`/`weekly`; credit products remain `credits_small`/`credits_medium`/`credits_large` |
+| Data: date of birth | Optional; ephemeral for the stateless Personal Guidance Beta, persisted (encrypted) for the separate saved-birth-data flow | Personal Guidance request (not persisted) vs. `PUT /users/me/birth-data` (AES-256-GCM in `user_birth_data`) | See `docs/DATA_SAFETY_2026.md` row "Saved birth date/time and birth city coordinates" for the exact persistence/deletion contract |
+| Data: approximate or precise location | Optional; birth city coordinates only, as part of the saved-birth-data flow | Same `user_birth_data` encrypted row as birth date/time | No device GPS/location permission is requested; never returned in plaintext after save |
 | Data: app interactions | Collected for analytics | Firebase Analytics and bounded event allowlist | No free-form or direct identifiers in event parameters |
 | Data: crash logs and diagnostics | Collected for analytics and app stability | Firebase Crashlytics | Provider disclosure and retention reviewed |
 | Data: device or other IDs | Collected for app functionality, analytics, notifications, and advertising | Firebase Installation ID, FCM, Mobile Ads/UMP | Advertising and notification purposes remain declared |
-| Data: purchase history | Collected for app functionality, fraud prevention, and account management | Play purchase token and subscription state | Account-linked app records are removed on account deletion subject to provider or legal retention |
+| Data: purchase history | Collected for app functionality, fraud prevention, and account management | Play purchase token, subscription state, and `credit_ledger` entries | Account-linked app records are removed on account deletion subject to provider or legal retention |
+| Data: app activity (social/other user-generated) | Friend connections (paired user IDs) and invite-code redemption state | `friendships`/`invite_codes` D1 tables | A friend only ever sees the paired user's sign/language, never raw birth data or other account identifiers |
+| AI-generated content declaration | Declare per Play's AI-generated content policy | Cloudflare Workers AI (default) or configured LLM provider generates daily/weekly/monthly/personality/compatibility content, deep readings, and chat replies | Declaration must stay current if the configured provider or generated surfaces change |
 | Data deletion request | Available in the app and through the public deletion page | Settings deletion flow and public route | Both paths are reachable in the release artifact |
 | Target audience | Preserve current answer | No child-directed positioning in the artifact | Read-only snapshot matches the current production declaration |
 | Content rating | Preserve current questionnaire answers | Existing PEGI 3 public rating | No new content category was added by metadata work |
@@ -51,8 +56,9 @@
 | Firebase Installations | Firebase Installation ID and installation lifecycle metadata | Firebase service routing and installation identity | Local installation identity is removed during account deletion where supported; provider lifecycle rules apply | Physical-device smoke and Firebase SDK integration |
 | Google Mobile Ads/UMP | Advertising or device signals and consent state | Ad delivery, consent, measurement, and fraud prevention | Provider-controlled retention applies; premium users do not preload ads | AdMob application, six ad units, UMP integration |
 | Google Play Billing | Product ID, purchase token, subscription state, and expiry | Purchase, restore, entitlement, and fraud prevention | App-linked entitlement records are removed on account deletion subject to provider or legal retention; Play transaction history remains provider-controlled | BillingClient, backend verification, subscription tests |
-| Google Play Developer API | Subscription and release metadata accessed by the backend or release tooling | Purchase verification and release operations | Provider-controlled transaction and release records remain | Backend Play verification and release workflows |
-| Cloudflare | Account-linked profile fields, request metadata, notification targets, subscription state, and bounded events | App functionality, security, backend processing, and abuse prevention | User-linked D1 records handled by the app are deleted through the account deletion flow; infrastructure retention follows configured policies | Worker routes, D1 tests, production smoke, public deletion route |
+| Google Play Developer API | Subscription, in-app product, and release metadata accessed by the backend or release tooling | Purchase verification and release operations | Provider-controlled transaction and release records remain | Backend Play verification and release workflows |
+| Cloudflare | Account-linked profile fields, request metadata, notification targets, subscription/credit-ledger state, encrypted saved birth data, friend connections, AI-generated content, and bounded events | App functionality, security, backend processing, and abuse prevention | User-linked D1 records handled by the app (including `user_birth_data`, `credit_ledger`, `friendships`, `invite_codes`, and stored deep readings) are deleted through the account deletion flow; infrastructure retention follows configured policies | Worker routes, D1 tests, production smoke, public deletion route |
+| Configured LLM provider (Cloudflare Workers AI by default; Anthropic/OpenAI-compatible providers optionally configurable) | Chart-derived prompt content (sign, aspects, chart summary) and the user's own chat messages during an AI consultation turn | Generate daily/weekly/monthly/personality/compatibility content, AI deep readings, and AI chat replies | Chat messages are not persisted server-side beyond the single request/response; deep-reading text is stored server-side per user until account deletion or a birth-profile change | LLM provider router/adapters (`backend/src/llm/`), `docs/DATA_SAFETY_2026.md` |
 
 ## Save and submission protocol
 

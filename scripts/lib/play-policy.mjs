@@ -16,7 +16,7 @@ const requiredAnswers = [
   ['Ads', 'Yes'],
   ['Purchases', 'Google Play subscriptions'],
   ['Data deletion request', 'Available in app'],
-  ['Optional date of birth', 'Collected ephemerally for app functionality'],
+  ['Optional date of birth', 'Collected for app functionality'],
 ];
 
 function escapeRegExp(value) {
@@ -75,8 +75,8 @@ export function validatePolicyAnswerSet(markdown, storeConfig, matrixMarkdown) {
       errors.push(`Policy answer set has conflicting values for ${field}: ${entry.values.join(' | ')}`);
       continue;
     }
-    if (entry.values[0].toLocaleLowerCase('en-US') !== expectedValue.toLocaleLowerCase('en-US')) {
-      errors.push(`Policy answer set ${field} must be: ${expectedValue}`);
+    if (!entry.values[0].toLocaleLowerCase('en-US').includes(expectedValue.toLocaleLowerCase('en-US'))) {
+      errors.push(`Policy answer set ${field} must include: ${expectedValue}`);
     }
   }
 

@@ -21,7 +21,7 @@ test('operator answer set contains the exact supported policy answers', () => {
     'Ads: Yes',
     'Purchases: Google Play subscriptions',
     'Data deletion request: Available in app',
-    'Optional date of birth: Collected ephemerally for app functionality',
+    'Optional date of birth: Collected for app functionality',
   ];
   for (const answer of requiredAnswers) {
     assert.match(answerSet, new RegExp(escapeRegExp(answer), 'i'));
