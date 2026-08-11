@@ -143,6 +143,7 @@
     <string name="language_name_spanish">Español</string>
     <string name="language_name_portuguese">Português</string>
     <string name="language_name_german">Deutsch</string>
+    <string name="language_name_french">Français</string>
     <string name="settings_favorites_title">Favorites</string>
     <string name="settings_no_favorites">You have not added favorite signs yet.</string>
     <string name="settings_about_title">About</string>

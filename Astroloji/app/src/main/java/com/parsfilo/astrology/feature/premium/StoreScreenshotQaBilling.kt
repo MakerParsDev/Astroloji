@@ -14,6 +14,7 @@ private val STORE_QA_PLAN_COPY =
     mapOf(
         "tr" to StoreQaPlanCopy("Aylık Premium", "₺394,99", "Haftalık Premium", "₺129,99"),
         "de" to StoreQaPlanCopy("Monatliches Premium", "6,99 €", "Wöchentliches Premium", "2,29 €"),
+        "fr" to StoreQaPlanCopy("Premium mensuel", "6,99 €", "Premium hebdomadaire", "2,29 €"),
     )
 private val STORE_QA_PLAN_COPY_DEFAULT = StoreQaPlanCopy("Monthly Premium", "$6.99", "Weekly Premium", "$2.29")
 

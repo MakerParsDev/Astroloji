@@ -28,7 +28,8 @@ const DISCLAIMER: Record<Language, string> = {
   en: 'This chat is for entertainment and self-reflection; you never give medical, legal, or financial advice. If such a topic comes up, gently redirect the user to a qualified professional.',
   es: 'Esta conversación es para entretenimiento y autorreflexión; nunca das consejos médicos, legales o financieros. Si surge un tema así, redirige con amabilidad a un profesional calificado.',
   pt: 'Esta conversa é para entretenimento e autorreflexão; você nunca dá conselhos médicos, jurídicos ou financeiros. Se esse tipo de assunto surgir, direcione com gentileza para um profissional qualificado.',
-  de: 'Dieser Chat dient der Unterhaltung und Selbstreflexion; Sie geben niemals medizinischen, rechtlichen oder finanziellen Rat. Sollte ein solches Thema aufkommen, verweisen Sie die Person freundlich an eine qualifizierte Fachperson.'
+  de: 'Dieser Chat dient der Unterhaltung und Selbstreflexion; Sie geben niemals medizinischen, rechtlichen oder finanziellen Rat. Sollte ein solches Thema aufkommen, verweisen Sie die Person freundlich an eine qualifizierte Fachperson.',
+  fr: 'Cette conversation est destinée au divertissement et à l\'introspection ; vous ne donnez jamais de conseil médical, juridique ou financier. Si un tel sujet se présente, orientez la personne avec bienveillance vers un professionnel qualifié.'
 };
 
 const PERSONA: Record<Language, string> = {
@@ -36,7 +37,8 @@ const PERSONA: Record<Language, string> = {
   en: 'You are an experienced, warm, and grounded astrology consultant. Keep answers short, personal, and concrete (a few paragraphs at most).',
   es: 'Eres un consultor de astrología experimentado, cálido y realista. Da respuestas breves, cercanas y concretas (unos pocos párrafos como máximo).',
   pt: 'Você é um consultor de astrologia experiente, caloroso e realista. Dê respostas curtas, pessoais e concretas (no máximo alguns parágrafos).',
-  de: 'Sie sind eine erfahrene, warmherzige und bodenständige Astrologie-Beraterin. Geben Sie kurze, persönliche und konkrete Antworten (höchstens ein paar Absätze).'
+  de: 'Sie sind eine erfahrene, warmherzige und bodenständige Astrologie-Beraterin. Geben Sie kurze, persönliche und konkrete Antworten (höchstens ein paar Absätze).',
+  fr: 'Vous êtes une consultante en astrologie expérimentée, chaleureuse et pleine de bon sens. Donnez des réponses courtes, personnelles et concrètes (quelques paragraphes au maximum).'
 };
 
 const UNKNOWN_ASCENDANT: Record<Language, string> = {
@@ -44,7 +46,8 @@ const UNKNOWN_ASCENDANT: Record<Language, string> = {
   en: 'unknown',
   es: 'desconocido',
   pt: 'desconhecido',
-  de: 'unbekannt'
+  de: 'unbekannt',
+  fr: 'inconnu'
 };
 
 function chartLineFor(
@@ -61,7 +64,8 @@ function chartLineFor(
     en: `The user's birth chart: Sun ${chart.sunSign} ${sun}°, Moon ${chart.moonSign} ${moon}°, Rising ${ascendant}, Venus ${chart.venusSign} ${venus}°, Mars ${chart.marsSign} ${mars}°.`,
     es: `Carta natal del usuario: Sol en ${chart.sunSign} ${sun}°, Luna en ${chart.moonSign} ${moon}°, Ascendente ${ascendant}, Venus en ${chart.venusSign} ${venus}°, Marte en ${chart.marsSign} ${mars}°.`,
     pt: `Mapa astral do usuário: Sol em ${chart.sunSign} ${sun}°, Lua em ${chart.moonSign} ${moon}°, Ascendente ${ascendant}, Vênus em ${chart.venusSign} ${venus}°, Marte em ${chart.marsSign} ${mars}°.`,
-    de: `Geburtshoroskop der Person: Sonne in ${chart.sunSign} ${sun}°, Mond in ${chart.moonSign} ${moon}°, Aszendent ${ascendant}, Venus in ${chart.venusSign} ${venus}°, Mars in ${chart.marsSign} ${mars}°.`
+    de: `Geburtshoroskop der Person: Sonne in ${chart.sunSign} ${sun}°, Mond in ${chart.moonSign} ${moon}°, Aszendent ${ascendant}, Venus in ${chart.venusSign} ${venus}°, Mars in ${chart.marsSign} ${mars}°.`,
+    fr: `Thème natal de l'utilisateur : Soleil en ${chart.sunSign} ${sun}°, Lune en ${chart.moonSign} ${moon}°, Ascendant ${ascendant}, Vénus en ${chart.venusSign} ${venus}°, Mars en ${chart.marsSign} ${mars}°.`
   };
   return lines[language];
 }

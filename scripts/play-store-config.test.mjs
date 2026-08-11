@@ -6,11 +6,11 @@ import {
   readAndroidLocales,
 } from "./lib/play-store-config.mjs";
 
-test("Android de/en/es/pt/tr locales map exactly to de-DE, en-US, es-ES, pt-BR, and tr-TR Play locales", () => {
+test("Android de/en/es/fr/pt/tr locales map exactly to de-DE, en-US, es-ES, fr-FR, pt-BR, and tr-TR Play locales", () => {
   const config = loadStoreConfig(process.cwd());
   const android = readAndroidLocales(process.cwd());
-  assert.deepEqual(android, ["de", "en", "es", "pt", "tr"]);
-  assert.deepEqual(config.locales, ["en-US", "tr-TR", "es-ES", "pt-BR", "de-DE"]);
+  assert.deepEqual(android, ["de", "en", "es", "fr", "pt", "tr"]);
+  assert.deepEqual(config.locales, ["en-US", "tr-TR", "es-ES", "pt-BR", "de-DE", "fr-FR"]);
   assert.doesNotThrow(() => assertLocaleContract(config, android));
 });
 

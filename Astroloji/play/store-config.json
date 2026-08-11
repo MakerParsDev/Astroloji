@@ -6,14 +6,16 @@
     "tr-TR",
     "es-ES",
     "pt-BR",
-    "de-DE"
+    "de-DE",
+    "fr-FR"
   ],
   "androidLocaleMap": {
     "en": "en-US",
     "tr": "tr-TR",
     "es": "es-ES",
     "pt": "pt-BR",
-    "de": "de-DE"
+    "de": "de-DE",
+    "fr": "fr-FR"
   },
   "support": {
     "developer": "ParsFilo",

@@ -74,6 +74,39 @@ describe('content seed document builder', () => {
     expect(leoPersonality.element).toBe('Feuer');
   });
 
+  it('builds genuine French content, not an English/Spanish/Portuguese/German fallback', () => {
+    const uploads = buildDocumentsForSeed({ seedDate: '2026-03-21', dailyDays: 1 });
+
+    const dailyFr = uploads.find((item) => item.key === 'content/daily/fr/2026-03-21.json');
+    expect(dailyFr).toBeDefined();
+    const ariesDaily = (dailyFr?.payload as { signs: Record<string, { short: string }> }).signs.aries;
+    expect(ariesDaily.short).toMatch(/[éèêàçùûî]/i);
+    expect(ariesDaily.short).not.toMatch(/Focus:/);
+
+    const personalityFr = uploads.find((item) => item.key === 'content/personality/fr/leo.json');
+    expect(personalityFr).toBeDefined();
+    const leoPersonality = personalityFr?.payload as { planet: string; element: string };
+    expect(leoPersonality.planet).toBe('Soleil');
+    expect(leoPersonality.element).toBe('feu');
+  });
+
+  it('elides French "de" to "d\'" before a vowel-initial focus phrase in the monthly summary', () => {
+    const uploads = buildDocumentsForSeed({ seedDate: '2026-03-21', dailyDays: 1 });
+
+    // Aries' fr focus is "un début audacieux mais mesuré" (vowel-initial: needs "d'un").
+    const ariesMonthlyFr = uploads.find((item) => item.key === 'content/monthly/fr/2026-03.json');
+    expect(ariesMonthlyFr).toBeDefined();
+    const ariesSummary = (ariesMonthlyFr?.payload as { signs: Record<string, { summary: string }> }).signs.aries
+      .summary;
+    expect(ariesSummary).toMatch(/thème d'un début/);
+    expect(ariesSummary).not.toMatch(/thème de un /);
+
+    // Cancer's fr focus is "la sécurité ..." (consonant-initial: keeps "de la").
+    const cancerSummary = (ariesMonthlyFr?.payload as { signs: Record<string, { summary: string }> }).signs.cancer
+      .summary;
+    expect(cancerSummary).toMatch(/thème de la sécurité/);
+  });
+
   it('restricts output to a single language when requested, to stay under the Worker subrequest limit', () => {
     const uploads = buildDocumentsForSeed({
       seedDate: '2026-03-21',

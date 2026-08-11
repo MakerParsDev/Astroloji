@@ -31,7 +31,7 @@ class StoreQaBootstrapActivity : AppCompatActivity() {
                     finishAndRemoveTask()
                     return
                 }
-        if (locale !in setOf("tr", "en", "es", "pt", "de")) {
+        if (locale !in setOf("tr", "en", "es", "pt", "de", "fr")) {
             finishAndRemoveTask()
             return
         }

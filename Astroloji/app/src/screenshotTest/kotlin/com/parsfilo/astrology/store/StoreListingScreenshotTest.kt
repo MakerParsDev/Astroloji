@@ -111,6 +111,11 @@ fun StoreDailyPortugueseScreenshot() = StoreCaptureScene(portugueseStoreCopy.dai
 fun StoreDailyGermanScreenshot() = StoreCaptureScene(germanStoreCopy.daily, R.drawable.store_capture_de_daily)
 
 @PreviewTest
+@Preview(device = PHONE_PREVIEW, locale = "fr-rFR", showBackground = true)
+@Composable
+fun StoreDailyFrenchScreenshot() = StoreCaptureScene(frenchStoreCopy.daily, R.drawable.store_capture_fr_daily)
+
+@PreviewTest
 @Preview(device = PHONE_PREVIEW, locale = "en", showBackground = true)
 @Composable
 fun StoreGuidanceEnglishScreenshot() = StoreCaptureScene(englishStoreCopy.weekly, R.drawable.store_capture_en_weekly)
@@ -134,6 +139,11 @@ fun StoreGuidancePortugueseScreenshot() = StoreCaptureScene(portugueseStoreCopy.
 @Preview(device = PHONE_PREVIEW, locale = "de-rDE", showBackground = true)
 @Composable
 fun StoreGuidanceGermanScreenshot() = StoreCaptureScene(germanStoreCopy.weekly, R.drawable.store_capture_de_weekly)
+
+@PreviewTest
+@Preview(device = PHONE_PREVIEW, locale = "fr-rFR", showBackground = true)
+@Composable
+fun StoreGuidanceFrenchScreenshot() = StoreCaptureScene(frenchStoreCopy.weekly, R.drawable.store_capture_fr_weekly)
 
 @PreviewTest
 @Preview(device = PHONE_PREVIEW, locale = "en", showBackground = true)
@@ -161,6 +171,11 @@ fun StoreToolsPortugueseScreenshot() = StoreCaptureScene(portugueseStoreCopy.mon
 fun StoreToolsGermanScreenshot() = StoreCaptureScene(germanStoreCopy.monthly, R.drawable.store_capture_de_monthly)
 
 @PreviewTest
+@Preview(device = PHONE_PREVIEW, locale = "fr-rFR", showBackground = true)
+@Composable
+fun StoreToolsFrenchScreenshot() = StoreCaptureScene(frenchStoreCopy.monthly, R.drawable.store_capture_fr_monthly)
+
+@PreviewTest
 @Preview(device = PHONE_PREVIEW, locale = "en", showBackground = true)
 @Composable
 fun StoreCompatibilityEnglishScreenshot() = StoreCaptureScene(englishStoreCopy.compatibility, R.drawable.store_capture_en_compatibility)
@@ -184,6 +199,11 @@ fun StoreCompatibilityPortugueseScreenshot() = StoreCaptureScene(portugueseStore
 @Preview(device = PHONE_PREVIEW, locale = "de-rDE", showBackground = true)
 @Composable
 fun StoreCompatibilityGermanScreenshot() = StoreCaptureScene(germanStoreCopy.compatibility, R.drawable.store_capture_de_compatibility)
+
+@PreviewTest
+@Preview(device = PHONE_PREVIEW, locale = "fr-rFR", showBackground = true)
+@Composable
+fun StoreCompatibilityFrenchScreenshot() = StoreCaptureScene(frenchStoreCopy.compatibility, R.drawable.store_capture_fr_compatibility)
 
 @PreviewTest
 @Preview(device = PHONE_PREVIEW, locale = "en", showBackground = true)
@@ -211,6 +231,11 @@ fun StorePersonalityPortugueseScreenshot() = StoreCaptureScene(portugueseStoreCo
 fun StorePersonalityGermanScreenshot() = StoreCaptureScene(germanStoreCopy.profile, R.drawable.store_capture_de_profile)
 
 @PreviewTest
+@Preview(device = PHONE_PREVIEW, locale = "fr-rFR", showBackground = true)
+@Composable
+fun StorePersonalityFrenchScreenshot() = StoreCaptureScene(frenchStoreCopy.profile, R.drawable.store_capture_fr_profile)
+
+@PreviewTest
 @Preview(device = PHONE_PREVIEW, locale = "en", showBackground = true)
 @Composable
 fun StorePremiumEnglishScreenshot() = StoreCaptureScene(englishStoreCopy.premium, R.drawable.store_capture_en_premium)
@@ -234,3 +259,8 @@ fun StorePremiumPortugueseScreenshot() = StoreCaptureScene(portugueseStoreCopy.p
 @Preview(device = PHONE_PREVIEW, locale = "de-rDE", showBackground = true)
 @Composable
 fun StorePremiumGermanScreenshot() = StoreCaptureScene(germanStoreCopy.premium, R.drawable.store_capture_de_premium)
+
+@PreviewTest
+@Preview(device = PHONE_PREVIEW, locale = "fr-rFR", showBackground = true)
+@Composable
+fun StorePremiumFrenchScreenshot() = StoreCaptureScene(frenchStoreCopy.premium, R.drawable.store_capture_fr_premium)

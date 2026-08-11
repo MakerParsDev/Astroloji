@@ -1,0 +1,1 @@
+Ajout du support complet du français, incluant les horoscopes quotidiens, hebdomadaires et mensuels, la compatibilité des signes et le contenu premium. Amélioration de la sélection des plans premium mensuel et hebdomadaire, avec une nouvelle tentative automatique en cas d'erreur de chargement.

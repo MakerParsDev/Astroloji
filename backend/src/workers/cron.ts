@@ -91,6 +91,20 @@ const SIGN_LABELS = {
     capricorn: 'Steinbock',
     aquarius: 'Wassermann',
     pisces: 'Fische'
+  },
+  fr: {
+    aries: 'Bélier',
+    taurus: 'Taureau',
+    gemini: 'Gémeaux',
+    cancer: 'Cancer',
+    leo: 'Lion',
+    virgo: 'Vierge',
+    libra: 'Balance',
+    scorpio: 'Scorpion',
+    sagittarius: 'Sagittaire',
+    capricorn: 'Capricorne',
+    aquarius: 'Verseau',
+    pisces: 'Poissons'
   }
 } as const;
 
@@ -99,7 +113,8 @@ const NOTIFICATION_TITLE_FORMAT: Record<keyof typeof SIGN_LABELS, (signLabel: st
   en: (signLabel) => `${signLabel} Horoscope Today`,
   es: (signLabel) => `Horóscopo de ${signLabel} Hoy`,
   pt: (signLabel) => `Horóscopo de ${signLabel} Hoje`,
-  de: (signLabel) => `${signLabel}-Horoskop Heute`
+  de: (signLabel) => `${signLabel}-Horoskop Heute`,
+  fr: (signLabel) => `Horoscope ${signLabel} du Jour`
 };
 
 export function buildDailyNotificationTitle(sign: keyof typeof SIGN_LABELS.tr, language: keyof typeof SIGN_LABELS) {

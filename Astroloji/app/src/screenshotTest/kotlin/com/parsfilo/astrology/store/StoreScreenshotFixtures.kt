@@ -150,6 +150,40 @@ internal val germanStoreCopy =
             ),
     )
 
+internal val frenchStoreCopy =
+    StoreLocalizedCopy(
+        daily =
+            StoreMarketingCopy(
+                headline = "Découvrez votre horoscope du jour en un clin d'œil",
+                supportingText = "Un guide quotidien personnalisé pour votre signe.",
+            ),
+        weekly =
+            StoreMarketingCopy(
+                headline = "Découvrez le rythme de votre semaine",
+                supportingText = "Suivez les thèmes de la semaine et votre meilleur jour.",
+            ),
+        monthly =
+            StoreMarketingCopy(
+                headline = "Explorez la vue d'ensemble de ce mois-ci",
+                supportingText = "Voyez les thèmes du mois en un coup d'œil clair.",
+            ),
+        compatibility =
+            StoreMarketingCopy(
+                headline = "Comparez la compatibilité des signes clairement",
+                supportingText = "Comparez les scores d'amour, d'amitié et de travail.",
+            ),
+        profile =
+            StoreMarketingCopy(
+                headline = "Personnalisez votre profil astrologique",
+                supportingText = "Gérez votre signe, votre langue, votre thème et vos préférences.",
+            ),
+        premium =
+            StoreMarketingCopy(
+                headline = "Choisissez Premium mensuel ou hebdomadaire",
+                supportingText = "Comparez les options mensuelle et hebdomadaire avant de choisir.",
+            ),
+    )
+
 internal val turkishStoreCopy =
     StoreLocalizedCopy(
         daily =

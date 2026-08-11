@@ -28,6 +28,12 @@ class StoreScreenshotQaBillingTest {
         assertThat(de[1].title).isEqualTo("Wöchentliches Premium")
         assertThat(de[1].price).isEqualTo("2,29 €")
 
+        val fr = storeScreenshotQaPlans("fr")
+        assertThat(fr[0].title).isEqualTo("Premium mensuel")
+        assertThat(fr[0].price).isEqualTo("6,99 €")
+        assertThat(fr[1].title).isEqualTo("Premium hebdomadaire")
+        assertThat(fr[1].price).isEqualTo("2,29 €")
+
         // Unrecognized language codes fall back to the English copy rather than crashing.
         val unknown = storeScreenshotQaPlans("xx")
         assertThat(unknown[0].price).isEqualTo("$6.99")

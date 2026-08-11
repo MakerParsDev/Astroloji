@@ -9,18 +9,20 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+@Suppress("LongParameterList")
 enum class ZodiacElement(
     val nameTr: String,
     val nameEn: String,
     val nameEs: String,
     val namePt: String,
     val nameDe: String,
+    val nameFr: String,
     val color: Color,
 ) {
-    FIRE("Ateş", "Fire", "Fuego", "Fogo", "Feuer", Color(0xFFE8593C)),
-    EARTH("Toprak", "Earth", "Tierra", "Terra", "Erde", Color(0xFF8B7355)),
-    AIR("Hava", "Air", "Aire", "Ar", "Luft", Color(0xFF5B9BD5)),
-    WATER("Su", "Water", "Agua", "Água", "Wasser", Color(0xFF4A90A4)),
+    FIRE("Ateş", "Fire", "Fuego", "Fogo", "Feuer", "Feu", Color(0xFFE8593C)),
+    EARTH("Toprak", "Earth", "Tierra", "Terra", "Erde", "Terre", Color(0xFF8B7355)),
+    AIR("Hava", "Air", "Aire", "Ar", "Luft", "Air", Color(0xFF5B9BD5)),
+    WATER("Su", "Water", "Agua", "Água", "Wasser", "Eau", Color(0xFF4A90A4)),
 }
 
 @Suppress("LongParameterList", "MagicNumber")
@@ -31,6 +33,7 @@ enum class ZodiacSign(
     val nameEs: String,
     val namePt: String,
     val nameDe: String,
+    val nameFr: String,
     val symbol: String,
     private val startMonth: Int,
     private val startDay: Int,
@@ -47,6 +50,7 @@ enum class ZodiacSign(
         "Aries",
         "Áries",
         "Widder",
+        "Bélier",
         "♈",
         3,
         21,
@@ -63,6 +67,7 @@ enum class ZodiacSign(
         "Tauro",
         "Touro",
         "Stier",
+        "Taureau",
         "♉",
         4,
         20,
@@ -79,6 +84,7 @@ enum class ZodiacSign(
         "Géminis",
         "Gêmeos",
         "Zwillinge",
+        "Gémeaux",
         "♊",
         5,
         21,
@@ -95,6 +101,7 @@ enum class ZodiacSign(
         "Cáncer",
         "Câncer",
         "Krebs",
+        "Cancer",
         "♋",
         6,
         21,
@@ -111,6 +118,7 @@ enum class ZodiacSign(
         "Leo",
         "Leão",
         "Löwe",
+        "Lion",
         "♌",
         7,
         23,
@@ -127,6 +135,7 @@ enum class ZodiacSign(
         "Virgo",
         "Virgem",
         "Jungfrau",
+        "Vierge",
         "♍",
         8,
         23,
@@ -143,6 +152,7 @@ enum class ZodiacSign(
         "Libra",
         "Libra",
         "Waage",
+        "Balance",
         "♎",
         9,
         23,
@@ -159,6 +169,7 @@ enum class ZodiacSign(
         "Escorpio",
         "Escorpião",
         "Skorpion",
+        "Scorpion",
         "♏",
         10,
         23,
@@ -175,6 +186,7 @@ enum class ZodiacSign(
         "Sagitario",
         "Sagitário",
         "Schütze",
+        "Sagittaire",
         "♐",
         11,
         22,
@@ -191,6 +203,7 @@ enum class ZodiacSign(
         "Capricornio",
         "Capricórnio",
         "Steinbock",
+        "Capricorne",
         "♑",
         12,
         22,
@@ -207,6 +220,7 @@ enum class ZodiacSign(
         "Acuario",
         "Aquário",
         "Wassermann",
+        "Verseau",
         "♒",
         1,
         20,
@@ -223,6 +237,7 @@ enum class ZodiacSign(
         "Piscis",
         "Peixes",
         "Fische",
+        "Poissons",
         "♓",
         2,
         19,
@@ -240,6 +255,7 @@ enum class ZodiacSign(
             "es" -> nameEs
             "pt" -> namePt
             "de" -> nameDe
+            "fr" -> nameFr
             else -> nameEn
         }
 
@@ -253,6 +269,7 @@ enum class ZodiacSign(
                 "es" -> Locale.forLanguageTag("es-ES")
                 "pt" -> Locale.forLanguageTag("pt-BR")
                 "de" -> Locale.forLanguageTag("de-DE")
+                "fr" -> Locale.forLanguageTag("fr-FR")
                 else -> Locale.ENGLISH
             }
         val formatter = DateTimeFormatter.ofPattern("d MMM", locale)

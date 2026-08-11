@@ -299,6 +299,7 @@ fun SettingsScreen(
                             "es" to stringResource(R.string.language_name_spanish),
                             "pt" to stringResource(R.string.language_name_portuguese),
                             "de" to stringResource(R.string.language_name_german),
+                            "fr" to stringResource(R.string.language_name_french),
                         ),
                     selected = uiState.language,
                     onSelect = {

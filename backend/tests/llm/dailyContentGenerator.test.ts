@@ -102,6 +102,13 @@ describe('buildDailyContentPrompt', () => {
     expect(request.messages[0]?.content).toMatch(/Astrologie/i);
     expect(request.messages[1]?.content).toMatch(/Tageshoroskop/i);
   });
+
+  it('writes the French prompt in French for fr requests', () => {
+    const request = buildDailyContentPrompt({ ...input, language: 'fr' });
+
+    expect(request.messages[0]?.content).toMatch(/astrologie/i);
+    expect(request.messages[1]?.content).toMatch(/horoscope/i);
+  });
 });
 
 describe('generateDailySignContent', () => {

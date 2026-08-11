@@ -63,6 +63,7 @@ fun PersonalGuidanceScreen(
             "es" -> Locale.forLanguageTag("es-ES")
             "pt" -> Locale.forLanguageTag("pt-BR")
             "de" -> Locale.forLanguageTag("de-DE")
+            "fr" -> Locale.forLanguageTag("fr-FR")
             else -> Locale.ENGLISH
         }
     val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("d MMMM yyyy", locale) }

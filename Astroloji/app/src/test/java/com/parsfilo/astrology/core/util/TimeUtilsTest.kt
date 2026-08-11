@@ -30,6 +30,11 @@ class TimeUtilsTest {
     }
 
     @Test
+    fun `formatPercentage uses english style for french locale`() {
+        assertThat(TimeUtils.formatPercentage(73, "fr")).isEqualTo("73%")
+    }
+
+    @Test
     fun `normalizeLanguageTag recognizes spanish`() {
         assertThat(TimeUtils.normalizeLanguageTag("es")).isEqualTo("es")
         assertThat(TimeUtils.normalizeLanguageTag("es-ES")).isEqualTo("es")
@@ -48,7 +53,13 @@ class TimeUtilsTest {
     }
 
     @Test
+    fun `normalizeLanguageTag recognizes french`() {
+        assertThat(TimeUtils.normalizeLanguageTag("fr")).isEqualTo("fr")
+        assertThat(TimeUtils.normalizeLanguageTag("fr-FR")).isEqualTo("fr")
+    }
+
+    @Test
     fun `normalizeLanguageTag falls back to english for unknown languages`() {
-        assertThat(TimeUtils.normalizeLanguageTag("fr")).isEqualTo("en")
+        assertThat(TimeUtils.normalizeLanguageTag("it")).isEqualTo("en")
     }
 }

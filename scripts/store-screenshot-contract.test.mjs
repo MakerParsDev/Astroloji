@@ -18,6 +18,8 @@ const previews = [
   'StoreCompatibilityPortugueseScreenshot', 'StorePersonalityPortugueseScreenshot', 'StorePremiumPortugueseScreenshot',
   'StoreDailyGermanScreenshot', 'StoreGuidanceGermanScreenshot', 'StoreToolsGermanScreenshot',
   'StoreCompatibilityGermanScreenshot', 'StorePersonalityGermanScreenshot', 'StorePremiumGermanScreenshot',
+  'StoreDailyFrenchScreenshot', 'StoreGuidanceFrenchScreenshot', 'StoreToolsFrenchScreenshot',
+  'StoreCompatibilityFrenchScreenshot', 'StorePersonalityFrenchScreenshot', 'StorePremiumFrenchScreenshot',
 ];
 const captureScenes = ['daily', 'weekly', 'monthly', 'compatibility', 'profile', 'premium'];
 
@@ -25,7 +27,7 @@ test('phone previews keep stable names and use real-device marketing frames', ()
   assert.ok(fs.existsSync(sourcePath), 'Store listing screenshot source must exist.');
   const source = fs.readFileSync(sourcePath, 'utf8');
   for (const preview of previews) assert.match(source, new RegExp(preview));
-  assert.equal((source.match(/@PreviewTest/g) ?? []).length, 30);
+  assert.equal((source.match(/@PreviewTest/g) ?? []).length, 36);
   assert.match(source, /spec:width=360dp,height=800dp,dpi=480/);
   assert.match(source, /painterResource/);
   assert.match(source, /ContentScale\.Crop/);
@@ -43,9 +45,9 @@ test('screenshot-only raw captures are included in the debug resource table', ()
   assert.match(build, /if \(screenshotTestsEnabled\) \{[\s\S]{0,400}sourceSets\.named\("debug"\)[\s\S]{0,400}res\.directories\s*\+=\s*"src\/screenshotTest\/res"/);
 });
 
-test('all thirty raw device captures are wired into phone previews', () => {
+test('all thirty-six raw device captures are wired into phone previews', () => {
   const source = fs.readFileSync(sourcePath, 'utf8');
-  for (const locale of ['en', 'tr', 'es', 'pt', 'de']) {
+  for (const locale of ['en', 'tr', 'es', 'pt', 'de', 'fr']) {
     for (const scene of captureScenes) {
       assert.match(source, new RegExp(`R\\.drawable\\.store_capture_${locale}_${scene}`));
     }
@@ -55,9 +57,9 @@ test('all thirty raw device captures are wired into phone previews', () => {
 test('phone scene manifest declares real-device sources in capture order', () => {
   const manifest = JSON.parse(fs.readFileSync(scenePath, 'utf8'));
   const phones = manifest.scenes.filter((scene) => scene.role === 'phoneScreenshot');
-  assert.equal(phones.length, 30);
+  assert.equal(phones.length, 36);
   assert.ok(phones.every((scene) => scene.sourceKind === 'realDeviceCapture'));
-  for (const locale of ['en-US', 'tr-TR', 'es-ES', 'pt-BR', 'de-DE']) {
+  for (const locale of ['en-US', 'tr-TR', 'es-ES', 'pt-BR', 'de-DE', 'fr-FR']) {
     const rows = phones.filter((scene) => scene.locale === locale).sort((a, b) => a.order - b.order);
     assert.deepEqual(rows.map((row) => row.order), [1, 2, 3, 4, 5, 6]);
     assert.deepEqual(rows.map((row) => row.path.split('/').at(-1)), [
@@ -99,6 +101,12 @@ test('localized marketing copy uses the six approved headlines per locale', () =
     'Vergleichen Sie die Sternzeichen-Kompatibilität',
     'Personalisieren Sie Ihr Sternzeichen-Profil',
     'Wählen Sie monatliches oder wöchentliches Premium',
+    "Découvrez votre horoscope du jour en un clin d'œil",
+    'Découvrez le rythme de votre semaine',
+    "Explorez la vue d'ensemble de ce mois-ci",
+    'Comparez la compatibilité des signes clairement',
+    'Personnalisez votre profil astrologique',
+    'Choisissez Premium mensuel ou hebdomadaire',
   ]) assert.match(fixtures, new RegExp(headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
@@ -119,11 +127,12 @@ test('feature graphics and shared icon retain deterministic Compose previews', (
     'StoreFeatureGraphicSpanishScreenshot',
     'StoreFeatureGraphicPortugueseScreenshot',
     'StoreFeatureGraphicGermanScreenshot',
+    'StoreFeatureGraphicFrenchScreenshot',
     'StoreAppIconScreenshot',
   ]) {
     assert.match(source, new RegExp(preview));
   }
-  assert.equal((source.match(/@PreviewTest/g) ?? []).length, 6);
+  assert.equal((source.match(/@PreviewTest/g) ?? []).length, 7);
   assert.match(source, /spec:width=1024dp,height=500dp,dpi=160/);
   assert.match(source, /spec:width=512dp,height=512dp,dpi=160/);
   assert.doesNotMatch(source, /rating|award|testimonial|countdown|discount/i);

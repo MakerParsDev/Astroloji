@@ -112,6 +112,12 @@ describe('buildChatConsultationPrompt', () => {
 
     expect(request.messages[0]?.content).toMatch(/medizinischen, rechtlichen oder finanziellen Rat/);
   });
+
+  it('includes a non-advice disclaimer in French for fr requests', () => {
+    const request = buildChatConsultationPrompt({ ...baseInput, language: 'fr' });
+
+    expect(request.messages[0]?.content).toMatch(/conseil médical, juridique ou financier/);
+  });
 });
 
 describe('generateChatReply', () => {

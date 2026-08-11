@@ -13,7 +13,7 @@ const SIGNS = [
   'pisces'
 ] as const;
 
-const LANGUAGES = ['tr', 'en', 'es', 'pt', 'de'] as const;
+const LANGUAGES = ['tr', 'en', 'es', 'pt', 'de', 'fr'] as const;
 
 type Sign = (typeof SIGNS)[number];
 type Language = (typeof LANGUAGES)[number];
@@ -125,6 +125,20 @@ const SIGN_LABELS: Record<Language, Record<Sign, string>> = {
     capricorn: 'Steinbock',
     aquarius: 'Wassermann',
     pisces: 'Fische'
+  },
+  fr: {
+    aries: 'Bélier',
+    taurus: 'Taureau',
+    gemini: 'Gémeaux',
+    cancer: 'Cancer',
+    leo: 'Lion',
+    virgo: 'Vierge',
+    libra: 'Balance',
+    scorpio: 'Scorpion',
+    sagittarius: 'Sagittaire',
+    capricorn: 'Capricorne',
+    aquarius: 'Verseau',
+    pisces: 'Poissons'
   }
 };
 
@@ -132,433 +146,481 @@ const SIGN_PROFILES: Record<Sign, SignProfile> = {
   aries: {
     element: 'fire',
     modality: 'cardinal',
-    planet: { tr: 'Mars', en: 'Mars', es: 'Marte', pt: 'Marte', de: 'Mars' },
+    planet: { tr: 'Mars', en: 'Mars', es: 'Marte', pt: 'Marte', de: 'Mars', fr: 'Mars' },
     strengths: {
       tr: ['Cesaret', 'İnisiyatif'],
       en: ['Courage', 'Initiative'],
       es: ['Coraje', 'Iniciativa'],
       pt: ['Coragem', 'Iniciativa'],
-      de: ['Mut', 'Initiative']
+      de: ['Mut', 'Initiative'],
+      fr: ['Courage', 'Initiative']
     },
     weaknesses: {
       tr: ['Sabırsızlık', 'Acelecilik'],
       en: ['Impatience', 'Rushing'],
       es: ['Impaciencia', 'Precipitación'],
       pt: ['Impaciência', 'Precipitação'],
-      de: ['Ungeduld', 'Überstürztheit']
+      de: ['Ungeduld', 'Überstürztheit'],
+      fr: ['Impatience', 'Précipitation']
     },
     careerFit: {
       tr: ['Girişimcilik', 'Saha liderliği'],
       en: ['Entrepreneurship', 'Field leadership'],
       es: ['Emprendimiento', 'Liderazgo de campo'],
       pt: ['Empreendedorismo', 'Liderança de campo'],
-      de: ['Unternehmertum', 'Führung vor Ort']
+      de: ['Unternehmertum', 'Führung vor Ort'],
+      fr: ['Entrepreneuriat', 'Encadrement de terrain']
     },
     idealPartners: ['leo', 'sagittarius'],
-    color: { tr: 'Kırmızı', en: 'Red', es: 'Rojo', pt: 'Vermelho', de: 'Rot' },
-    stone: { tr: 'Yakut', en: 'Ruby', es: 'Rubí', pt: 'Rubi', de: 'Rubin' },
+    color: { tr: 'Kırmızı', en: 'Red', es: 'Rojo', pt: 'Vermelho', de: 'Rot', fr: 'Rouge' },
+    stone: { tr: 'Yakut', en: 'Ruby', es: 'Rubí', pt: 'Rubi', de: 'Rubin', fr: 'Rubis' },
     focus: {
       tr: 'cesur ama ölçülü bir başlangıç',
       en: 'a bold but measured beginning',
       es: 'un comienzo audaz pero medido',
       pt: 'um começo corajoso, mas medido',
-      de: 'ein mutiger, aber maßvoller Anfang'
+      de: 'ein mutiger, aber maßvoller Anfang',
+      fr: 'un début audacieux mais mesuré'
     }
   },
   taurus: {
     element: 'earth',
     modality: 'fixed',
-    planet: { tr: 'Venüs', en: 'Venus', es: 'Venus', pt: 'Vênus', de: 'Venus' },
+    planet: { tr: 'Venüs', en: 'Venus', es: 'Venus', pt: 'Vênus', de: 'Venus', fr: 'Vénus' },
     strengths: {
       tr: ['İstikrar', 'Güvenilirlik'],
       en: ['Stability', 'Reliability'],
       es: ['Estabilidad', 'Fiabilidad'],
       pt: ['Estabilidade', 'Confiabilidade'],
-      de: ['Beständigkeit', 'Zuverlässigkeit']
+      de: ['Beständigkeit', 'Zuverlässigkeit'],
+      fr: ['Stabilité', 'Fiabilité']
     },
     weaknesses: {
       tr: ['İnatçılık', 'Değişime direnç'],
       en: ['Stubbornness', 'Resistance to change'],
       es: ['Terquedad', 'Resistencia al cambio'],
       pt: ['Teimosia', 'Resistência à mudança'],
-      de: ['Sturheit', 'Widerstand gegen Veränderung']
+      de: ['Sturheit', 'Widerstand gegen Veränderung'],
+      fr: ['Entêtement', 'Résistance au changement']
     },
     careerFit: {
       tr: ['Finans', 'Tasarım'],
       en: ['Finance', 'Design'],
       es: ['Finanzas', 'Diseño'],
       pt: ['Finanças', 'Design'],
-      de: ['Finanzwesen', 'Design']
+      de: ['Finanzwesen', 'Design'],
+      fr: ['Finance', 'Design']
     },
     idealPartners: ['virgo', 'capricorn'],
-    color: { tr: 'Zümrüt yeşili', en: 'Emerald green', es: 'Verde esmeralda', pt: 'Verde-esmeralda', de: 'Smaragdgrün' },
-    stone: { tr: 'Zümrüt', en: 'Emerald', es: 'Esmeralda', pt: 'Esmeralda', de: 'Smaragd' },
+    color: { tr: 'Zümrüt yeşili', en: 'Emerald green', es: 'Verde esmeralda', pt: 'Verde-esmeralda', de: 'Smaragdgrün', fr: 'Vert émeraude' },
+    stone: { tr: 'Zümrüt', en: 'Emerald', es: 'Esmeralda', pt: 'Esmeralda', de: 'Smaragd', fr: 'Émeraude' },
     focus: {
       tr: 'kalıcı ve somut ilerleme',
       en: 'steady, tangible progress',
       es: 'un progreso constante y tangible',
       pt: 'um progresso constante e tangível',
-      de: 'ein stetiger, greifbarer Fortschritt'
+      de: 'ein stetiger, greifbarer Fortschritt',
+      fr: 'une progression stable et concrète'
     }
   },
   gemini: {
     element: 'air',
     modality: 'mutable',
-    planet: { tr: 'Merkür', en: 'Mercury', es: 'Mercurio', pt: 'Mercúrio', de: 'Merkur' },
+    planet: { tr: 'Merkür', en: 'Mercury', es: 'Mercurio', pt: 'Mercúrio', de: 'Merkur', fr: 'Mercure' },
     strengths: {
       tr: ['Merak', 'Uyum sağlama'],
       en: ['Curiosity', 'Adaptability'],
       es: ['Curiosidad', 'Adaptabilidad'],
       pt: ['Curiosidade', 'Adaptabilidade'],
-      de: ['Neugier', 'Anpassungsfähigkeit']
+      de: ['Neugier', 'Anpassungsfähigkeit'],
+      fr: ['Curiosité', 'Adaptabilité']
     },
     weaknesses: {
       tr: ['Dağınıklık', 'Kararsızlık'],
       en: ['Scattered focus', 'Indecision'],
       es: ['Falta de enfoque', 'Indecisión'],
       pt: ['Falta de foco', 'Indecisão'],
-      de: ['Zerstreutheit', 'Unentschlossenheit']
+      de: ['Zerstreutheit', 'Unentschlossenheit'],
+      fr: ['Dispersion', 'Indécision']
     },
     careerFit: {
       tr: ['İletişim', 'Ürün geliştirme'],
       en: ['Communication', 'Product development'],
       es: ['Comunicación', 'Desarrollo de producto'],
       pt: ['Comunicação', 'Desenvolvimento de produto'],
-      de: ['Kommunikation', 'Produktentwicklung']
+      de: ['Kommunikation', 'Produktentwicklung'],
+      fr: ['Communication', 'Développement de produit']
     },
     idealPartners: ['libra', 'aquarius'],
-    color: { tr: 'Sarı', en: 'Yellow', es: 'Amarillo', pt: 'Amarelo', de: 'Gelb' },
-    stone: { tr: 'Akik', en: 'Agate', es: 'Ágata', pt: 'Ágata', de: 'Achat' },
+    color: { tr: 'Sarı', en: 'Yellow', es: 'Amarillo', pt: 'Amarelo', de: 'Gelb', fr: 'Jaune' },
+    stone: { tr: 'Akik', en: 'Agate', es: 'Ágata', pt: 'Ágata', de: 'Achat', fr: 'Agate' },
     focus: {
       tr: 'netleştirilmiş fikir alışverişi',
       en: 'clear, lively exchange of ideas',
       es: 'un intercambio de ideas claro y animado',
       pt: 'uma troca de ideias clara e animada',
-      de: 'ein klarer, lebendiger Ideenaustausch'
+      de: 'ein klarer, lebendiger Ideenaustausch',
+      fr: 'un échange d\'idées clair et vivant'
     }
   },
   cancer: {
     element: 'water',
     modality: 'cardinal',
-    planet: { tr: 'Ay', en: 'Moon', es: 'Luna', pt: 'Lua', de: 'Mond' },
+    planet: { tr: 'Ay', en: 'Moon', es: 'Luna', pt: 'Lua', de: 'Mond', fr: 'Lune' },
     strengths: {
       tr: ['Sezgi', 'Koruyuculuk'],
       en: ['Intuition', 'Nurturing'],
       es: ['Intuición', 'Cuidado'],
       pt: ['Intuição', 'Acolhimento'],
-      de: ['Intuition', 'Fürsorglichkeit']
+      de: ['Intuition', 'Fürsorglichkeit'],
+      fr: ['Intuition', 'Bienveillance']
     },
     weaknesses: {
       tr: ['Alınganlık', 'İçe kapanma'],
       en: ['Sensitivity', 'Withdrawal'],
       es: ['Susceptibilidad', 'Retraimiento'],
       pt: ['Suscetibilidade', 'Retraimento'],
-      de: ['Empfindlichkeit', 'Rückzug']
+      de: ['Empfindlichkeit', 'Rückzug'],
+      fr: ['Susceptibilité', 'Repli sur soi']
     },
     careerFit: {
       tr: ['Danışmanlık', 'Konaklama'],
       en: ['Counseling', 'Hospitality'],
       es: ['Asesoría', 'Hostelería'],
       pt: ['Aconselhamento', 'Hotelaria'],
-      de: ['Beratung', 'Gastgewerbe']
+      de: ['Beratung', 'Gastgewerbe'],
+      fr: ['Accompagnement', 'Hôtellerie']
     },
     idealPartners: ['scorpio', 'pisces'],
-    color: { tr: 'Gümüş', en: 'Silver', es: 'Plateado', pt: 'Prateado', de: 'Silber' },
-    stone: { tr: 'Ay taşı', en: 'Moonstone', es: 'Piedra lunar', pt: 'Pedra da lua', de: 'Mondstein' },
+    color: { tr: 'Gümüş', en: 'Silver', es: 'Plateado', pt: 'Prateado', de: 'Silber', fr: 'Argenté' },
+    stone: { tr: 'Ay taşı', en: 'Moonstone', es: 'Piedra lunar', pt: 'Pedra da lua', de: 'Mondstein', fr: 'Pierre de lune' },
     focus: {
       tr: 'duygusal güven ve sağlıklı sınırlar',
       en: 'emotional safety and healthy boundaries',
       es: 'seguridad emocional y límites saludables',
       pt: 'segurança emocional e limites saudáveis',
-      de: 'emotionale Sicherheit und gesunde Grenzen'
+      de: 'emotionale Sicherheit und gesunde Grenzen',
+      fr: 'la sécurité émotionnelle et des limites saines'
     }
   },
   leo: {
     element: 'fire',
     modality: 'fixed',
-    planet: { tr: 'Güneş', en: 'Sun', es: 'Sol', pt: 'Sol', de: 'Sonne' },
+    planet: { tr: 'Güneş', en: 'Sun', es: 'Sol', pt: 'Sol', de: 'Sonne', fr: 'Soleil' },
     strengths: {
       tr: ['Yaratıcılık', 'Özgüven'],
       en: ['Creativity', 'Confidence'],
       es: ['Creatividad', 'Confianza'],
       pt: ['Criatividade', 'Autoconfiança'],
-      de: ['Kreativität', 'Selbstvertrauen']
+      de: ['Kreativität', 'Selbstvertrauen'],
+      fr: ['Créativité', 'Confiance en soi']
     },
     weaknesses: {
       tr: ['Gurur', 'Onay ihtiyacı'],
       en: ['Pride', 'Need for approval'],
       es: ['Orgullo', 'Necesidad de aprobación'],
       pt: ['Orgulho', 'Necessidade de aprovação'],
-      de: ['Stolz', 'Bedürfnis nach Anerkennung']
+      de: ['Stolz', 'Bedürfnis nach Anerkennung'],
+      fr: ['Orgueil', 'Besoin d\'approbation']
     },
     careerFit: {
       tr: ['Sahne sanatları', 'Yönetim'],
       en: ['Performing arts', 'Management'],
       es: ['Artes escénicas', 'Gestión'],
       pt: ['Artes cênicas', 'Gestão'],
-      de: ['Darstellende Kunst', 'Führung']
+      de: ['Darstellende Kunst', 'Führung'],
+      fr: ['Arts de la scène', 'Direction d\'équipe']
     },
     idealPartners: ['aries', 'sagittarius'],
-    color: { tr: 'Altın', en: 'Gold', es: 'Dorado', pt: 'Dourado', de: 'Gold' },
-    stone: { tr: 'Sitrin', en: 'Citrine', es: 'Citrino', pt: 'Citrino', de: 'Citrin' },
+    color: { tr: 'Altın', en: 'Gold', es: 'Dorado', pt: 'Dourado', de: 'Gold', fr: 'Doré' },
+    stone: { tr: 'Sitrin', en: 'Citrine', es: 'Citrino', pt: 'Citrino', de: 'Citrin', fr: 'Citrine' },
     focus: {
       tr: 'görünür ama cömert liderlik',
       en: 'visible, generous leadership',
       es: 'un liderazgo visible pero generoso',
       pt: 'uma liderança visível, mas generosa',
-      de: 'eine sichtbare, aber großzügige Führungsrolle'
+      de: 'eine sichtbare, aber großzügige Führungsrolle',
+      fr: 'un leadership visible mais généreux'
     }
   },
   virgo: {
     element: 'earth',
     modality: 'mutable',
-    planet: { tr: 'Merkür', en: 'Mercury', es: 'Mercurio', pt: 'Mercúrio', de: 'Merkur' },
+    planet: { tr: 'Merkür', en: 'Mercury', es: 'Mercurio', pt: 'Mercúrio', de: 'Merkur', fr: 'Mercure' },
     strengths: {
       tr: ['Analiz', 'Titizlik'],
       en: ['Analysis', 'Precision'],
       es: ['Análisis', 'Precisión'],
       pt: ['Análise', 'Precisão'],
-      de: ['Analyse', 'Sorgfalt']
+      de: ['Analyse', 'Sorgfalt'],
+      fr: ['Analyse', 'Rigueur']
     },
     weaknesses: {
       tr: ['Aşırı eleştiri', 'Mükemmeliyetçilik'],
       en: ['Overcriticism', 'Perfectionism'],
       es: ['Exceso de crítica', 'Perfeccionismo'],
       pt: ['Excesso de crítica', 'Perfeccionismo'],
-      de: ['Überkritik', 'Perfektionismus']
+      de: ['Überkritik', 'Perfektionismus'],
+      fr: ['Excès de critique', 'Perfectionnisme']
     },
     careerFit: {
       tr: ['Veri analizi', 'Sağlık hizmetleri'],
       en: ['Data analysis', 'Healthcare'],
       es: ['Análisis de datos', 'Sanidad'],
       pt: ['Análise de dados', 'Área da saúde'],
-      de: ['Datenanalyse', 'Gesundheitswesen']
+      de: ['Datenanalyse', 'Gesundheitswesen'],
+      fr: ['Analyse de données', 'Secteur de la santé']
     },
     idealPartners: ['taurus', 'capricorn'],
-    color: { tr: 'Zeytin yeşili', en: 'Olive green', es: 'Verde oliva', pt: 'Verde-oliva', de: 'Olivgrün' },
-    stone: { tr: 'Safir', en: 'Sapphire', es: 'Zafiro', pt: 'Safira', de: 'Saphir' },
+    color: { tr: 'Zeytin yeşili', en: 'Olive green', es: 'Verde oliva', pt: 'Verde-oliva', de: 'Olivgrün', fr: 'Vert olive' },
+    stone: { tr: 'Safir', en: 'Sapphire', es: 'Zafiro', pt: 'Safira', de: 'Saphir', fr: 'Saphir' },
     focus: {
       tr: 'küçük ayrıntılarla büyük iyileşme',
       en: 'meaningful improvement through small details',
       es: 'una mejora significativa a través de pequeños detalles',
       pt: 'uma melhora significativa por meio de pequenos detalhes',
-      de: 'spürbare Verbesserung durch kleine Details'
+      de: 'spürbare Verbesserung durch kleine Details',
+      fr: 'une amélioration réelle grâce à de petits détails'
     }
   },
   libra: {
     element: 'air',
     modality: 'cardinal',
-    planet: { tr: 'Venüs', en: 'Venus', es: 'Venus', pt: 'Vênus', de: 'Venus' },
+    planet: { tr: 'Venüs', en: 'Venus', es: 'Venus', pt: 'Vênus', de: 'Venus', fr: 'Vénus' },
     strengths: {
       tr: ['Diplomasi', 'Adalet duygusu'],
       en: ['Diplomacy', 'Sense of fairness'],
       es: ['Diplomacia', 'Sentido de la justicia'],
       pt: ['Diplomacia', 'Senso de justiça'],
-      de: ['Diplomatie', 'Gerechtigkeitssinn']
+      de: ['Diplomatie', 'Gerechtigkeitssinn'],
+      fr: ['Diplomatie', 'Sens de la justice']
     },
     weaknesses: {
       tr: ['Karar erteleme', 'Çatışmadan kaçınma'],
       en: ['Delayed decisions', 'Conflict avoidance'],
       es: ['Decisiones postergadas', 'Evitar el conflicto'],
       pt: ['Decisões adiadas', 'Fuga do conflito'],
-      de: ['Entscheidungsaufschub', 'Konfliktvermeidung']
+      de: ['Entscheidungsaufschub', 'Konfliktvermeidung'],
+      fr: ['Décisions retardées', 'Évitement des conflits']
     },
     careerFit: {
       tr: ['Hukuk', 'Marka yönetimi'],
       en: ['Law', 'Brand management'],
       es: ['Derecho', 'Gestión de marca'],
       pt: ['Direito', 'Gestão de marca'],
-      de: ['Recht', 'Markenmanagement']
+      de: ['Recht', 'Markenmanagement'],
+      fr: ['Droit', 'Gestion de marque']
     },
     idealPartners: ['gemini', 'aquarius'],
-    color: { tr: 'Pudra pembe', en: 'Soft pink', es: 'Rosa empolvado', pt: 'Rosa suave', de: 'Puderrosa' },
-    stone: { tr: 'Pembe kuvars', en: 'Rose quartz', es: 'Cuarzo rosa', pt: 'Quartzo rosa', de: 'Rosenquarz' },
+    color: { tr: 'Pudra pembe', en: 'Soft pink', es: 'Rosa empolvado', pt: 'Rosa suave', de: 'Puderrosa', fr: 'Rose poudré' },
+    stone: { tr: 'Pembe kuvars', en: 'Rose quartz', es: 'Cuarzo rosa', pt: 'Quartzo rosa', de: 'Rosenquarz', fr: 'Quartz rose' },
     focus: {
       tr: 'adil bir denge ve açık uzlaşma',
       en: 'fair balance and open compromise',
       es: 'un equilibrio justo y un acuerdo abierto',
       pt: 'um equilíbrio justo e um acordo aberto',
-      de: 'ein faires Gleichgewicht und ein offener Kompromiss'
+      de: 'ein faires Gleichgewicht und ein offener Kompromiss',
+      fr: 'un équilibre juste et un compromis ouvert'
     }
   },
   scorpio: {
     element: 'water',
     modality: 'fixed',
-    planet: { tr: 'Plüton', en: 'Pluto', es: 'Plutón', pt: 'Plutão', de: 'Pluto' },
+    planet: { tr: 'Plüton', en: 'Pluto', es: 'Plutón', pt: 'Plutão', de: 'Pluto', fr: 'Pluton' },
     strengths: {
       tr: ['Derinlik', 'Kararlılık'],
       en: ['Depth', 'Determination'],
       es: ['Profundidad', 'Determinación'],
       pt: ['Profundidade', 'Determinação'],
-      de: ['Tiefgang', 'Entschlossenheit']
+      de: ['Tiefgang', 'Entschlossenheit'],
+      fr: ['Profondeur', 'Détermination']
     },
     weaknesses: {
       tr: ['Kontrol ihtiyacı', 'Kuşku'],
       en: ['Need for control', 'Suspicion'],
       es: ['Necesidad de control', 'Desconfianza'],
       pt: ['Necessidade de controle', 'Desconfiança'],
-      de: ['Kontrollbedürfnis', 'Misstrauen']
+      de: ['Kontrollbedürfnis', 'Misstrauen'],
+      fr: ['Besoin de contrôle', 'Méfiance']
     },
     careerFit: {
       tr: ['Araştırma', 'Psikoloji'],
       en: ['Research', 'Psychology'],
       es: ['Investigación', 'Psicología'],
       pt: ['Pesquisa', 'Psicologia'],
-      de: ['Forschung', 'Psychologie']
+      de: ['Forschung', 'Psychologie'],
+      fr: ['Recherche', 'Psychologie']
     },
     idealPartners: ['cancer', 'pisces'],
-    color: { tr: 'Bordo', en: 'Burgundy', es: 'Burdeos', pt: 'Vinho', de: 'Bordeauxrot' },
-    stone: { tr: 'Obsidyen', en: 'Obsidian', es: 'Obsidiana', pt: 'Obsidiana', de: 'Obsidian' },
+    color: { tr: 'Bordo', en: 'Burgundy', es: 'Burdeos', pt: 'Vinho', de: 'Bordeauxrot', fr: 'Bordeaux' },
+    stone: { tr: 'Obsidyen', en: 'Obsidian', es: 'Obsidiana', pt: 'Obsidiana', de: 'Obsidian', fr: 'Obsidienne' },
     focus: {
       tr: 'dürüst dönüşüm ve duygusal derinlik',
       en: 'honest transformation and emotional depth',
       es: 'una transformación honesta y profundidad emocional',
       pt: 'uma transformação honesta e profundidade emocional',
-      de: 'eine ehrliche Wandlung und emotionale Tiefe'
+      de: 'eine ehrliche Wandlung und emotionale Tiefe',
+      fr: 'une transformation sincère et une profondeur émotionnelle'
     }
   },
   sagittarius: {
     element: 'fire',
     modality: 'mutable',
-    planet: { tr: 'Jüpiter', en: 'Jupiter', es: 'Júpiter', pt: 'Júpiter', de: 'Jupiter' },
+    planet: { tr: 'Jüpiter', en: 'Jupiter', es: 'Júpiter', pt: 'Júpiter', de: 'Jupiter', fr: 'Jupiter' },
     strengths: {
       tr: ['İyimserlik', 'Keşif ruhu'],
       en: ['Optimism', 'Adventurous spirit'],
       es: ['Optimismo', 'Espíritu aventurero'],
       pt: ['Otimismo', 'Espírito aventureiro'],
-      de: ['Optimismus', 'Entdeckergeist']
+      de: ['Optimismus', 'Entdeckergeist'],
+      fr: ['Optimisme', 'Esprit d\'aventure']
     },
     weaknesses: {
       tr: ['Aşırı söz verme', 'Sabırsız özgürlük arayışı'],
       en: ['Overpromising', 'Restless freedom seeking'],
       es: ['Prometer de más', 'Búsqueda inquieta de libertad'],
       pt: ['Prometer demais', 'Busca inquieta por liberdade'],
-      de: ['Zu viel versprechen', 'Ruhelose Freiheitssuche']
+      de: ['Zu viel versprechen', 'Ruhelose Freiheitssuche'],
+      fr: ['Promesses excessives', 'Quête agitée de liberté']
     },
     careerFit: {
       tr: ['Eğitim', 'Uluslararası işler'],
       en: ['Education', 'International business'],
       es: ['Educación', 'Negocios internacionales'],
       pt: ['Educação', 'Negócios internacionais'],
-      de: ['Bildung', 'Internationales Geschäft']
+      de: ['Bildung', 'Internationales Geschäft'],
+      fr: ['Éducation', 'Commerce international']
     },
     idealPartners: ['aries', 'leo'],
-    color: { tr: 'Mor', en: 'Purple', es: 'Morado', pt: 'Roxo', de: 'Violett' },
-    stone: { tr: 'Turkuaz', en: 'Turquoise', es: 'Turquesa', pt: 'Turquesa', de: 'Türkis' },
+    color: { tr: 'Mor', en: 'Purple', es: 'Morado', pt: 'Roxo', de: 'Violett', fr: 'Violet' },
+    stone: { tr: 'Turkuaz', en: 'Turquoise', es: 'Turquesa', pt: 'Turquesa', de: 'Türkis', fr: 'Turquoise' },
     focus: {
       tr: 'ufku genişleten gerçekçi bir adım',
       en: 'a realistic step that widens your horizon',
       es: 'un paso realista que amplía tu horizonte',
       pt: 'um passo realista que amplia seu horizonte',
-      de: 'ein realistischer Schritt, der den Horizont erweitert'
+      de: 'ein realistischer Schritt, der den Horizont erweitert',
+      fr: 'un pas réaliste qui élargit votre horizon'
     }
   },
   capricorn: {
     element: 'earth',
     modality: 'cardinal',
-    planet: { tr: 'Satürn', en: 'Saturn', es: 'Saturno', pt: 'Saturno', de: 'Saturn' },
+    planet: { tr: 'Satürn', en: 'Saturn', es: 'Saturno', pt: 'Saturno', de: 'Saturn', fr: 'Saturne' },
     strengths: {
       tr: ['Disiplin', 'Strateji'],
       en: ['Discipline', 'Strategy'],
       es: ['Disciplina', 'Estrategia'],
       pt: ['Disciplina', 'Estratégia'],
-      de: ['Disziplin', 'Strategie']
+      de: ['Disziplin', 'Strategie'],
+      fr: ['Discipline', 'Stratégie']
     },
     weaknesses: {
       tr: ['Katılık', 'Aşırı sorumluluk'],
       en: ['Rigidity', 'Over-responsibility'],
       es: ['Rigidez', 'Exceso de responsabilidad'],
       pt: ['Rigidez', 'Excesso de responsabilidade'],
-      de: ['Starrheit', 'Übermäßige Verantwortung']
+      de: ['Starrheit', 'Übermäßige Verantwortung'],
+      fr: ['Rigidité', 'Excès de responsabilité']
     },
     careerFit: {
       tr: ['Operasyon', 'Kurumsal liderlik'],
       en: ['Operations', 'Executive leadership'],
       es: ['Operaciones', 'Liderazgo ejecutivo'],
       pt: ['Operações', 'Liderança executiva'],
-      de: ['Betriebsführung', 'Unternehmensführung']
+      de: ['Betriebsführung', 'Unternehmensführung'],
+      fr: ['Opérations', 'Direction générale']
     },
     idealPartners: ['taurus', 'virgo'],
-    color: { tr: 'Lacivert', en: 'Navy', es: 'Azul marino', pt: 'Azul-marinho', de: 'Marineblau' },
-    stone: { tr: 'Oniks', en: 'Onyx', es: 'Ónix', pt: 'Ônix', de: 'Onyx' },
+    color: { tr: 'Lacivert', en: 'Navy', es: 'Azul marino', pt: 'Azul-marinho', de: 'Marineblau', fr: 'Bleu marine' },
+    stone: { tr: 'Oniks', en: 'Onyx', es: 'Ónix', pt: 'Ônix', de: 'Onyx', fr: 'Onyx' },
     focus: {
       tr: 'uzun vadeli ve ölçülebilir bir hedef',
       en: 'a measurable long-term objective',
       es: 'un objetivo medible a largo plazo',
       pt: 'um objetivo mensurável de longo prazo',
-      de: 'ein messbares, langfristiges Ziel'
+      de: 'ein messbares, langfristiges Ziel',
+      fr: 'un objectif mesurable à long terme'
     }
   },
   aquarius: {
     element: 'air',
     modality: 'fixed',
-    planet: { tr: 'Uranüs', en: 'Uranus', es: 'Urano', pt: 'Urano', de: 'Uranus' },
+    planet: { tr: 'Uranüs', en: 'Uranus', es: 'Urano', pt: 'Urano', de: 'Uranus', fr: 'Uranus' },
     strengths: {
       tr: ['Özgünlük', 'Toplumsal bakış'],
       en: ['Originality', 'Community vision'],
       es: ['Originalidad', 'Visión comunitaria'],
       pt: ['Originalidade', 'Visão coletiva'],
-      de: ['Originalität', 'Gemeinschaftssinn']
+      de: ['Originalität', 'Gemeinschaftssinn'],
+      fr: ['Originalité', 'Vision collective']
     },
     weaknesses: {
       tr: ['Mesafe', 'İnatçı bağımsızlık'],
       en: ['Detachment', 'Rigid independence'],
       es: ['Distanciamiento', 'Independencia rígida'],
       pt: ['Distanciamento', 'Independência rígida'],
-      de: ['Distanziertheit', 'Sture Unabhängigkeit']
+      de: ['Distanziertheit', 'Sture Unabhängigkeit'],
+      fr: ['Détachement', 'Indépendance rigide']
     },
     careerFit: {
       tr: ['Teknoloji', 'Sosyal inovasyon'],
       en: ['Technology', 'Social innovation'],
       es: ['Tecnología', 'Innovación social'],
       pt: ['Tecnologia', 'Inovação social'],
-      de: ['Technologie', 'Soziale Innovation']
+      de: ['Technologie', 'Soziale Innovation'],
+      fr: ['Technologie', 'Innovation sociale']
     },
     idealPartners: ['gemini', 'libra'],
-    color: { tr: 'Elektrik mavisi', en: 'Electric blue', es: 'Azul eléctrico', pt: 'Azul elétrico', de: 'Elektrisches Blau' },
-    stone: { tr: 'Ametist', en: 'Amethyst', es: 'Amatista', pt: 'Ametista', de: 'Amethyst' },
+    color: { tr: 'Elektrik mavisi', en: 'Electric blue', es: 'Azul eléctrico', pt: 'Azul elétrico', de: 'Elektrisches Blau', fr: 'Bleu électrique' },
+    stone: { tr: 'Ametist', en: 'Amethyst', es: 'Amatista', pt: 'Ametista', de: 'Amethyst', fr: 'Améthyste' },
     focus: {
       tr: 'özgün bir çözümü toplulukla paylaşma',
       en: 'sharing an original solution with others',
       es: 'compartir una solución original con los demás',
       pt: 'compartilhar uma solução original com os outros',
-      de: 'eine originelle Lösung mit anderen teilen'
+      de: 'eine originelle Lösung mit anderen teilen',
+      fr: 'partager une solution originale avec les autres'
     }
   },
   pisces: {
     element: 'water',
     modality: 'mutable',
-    planet: { tr: 'Neptün', en: 'Neptune', es: 'Neptuno', pt: 'Netuno', de: 'Neptun' },
+    planet: { tr: 'Neptün', en: 'Neptune', es: 'Neptuno', pt: 'Netuno', de: 'Neptun', fr: 'Neptune' },
     strengths: {
       tr: ['Empati', 'Hayal gücü'],
       en: ['Empathy', 'Imagination'],
       es: ['Empatía', 'Imaginación'],
       pt: ['Empatia', 'Imaginação'],
-      de: ['Empathie', 'Vorstellungskraft']
+      de: ['Empathie', 'Vorstellungskraft'],
+      fr: ['Empathie', 'Imagination']
     },
     weaknesses: {
       tr: ['Sınır koyamama', 'Kaçış eğilimi'],
       en: ['Weak boundaries', 'Escapism'],
       es: ['Límites débiles', 'Tendencia al escapismo'],
       pt: ['Limites frágeis', 'Tendência à fuga da realidade'],
-      de: ['Schwache Grenzen', 'Fluchttendenz']
+      de: ['Schwache Grenzen', 'Fluchttendenz'],
+      fr: ['Limites floues', 'Tendance à la fuite']
     },
     careerFit: {
       tr: ['Yaratıcı sanatlar', 'Sosyal hizmet'],
       en: ['Creative arts', 'Social care'],
       es: ['Artes creativas', 'Trabajo social'],
       pt: ['Artes criativas', 'Assistência social'],
-      de: ['Kreative Künste', 'Sozialarbeit']
+      de: ['Kreative Künste', 'Sozialarbeit'],
+      fr: ['Arts créatifs', 'Travail social']
     },
     idealPartners: ['cancer', 'scorpio'],
-    color: { tr: 'Deniz yeşili', en: 'Sea green', es: 'Verde mar', pt: 'Verde-mar', de: 'Meergrün' },
-    stone: { tr: 'Akuamarin', en: 'Aquamarine', es: 'Aguamarina', pt: 'Água-marinha', de: 'Aquamarin' },
+    color: { tr: 'Deniz yeşili', en: 'Sea green', es: 'Verde mar', pt: 'Verde-mar', de: 'Meergrün', fr: 'Vert d\'eau' },
+    stone: { tr: 'Akuamarin', en: 'Aquamarine', es: 'Aguamarina', pt: 'Água-marinha', de: 'Aquamarin', fr: 'Aigue-marine' },
     focus: {
       tr: 'sezgiyi somut bir adıma dönüştürme',
       en: 'turning intuition into a concrete step',
       es: 'convertir la intuición en un paso concreto',
       pt: 'transformar a intuição em um passo concreto',
-      de: 'Intuition in einen konkreten Schritt verwandeln'
+      de: 'Intuition in einen konkreten Schritt verwandeln',
+      fr: 'transformer son intuition en un pas concret'
     }
   }
 };
@@ -603,6 +665,14 @@ const DAILY_OPENINGS: LocalizedList = {
     'Wenn Sie Ihre Energie auf eine Priorität bündeln, entstehen sichtbare Ergebnisse.',
     'Eine nützliche Gelegenheit öffnet sich, wenn aus Neugier Handeln wird.',
     'Ein vertrautes Thema fühlt sich leichter an, wenn Sie es aus einem neuen Blickwinkel betrachten.'
+  ],
+  fr: [
+    'Les progrès s\'accélèrent lorsque vous simplifiez votre priorité aujourd\'hui.',
+    'La journée récompense le bon moment et l\'intention plutôt que la vitesse.',
+    'Une décision claire peut organiser le reste de votre journée.',
+    'Concentrer votre énergie sur une seule priorité apporte des résultats visibles.',
+    'Une ouverture utile apparaît lorsque la curiosité se transforme en action.',
+    'Un sujet familier semble plus léger lorsqu\'il est abordé sous un nouvel angle.'
   ]
 };
 
@@ -636,6 +706,12 @@ const LOVE_GUIDANCE: LocalizedList = {
     'Ein Gefühl beim Namen zu nennen kann unnötige Spannungen vermeiden.',
     'Zuzuhören, ohne sofort alles lösen zu wollen, macht die Verbindung weicher.',
     'Eine kurze, ehrliche Bitte findet heute eher Gehör.'
+  ],
+  fr: [
+    'Poser une question directe au lieu de s\'appuyer sur des suppositions renforce la proximité.',
+    'Nommer le sentiment peut éviter des tensions inutiles.',
+    'Écouter sans chercher à tout résoudre adoucit la relation.',
+    'Une demande brève et honnête a plus de chances d\'être entendue aujourd\'hui.'
   ]
 };
 
@@ -669,6 +745,12 @@ const CAREER_GUIDANCE: LocalizedList = {
     'Die Kriterien einer Entscheidung aufzuschreiben macht die Optionen klarer.',
     'Legen Sie ein kleines, greifbares Ergebnis fest, das sichtbaren Fortschritt schafft.',
     'Um Feedback zu bitten kann einen blinden Fleck schnell verkleinern.'
+  ],
+  fr: [
+    'Réservez votre premier pic d\'énergie à la tâche la plus importante.',
+    'Écrire les critères d\'une décision clarifie les options.',
+    'Définissez un petit livrable qui crée un progrès visible.',
+    'Demander un retour peut rapidement réduire un angle mort.'
   ]
 };
 
@@ -702,6 +784,12 @@ const MONEY_GUIDANCE: LocalizedList = {
     'Eine wiederkehrende kleine Ausgabe zu überprüfen kann eine einfache Verbesserung offenbaren.',
     'Berücksichtigen Sie die Gesamtkosten, bevor Sie sich auf eine neue Gelegenheit einlassen.',
     'Bevorzugen Sie heute nachhaltigen Wert statt des Versprechens eines schnellen Gewinns.'
+  ],
+  fr: [
+    'Distinguer clairement l\'envie du besoin protège votre budget.',
+    'Revoir une petite dépense récurrente peut révéler une amélioration facile.',
+    'Tenez compte du coût total avant de vous engager dans une nouvelle opportunité.',
+    'Privilégiez aujourd\'hui la valeur durable plutôt que la promesse d\'un gain rapide.'
   ]
 };
 
@@ -735,6 +823,12 @@ const HEALTH_GUIDANCE: LocalizedList = {
     'Eine Bildschirmpause kann geistige Erschöpfung verringern.',
     'Feste Schlafzeiten stabilisieren eine schwankende Energie.',
     'Nehmen Sie körperliche Anspannung wahr und drosseln Sie das Tempo kurz.'
+  ],
+  fr: [
+    'De courtes marches et des pauses d\'hydratation régulières équilibrent votre rythme.',
+    'Une pause d\'écran peut réduire la fatigue mentale.',
+    'Préserver vos heures de sommeil stabilise une énergie irrégulière.',
+    'Remarquez la tension physique et ralentissez brièvement le rythme.'
   ]
 };
 
@@ -823,7 +917,8 @@ const LOCALE_TAGS: Record<Language, string> = {
   en: 'en-US',
   es: 'es-ES',
   pt: 'pt-BR',
-  de: 'de-DE'
+  de: 'de-DE',
+  fr: 'fr-FR'
 };
 
 /**
@@ -839,13 +934,24 @@ function localizedLower(value: string, language: Language): string {
   return value.toLocaleLowerCase(LOCALE_TAGS[language]);
 }
 
+/**
+ * French elides "de" to "d'" before a vowel sound (e.g. "d'un début", not
+ * "de un début"), unlike "de la"/"de partager" before a consonant. The
+ * per-sign focus strings this feeds start with a mix of both, so this
+ * cannot be a fixed template string.
+ */
+function frenchDePrefix(followingWord: string): string {
+  return /^[aeiouàâéèêëîïôùûü]/i.test(followingWord) ? "d'" : 'de ';
+}
+
 function elementName(element: Element, language: Language): string {
   const labels: Record<Language, Record<Element, string>> = {
     tr: { fire: 'ateş', earth: 'toprak', air: 'hava', water: 'su' },
     en: { fire: 'fire', earth: 'earth', air: 'air', water: 'water' },
     es: { fire: 'fuego', earth: 'tierra', air: 'aire', water: 'agua' },
     pt: { fire: 'fogo', earth: 'terra', air: 'ar', water: 'água' },
-    de: { fire: 'Feuer', earth: 'Erde', air: 'Luft', water: 'Wasser' }
+    de: { fire: 'Feuer', earth: 'Erde', air: 'Luft', water: 'Wasser' },
+    fr: { fire: 'feu', earth: 'terre', air: 'air', water: 'eau' }
   };
   return labels[language][element];
 }
@@ -856,7 +962,8 @@ function modalityName(modality: Modality, language: Language): string {
     en: { cardinal: 'cardinal', fixed: 'fixed', mutable: 'mutable' },
     es: { cardinal: 'cardinal', fixed: 'fijo', mutable: 'mutable' },
     pt: { cardinal: 'cardinal', fixed: 'fixo', mutable: 'mutável' },
-    de: { cardinal: 'kardinal', fixed: 'fix', mutable: 'veränderlich' }
+    de: { cardinal: 'kardinal', fixed: 'fix', mutable: 'veränderlich' },
+    fr: { cardinal: 'cardinal', fixed: 'fixe', mutable: 'mutable' }
   };
   return labels[language][modality];
 }
@@ -887,7 +994,8 @@ const DAILY_SHORT_FORMAT: Record<Language, (name: string, opening: string, focus
   en: (name, opening, focus) => `${name}: ${opening} Focus: ${focus}.`,
   es: (name, opening, focus) => `${name}: ${opening} Tema principal: ${focus}.`,
   pt: (name, opening, focus) => `${name}: ${opening} Tema principal: ${focus}.`,
-  de: (name, opening, focus) => `${name}: ${opening} Hauptthema: ${focus}.`
+  de: (name, opening, focus) => `${name}: ${opening} Hauptthema: ${focus}.`,
+  fr: (name, opening, focus) => `${name} : ${opening} Thème principal : ${focus}.`
 };
 
 const DAILY_FULL_FORMAT: Record<Language, (name: string, focus: string) => string> = {
@@ -900,7 +1008,9 @@ const DAILY_FULL_FORMAT: Record<Language, (name: string, focus: string) => strin
   pt: (name, focus) =>
     `Para ${name}, o tema central é ${focus}. Torne sua prioridade visível, reduza a carga desnecessária e anote no fim do dia o que realmente avançou.`,
   de: (name, focus) =>
-    `Für ${name} lautet das zentrale Thema des Tages ${focus}. Machen Sie Ihre Priorität sichtbar, reduzieren Sie unnötigen Ballast und halten Sie am Ende des Tages kurz fest, was wirklich vorangekommen ist.`
+    `Für ${name} lautet das zentrale Thema des Tages ${focus}. Machen Sie Ihre Priorität sichtbar, reduzieren Sie unnötigen Ballast und halten Sie am Ende des Tages kurz fest, was wirklich vorangekommen ist.`,
+  fr: (name, focus) =>
+    `Pour ${name}, le thème central de la journée est ${focus}. Rendez votre priorité visible, allégez la charge inutile et notez en fin de journée ce qui a réellement avancé.`
 };
 
 const DAILY_TIP_FORMAT: Record<Language, (focus: string) => string> = {
@@ -908,7 +1018,8 @@ const DAILY_TIP_FORMAT: Record<Language, (focus: string) => string> = {
   en: (focus) => `Choose one concrete fifteen-minute action for ${focus} today.`,
   es: (focus) => `Elige hoy una sola acción concreta de quince minutos para ${focus}.`,
   pt: (focus) => `Escolha hoje uma única ação concreta de quinze minutos para ${focus}.`,
-  de: (focus) => `Wählen Sie heute einen einzigen konkreten Fünfzehn-Minuten-Schritt für ${focus}.`
+  de: (focus) => `Wählen Sie heute einen einzigen konkreten Fünfzehn-Minuten-Schritt für ${focus}.`,
+  fr: (focus) => `Choisissez aujourd'hui une seule action concrète de quinze minutes pour ${focus}.`
 };
 
 function dailyEntry(sign: Sign, language: Language, isoDate: string) {
@@ -941,7 +1052,8 @@ const WEEKDAY_NAMES: Record<Language, readonly string[]> = {
   en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
   es: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'],
   pt: ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'],
-  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
+  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
+  fr: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 };
 
 const WEEKLY_SUMMARY_FORMAT: Record<Language, (name: string, focus: string) => string> = {
@@ -954,7 +1066,9 @@ const WEEKLY_SUMMARY_FORMAT: Record<Language, (name: string, focus: string) => s
   pt: (name, focus) =>
     `O foco semanal de ${name} é ${focus}. Definir a direção no início da semana pode trazer mais liberdade na segunda metade.`,
   de: (name, focus) =>
-    `Der wöchentliche Fokus von ${name} liegt auf ${focus}. Die Richtung früh in der Woche festzulegen, verschafft Ihnen in der zweiten Hälfte mehr Freiraum.`
+    `Der wöchentliche Fokus von ${name} liegt auf ${focus}. Die Richtung früh in der Woche festzulegen, verschafft Ihnen in der zweiten Hälfte mehr Freiraum.`,
+  fr: (name, focus) =>
+    `Le thème de la semaine pour ${name} est ${focus}. Définir une direction en début de semaine peut vous laisser plus de liberté pendant la seconde moitié.`
 };
 
 const WEEKLY_WARNING_FORMAT: Record<Language, (weakness: string) => string> = {
@@ -962,7 +1076,8 @@ const WEEKLY_WARNING_FORMAT: Record<Language, (weakness: string) => string> = {
   en: (weakness) => `Pause briefly before deciding when ${weakness} becomes noticeable.`,
   es: (weakness) => `Haz una pausa breve antes de decidir cuando note ${weakness}.`,
   pt: (weakness) => `Faça uma pausa breve antes de decidir quando notar ${weakness}.`,
-  de: (weakness) => `Machen Sie eine kurze Pause, bevor Sie entscheiden, wenn sich ${weakness} bemerkbar macht.`
+  de: (weakness) => `Machen Sie eine kurze Pause, bevor Sie entscheiden, wenn sich ${weakness} bemerkbar macht.`,
+  fr: (weakness) => `Faites une courte pause avant de décider lorsque ${weakness} devient perceptible.`
 };
 
 function weeklyEntry(sign: Sign, language: Language, weekId: string) {
@@ -987,7 +1102,8 @@ const MONTHLY_WEEKDAY_NAMES: Record<Language, readonly string[]> = {
   en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sunday'],
   es: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'domingo'],
   pt: ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'domingo'],
-  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Sonntag']
+  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Sonntag'],
+  fr: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'dimanche']
 };
 
 const MONTHLY_SUMMARY_FORMAT: Record<Language, (name: string, focus: string) => string> = {
@@ -1000,7 +1116,9 @@ const MONTHLY_SUMMARY_FORMAT: Record<Language, (name: string, focus: string) => 
   pt: (name, focus) =>
     `${name} destaca o tema de ${focus} neste mês. O progresso duradouro vem de escolhas constantes, não de um único salto.`,
   de: (name, focus) =>
-    `${name} rückt diesen Monat das Thema ${focus} in den Vordergrund. Dauerhafter Fortschritt entsteht durch beständige Entscheidungen und nicht durch einen einzigen großen Sprung.`
+    `${name} rückt diesen Monat das Thema ${focus} in den Vordergrund. Dauerhafter Fortschritt entsteht durch beständige Entscheidungen und nicht durch einen einzigen großen Sprung.`,
+  fr: (name, focus) =>
+    `${name} met en avant le thème ${frenchDePrefix(focus)}${focus} ce mois-ci. Les progrès durables viennent de choix constants plutôt que d'un seul grand bond.`
 };
 
 const MONTHLY_CAREER_FORMAT: Record<Language, (first: string, second: string) => string> = {
@@ -1012,7 +1130,9 @@ const MONTHLY_CAREER_FORMAT: Record<Language, (first: string, second: string) =>
   pt: (first, second) =>
     `É possível um progresso visível onde você usar forças ligadas a ${first.toLowerCase()} e ${second.toLowerCase()}.`,
   de: (first, second) =>
-    `Sichtbarer Fortschritt ist dort möglich, wo Sie Stärken im Bereich ${first} und ${second} einsetzen.`
+    `Sichtbarer Fortschritt ist dort möglich, wo Sie Stärken im Bereich ${first} und ${second} einsetzen.`,
+  fr: (first, second) =>
+    `Des progrès visibles sont possibles là où vous mobilisez des forces liées à ${first.toLowerCase()} et ${second.toLowerCase()}.`
 };
 
 const MONTHLY_WARNING_FORMAT: Record<Language, (weakness: string) => string> = {
@@ -1020,7 +1140,8 @@ const MONTHLY_WARNING_FORMAT: Record<Language, (weakness: string) => string> = {
   en: (weakness) => `Break the goal into smaller parts if ${weakness} starts shaping decisions too strongly.`,
   es: (weakness) => `Divide la meta en partes más pequeñas si ${weakness} empieza a influir demasiado en tus decisiones.`,
   pt: (weakness) => `Divida a meta em partes menores se ${weakness} começar a influenciar demais suas decisões.`,
-  de: (weakness) => `Teilen Sie das Ziel in kleinere Schritte auf, wenn ${weakness} beginnt, Entscheidungen zu stark zu beeinflussen.`
+  de: (weakness) => `Teilen Sie das Ziel in kleinere Schritte auf, wenn ${weakness} beginnt, Entscheidungen zu stark zu beeinflussen.`,
+  fr: (weakness) => `Divisez l'objectif en étapes plus petites si ${weakness} commence à trop influencer vos décisions.`
 };
 
 function monthlyEntry(sign: Sign, language: Language, month: string) {
@@ -1070,7 +1191,8 @@ const PAIR_LABEL_FORMAT: Record<Language, (first: string, second: string) => str
   en: (first, second) => `${first} and ${second}`,
   es: (first, second) => `${first} y ${second}`,
   pt: (first, second) => `${first} e ${second}`,
-  de: (first, second) => `${first} und ${second}`
+  de: (first, second) => `${first} und ${second}`,
+  fr: (first, second) => `${first} et ${second}`
 };
 
 const COMPATIBILITY_STRENGTHS: Record<
@@ -1096,6 +1218,10 @@ const COMPATIBILITY_STRENGTHS: Record<
   de: (sharedElement, sharedModality) => [
     sharedElement ? 'Eine vertraute Sprache der Motivation' : 'Unterschiedliche Sichtweisen vereinen',
     sharedModality ? 'Gemeinsames Tempo und gemeinsame Entschlossenheit' : 'Sich ergänzende Handlungsweisen'
+  ],
+  fr: (sharedElement, sharedModality) => [
+    sharedElement ? 'Un langage de motivation familier' : 'Combiner des perspectives différentes',
+    sharedModality ? 'Un rythme et une détermination partagés' : 'Des façons d\'agir complémentaires'
   ]
 };
 
@@ -1124,6 +1250,12 @@ const COMPATIBILITY_CHALLENGES: Record<
     sharedModality
       ? 'Beide Partner versuchen gleichzeitig, die Richtung vorzugeben'
       : 'Unterschiedliche Entscheidungstempi müssen angeglichen werden'
+  ],
+  fr: (weakness1, weakness2, sharedModality) => [
+    `Une tension entre ${weakness1} et ${weakness2}`,
+    sharedModality
+      ? 'Les deux partenaires cherchent à imposer leur direction en même temps'
+      : 'Un besoin d\'aligner des rythmes de décision différents'
   ]
 };
 
@@ -1137,7 +1269,9 @@ const COMPATIBILITY_SUMMARY_FORMAT: Record<Language, (pairLabel: string) => stri
   pt: (pairLabel) =>
     `${pairLabel} podem construir uma conexão equilibrada quando ambos usam seus pontos fortes com intenção. A qualidade do vínculo depende de falar abertamente sobre necessidades diferentes.`,
   de: (pairLabel) =>
-    `${pairLabel} können eine ausgewogene Verbindung aufbauen, wenn beide ihre Stärken bewusst einsetzen. Die Qualität dieser Verbindung hängt davon ab, unterschiedliche Bedürfnisse offen anzusprechen.`
+    `${pairLabel} können eine ausgewogene Verbindung aufbauen, wenn beide ihre Stärken bewusst einsetzen. Die Qualität dieser Verbindung hängt davon ab, unterschiedliche Bedürfnisse offen anzusprechen.`,
+  fr: (pairLabel) =>
+    `${pairLabel} peuvent construire une relation équilibrée lorsque chacun utilise ses forces avec intention. La qualité de cette relation dépend de leur capacité à discuter ouvertement de besoins différents.`
 };
 
 const COMPATIBILITY_ADVICE_FORMAT: Record<Language, (pairLabel: string) => string> = {
@@ -1150,7 +1284,9 @@ const COMPATIBILITY_ADVICE_FORMAT: Record<Language, (pairLabel: string) => strin
   pt: (pairLabel) =>
     `Uma conversa semanal sobre expectativas, limites e uma prioridade compartilhada pode fortalecer a confiança entre ${pairLabel}.`,
   de: (pairLabel) =>
-    `Ein wöchentliches Gespräch über Erwartungen, Grenzen und eine gemeinsame Priorität kann das Vertrauen zwischen ${pairLabel} stärken.`
+    `Ein wöchentliches Gespräch über Erwartungen, Grenzen und eine gemeinsame Priorität kann das Vertrauen zwischen ${pairLabel} stärken.`,
+  fr: (pairLabel) =>
+    `Une conversation hebdomadaire sur les attentes, les limites et une priorité commune peut renforcer la confiance entre ${pairLabel}.`
 };
 
 function compatibilityEntry(sign1: Sign, sign2: Sign, language: Language) {
@@ -1189,7 +1325,8 @@ const PERSONALITY_TITLE_FORMAT: Record<Language, (name: string) => string> = {
   en: (name) => `${name} Personality Analysis`,
   es: (name) => `Análisis de Personalidad de ${name}`,
   pt: (name) => `Análise de Personalidade de ${name}`,
-  de: (name) => `${name} Persönlichkeitsanalyse`
+  de: (name) => `${name} Persönlichkeitsanalyse`,
+  fr: (name) => `Analyse de personnalité de ${name}`
 };
 
 const PERSONALITY_SUMMARY_FORMAT: Record<
@@ -1205,7 +1342,9 @@ const PERSONALITY_SUMMARY_FORMAT: Record<
   pt: (name, strength1, strength2, weakness) =>
     `${name} costuma se destacar por ${strength1} e ${strength2}. O equilíbrio melhora ao perceber padrões de ${weakness}.`,
   de: (name, strength1, strength2, weakness) =>
-    `${name} zeichnet sich häufig durch ${strength1} und ${strength2} aus. Das Gleichgewicht verbessert sich, wenn Muster von ${weakness} erkannt werden.`
+    `${name} zeichnet sich häufig durch ${strength1} und ${strength2} aus. Das Gleichgewicht verbessert sich, wenn Muster von ${weakness} erkannt werden.`,
+  fr: (name, strength1, strength2, weakness) =>
+    `${name} se distingue souvent par ${strength1} et ${strength2}. L'équilibre s'améliore en repérant les tendances liées à ${weakness}.`
 };
 
 const PERSONALITY_DEEP_ANALYSIS_FORMAT: Record<
@@ -1221,7 +1360,9 @@ const PERSONALITY_DEEP_ANALYSIS_FORMAT: Record<
   pt: (name, planet, element, modality, focus) =>
     `Regido por ${planet}, ${name} expressa a natureza do elemento ${element} com um modo ${modality}. A tarefa de crescimento central é tornar sustentável ${focus} por meio de decisões do dia a dia.`,
   de: (name, planet, element, modality, focus) =>
-    `${name} wird von ${planet} regiert und drückt die Natur des Elements ${element} auf ${modality} Weise aus. Die zentrale Wachstumsaufgabe besteht darin, ${focus} durch alltägliche Entscheidungen dauerhaft zu verankern.`
+    `${name} wird von ${planet} regiert und drückt die Natur des Elements ${element} auf ${modality} Weise aus. Die zentrale Wachstumsaufgabe besteht darin, ${focus} durch alltägliche Entscheidungen dauerhaft zu verankern.`,
+  fr: (name, planet, element, modality, focus) =>
+    `Gouverné par ${planet}, ${name} exprime la nature de l'élément ${element} sur un mode ${modality}. Le principal axe de croissance consiste à ancrer durablement ${focus} dans des décisions quotidiennes.`
 };
 
 function personalityEntry(sign: Sign, language: Language) {
