@@ -124,6 +124,88 @@ describe('chart routes', () => {
     });
   });
 
+  it('returns a versioned sidereal Vedic chart without persisting birth data', async () => {
+    let writeStatements = 0;
+    const env = createTestEnv({
+      DB: {
+        prepare(sql: string) {
+          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
+          const statement = {
+            bind() { return statement; },
+            async first() { return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null; },
+            async all() { return { results: [] }; },
+            async run() { return { success: true, meta: {} }; }
+          };
+          return statement;
+        }
+      } as unknown as D1Database
+    });
+    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
+
+    const response = await createApp().request(
+      '/api/v1/chart/vedic',
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${jwt}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          timestamp: '2026-08-05T00:00:00.000Z',
+          time_certainty: 'exact'
+        })
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      version: string;
+      calculationVersion: string;
+      timeCertainty: string;
+      ayanamsa: number;
+      positions: unknown[];
+      moonNakshatra: { nakshatra: string; pada: number };
+      mahadashas: Array<{ graha: string; startDate: string; endDate: string; years: number }>;
+      limitations: string[];
+    };
+    expect(body.version).toBe('vedic-chart-v1');
+    expect(body.calculationVersion).toBe('astronomy-engine-2.1.19-true-chitrapaksha');
+    expect(body.timeCertainty).toBe('exact');
+    expect(body.ayanamsa).toBeGreaterThan(23);
+    expect(body.ayanamsa).toBeLessThan(25);
+    expect(body.positions).toHaveLength(10);
+    expect(typeof body.moonNakshatra.nakshatra).toBe('string');
+    expect(body.mahadashas).toHaveLength(9);
+    expect(body.limitations).toEqual([]);
+    expect(writeStatements).toBe(0);
+  });
+
+  it('flags Vedic chart limitations for an uncertain birth time, same as the tropical chart', async () => {
+    const env = createTestEnv();
+    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
+
+    const response = await createApp().request(
+      '/api/v1/chart/vedic',
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${jwt}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          timestamp: '2026-08-05T00:00:00.000Z',
+          time_certainty: 'unknown'
+        })
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { limitations: string[] };
+    expect(body.limitations).toEqual(['birth_time_uncertain', 'moon_position_time_sensitive']);
+  });
+
   it('returns a bounded stateless transit snapshot', async () => {
     let writeStatements = 0;
     const env = createTestEnv({

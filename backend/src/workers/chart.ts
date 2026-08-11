@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { createNatalChart } from '@/chart-engine/natalChart';
 import { createPersonalGuidance } from '@/chart-engine/personalGuidance';
 import { createTransitSnapshot } from '@/chart-engine/transitSnapshot';
+import { createVedicChart } from '@/chart-engine/vedic/vedicChart';
 import type { AppBindings } from '@/types';
 import {
   validateNatalChartBody,
@@ -18,6 +19,16 @@ export function registerChartRoutes(app: Hono<AppBindings>) {
         timestamp: request.timestamp,
         timeCertainty: request.time_certainty,
         observer: request.observer
+      })
+    );
+  });
+
+  app.post('/chart/vedic', async (context) => {
+    const request = validateNatalChartBody(await context.req.json());
+    return context.json(
+      createVedicChart({
+        timestamp: request.timestamp,
+        timeCertainty: request.time_certainty
       })
     );
   });
