@@ -116,6 +116,40 @@ internal val portugueseStoreCopy =
             ),
     )
 
+internal val germanStoreCopy =
+    StoreLocalizedCopy(
+        daily =
+            StoreMarketingCopy(
+                headline = "Ihr heutiges Horoskop auf einen Blick",
+                supportingText = "Persönliche tägliche Orientierung für Ihr Sternzeichen.",
+            ),
+        weekly =
+            StoreMarketingCopy(
+                headline = "Entdecken Sie den Rhythmus Ihrer Woche",
+                supportingText = "Verfolgen Sie die Themen der Woche und Ihren stärksten Tag.",
+            ),
+        monthly =
+            StoreMarketingCopy(
+                headline = "Entdecken Sie das große Ganze in diesem Monat",
+                supportingText = "Sehen Sie die Themen des Monats auf einen Blick.",
+            ),
+        compatibility =
+            StoreMarketingCopy(
+                headline = "Vergleichen Sie die Sternzeichen-Kompatibilität",
+                supportingText = "Vergleichen Sie Werte für Liebe, Freundschaft und Beruf.",
+            ),
+        profile =
+            StoreMarketingCopy(
+                headline = "Personalisieren Sie Ihr Sternzeichen-Profil",
+                supportingText = "Verwalten Sie Zeichen, Sprache, Design und Einstellungen.",
+            ),
+        premium =
+            StoreMarketingCopy(
+                headline = "Wählen Sie monatliches oder wöchentliches Premium",
+                supportingText = "Vergleichen Sie monatliche und wöchentliche Optionen vor der Wahl.",
+            ),
+    )
+
 internal val turkishStoreCopy =
     StoreLocalizedCopy(
         daily =

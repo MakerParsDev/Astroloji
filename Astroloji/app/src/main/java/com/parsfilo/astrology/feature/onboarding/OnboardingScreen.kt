@@ -324,7 +324,7 @@ private fun OnboardingLanguageSelector(
     language: String,
     onLanguageChange: (String) -> Unit,
 ) {
-    val languageCodes = listOf("tr", "en", "es", "pt")
+    val languageCodes = listOf("tr", "en", "es", "pt", "de")
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
         languageCodes.forEachIndexed { index, code ->
             SegmentedButton(
@@ -340,6 +340,7 @@ private fun OnboardingLanguageSelector(
                             "tr" -> stringResource(R.string.language_name_turkish)
                             "es" -> stringResource(R.string.language_name_spanish)
                             "pt" -> stringResource(R.string.language_name_portuguese)
+                            "de" -> stringResource(R.string.language_name_german)
                             else -> stringResource(R.string.language_name_english)
                         },
                 )
@@ -361,6 +362,7 @@ private fun BirthDateCard(
             "tr" -> Locale.forLanguageTag("tr")
             "es" -> Locale.forLanguageTag("es")
             "pt" -> Locale.forLanguageTag("pt-BR")
+            "de" -> Locale.forLanguageTag("de-DE")
             else -> Locale.ENGLISH
         }
     val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("d MMMM yyyy", locale) }

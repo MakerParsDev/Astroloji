@@ -20,6 +20,7 @@ object TimeUtils {
             value.startsWith("tr") -> "tr"
             value.startsWith("es") -> "es"
             value.startsWith("pt") -> "pt"
+            value.startsWith("de") -> "de"
             else -> "en"
         }
     }
@@ -47,6 +48,7 @@ object TimeUtils {
                 "tr" -> Locale.forLanguageTag("tr-TR")
                 "es" -> Locale.forLanguageTag("es-ES")
                 "pt" -> Locale.forLanguageTag("pt-BR")
+                "de" -> Locale.forLanguageTag("de-DE")
                 else -> Locale.ENGLISH
             }
         val pattern = if (normalizedLanguage == "tr") "d MMMM EEE" else "d MMM EEE"

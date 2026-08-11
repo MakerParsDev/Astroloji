@@ -1,0 +1,1 @@
+Vollständige deutsche Sprachunterstützung hinzugefügt, einschließlich Tages-, Wochen- und Monatshoroskopen, Sternzeichen-Kompatibilität und Premium-Inhalten. Die Auswahl des monatlichen und wöchentlichen Premium-Plans wurde verbessert, mit automatischem erneuten Versuch bei Ladefehlern.

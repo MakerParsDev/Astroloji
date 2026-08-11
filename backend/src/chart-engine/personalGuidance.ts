@@ -6,7 +6,7 @@ import {
   type TransitSnapshotV1
 } from '@/chart-engine/transitSnapshot';
 
-export type GuidanceLanguage = 'tr' | 'en' | 'es' | 'pt';
+export type GuidanceLanguage = 'tr' | 'en' | 'es' | 'pt' | 'de';
 
 export type GuidanceDomain =
   | 'identity'
@@ -95,6 +95,18 @@ const BODY_LABELS: Record<GuidanceLanguage, Record<ChartBody, string>> = {
     uranus: 'Urano',
     neptune: 'Netuno',
     pluto: 'Plutão'
+  },
+  de: {
+    sun: 'Sonne',
+    moon: 'Mond',
+    mercury: 'Merkur',
+    venus: 'Venus',
+    mars: 'Mars',
+    jupiter: 'Jupiter',
+    saturn: 'Saturn',
+    uranus: 'Uranus',
+    neptune: 'Neptun',
+    pluto: 'Pluto'
   }
 };
 
@@ -126,6 +138,13 @@ const ASPECT_LABELS: Record<GuidanceLanguage, Record<MajorAspectType, string>> =
     square: 'quadratura',
     trine: 'trígono',
     opposition: 'oposição'
+  },
+  de: {
+    conjunction: 'Konjunktion',
+    sextile: 'Sextil',
+    square: 'Quadrat',
+    trine: 'Trigon',
+    opposition: 'Opposition'
   }
 };
 
@@ -190,6 +209,18 @@ const DOMAIN_LABELS: Record<GuidanceLanguage, Record<GuidanceDomain, string>> = 
     change: 'mudança e liberdade',
     imagination: 'intuição e imaginação',
     transformation: 'transformação profunda'
+  },
+  de: {
+    identity: 'Selbstausdruck',
+    emotions: 'emotionale Bedürfnisse',
+    communication: 'Kommunikation und Denken',
+    relationships: 'Beziehungen und Werte',
+    action: 'Handeln und Grenzen',
+    growth: 'Wachstum und Sinn',
+    responsibility: 'Verantwortung und Struktur',
+    change: 'Veränderung und Freiheit',
+    imagination: 'Intuition und Vorstellungskraft',
+    transformation: 'tiefe Transformation'
   }
 };
 
@@ -197,7 +228,8 @@ const DISCLAIMERS: Record<GuidanceLanguage, string> = {
   tr: 'Bu içerik eğlence ve öz değerlendirme içindir; tıbbi, hukuki veya finansal tavsiye değildir.',
   en: 'This content is for reflection and entertainment, not medical, legal, or financial advice.',
   es: 'Este contenido es para reflexión y entretenimiento; no es un consejo médico, legal ni financiero.',
-  pt: 'Este conteúdo é para reflexão e entretenimento; não é um conselho médico, jurídico ou financeiro.'
+  pt: 'Este conteúdo é para reflexão e entretenimento; não é um conselho médico, jurídico ou financeiro.',
+  de: 'Dieser Inhalt dient der Reflexion und Unterhaltung; er ist kein medizinischer, rechtlicher oder finanzieller Rat.'
 };
 
 const TRANSIT_BODY_WEIGHT: Record<ChartBody, number> = {
@@ -262,6 +294,13 @@ function localizedSummary(
       square: `Um atrito construtivo pode convidar a um ajuste consciente em torno de ${domainLabel}.`,
       trine: `Um fluxo mais leve pode ajudar você a usar habilidades ligadas a ${domainLabel}.`,
       opposition: `Equilibrar dois polos pode trazer mais clareza em torno de ${domainLabel}.`
+    },
+    de: {
+      conjunction: `Eine konzentrierte Betonung kann Themen rund um ${domainLabel} stärker in den Vordergrund rücken.`,
+      sextile: `Eine unterstützende Öffnung kann ${domainLabel} sanft stärken.`,
+      square: `Konstruktive Reibung kann dazu einladen, ${domainLabel} bewusst zu überdenken.`,
+      trine: `Ein leichterer Fluss kann Ihnen helfen, Fähigkeiten im Bereich ${domainLabel} besser zu nutzen.`,
+      opposition: `Die beiden Pole auszubalancieren kann mehr Klarheit bei ${domainLabel} schaffen und Spannungen lösen.`
     }
   };
   return summariesByLanguage[language][aspect];
@@ -316,6 +355,18 @@ function localizedActionPrompt(language: GuidanceLanguage, domain: GuidanceDomai
       change: 'Experimente uma alternativa segura e pequena ao método habitual.',
       imagination: 'Transforme sua intuição em uma anotação, esboço ou exercício criativo breve.',
       transformation: 'Escreva um hábito que você esteja pronto para soltar e o comportamento que vai substituí-lo.'
+    },
+    de: {
+      identity: 'Schreiben Sie einen ehrlichen Satz darüber, was Sie heute ausdrücken möchten.',
+      emotions: 'Benennen Sie das Gefühl und halten Sie kurz inne, bevor Sie versuchen, es zu ändern.',
+      communication: 'Klären Sie Ihre Absicht in einem Satz, bevor Sie ein wichtiges Gespräch führen.',
+      relationships: 'Ersetzen Sie eine Annahme durch eine offene, beiderseitige Frage.',
+      action: 'Wählen Sie einen einzigen abschließbaren Schritt, statt Ihre Energie zu verteilen.',
+      growth: 'Setzen Sie sich ein kleines, messbares Lernziel.',
+      responsibility: 'Prüfen Sie ehrlich, welche Verantwortung wirklich Ihnen gehört.',
+      change: 'Probieren Sie eine sichere, kleine Alternative zur gewohnten Vorgehensweise aus.',
+      imagination: 'Verwandeln Sie Ihre Intuition in eine Notiz, eine Skizze oder eine kurze kreative Übung.',
+      transformation: 'Schreiben Sie eine Gewohnheit auf, die Sie loslassen möchten, und das Verhalten, das sie ersetzen soll.'
     }
   };
   return prompts[language][domain];
@@ -330,7 +381,8 @@ function toSignal(aspect: TransitAspect, language: GuidanceLanguage): PersonalGu
     tr: `${transitLabel}, natal ${natalLabel} ile ${aspectLabel}`,
     en: `${transitLabel} ${aspectLabel} natal ${natalLabel}`,
     es: `${transitLabel} en ${aspectLabel} con ${natalLabel} natal`,
-    pt: `${transitLabel} em ${aspectLabel} com ${natalLabel} natal`
+    pt: `${transitLabel} em ${aspectLabel} com ${natalLabel} natal`,
+    de: `${transitLabel} im ${aspectLabel} zum Radix-${natalLabel}`
   };
   const title = titleFormats[language];
 
@@ -357,8 +409,14 @@ export function createPersonalGuidance(input: {
   targetTimestamp: string;
   language: GuidanceLanguage;
 }): PersonalGuidanceV1 {
-  if (input.language !== 'tr' && input.language !== 'en' && input.language !== 'es' && input.language !== 'pt') {
-    throw new Error('language must be tr, en, es, or pt.');
+  if (
+    input.language !== 'tr' &&
+    input.language !== 'en' &&
+    input.language !== 'es' &&
+    input.language !== 'pt' &&
+    input.language !== 'de'
+  ) {
+    throw new Error('language must be tr, en, es, pt, or de.');
   }
 
   const snapshot = createTransitSnapshot({

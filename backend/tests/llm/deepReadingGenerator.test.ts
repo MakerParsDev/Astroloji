@@ -69,6 +69,13 @@ describe('buildDeepReadingPrompt', () => {
     expect(request.messages[1]?.content).toMatch(/Ascendente/);
   });
 
+  it('writes the German prompt in German for de requests', () => {
+    const request = buildDeepReadingPrompt({ chart, language: 'de' });
+
+    expect(request.messages[0]?.content).toMatch(/Astrologie/i);
+    expect(request.messages[1]?.content).toMatch(/Aszendent/);
+  });
+
   it('tells the model to skip the rising sign section when it is unavailable', () => {
     const request = buildDeepReadingPrompt({
       chart: { ...chart, ascendantSign: null, ascendantDegree: null },

@@ -318,6 +318,7 @@ class PremiumViewModel
                     "tr" -> Locale.forLanguageTag("tr-TR")
                     "es" -> Locale.forLanguageTag("es-ES")
                     "pt" -> Locale.forLanguageTag("pt-BR")
+                    "de" -> Locale.forLanguageTag("de-DE")
                     else -> Locale.ENGLISH
                 }
             return DateTimeFormatter

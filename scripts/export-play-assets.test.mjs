@@ -49,6 +49,13 @@ const previewNames = [
   ['StorePersonalityPortugueseScreenshot', 1080, 2400],
   ['StoreToolsPortugueseScreenshot', 1080, 2400],
   ['StorePremiumPortugueseScreenshot', 1080, 2400],
+  ['StoreFeatureGraphicGermanScreenshot', 1024, 500],
+  ['StoreDailyGermanScreenshot', 1080, 2400],
+  ['StoreGuidanceGermanScreenshot', 1080, 2400],
+  ['StoreCompatibilityGermanScreenshot', 1080, 2400],
+  ['StorePersonalityGermanScreenshot', 1080, 2400],
+  ['StoreToolsGermanScreenshot', 1080, 2400],
+  ['StorePremiumGermanScreenshot', 1080, 2400],
 ];
 
 const expectedPaths = [
@@ -81,6 +88,13 @@ const expectedPaths = [
   'pt-BR/phoneScreenshots/04-compatibility.png',
   'pt-BR/phoneScreenshots/05-profile.png',
   'pt-BR/phoneScreenshots/06-premium.png',
+  'de-DE/featureGraphic/feature-graphic.png',
+  'de-DE/phoneScreenshots/01-daily.png',
+  'de-DE/phoneScreenshots/02-weekly.png',
+  'de-DE/phoneScreenshots/03-monthly.png',
+  'de-DE/phoneScreenshots/04-compatibility.png',
+  'de-DE/phoneScreenshots/05-profile.png',
+  'de-DE/phoneScreenshots/06-premium.png',
 ];
 
 function sourceFixture() {

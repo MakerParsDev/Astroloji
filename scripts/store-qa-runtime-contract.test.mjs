@@ -25,12 +25,12 @@ test('storeQa runtime is deterministic and side-effect isolated', () => {
   assert.match(mainActivity, /private fun launchStartupWork\(\) \{\s*if \(BuildConfig\.STORE_SCREENSHOT_QA\) return/);
   assert.match(manifest, /firebase_analytics_collection_enabled/);
   assert.match(manifest, /firebase_crashlytics_collection_enabled/);
-  assert.match(source, /setOf\("tr",\s*"en"\)/);
+  assert.match(source, /setOf\("tr",\s*"en",\s*"es",\s*"pt",\s*"de"\)/);
   assert.match(source, /AppCompatDelegate\s*\.getApplicationLocales\(\)\s*\.toLanguageTags\(\)/);
   assert.match(source, /if \(currentLocale != locale\) \{[\s\S]*AppLanguageManager\.applyLanguage\(this@StoreQaBootstrapActivity, locale\)[\s\S]*return/);
   assert.ok(source.indexOf('if (currentLocale != locale)') < source.indexOf('database.clearAllTables()'));
 
-  const invalidLocale = source.match(/if \(locale !in setOf\("tr",\s*"en"\)\) \{([\s\S]*?)\n\s*\}/);
+  const invalidLocale = source.match(/if \(locale !in setOf\("tr",\s*"en",\s*"es",\s*"pt",\s*"de"\)\) \{([\s\S]*?)\n\s*\}/);
   assert.ok(invalidLocale, 'invalid locale guard must exist');
   assert.match(invalidLocale[1], /finishAndRemoveTask\(\)/);
   assert.doesNotMatch(invalidLocale[1], /startActivity\(/);

@@ -58,6 +58,22 @@ describe('content seed document builder', () => {
     expect(leoPersonality.element).toBe('fogo');
   });
 
+  it('builds genuine German content, not an English/Spanish/Portuguese fallback', () => {
+    const uploads = buildDocumentsForSeed({ seedDate: '2026-03-21', dailyDays: 1 });
+
+    const dailyDe = uploads.find((item) => item.key === 'content/daily/de/2026-03-21.json');
+    expect(dailyDe).toBeDefined();
+    const ariesDaily = (dailyDe?.payload as { signs: Record<string, { short: string }> }).signs.aries;
+    expect(ariesDaily.short).toMatch(/[äöüß]/i);
+    expect(ariesDaily.short).not.toMatch(/Focus:/);
+
+    const personalityDe = uploads.find((item) => item.key === 'content/personality/de/leo.json');
+    expect(personalityDe).toBeDefined();
+    const leoPersonality = personalityDe?.payload as { planet: string; element: string };
+    expect(leoPersonality.planet).toBe('Sonne');
+    expect(leoPersonality.element).toBe('Feuer');
+  });
+
   it('restricts output to a single language when requested, to stay under the Worker subrequest limit', () => {
     const uploads = buildDocumentsForSeed({
       seedDate: '2026-03-21',

@@ -207,6 +207,21 @@ fun StoreFeatureGraphicPortugueseScreenshot() {
 
 @PreviewTest
 @Preview(
+    name = "Store feature graphic German",
+    device = "spec:width=1024dp,height=500dp,dpi=160",
+    locale = "de-rDE",
+    showBackground = true,
+)
+@Composable
+fun StoreFeatureGraphicGermanScreenshot() {
+    StoreFeatureGraphic(
+        headline = "Ihr tägliches Horoskop, schön aufbereitet",
+        supportingText = "Tägliche Orientierung · Kompatibilität · Wöchentliche und monatliche Einblicke",
+    )
+}
+
+@PreviewTest
+@Preview(
     name = "Store app icon",
     device = "spec:width=512dp,height=512dp,dpi=160",
     showBackground = true,

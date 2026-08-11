@@ -128,7 +128,7 @@ describe('validators', () => {
       validateContentBackfillBody({
         daily_days: 1,
         skip_static_content: false,
-        language: 'de',
+        language: 'fr',
         editorial_status: 'approved',
         approved_by: 'github-actions',
         approval_reference: 'workflow:content-backfill'

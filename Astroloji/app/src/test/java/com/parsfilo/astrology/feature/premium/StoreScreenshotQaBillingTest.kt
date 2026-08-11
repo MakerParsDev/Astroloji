@@ -21,6 +21,16 @@ class StoreScreenshotQaBillingTest {
         assertThat(en.map { it.billingPeriod }).containsExactly("P1M", "P1W").inOrder()
         assertThat(en[0].price).isEqualTo("$6.99")
         assertThat(en[1].price).isEqualTo("$2.29")
+
+        val de = storeScreenshotQaPlans("de")
+        assertThat(de[0].title).isEqualTo("Monatliches Premium")
+        assertThat(de[0].price).isEqualTo("6,99 €")
+        assertThat(de[1].title).isEqualTo("Wöchentliches Premium")
+        assertThat(de[1].price).isEqualTo("2,29 €")
+
+        // Unrecognized language codes fall back to the English copy rather than crashing.
+        val unknown = storeScreenshotQaPlans("xx")
+        assertThat(unknown[0].price).isEqualTo("$6.99")
     }
 
     @Test

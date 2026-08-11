@@ -5,13 +5,15 @@
     "en-US",
     "tr-TR",
     "es-ES",
-    "pt-BR"
+    "pt-BR",
+    "de-DE"
   ],
   "androidLocaleMap": {
     "en": "en-US",
     "tr": "tr-TR",
     "es": "es-ES",
-    "pt": "pt-BR"
+    "pt": "pt-BR",
+    "de": "de-DE"
   },
   "support": {
     "developer": "ParsFilo",

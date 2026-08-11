@@ -84,6 +84,24 @@ describe('personal guidance v1', () => {
     expect(guidance.disclaimer).toMatch(/reflexão e entretenimento/i);
   });
 
+  it('produces natural German guidance without deterministic promises', () => {
+    const guidance = createPersonalGuidance({
+      natalTimestamp: '1990-01-15T12:00:00.000Z',
+      natalTimeCertainty: 'exact',
+      targetTimestamp: '2026-08-05T00:00:00.000Z',
+      language: 'de'
+    });
+
+    expect(guidance.signals).toHaveLength(3);
+    expect(guidance.signals.every((signal) => /[äöüß]/i.test(`${signal.summary} ${signal.actionPrompt}`))).toBe(
+      true
+    );
+    expect(guidance.signals.map((signal) => signal.summary).join(' ')).not.toMatch(
+      FORBIDDEN_DETERMINISTIC_LANGUAGE
+    );
+    expect(guidance.disclaimer).toMatch(/Reflexion und Unterhaltung/i);
+  });
+
   it('removes natal Moon claims when the birth time is unknown', () => {
     const guidance = createPersonalGuidance({
       natalTimestamp: '1990-01-15T12:00:00.000Z',
@@ -102,7 +120,7 @@ describe('personal guidance v1', () => {
         natalTimestamp: '1990-01-15T12:00:00.000Z',
         natalTimeCertainty: 'exact',
         targetTimestamp: '2026-08-05T00:00:00.000Z',
-        language: 'de' as 'en'
+        language: 'fr' as 'en'
       })
     ).toThrow(/language/i);
   });
