@@ -177,6 +177,21 @@ fun StoreFeatureGraphicTurkishScreenshot() {
 
 @PreviewTest
 @Preview(
+    name = "Store feature graphic Spanish",
+    device = "spec:width=1024dp,height=500dp,dpi=160",
+    locale = "es-rES",
+    showBackground = true,
+)
+@Composable
+fun StoreFeatureGraphicSpanishScreenshot() {
+    StoreFeatureGraphic(
+        headline = "Tu horóscopo diario, bellamente organizado",
+        supportingText = "Guía diaria · Compatibilidad · Perspectivas semanales y mensuales",
+    )
+}
+
+@PreviewTest
+@Preview(
     name = "Store app icon",
     device = "spec:width=512dp,height=512dp,dpi=160",
     showBackground = true,

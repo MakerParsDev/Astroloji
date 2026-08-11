@@ -1,7 +1,7 @@
 export type LlmTaskType = 'daily_content' | 'deep_reading' | 'chat_consultation' | 'compatibility';
 
 export interface LlmMessage {
-  role: 'system' | 'user';
+  role: 'system' | 'user' | 'assistant';
   content: string;
 }
 

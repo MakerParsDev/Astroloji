@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { sendBatchNotifications } = vi.hoisted(() => ({
-  sendBatchNotifications: vi.fn()
+const { sendBatchNotifications, createPersonalGuidance, getDecryptedBirthData } = vi.hoisted(() => ({
+  sendBatchNotifications: vi.fn(),
+  createPersonalGuidance: vi.fn(),
+  getDecryptedBirthData: vi.fn()
 }));
 
 vi.mock('@/services/fcm', () => ({
@@ -13,6 +15,14 @@ vi.mock('@/services/playBilling', () => ({
   hasPremiumEntitlement: vi.fn()
 }));
 
+vi.mock('@/chart-engine/personalGuidance', () => ({
+  createPersonalGuidance
+}));
+
+vi.mock('@/workers/birthData', () => ({
+  getDecryptedBirthData
+}));
+
 import { handleCron, buildDailyNotificationTitle } from '@/workers/cron';
 import { createTestEnv } from '../helpers/env';
 
@@ -21,6 +31,9 @@ describe('cron worker', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-10T09:00:00.000Z'));
     sendBatchNotifications.mockReset();
+    createPersonalGuidance.mockReset();
+    getDecryptedBirthData.mockReset();
+    getDecryptedBirthData.mockResolvedValue(null);
   });
 
   it('uses localized Turkish sign labels with proper diacritics', () => {
@@ -172,6 +185,178 @@ describe('cron worker', () => {
         sign: 'aries',
         date: '2026-04-10'
       }
+    );
+  });
+
+  function createSingleUserEnv() {
+    return createTestEnv({
+      DB: {
+        prepare(sql: string) {
+          const statement = {
+            bind() {
+              return statement;
+            },
+            async first() {
+              return null;
+            },
+            async all() {
+              if (sql.includes('FROM users u') && sql.includes('LIMIT ? OFFSET ?')) {
+                return {
+                  results: [
+                    {
+                      user_id: 'user-1',
+                      sign: 'aries',
+                      language: 'tr',
+                      utc_offset: 0,
+                      token: 'token-1',
+                      target_type: 'token',
+                      notification_hour: 9
+                    }
+                  ]
+                };
+              }
+              return { results: [] };
+            },
+            async run() {
+              return { success: true, meta: { changes: 0 } };
+            }
+          };
+          return statement;
+        },
+        async batch() {
+          return [];
+        }
+      } as unknown as D1Database,
+      CONTENT: {
+        async head() {
+          return { size: 1 } as R2Object;
+        },
+        async get() {
+          return {
+            async json() {
+              return {
+                date: '2026-04-10',
+                language: 'tr',
+                signs: {
+                  aries: {
+                    short: 'Bugün enerjin yüksek.',
+                    full: 'Premium yorum',
+                    love: 'Aşk',
+                    career: 'Kariyer',
+                    money: 'Para',
+                    health: 'Sağlık',
+                    lucky_number: 7,
+                    lucky_color: 'Kırmızı',
+                    energy: 88,
+                    love_score: 70,
+                    career_score: 81,
+                    money_score: 65,
+                    health_score: 76,
+                    daily_tip: 'Odaklan'
+                  }
+                }
+              };
+            }
+          } as R2ObjectBody;
+        }
+      } as unknown as R2Bucket
+    });
+  }
+
+  it('sends a personalized transit notification instead of the generic daily one when a strong signal exists', async () => {
+    const env = createSingleUserEnv();
+    getDecryptedBirthData.mockResolvedValue({
+      plaintext: { timestamp: '1990-01-15T12:00:00.000Z', latitude: 41, longitude: 29, tzid: 'Europe/Istanbul' },
+      timeCertainty: 'exact'
+    });
+    createPersonalGuidance.mockReturnValue({
+      version: 'personal-guidance-v1',
+      calculationVersion: 'guidance-rules-v1',
+      generatedAt: '2026-04-10T09:00:00.000Z',
+      targetTimestamp: '2026-04-10T09:00:00.000Z',
+      language: 'tr',
+      signals: [
+        {
+          id: 'mars_square_saturn',
+          priority: 90,
+          domain: 'action',
+          title: 'Mars, natal Satürn ile kare',
+          summary: 'Bugün sınırlarını netleştirmen gerekebilir.',
+          actionPrompt: 'Küçük bir adım seç.',
+          evidence: { transitBody: 'mars', natalBody: 'saturn', aspect: 'square', orb: 0.4, maximumOrb: 6 }
+        }
+      ],
+      limitations: [],
+      disclaimer: 'disclaimer'
+    });
+
+    await handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext);
+
+    expect(sendBatchNotifications).toHaveBeenCalledWith(
+      env,
+      [{ type: 'token', value: 'token-1' }],
+      'Mars, natal Satürn ile kare',
+      'Bugün sınırlarını netleştirmen gerekebilir.',
+      {
+        type: 'transit',
+        signal_id: 'mars_square_saturn',
+        domain: 'action',
+        date: '2026-04-10'
+      }
+    );
+  });
+
+  it('falls back to the generic daily notification when the strongest signal is below the meaningfulness threshold', async () => {
+    const env = createSingleUserEnv();
+    getDecryptedBirthData.mockResolvedValue({
+      plaintext: { timestamp: '1990-01-15T12:00:00.000Z', latitude: 41, longitude: 29, tzid: 'Europe/Istanbul' },
+      timeCertainty: 'exact'
+    });
+    createPersonalGuidance.mockReturnValue({
+      version: 'personal-guidance-v1',
+      calculationVersion: 'guidance-rules-v1',
+      generatedAt: '2026-04-10T09:00:00.000Z',
+      targetTimestamp: '2026-04-10T09:00:00.000Z',
+      language: 'tr',
+      signals: [
+        {
+          id: 'moon_sextile_venus',
+          priority: 40,
+          domain: 'emotions',
+          title: 'weak signal',
+          summary: 'weak',
+          actionPrompt: 'weak',
+          evidence: { transitBody: 'moon', natalBody: 'venus', aspect: 'sextile', orb: 5.5, maximumOrb: 6 }
+        }
+      ],
+      limitations: [],
+      disclaimer: 'disclaimer'
+    });
+
+    await handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext);
+
+    expect(sendBatchNotifications).toHaveBeenCalledWith(
+      env,
+      [{ type: 'token', value: 'token-1' }],
+      'Koç Burcu Bugün',
+      'Bugün enerjin yüksek.',
+      { type: 'daily', sign: 'aries', date: '2026-04-10' }
+    );
+  });
+
+  it('falls back to the generic daily notification when the user has no saved birth data', async () => {
+    const env = createSingleUserEnv();
+    getDecryptedBirthData.mockResolvedValue(null);
+
+    await handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext);
+
+    expect(createPersonalGuidance).not.toHaveBeenCalled();
+    expect(sendBatchNotifications).toHaveBeenCalledWith(
+      env,
+      [{ type: 'token', value: 'token-1' }],
+      'Koç Burcu Bugün',
+      'Bugün enerjin yüksek.',
+      { type: 'daily', sign: 'aries', date: '2026-04-10' }
     );
   });
 

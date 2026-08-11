@@ -26,6 +26,22 @@ describe('content seed document builder', () => {
     expect(monthlyKeys).toEqual(['content/monthly/tr/2026-03.json']);
   });
 
+  it('builds genuine Spanish content, not an English fallback', () => {
+    const uploads = buildDocumentsForSeed({ seedDate: '2026-03-21', dailyDays: 1 });
+
+    const dailyEs = uploads.find((item) => item.key === 'content/daily/es/2026-03-21.json');
+    expect(dailyEs).toBeDefined();
+    const ariesDaily = (dailyEs?.payload as { signs: Record<string, { short: string }> }).signs.aries;
+    expect(ariesDaily.short).toMatch(/[áéíóúñ]/i);
+    expect(ariesDaily.short).not.toMatch(/Focus:/);
+
+    const personalityEs = uploads.find((item) => item.key === 'content/personality/es/leo.json');
+    expect(personalityEs).toBeDefined();
+    const leoPersonality = personalityEs?.payload as { planet: string; element: string };
+    expect(leoPersonality.planet).toBe('Sol');
+    expect(leoPersonality.element).toBe('fuego');
+  });
+
   it('keeps the legacy three-day window when no range override is provided', () => {
     const uploads = buildDocumentsForSeed({
       seedDate: '2026-03-21'

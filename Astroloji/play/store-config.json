@@ -3,11 +3,13 @@
   "defaultLocale": "tr-TR",
   "locales": [
     "en-US",
-    "tr-TR"
+    "tr-TR",
+    "es-ES"
   ],
   "androidLocaleMap": {
     "en": "en-US",
-    "tr": "tr-TR"
+    "tr": "tr-TR",
+    "es": "es-ES"
   },
   "support": {
     "developer": "ParsFilo",

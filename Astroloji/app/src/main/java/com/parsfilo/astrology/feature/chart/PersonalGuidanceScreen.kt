@@ -36,6 +36,7 @@ import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.PremiumSectionHeader
+import com.parsfilo.astrology.core.util.TimeUtils
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -56,7 +57,12 @@ fun PersonalGuidanceScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val configuration = LocalConfiguration.current
     val language = configuration.locales[0].language
-    val locale = if (language == "tr") Locale.forLanguageTag("tr-TR") else Locale.ENGLISH
+    val locale =
+        when (TimeUtils.normalizeLanguageTag(language)) {
+            "tr" -> Locale.forLanguageTag("tr-TR")
+            "es" -> Locale.forLanguageTag("es-ES")
+            else -> Locale.ENGLISH
+        }
     val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("d MMMM yyyy", locale) }
     val selectedDateLabel =
         uiState.birthDateMillis?.let {

@@ -48,6 +48,40 @@ internal val englishStoreCopy =
             ),
     )
 
+internal val spanishStoreCopy =
+    StoreLocalizedCopy(
+        daily =
+            StoreMarketingCopy(
+                headline = "Mira tu horóscopo de hoy de un vistazo",
+                supportingText = "Guía diaria personalizada para tu signo.",
+            ),
+        weekly =
+            StoreMarketingCopy(
+                headline = "Descubre el ritmo de tu semana",
+                supportingText = "Sigue los temas de la semana y tu día más fuerte.",
+            ),
+        monthly =
+            StoreMarketingCopy(
+                headline = "Explora el panorama completo del mes",
+                supportingText = "Ve los temas del mes en una vista clara.",
+            ),
+        compatibility =
+            StoreMarketingCopy(
+                headline = "Compara la compatibilidad zodiacal",
+                supportingText = "Compara puntuaciones de amor, amistad y trabajo.",
+            ),
+        profile =
+            StoreMarketingCopy(
+                headline = "Personaliza tu perfil zodiacal",
+                supportingText = "Gestiona tu signo, idioma, tema y preferencias.",
+            ),
+        premium =
+            StoreMarketingCopy(
+                headline = "Elige Premium mensual o semanal",
+                supportingText = "Compara las opciones mensual y semanal antes de elegir.",
+            ),
+    )
+
 internal val turkishStoreCopy =
     StoreLocalizedCopy(
         daily =

@@ -47,6 +47,37 @@ describe('AnthropicAdapter', () => {
     expect(body.max_tokens).toBe(800);
   });
 
+  it('forwards assistant turns in a multi-turn conversation instead of collapsing every role to user', async () => {
+    const conversationRequest = {
+      taskType: 'chat_consultation' as const,
+      messages: [
+        { role: 'system' as const, content: 'You are an astrology assistant.' },
+        { role: 'user' as const, content: 'What does my rising sign mean?' },
+        { role: 'assistant' as const, content: 'Your rising sign shapes first impressions.' },
+        { role: 'user' as const, content: 'And my moon sign?' }
+      ],
+      maxOutputTokens: 400
+    };
+    let capturedInit: RequestInit | undefined;
+    const fetcher = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      capturedInit = init;
+      return jsonResponse(200, {
+        content: [{ type: 'text', text: 'Your moon sign shapes your emotional world.' }],
+        usage: { input_tokens: 50, output_tokens: 10 }
+      });
+    });
+    const adapter = new AnthropicAdapter({ apiKey: 'sk-test', model: 'claude-opus-5', fetcher: fetcher as unknown as typeof fetch });
+
+    await adapter.generate(conversationRequest);
+
+    const body = JSON.parse(capturedInit?.body as string);
+    expect(body.messages).toEqual([
+      { role: 'user', content: 'What does my rising sign mean?' },
+      { role: 'assistant', content: 'Your rising sign shapes first impressions.' },
+      { role: 'user', content: 'And my moon sign?' }
+    ]);
+  });
+
   it('maps HTTP 429 to a retryable rate-limit error', async () => {
     const fetcher = vi.fn(async () => new Response('{}', { status: 429 }));
     const adapter = new AnthropicAdapter({ apiKey: 'sk-test', model: 'claude-opus-5', fetcher: fetcher as unknown as typeof fetch });

@@ -6,7 +6,7 @@ import {
   type TransitSnapshotV1
 } from '@/chart-engine/transitSnapshot';
 
-export type GuidanceLanguage = 'tr' | 'en';
+export type GuidanceLanguage = 'tr' | 'en' | 'es';
 
 export type GuidanceDomain =
   | 'identity'
@@ -71,6 +71,18 @@ const BODY_LABELS: Record<GuidanceLanguage, Record<ChartBody, string>> = {
     uranus: 'Uranus',
     neptune: 'Neptune',
     pluto: 'Pluto'
+  },
+  es: {
+    sun: 'Sol',
+    moon: 'Luna',
+    mercury: 'Mercurio',
+    venus: 'Venus',
+    mars: 'Marte',
+    jupiter: 'Júpiter',
+    saturn: 'Saturno',
+    uranus: 'Urano',
+    neptune: 'Neptuno',
+    pluto: 'Plutón'
   }
 };
 
@@ -88,6 +100,13 @@ const ASPECT_LABELS: Record<GuidanceLanguage, Record<MajorAspectType, string>> =
     square: 'square',
     trine: 'trine',
     opposition: 'opposition'
+  },
+  es: {
+    conjunction: 'conjunción',
+    sextile: 'sextil',
+    square: 'cuadratura',
+    trine: 'trígono',
+    opposition: 'oposición'
   }
 };
 
@@ -128,7 +147,25 @@ const DOMAIN_LABELS: Record<GuidanceLanguage, Record<GuidanceDomain, string>> = 
     change: 'change and freedom',
     imagination: 'intuition and imagination',
     transformation: 'deep transformation'
+  },
+  es: {
+    identity: 'autoexpresión',
+    emotions: 'necesidades emocionales',
+    communication: 'comunicación y pensamiento',
+    relationships: 'relaciones y valores',
+    action: 'acción y límites',
+    growth: 'crecimiento y sentido',
+    responsibility: 'responsabilidad y estructura',
+    change: 'cambio y libertad',
+    imagination: 'intuición e imaginación',
+    transformation: 'transformación profunda'
   }
+};
+
+const DISCLAIMERS: Record<GuidanceLanguage, string> = {
+  tr: 'Bu içerik eğlence ve öz değerlendirme içindir; tıbbi, hukuki veya finansal tavsiye değildir.',
+  en: 'This content is for reflection and entertainment, not medical, legal, or financial advice.',
+  es: 'Este contenido es para reflexión y entretenimiento; no es un consejo médico, legal ni financiero.'
 };
 
 const TRANSIT_BODY_WEIGHT: Record<ChartBody, number> = {
@@ -165,25 +202,30 @@ function localizedSummary(
   aspect: MajorAspectType,
   domainLabel: string
 ): string {
-  if (language === 'tr') {
-    const summaries: Record<MajorAspectType, string> = {
+  const summariesByLanguage: Record<GuidanceLanguage, Record<MajorAspectType, string>> = {
+    tr: {
       conjunction: `Yoğunlaşan bir vurgu, ${domainLabel} temasını daha görünür hâle getirebilir.`,
       sextile: `Uyumlu bir fırsat, ${domainLabel} alanını nazikçe destekleyebilir.`,
       square: `Beliren sürtünme, ${domainLabel} konusunda bilinçli bir ayarlama isteyebilir.`,
       trine: `Akışkan bir destek, ${domainLabel} becerilerini daha rahat kullanmana yardımcı olabilir.`,
       opposition: `İki kutup arasında denge kurmak, ${domainLabel} alanında daha çok netlik sağlayabilir.`
-    };
-    return summaries[aspect];
-  }
-
-  const summaries: Record<MajorAspectType, string> = {
-    conjunction: `A concentrated emphasis may make themes of ${domainLabel} more visible.`,
-    sextile: `A supportive opening may gently strengthen ${domainLabel}.`,
-    square: `Constructive friction may invite a conscious adjustment around ${domainLabel}.`,
-    trine: `A smoother flow may help you use skills connected with ${domainLabel}.`,
-    opposition: `Balancing two poles may create more clarity around ${domainLabel}.`
+    },
+    en: {
+      conjunction: `A concentrated emphasis may make themes of ${domainLabel} more visible.`,
+      sextile: `A supportive opening may gently strengthen ${domainLabel}.`,
+      square: `Constructive friction may invite a conscious adjustment around ${domainLabel}.`,
+      trine: `A smoother flow may help you use skills connected with ${domainLabel}.`,
+      opposition: `Balancing two poles may create more clarity around ${domainLabel}.`
+    },
+    es: {
+      conjunction: `Un énfasis concentrado puede hacer más visibles los temas de ${domainLabel}.`,
+      sextile: `Una apertura favorable puede fortalecer con suavidad ${domainLabel}.`,
+      square: `Una fricción constructiva puede invitar a un ajuste consciente en torno a ${domainLabel}.`,
+      trine: `Un flujo más fluido puede ayudarte a usar habilidades relacionadas con ${domainLabel}.`,
+      opposition: `Equilibrar dos polos puede aportar más claridad en torno a ${domainLabel}.`
+    }
   };
-  return summaries[aspect];
+  return summariesByLanguage[language][aspect];
 }
 
 function localizedActionPrompt(language: GuidanceLanguage, domain: GuidanceDomain): string {
@@ -211,6 +253,18 @@ function localizedActionPrompt(language: GuidanceLanguage, domain: GuidanceDomai
       change: 'Try one safe, small alternative to the usual method.',
       imagination: 'Turn intuition into a note, sketch, or brief creative exercise.',
       transformation: 'Write down one habit to release and the behavior that can replace it.'
+    },
+    es: {
+      identity: 'Escribe una frase honesta sobre lo que quieres expresar hoy.',
+      emotions: 'Nombra el sentimiento y haz una pausa antes de intentar cambiarlo.',
+      communication: 'Aclara tu intención en una frase antes de una conversación importante.',
+      relationships: 'Cambia una suposición por una pregunta abierta y mutua.',
+      action: 'Elige un solo paso realizable en vez de dispersar tu energía.',
+      growth: 'Fija una meta de aprendizaje pequeña y medible.',
+      responsibility: 'Revisa qué responsabilidad te pertenece de verdad.',
+      change: 'Prueba una alternativa segura y pequeña al método habitual.',
+      imagination: 'Convierte tu intuición en una nota, boceto o ejercicio creativo breve.',
+      transformation: 'Escribe un hábito que estés listo para soltar y la conducta que lo reemplazará.'
     }
   };
   return prompts[language][domain];
@@ -221,10 +275,12 @@ function toSignal(aspect: TransitAspect, language: GuidanceLanguage): PersonalGu
   const transitLabel = BODY_LABELS[language][aspect.transitBody];
   const natalLabel = BODY_LABELS[language][aspect.natalBody];
   const aspectLabel = ASPECT_LABELS[language][aspect.type];
-  const title =
-    language === 'tr'
-      ? `${transitLabel}, natal ${natalLabel} ile ${aspectLabel}`
-      : `${transitLabel} ${aspectLabel} natal ${natalLabel}`;
+  const titleFormats: Record<GuidanceLanguage, string> = {
+    tr: `${transitLabel}, natal ${natalLabel} ile ${aspectLabel}`,
+    en: `${transitLabel} ${aspectLabel} natal ${natalLabel}`,
+    es: `${transitLabel} en ${aspectLabel} con ${natalLabel} natal`
+  };
+  const title = titleFormats[language];
 
   return {
     id: `${aspect.transitBody}_${aspect.type}_${aspect.natalBody}`,
@@ -249,8 +305,8 @@ export function createPersonalGuidance(input: {
   targetTimestamp: string;
   language: GuidanceLanguage;
 }): PersonalGuidanceV1 {
-  if (input.language !== 'tr' && input.language !== 'en') {
-    throw new Error('language must be tr or en.');
+  if (input.language !== 'tr' && input.language !== 'en' && input.language !== 'es') {
+    throw new Error('language must be tr, en, or es.');
   }
 
   const snapshot = createTransitSnapshot({
@@ -274,9 +330,6 @@ export function createPersonalGuidance(input: {
     language: input.language,
     signals,
     limitations: snapshot.limitations,
-    disclaimer:
-      input.language === 'tr'
-        ? 'Bu içerik eğlence ve öz değerlendirme içindir; tıbbi, hukuki veya finansal tavsiye değildir.'
-        : 'This content is for reflection and entertainment, not medical, legal, or financial advice.'
+    disclaimer: DISCLAIMERS[input.language]
   };
 }

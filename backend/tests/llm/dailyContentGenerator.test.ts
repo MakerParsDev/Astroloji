@@ -81,6 +81,13 @@ describe('buildDailyContentPrompt', () => {
     expect(request.messages[0]?.content).toMatch(/astroloji/i);
     expect(request.messages[1]?.content).toMatch(/burcu/);
   });
+
+  it('writes the Spanish prompt in Spanish for es requests', () => {
+    const request = buildDailyContentPrompt({ ...input, language: 'es' });
+
+    expect(request.messages[0]?.content).toMatch(/astrología/i);
+    expect(request.messages[1]?.content).toMatch(/horóscopo/i);
+  });
 });
 
 describe('generateDailySignContent', () => {

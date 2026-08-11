@@ -15,4 +15,10 @@ class ZodiacSignTest {
         assertThat(ZodiacSign.ARIES.localizedDateRange("en")).isEqualTo("21 Mar - 19 Apr")
         assertThat(ZodiacSign.CAPRICORN.localizedDateRange("en")).isEqualTo("22 Dec - 19 Jan")
     }
+
+    @Test
+    fun `localizedName returns the Spanish sign name for Spanish locale`() {
+        assertThat(ZodiacSign.TAURUS.localizedName("es")).isEqualTo("Tauro")
+        assertThat(ZodiacSign.GEMINI.localizedName("es")).isEqualTo("Géminis")
+    }
 }

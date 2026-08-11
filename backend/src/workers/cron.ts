@@ -1,3 +1,4 @@
+import { createPersonalGuidance } from '@/chart-engine/personalGuidance';
 import { sendBatchNotifications } from '@/services/fcm';
 import { getSubscriptionStatus, hasPremiumEntitlement } from '@/services/playBilling';
 import type {
@@ -9,7 +10,16 @@ import type {
   SubscriptionRow
 } from '@/types';
 import { getCurrentUtcHour, getDateIdentifier, shouldSendNotificationAtUtcHour } from '@/utils/date';
+import { getDecryptedBirthData } from '@/workers/birthData';
 import { cleanupRewardChallenges } from '@/workers/reward';
+
+/**
+ * Minimum personal-guidance signal priority (0-100 scale, see personalGuidance.ts)
+ * required before a transit push is sent instead of the generic daily one. Keeps
+ * notification fatigue down by only interrupting the user for a genuinely tight,
+ * weighty transit rather than every minor aspect of the day.
+ */
+const TRANSIT_NOTIFICATION_PRIORITY_THRESHOLD = 65;
 
 const SIGN_LABELS = {
   tr: {
@@ -39,13 +49,31 @@ const SIGN_LABELS = {
     capricorn: 'Capricorn',
     aquarius: 'Aquarius',
     pisces: 'Pisces'
+  },
+  es: {
+    aries: 'Aries',
+    taurus: 'Tauro',
+    gemini: 'Géminis',
+    cancer: 'Cáncer',
+    leo: 'Leo',
+    virgo: 'Virgo',
+    libra: 'Libra',
+    scorpio: 'Escorpio',
+    sagittarius: 'Sagitario',
+    capricorn: 'Capricornio',
+    aquarius: 'Acuario',
+    pisces: 'Piscis'
   }
 } as const;
 
+const NOTIFICATION_TITLE_FORMAT: Record<keyof typeof SIGN_LABELS, (signLabel: string) => string> = {
+  tr: (signLabel) => `${signLabel} Burcu Bugün`,
+  en: (signLabel) => `${signLabel} Horoscope Today`,
+  es: (signLabel) => `Horóscopo de ${signLabel} Hoy`
+};
+
 export function buildDailyNotificationTitle(sign: keyof typeof SIGN_LABELS.tr, language: keyof typeof SIGN_LABELS) {
-  return language === 'tr'
-    ? `${SIGN_LABELS.tr[sign]} Burcu Bugün`
-    : `${SIGN_LABELS.en[sign]} Horoscope Today`;
+  return NOTIFICATION_TITLE_FORMAT[language](SIGN_LABELS[language][sign]);
 }
 
 async function expireAndRefreshSubscriptions(env: Env) {
@@ -157,6 +185,46 @@ async function buildNotificationJob(
   };
 }
 
+/**
+ * Returns a personalized transit-based notification when the user has saved birth data and
+ * today's strongest transit aspect clears the meaningfulness threshold, otherwise null so the
+ * caller falls back to the generic daily notification. A missing/undecryptable birth-data row
+ * or an ineligible (Moon-based, when birth time is uncertain) signal are both treated as "no
+ * personalized signal available" rather than as errors.
+ */
+async function buildTransitNotificationJob(
+  env: Env,
+  target: NotificationTargetRow
+): Promise<CronNotificationJob | null> {
+  const birthData = await getDecryptedBirthData(env, target.user_id);
+  if (!birthData) {
+    return null;
+  }
+
+  const guidance = createPersonalGuidance({
+    natalTimestamp: birthData.plaintext.timestamp,
+    natalTimeCertainty: birthData.timeCertainty,
+    targetTimestamp: new Date().toISOString(),
+    language: target.language
+  });
+
+  const topSignal = guidance.signals[0];
+  if (!topSignal || topSignal.priority < TRANSIT_NOTIFICATION_PRIORITY_THRESHOLD) {
+    return null;
+  }
+
+  return {
+    title: topSignal.title,
+    body: topSignal.summary,
+    data: {
+      type: 'transit',
+      signal_id: topSignal.id,
+      domain: topSignal.domain,
+      date: getDateIdentifier()
+    }
+  };
+}
+
 async function dispatchScheduledNotifications(env: Env, currentUtcHour: number) {
   const groupedJobs = new Map<string, NotificationTarget[]>();
   const PAGE_SIZE = 500;
@@ -184,7 +252,7 @@ async function dispatchScheduledNotifications(env: Env, currentUtcHour: number) 
         continue;
       }
 
-      const job = await buildNotificationJob(env, target);
+      const job = (await buildTransitNotificationJob(env, target)) ?? (await buildNotificationJob(env, target));
       if (!job) {
         continue;
       }

@@ -38,9 +38,9 @@ export class AnthropicAdapter implements LlmProvider {
         .filter((message) => message.role === 'system')
         .map((message) => message.content)
         .join('\n\n') || undefined;
-    const userMessages = request.messages
-      .filter((message) => message.role === 'user')
-      .map((message) => ({ role: 'user' as const, content: message.content }));
+    const conversationMessages = request.messages
+      .filter((message) => message.role !== 'system')
+      .map((message) => ({ role: message.role as 'user' | 'assistant', content: message.content }));
 
     let response: Response;
     try {
@@ -55,7 +55,7 @@ export class AnthropicAdapter implements LlmProvider {
           model: this.options.model,
           max_tokens: request.maxOutputTokens,
           system,
-          messages: userMessages
+          messages: conversationMessages
         })
       });
     } catch (error) {

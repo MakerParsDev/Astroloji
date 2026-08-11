@@ -16,7 +16,11 @@ object TimeUtils {
 
     fun normalizeLanguageTag(language: String?): String {
         val value = language?.lowercase(Locale.ROOT).orEmpty()
-        return if (value.startsWith("tr")) "tr" else "en"
+        return when {
+            value.startsWith("tr") -> "tr"
+            value.startsWith("es") -> "es"
+            else -> "en"
+        }
     }
 
     fun defaultLanguageTag(locale: Locale = Locale.getDefault()): String = normalizeLanguageTag(locale.language)
@@ -37,7 +41,12 @@ object TimeUtils {
         date: LocalDate = currentLocalDate(),
     ): String {
         val normalizedLanguage = normalizeLanguageTag(language)
-        val locale = if (normalizedLanguage == "tr") Locale.forLanguageTag("tr-TR") else Locale.ENGLISH
+        val locale =
+            when (normalizedLanguage) {
+                "tr" -> Locale.forLanguageTag("tr-TR")
+                "es" -> Locale.forLanguageTag("es-ES")
+                else -> Locale.ENGLISH
+            }
         val pattern = if (normalizedLanguage == "tr") "d MMMM EEE" else "d MMM EEE"
         return date.format(DateTimeFormatter.ofPattern(pattern, locale))
     }

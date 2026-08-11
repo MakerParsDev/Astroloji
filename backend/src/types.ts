@@ -1,5 +1,7 @@
 import type { Context, MiddlewareHandler } from 'hono';
 
+import type { GuidanceDomain } from '@/chart-engine/personalGuidance';
+
 export const SIGNS = [
   'aries',
   'taurus',
@@ -15,10 +17,40 @@ export const SIGNS = [
   'pisces'
 ] as const;
 
-export const LANGUAGES = ['tr', 'en'] as const;
+export const LANGUAGES = ['tr', 'en', 'es'] as const;
 export const PLATFORMS = ['android', 'ios'] as const;
 export const NOTIFICATION_TARGET_TYPES = ['token', 'fid'] as const;
-export const SUBSCRIPTION_PRODUCTS = ['premium_monthly', 'premium_weekly'] as const;
+export const SUBSCRIPTION_PRODUCTS = ['premium_monthly', 'premium_weekly', 'premium_yearly'] as const;
+/** One-time consumable products, verified via Play's INAPP purchase flow. Value = credits granted. */
+export const CREDIT_PRODUCTS = {
+  credits_small: 20,
+  credits_medium: 60,
+  credits_large: 150
+} as const;
+/** Credits granted the first time a user crosses each streak milestone. Keyed by milestone day count. */
+export const STREAK_MILESTONE_REWARDS = {
+  3: 5,
+  7: 10,
+  14: 15,
+  30: 25,
+  60: 40,
+  100: 75
+} as const;
+export const MOOD_VALUES = ['great', 'good', 'neutral', 'low', 'stressed'] as const;
+/** Exhaustiveness-checked against GuidanceDomain: a missing or extra key fails to compile. */
+const MOOD_DOMAIN_SET: Record<GuidanceDomain, true> = {
+  identity: true,
+  emotions: true,
+  communication: true,
+  relationships: true,
+  action: true,
+  growth: true,
+  responsibility: true,
+  change: true,
+  imagination: true,
+  transformation: true
+};
+export const MOOD_DOMAINS = Object.keys(MOOD_DOMAIN_SET) as GuidanceDomain[];
 export const SUBSCRIPTION_STATUSES = [
   'none',
   'active',
@@ -70,7 +102,16 @@ export const USER_EVENT_TYPES = [
   'content_view',
   'compat_check',
   'share',
-  'notification_tap'
+  'notification_tap',
+  'trial_started',
+  'trial_converted',
+  'trial_cancelled',
+  'credit_purchased',
+  'credit_spent',
+  'friend_invited',
+  'friend_accepted',
+  'deep_reading_viewed',
+  'mood_logged'
 ] as const;
 export const CONTENT_TYPES = ['daily', 'weekly', 'monthly', 'compat', 'personality'] as const;
 export const REWARD_TYPES = ['daily', 'weekly'] as const;
@@ -96,6 +137,7 @@ export type SubscriptionEventType = (typeof SUBSCRIPTION_EVENT_TYPES)[number];
 export type UserEventType = (typeof USER_EVENT_TYPES)[number];
 export type ContentType = (typeof CONTENT_TYPES)[number];
 export type RewardType = (typeof REWARD_TYPES)[number];
+export type CreditProductId = keyof typeof CREDIT_PRODUCTS;
 export type AdminCapability = (typeof ADMIN_CAPABILITIES)[number];
 export type AdminOperation = (typeof ADMIN_OPERATIONS)[number];
 
@@ -259,6 +301,85 @@ export interface RewardChallengeRow {
   entitlement_expires_at: string | null;
 }
 
+export type CreditLedgerReason = 'purchase' | 'spend' | 'streak_reward';
+export type StreakMilestone = keyof typeof STREAK_MILESTONE_REWARDS;
+export type MoodValue = (typeof MOOD_VALUES)[number];
+export type MoodDomain = GuidanceDomain;
+
+export interface CreditLedgerRow {
+  id: string;
+  user_id: string;
+  purchase_token: string | null;
+  product_id: string | null;
+  delta: number;
+  reason: CreditLedgerReason;
+  feature: string | null;
+  created_at: string;
+}
+
+export interface InviteCodeRow {
+  code: string;
+  owner_user_id: string;
+  created_at: string;
+  expires_at: string;
+  redeemed_by: string | null;
+  redeemed_at: string | null;
+}
+
+export interface FriendshipRow {
+  id: string;
+  user_a: string;
+  user_b: string;
+  status: 'active';
+  created_at: string;
+}
+
+export interface AcceptInviteRequest {
+  code: string;
+}
+
+export interface DeepReadingRequest {
+  language: Language;
+}
+
+export interface ChatTurnRequest {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface ChatMessageRequest {
+  language: Language;
+  message: string;
+  history: ChatTurnRequest[];
+}
+
+export interface StreakCheckInResponse {
+  streak_count: number;
+  last_streak_date: string;
+  milestone_achieved: number | null;
+  credits_granted: number;
+  balance: number;
+}
+
+export interface MoodLogRequest {
+  mood: MoodValue;
+  domain?: MoodDomain;
+}
+
+export interface MoodLogResponse {
+  date: string;
+  mood: MoodValue;
+  domain: MoodDomain | null;
+}
+
+export interface MoodInsightResponse {
+  insight: {
+    domain: MoodDomain;
+    occurrences: number;
+    correlated: number;
+  } | null;
+}
+
 export interface ContentDocumentMetadata {
   content_version?: string;
   generated_at?: string;
@@ -382,6 +503,16 @@ export interface UpdateUserRequest {
 export interface SubscriptionVerifyRequest {
   purchase_token: string;
   product_id: SubscriptionProductId;
+}
+
+export interface CreditsVerifyRequest {
+  purchase_token: string;
+  product_id: CreditProductId;
+}
+
+export interface CreditsSpendRequest {
+  amount: number;
+  feature: string;
 }
 
 export interface NotificationRequest {
@@ -520,6 +651,15 @@ export interface GooglePlaySubscription {
   autoRenewing: boolean;
   cancelReason: string | null;
   raw: GooglePlaySubscriptionResponse;
+}
+
+/** Play Developer API `purchases.products` response. purchaseState: 0=purchased, 1=canceled, 2=pending. consumptionState: 0=yet to be consumed, 1=consumed. */
+export interface GooglePlayProductPurchaseResponse {
+  kind?: string;
+  purchaseTimeMillis?: string;
+  purchaseState?: number;
+  consumptionState?: number;
+  orderId?: string;
 }
 
 export interface FcmBatchResult {

@@ -1,0 +1,1 @@
+Se agregó soporte completo en español para la app, incluyendo horóscopos diarios, semanales y mensuales, compatibilidad zodiacal y contenido premium. Se mejoró la selección de plan premium mensual y semanal, con reintento automático ante errores de carga.

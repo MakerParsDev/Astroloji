@@ -13,7 +13,7 @@ const SIGNS = [
   'pisces'
 ] as const;
 
-const LANGUAGES = ['tr', 'en'] as const;
+const LANGUAGES = ['tr', 'en', 'es'] as const;
 
 type Sign = (typeof SIGNS)[number];
 type Language = (typeof LANGUAGES)[number];
@@ -82,6 +82,20 @@ const SIGN_LABELS: Record<Language, Record<Sign, string>> = {
     capricorn: 'Capricorn',
     aquarius: 'Aquarius',
     pisces: 'Pisces'
+  },
+  es: {
+    aries: 'Aries',
+    taurus: 'Tauro',
+    gemini: 'Géminis',
+    cancer: 'Cáncer',
+    leo: 'Leo',
+    virgo: 'Virgo',
+    libra: 'Libra',
+    scorpio: 'Escorpio',
+    sagittarius: 'Sagitario',
+    capricorn: 'Capricornio',
+    aquarius: 'Acuario',
+    pisces: 'Piscis'
   }
 };
 
@@ -89,146 +103,294 @@ const SIGN_PROFILES: Record<Sign, SignProfile> = {
   aries: {
     element: 'fire',
     modality: 'cardinal',
-    planet: { tr: 'Mars', en: 'Mars' },
-    strengths: { tr: ['Cesaret', 'İnisiyatif'], en: ['Courage', 'Initiative'] },
-    weaknesses: { tr: ['Sabırsızlık', 'Acelecilik'], en: ['Impatience', 'Rushing'] },
-    careerFit: { tr: ['Girişimcilik', 'Saha liderliği'], en: ['Entrepreneurship', 'Field leadership'] },
+    planet: { tr: 'Mars', en: 'Mars', es: 'Marte' },
+    strengths: { tr: ['Cesaret', 'İnisiyatif'], en: ['Courage', 'Initiative'], es: ['Coraje', 'Iniciativa'] },
+    weaknesses: {
+      tr: ['Sabırsızlık', 'Acelecilik'],
+      en: ['Impatience', 'Rushing'],
+      es: ['Impaciencia', 'Precipitación']
+    },
+    careerFit: {
+      tr: ['Girişimcilik', 'Saha liderliği'],
+      en: ['Entrepreneurship', 'Field leadership'],
+      es: ['Emprendimiento', 'Liderazgo de campo']
+    },
     idealPartners: ['leo', 'sagittarius'],
-    color: { tr: 'Kırmızı', en: 'Red' },
-    stone: { tr: 'Yakut', en: 'Ruby' },
-    focus: { tr: 'cesur ama ölçülü bir başlangıç', en: 'a bold but measured beginning' }
+    color: { tr: 'Kırmızı', en: 'Red', es: 'Rojo' },
+    stone: { tr: 'Yakut', en: 'Ruby', es: 'Rubí' },
+    focus: {
+      tr: 'cesur ama ölçülü bir başlangıç',
+      en: 'a bold but measured beginning',
+      es: 'un comienzo audaz pero medido'
+    }
   },
   taurus: {
     element: 'earth',
     modality: 'fixed',
-    planet: { tr: 'Venüs', en: 'Venus' },
-    strengths: { tr: ['İstikrar', 'Güvenilirlik'], en: ['Stability', 'Reliability'] },
-    weaknesses: { tr: ['İnatçılık', 'Değişime direnç'], en: ['Stubbornness', 'Resistance to change'] },
-    careerFit: { tr: ['Finans', 'Tasarım'], en: ['Finance', 'Design'] },
+    planet: { tr: 'Venüs', en: 'Venus', es: 'Venus' },
+    strengths: { tr: ['İstikrar', 'Güvenilirlik'], en: ['Stability', 'Reliability'], es: ['Estabilidad', 'Fiabilidad'] },
+    weaknesses: {
+      tr: ['İnatçılık', 'Değişime direnç'],
+      en: ['Stubbornness', 'Resistance to change'],
+      es: ['Terquedad', 'Resistencia al cambio']
+    },
+    careerFit: { tr: ['Finans', 'Tasarım'], en: ['Finance', 'Design'], es: ['Finanzas', 'Diseño'] },
     idealPartners: ['virgo', 'capricorn'],
-    color: { tr: 'Zümrüt yeşili', en: 'Emerald green' },
-    stone: { tr: 'Zümrüt', en: 'Emerald' },
-    focus: { tr: 'kalıcı ve somut ilerleme', en: 'steady, tangible progress' }
+    color: { tr: 'Zümrüt yeşili', en: 'Emerald green', es: 'Verde esmeralda' },
+    stone: { tr: 'Zümrüt', en: 'Emerald', es: 'Esmeralda' },
+    focus: { tr: 'kalıcı ve somut ilerleme', en: 'steady, tangible progress', es: 'un progreso constante y tangible' }
   },
   gemini: {
     element: 'air',
     modality: 'mutable',
-    planet: { tr: 'Merkür', en: 'Mercury' },
-    strengths: { tr: ['Merak', 'Uyum sağlama'], en: ['Curiosity', 'Adaptability'] },
-    weaknesses: { tr: ['Dağınıklık', 'Kararsızlık'], en: ['Scattered focus', 'Indecision'] },
-    careerFit: { tr: ['İletişim', 'Ürün geliştirme'], en: ['Communication', 'Product development'] },
+    planet: { tr: 'Merkür', en: 'Mercury', es: 'Mercurio' },
+    strengths: { tr: ['Merak', 'Uyum sağlama'], en: ['Curiosity', 'Adaptability'], es: ['Curiosidad', 'Adaptabilidad'] },
+    weaknesses: {
+      tr: ['Dağınıklık', 'Kararsızlık'],
+      en: ['Scattered focus', 'Indecision'],
+      es: ['Falta de enfoque', 'Indecisión']
+    },
+    careerFit: {
+      tr: ['İletişim', 'Ürün geliştirme'],
+      en: ['Communication', 'Product development'],
+      es: ['Comunicación', 'Desarrollo de producto']
+    },
     idealPartners: ['libra', 'aquarius'],
-    color: { tr: 'Sarı', en: 'Yellow' },
-    stone: { tr: 'Akik', en: 'Agate' },
-    focus: { tr: 'netleştirilmiş fikir alışverişi', en: 'clear, lively exchange of ideas' }
+    color: { tr: 'Sarı', en: 'Yellow', es: 'Amarillo' },
+    stone: { tr: 'Akik', en: 'Agate', es: 'Ágata' },
+    focus: {
+      tr: 'netleştirilmiş fikir alışverişi',
+      en: 'clear, lively exchange of ideas',
+      es: 'un intercambio de ideas claro y animado'
+    }
   },
   cancer: {
     element: 'water',
     modality: 'cardinal',
-    planet: { tr: 'Ay', en: 'Moon' },
-    strengths: { tr: ['Sezgi', 'Koruyuculuk'], en: ['Intuition', 'Nurturing'] },
-    weaknesses: { tr: ['Alınganlık', 'İçe kapanma'], en: ['Sensitivity', 'Withdrawal'] },
-    careerFit: { tr: ['Danışmanlık', 'Konaklama'], en: ['Counseling', 'Hospitality'] },
+    planet: { tr: 'Ay', en: 'Moon', es: 'Luna' },
+    strengths: { tr: ['Sezgi', 'Koruyuculuk'], en: ['Intuition', 'Nurturing'], es: ['Intuición', 'Cuidado'] },
+    weaknesses: {
+      tr: ['Alınganlık', 'İçe kapanma'],
+      en: ['Sensitivity', 'Withdrawal'],
+      es: ['Susceptibilidad', 'Retraimiento']
+    },
+    careerFit: {
+      tr: ['Danışmanlık', 'Konaklama'],
+      en: ['Counseling', 'Hospitality'],
+      es: ['Asesoría', 'Hostelería']
+    },
     idealPartners: ['scorpio', 'pisces'],
-    color: { tr: 'Gümüş', en: 'Silver' },
-    stone: { tr: 'Ay taşı', en: 'Moonstone' },
-    focus: { tr: 'duygusal güven ve sağlıklı sınırlar', en: 'emotional safety and healthy boundaries' }
+    color: { tr: 'Gümüş', en: 'Silver', es: 'Plateado' },
+    stone: { tr: 'Ay taşı', en: 'Moonstone', es: 'Piedra lunar' },
+    focus: {
+      tr: 'duygusal güven ve sağlıklı sınırlar',
+      en: 'emotional safety and healthy boundaries',
+      es: 'seguridad emocional y límites saludables'
+    }
   },
   leo: {
     element: 'fire',
     modality: 'fixed',
-    planet: { tr: 'Güneş', en: 'Sun' },
-    strengths: { tr: ['Yaratıcılık', 'Özgüven'], en: ['Creativity', 'Confidence'] },
-    weaknesses: { tr: ['Gurur', 'Onay ihtiyacı'], en: ['Pride', 'Need for approval'] },
-    careerFit: { tr: ['Sahne sanatları', 'Yönetim'], en: ['Performing arts', 'Management'] },
+    planet: { tr: 'Güneş', en: 'Sun', es: 'Sol' },
+    strengths: { tr: ['Yaratıcılık', 'Özgüven'], en: ['Creativity', 'Confidence'], es: ['Creatividad', 'Confianza'] },
+    weaknesses: {
+      tr: ['Gurur', 'Onay ihtiyacı'],
+      en: ['Pride', 'Need for approval'],
+      es: ['Orgullo', 'Necesidad de aprobación']
+    },
+    careerFit: {
+      tr: ['Sahne sanatları', 'Yönetim'],
+      en: ['Performing arts', 'Management'],
+      es: ['Artes escénicas', 'Gestión']
+    },
     idealPartners: ['aries', 'sagittarius'],
-    color: { tr: 'Altın', en: 'Gold' },
-    stone: { tr: 'Sitrin', en: 'Citrine' },
-    focus: { tr: 'görünür ama cömert liderlik', en: 'visible, generous leadership' }
+    color: { tr: 'Altın', en: 'Gold', es: 'Dorado' },
+    stone: { tr: 'Sitrin', en: 'Citrine', es: 'Citrino' },
+    focus: {
+      tr: 'görünür ama cömert liderlik',
+      en: 'visible, generous leadership',
+      es: 'un liderazgo visible pero generoso'
+    }
   },
   virgo: {
     element: 'earth',
     modality: 'mutable',
-    planet: { tr: 'Merkür', en: 'Mercury' },
-    strengths: { tr: ['Analiz', 'Titizlik'], en: ['Analysis', 'Precision'] },
-    weaknesses: { tr: ['Aşırı eleştiri', 'Mükemmeliyetçilik'], en: ['Overcriticism', 'Perfectionism'] },
-    careerFit: { tr: ['Veri analizi', 'Sağlık hizmetleri'], en: ['Data analysis', 'Healthcare'] },
+    planet: { tr: 'Merkür', en: 'Mercury', es: 'Mercurio' },
+    strengths: { tr: ['Analiz', 'Titizlik'], en: ['Analysis', 'Precision'], es: ['Análisis', 'Precisión'] },
+    weaknesses: {
+      tr: ['Aşırı eleştiri', 'Mükemmeliyetçilik'],
+      en: ['Overcriticism', 'Perfectionism'],
+      es: ['Exceso de crítica', 'Perfeccionismo']
+    },
+    careerFit: {
+      tr: ['Veri analizi', 'Sağlık hizmetleri'],
+      en: ['Data analysis', 'Healthcare'],
+      es: ['Análisis de datos', 'Sanidad']
+    },
     idealPartners: ['taurus', 'capricorn'],
-    color: { tr: 'Zeytin yeşili', en: 'Olive green' },
-    stone: { tr: 'Safir', en: 'Sapphire' },
-    focus: { tr: 'küçük ayrıntılarla büyük iyileşme', en: 'meaningful improvement through small details' }
+    color: { tr: 'Zeytin yeşili', en: 'Olive green', es: 'Verde oliva' },
+    stone: { tr: 'Safir', en: 'Sapphire', es: 'Zafiro' },
+    focus: {
+      tr: 'küçük ayrıntılarla büyük iyileşme',
+      en: 'meaningful improvement through small details',
+      es: 'una mejora significativa a través de pequeños detalles'
+    }
   },
   libra: {
     element: 'air',
     modality: 'cardinal',
-    planet: { tr: 'Venüs', en: 'Venus' },
-    strengths: { tr: ['Diplomasi', 'Adalet duygusu'], en: ['Diplomacy', 'Sense of fairness'] },
-    weaknesses: { tr: ['Karar erteleme', 'Çatışmadan kaçınma'], en: ['Delayed decisions', 'Conflict avoidance'] },
-    careerFit: { tr: ['Hukuk', 'Marka yönetimi'], en: ['Law', 'Brand management'] },
+    planet: { tr: 'Venüs', en: 'Venus', es: 'Venus' },
+    strengths: {
+      tr: ['Diplomasi', 'Adalet duygusu'],
+      en: ['Diplomacy', 'Sense of fairness'],
+      es: ['Diplomacia', 'Sentido de la justicia']
+    },
+    weaknesses: {
+      tr: ['Karar erteleme', 'Çatışmadan kaçınma'],
+      en: ['Delayed decisions', 'Conflict avoidance'],
+      es: ['Decisiones postergadas', 'Evitar el conflicto']
+    },
+    careerFit: {
+      tr: ['Hukuk', 'Marka yönetimi'],
+      en: ['Law', 'Brand management'],
+      es: ['Derecho', 'Gestión de marca']
+    },
     idealPartners: ['gemini', 'aquarius'],
-    color: { tr: 'Pudra pembe', en: 'Soft pink' },
-    stone: { tr: 'Pembe kuvars', en: 'Rose quartz' },
-    focus: { tr: 'adil bir denge ve açık uzlaşma', en: 'fair balance and open compromise' }
+    color: { tr: 'Pudra pembe', en: 'Soft pink', es: 'Rosa empolvado' },
+    stone: { tr: 'Pembe kuvars', en: 'Rose quartz', es: 'Cuarzo rosa' },
+    focus: {
+      tr: 'adil bir denge ve açık uzlaşma',
+      en: 'fair balance and open compromise',
+      es: 'un equilibrio justo y un acuerdo abierto'
+    }
   },
   scorpio: {
     element: 'water',
     modality: 'fixed',
-    planet: { tr: 'Plüton', en: 'Pluto' },
-    strengths: { tr: ['Derinlik', 'Kararlılık'], en: ['Depth', 'Determination'] },
-    weaknesses: { tr: ['Kontrol ihtiyacı', 'Kuşku'], en: ['Need for control', 'Suspicion'] },
-    careerFit: { tr: ['Araştırma', 'Psikoloji'], en: ['Research', 'Psychology'] },
+    planet: { tr: 'Plüton', en: 'Pluto', es: 'Plutón' },
+    strengths: { tr: ['Derinlik', 'Kararlılık'], en: ['Depth', 'Determination'], es: ['Profundidad', 'Determinación'] },
+    weaknesses: {
+      tr: ['Kontrol ihtiyacı', 'Kuşku'],
+      en: ['Need for control', 'Suspicion'],
+      es: ['Necesidad de control', 'Desconfianza']
+    },
+    careerFit: {
+      tr: ['Araştırma', 'Psikoloji'],
+      en: ['Research', 'Psychology'],
+      es: ['Investigación', 'Psicología']
+    },
     idealPartners: ['cancer', 'pisces'],
-    color: { tr: 'Bordo', en: 'Burgundy' },
-    stone: { tr: 'Obsidyen', en: 'Obsidian' },
-    focus: { tr: 'dürüst dönüşüm ve duygusal derinlik', en: 'honest transformation and emotional depth' }
+    color: { tr: 'Bordo', en: 'Burgundy', es: 'Burdeos' },
+    stone: { tr: 'Obsidyen', en: 'Obsidian', es: 'Obsidiana' },
+    focus: {
+      tr: 'dürüst dönüşüm ve duygusal derinlik',
+      en: 'honest transformation and emotional depth',
+      es: 'una transformación honesta y profundidad emocional'
+    }
   },
   sagittarius: {
     element: 'fire',
     modality: 'mutable',
-    planet: { tr: 'Jüpiter', en: 'Jupiter' },
-    strengths: { tr: ['İyimserlik', 'Keşif ruhu'], en: ['Optimism', 'Adventurous spirit'] },
-    weaknesses: { tr: ['Aşırı söz verme', 'Sabırsız özgürlük arayışı'], en: ['Overpromising', 'Restless freedom seeking'] },
-    careerFit: { tr: ['Eğitim', 'Uluslararası işler'], en: ['Education', 'International business'] },
+    planet: { tr: 'Jüpiter', en: 'Jupiter', es: 'Júpiter' },
+    strengths: {
+      tr: ['İyimserlik', 'Keşif ruhu'],
+      en: ['Optimism', 'Adventurous spirit'],
+      es: ['Optimismo', 'Espíritu aventurero']
+    },
+    weaknesses: {
+      tr: ['Aşırı söz verme', 'Sabırsız özgürlük arayışı'],
+      en: ['Overpromising', 'Restless freedom seeking'],
+      es: ['Prometer de más', 'Búsqueda inquieta de libertad']
+    },
+    careerFit: {
+      tr: ['Eğitim', 'Uluslararası işler'],
+      en: ['Education', 'International business'],
+      es: ['Educación', 'Negocios internacionales']
+    },
     idealPartners: ['aries', 'leo'],
-    color: { tr: 'Mor', en: 'Purple' },
-    stone: { tr: 'Turkuaz', en: 'Turquoise' },
-    focus: { tr: 'ufku genişleten gerçekçi bir adım', en: 'a realistic step that widens your horizon' }
+    color: { tr: 'Mor', en: 'Purple', es: 'Morado' },
+    stone: { tr: 'Turkuaz', en: 'Turquoise', es: 'Turquesa' },
+    focus: {
+      tr: 'ufku genişleten gerçekçi bir adım',
+      en: 'a realistic step that widens your horizon',
+      es: 'un paso realista que amplía tu horizonte'
+    }
   },
   capricorn: {
     element: 'earth',
     modality: 'cardinal',
-    planet: { tr: 'Satürn', en: 'Saturn' },
-    strengths: { tr: ['Disiplin', 'Strateji'], en: ['Discipline', 'Strategy'] },
-    weaknesses: { tr: ['Katılık', 'Aşırı sorumluluk'], en: ['Rigidity', 'Over-responsibility'] },
-    careerFit: { tr: ['Operasyon', 'Kurumsal liderlik'], en: ['Operations', 'Executive leadership'] },
+    planet: { tr: 'Satürn', en: 'Saturn', es: 'Saturno' },
+    strengths: { tr: ['Disiplin', 'Strateji'], en: ['Discipline', 'Strategy'], es: ['Disciplina', 'Estrategia'] },
+    weaknesses: {
+      tr: ['Katılık', 'Aşırı sorumluluk'],
+      en: ['Rigidity', 'Over-responsibility'],
+      es: ['Rigidez', 'Exceso de responsabilidad']
+    },
+    careerFit: {
+      tr: ['Operasyon', 'Kurumsal liderlik'],
+      en: ['Operations', 'Executive leadership'],
+      es: ['Operaciones', 'Liderazgo ejecutivo']
+    },
     idealPartners: ['taurus', 'virgo'],
-    color: { tr: 'Lacivert', en: 'Navy' },
-    stone: { tr: 'Oniks', en: 'Onyx' },
-    focus: { tr: 'uzun vadeli ve ölçülebilir bir hedef', en: 'a measurable long-term objective' }
+    color: { tr: 'Lacivert', en: 'Navy', es: 'Azul marino' },
+    stone: { tr: 'Oniks', en: 'Onyx', es: 'Ónix' },
+    focus: {
+      tr: 'uzun vadeli ve ölçülebilir bir hedef',
+      en: 'a measurable long-term objective',
+      es: 'un objetivo medible a largo plazo'
+    }
   },
   aquarius: {
     element: 'air',
     modality: 'fixed',
-    planet: { tr: 'Uranüs', en: 'Uranus' },
-    strengths: { tr: ['Özgünlük', 'Toplumsal bakış'], en: ['Originality', 'Community vision'] },
-    weaknesses: { tr: ['Mesafe', 'İnatçı bağımsızlık'], en: ['Detachment', 'Rigid independence'] },
-    careerFit: { tr: ['Teknoloji', 'Sosyal inovasyon'], en: ['Technology', 'Social innovation'] },
+    planet: { tr: 'Uranüs', en: 'Uranus', es: 'Urano' },
+    strengths: {
+      tr: ['Özgünlük', 'Toplumsal bakış'],
+      en: ['Originality', 'Community vision'],
+      es: ['Originalidad', 'Visión comunitaria']
+    },
+    weaknesses: {
+      tr: ['Mesafe', 'İnatçı bağımsızlık'],
+      en: ['Detachment', 'Rigid independence'],
+      es: ['Distanciamiento', 'Independencia rígida']
+    },
+    careerFit: {
+      tr: ['Teknoloji', 'Sosyal inovasyon'],
+      en: ['Technology', 'Social innovation'],
+      es: ['Tecnología', 'Innovación social']
+    },
     idealPartners: ['gemini', 'libra'],
-    color: { tr: 'Elektrik mavisi', en: 'Electric blue' },
-    stone: { tr: 'Ametist', en: 'Amethyst' },
-    focus: { tr: 'özgün bir çözümü toplulukla paylaşma', en: 'sharing an original solution with others' }
+    color: { tr: 'Elektrik mavisi', en: 'Electric blue', es: 'Azul eléctrico' },
+    stone: { tr: 'Ametist', en: 'Amethyst', es: 'Amatista' },
+    focus: {
+      tr: 'özgün bir çözümü toplulukla paylaşma',
+      en: 'sharing an original solution with others',
+      es: 'compartir una solución original con los demás'
+    }
   },
   pisces: {
     element: 'water',
     modality: 'mutable',
-    planet: { tr: 'Neptün', en: 'Neptune' },
-    strengths: { tr: ['Empati', 'Hayal gücü'], en: ['Empathy', 'Imagination'] },
-    weaknesses: { tr: ['Sınır koyamama', 'Kaçış eğilimi'], en: ['Weak boundaries', 'Escapism'] },
-    careerFit: { tr: ['Yaratıcı sanatlar', 'Sosyal hizmet'], en: ['Creative arts', 'Social care'] },
+    planet: { tr: 'Neptün', en: 'Neptune', es: 'Neptuno' },
+    strengths: { tr: ['Empati', 'Hayal gücü'], en: ['Empathy', 'Imagination'], es: ['Empatía', 'Imaginación'] },
+    weaknesses: {
+      tr: ['Sınır koyamama', 'Kaçış eğilimi'],
+      en: ['Weak boundaries', 'Escapism'],
+      es: ['Límites débiles', 'Tendencia al escapismo']
+    },
+    careerFit: {
+      tr: ['Yaratıcı sanatlar', 'Sosyal hizmet'],
+      en: ['Creative arts', 'Social care'],
+      es: ['Artes creativas', 'Trabajo social']
+    },
     idealPartners: ['cancer', 'scorpio'],
-    color: { tr: 'Deniz yeşili', en: 'Sea green' },
-    stone: { tr: 'Akuamarin', en: 'Aquamarine' },
-    focus: { tr: 'sezgiyi somut bir adıma dönüştürme', en: 'turning intuition into a concrete step' }
+    color: { tr: 'Deniz yeşili', en: 'Sea green', es: 'Verde mar' },
+    stone: { tr: 'Akuamarin', en: 'Aquamarine', es: 'Aguamarina' },
+    focus: {
+      tr: 'sezgiyi somut bir adıma dönüştürme',
+      en: 'turning intuition into a concrete step',
+      es: 'convertir la intuición en un paso concreto'
+    }
   }
 };
 
@@ -248,6 +410,14 @@ const DAILY_OPENINGS: LocalizedList = {
     'Concentrating your energy on one priority brings visible results.',
     'A useful opening appears when curiosity turns into action.',
     'A familiar issue feels lighter when viewed from a new angle.'
+  ],
+  es: [
+    'El progreso se acelera cuando simplificas tu enfoque hoy.',
+    'El día premia la intención y el momento oportuno más que la velocidad.',
+    'Una decisión clara puede ordenar el resto de tu día.',
+    'Concentrar tu energía en una prioridad trae resultados visibles.',
+    'Se abre una oportunidad útil cuando la curiosidad se convierte en acción.',
+    'Un asunto conocido se siente más ligero visto desde un nuevo ángulo.'
   ]
 };
 
@@ -263,6 +433,12 @@ const LOVE_GUIDANCE: LocalizedList = {
     'Naming the feeling can prevent unnecessary tension.',
     'Listening without trying to fix everything softens the connection.',
     'A concise, honest request is more likely to be understood today.'
+  ],
+  es: [
+    'Haz una pregunta directa en vez de apoyarte en suposiciones.',
+    'Nombrar el sentimiento puede evitar tensiones innecesarias.',
+    'Escuchar sin intentar solucionarlo enseguida suaviza la conexión.',
+    'Un pedido breve y honesto tiene más probabilidad de ser entendido hoy.'
   ]
 };
 
@@ -278,6 +454,12 @@ const CAREER_GUIDANCE: LocalizedList = {
     'Writing down decision criteria makes the options clearer.',
     'Define one small deliverable that creates visible progress.',
     'Requesting feedback can quickly reduce a blind spot.'
+  ],
+  es: [
+    'Usa tu primer momento de más energía para la tarea más importante.',
+    'Escribir los criterios de una decisión aclara las opciones.',
+    'Define un pequeño entregable que genere avance visible.',
+    'Pedir retroalimentación puede reducir rápido un punto ciego.'
   ]
 };
 
@@ -293,6 +475,12 @@ const MONEY_GUIDANCE: LocalizedList = {
     'Reviewing one recurring expense may reveal an easy improvement.',
     'Consider the total cost before committing to a new opportunity.',
     'Favor sustainable value over the promise of a quick gain.'
+  ],
+  es: [
+    'Distinguir entre deseo y necesidad protege tu presupuesto.',
+    'Revisar un gasto recurrente puede revelar una mejora sencilla.',
+    'Considera el costo total antes de comprometerte con una nueva oportunidad.',
+    'Prefiere el valor sostenible sobre la promesa de una ganancia rápida.'
   ]
 };
 
@@ -308,6 +496,12 @@ const HEALTH_GUIDANCE: LocalizedList = {
     'A screen break may reduce mental fatigue.',
     'Protecting your sleep window steadies uneven energy.',
     'Notice physical tension and briefly lower the pace.'
+  ],
+  es: [
+    'Caminatas cortas y pausas regulares de agua equilibran tu ritmo.',
+    'Una pausa de pantalla puede reducir la fatiga mental.',
+    'Proteger tu horario de sueño estabiliza la energía irregular.',
+    'Nota la tensión física y baja el ritmo brevemente.'
   ]
 };
 
@@ -391,14 +585,21 @@ function contentMetadata(generatedAt: string, sourceSignals: string[]): ContentS
   };
 }
 
+const LOCALE_TAGS: Record<Language, string> = {
+  tr: 'tr-TR',
+  en: 'en-US',
+  es: 'es-ES'
+};
+
 function localizedLower(value: string, language: Language): string {
-  return value.toLocaleLowerCase(language === 'tr' ? 'tr-TR' : 'en-US');
+  return value.toLocaleLowerCase(LOCALE_TAGS[language]);
 }
 
 function elementName(element: Element, language: Language): string {
   const labels: Record<Language, Record<Element, string>> = {
     tr: { fire: 'ateş', earth: 'toprak', air: 'hava', water: 'su' },
-    en: { fire: 'fire', earth: 'earth', air: 'air', water: 'water' }
+    en: { fire: 'fire', earth: 'earth', air: 'air', water: 'water' },
+    es: { fire: 'fuego', earth: 'tierra', air: 'aire', water: 'agua' }
   };
   return labels[language][element];
 }
@@ -406,7 +607,8 @@ function elementName(element: Element, language: Language): string {
 function modalityName(modality: Modality, language: Language): string {
   const labels: Record<Language, Record<Modality, string>> = {
     tr: { cardinal: 'öncü', fixed: 'sabit', mutable: 'değişken' },
-    en: { cardinal: 'cardinal', fixed: 'fixed', mutable: 'mutable' }
+    en: { cardinal: 'cardinal', fixed: 'fixed', mutable: 'mutable' },
+    es: { cardinal: 'cardinal', fixed: 'fijo', mutable: 'mutable' }
   };
   return labels[language][modality];
 }
@@ -432,6 +634,27 @@ function clampScore(value: number): number {
   return Math.max(42, Math.min(94, value));
 }
 
+const DAILY_SHORT_FORMAT: Record<Language, (name: string, opening: string, focus: string) => string> = {
+  tr: (name, opening, focus) => `${name}: ${opening} Ana tema: ${focus}.`,
+  en: (name, opening, focus) => `${name}: ${opening} Focus: ${focus}.`,
+  es: (name, opening, focus) => `${name}: ${opening} Tema principal: ${focus}.`
+};
+
+const DAILY_FULL_FORMAT: Record<Language, (name: string, focus: string) => string> = {
+  tr: (name, focus) =>
+    `${name} için günün ana teması ${focus}. Önceliğini görünür hale getir, gereksiz yükü azalt ve gün sonunda neyin gerçekten ilerlediğini kısa bir notla değerlendir.`,
+  en: (name, focus) =>
+    `For ${name}, the central theme is ${focus}. Make the priority visible, reduce unnecessary load, and note what genuinely moved forward by the end of the day.`,
+  es: (name, focus) =>
+    `Para ${name}, el tema central es ${focus}. Haz visible tu prioridad, reduce la carga innecesaria y anota al final del día qué avanzó realmente.`
+};
+
+const DAILY_TIP_FORMAT: Record<Language, (focus: string) => string> = {
+  tr: (focus) => `Bugün ${focus} için on beş dakikalık tek bir somut adım belirle.`,
+  en: (focus) => `Choose one concrete fifteen-minute action for ${focus} today.`,
+  es: (focus) => `Elige hoy una sola acción concreta de quince minutos para ${focus}.`
+};
+
 function dailyEntry(sign: Sign, language: Language, isoDate: string) {
   const profile = SIGN_PROFILES[sign];
   const name = signName(sign, language);
@@ -440,14 +663,8 @@ function dailyEntry(sign: Sign, language: Language, isoDate: string) {
   const focus = profile.focus[language];
 
   return {
-    short:
-      language === 'tr'
-        ? `${name}: ${opening} Ana tema: ${focus}.`
-        : `${name}: ${opening} Focus: ${focus}.`,
-    full:
-      language === 'tr'
-        ? `${name} için günün ana teması ${focus}. Önceliğini görünür hale getir, gereksiz yükü azalt ve gün sonunda neyin gerçekten ilerlediğini kısa bir notla değerlendir.`
-        : `For ${name}, the central theme is ${focus}. Make the priority visible, reduce unnecessary load, and note what genuinely moved forward by the end of the day.`,
+    short: DAILY_SHORT_FORMAT[language](name, opening, focus),
+    full: DAILY_FULL_FORMAT[language](name, focus),
     love: select(LOVE_GUIDANCE[language], seed, 1),
     career: select(CAREER_GUIDANCE[language], seed, 2),
     money: select(MONEY_GUIDANCE[language], seed, 3),
@@ -459,61 +676,90 @@ function dailyEntry(sign: Sign, language: Language, isoDate: string) {
     career_score: score(seed >>> 9, 56, 37),
     money_score: score(seed >>> 11, 52, 38),
     health_score: score(seed >>> 13, 55, 36),
-    daily_tip:
-      language === 'tr'
-        ? `Bugün ${focus} için on beş dakikalık tek bir somut adım belirle.`
-        : `Choose one concrete fifteen-minute action for ${focus} today.`
+    daily_tip: DAILY_TIP_FORMAT[language](focus)
   };
 }
 
+const WEEKDAY_NAMES: Record<Language, readonly string[]> = {
+  tr: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'],
+  en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  es: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+};
+
+const WEEKLY_SUMMARY_FORMAT: Record<Language, (name: string, focus: string) => string> = {
+  tr: (name, focus) =>
+    `${name} için bu haftanın odağı ${focus}. Haftanın başında yön belirlemek, ikinci yarıda daha rahat hareket etmeni sağlayabilir.`,
+  en: (name, focus) =>
+    `${name}'s weekly focus is ${focus}. Setting direction early can create more freedom later in the week.`,
+  es: (name, focus) =>
+    `El enfoque semanal de ${name} es ${focus}. Definir dirección al inicio de la semana puede darte más libertad en la segunda mitad.`
+};
+
+const WEEKLY_WARNING_FORMAT: Record<Language, (weakness: string) => string> = {
+  tr: (weakness) => `${weakness} eğilimi yükseldiğinde karar vermeden önce kısa bir ara ver.`,
+  en: (weakness) => `Pause briefly before deciding when ${weakness} becomes noticeable.`,
+  es: (weakness) => `Haz una pausa breve antes de decidir cuando note ${weakness}.`
+};
+
 function weeklyEntry(sign: Sign, language: Language, weekId: string) {
   const name = signName(sign, language);
-  const focus = SIGN_PROFILES[sign].focus[language];
+  const profile = SIGN_PROFILES[sign];
+  const focus = profile.focus[language];
   const seed = stableHash(`${weekId}:${sign}`);
-  const bestDays = language === 'tr'
-    ? ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi']
-    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const bestDays = WEEKDAY_NAMES[language];
 
   return {
-    summary:
-      language === 'tr'
-        ? `${name} için bu haftanın odağı ${focus}. Haftanın başında yön belirlemek, ikinci yarıda daha rahat hareket etmeni sağlayabilir.`
-        : `${name}'s weekly focus is ${focus}. Setting direction early can create more freedom later in the week.`,
+    summary: WEEKLY_SUMMARY_FORMAT[language](name, focus),
     love: select(LOVE_GUIDANCE[language], seed, 1),
     career: select(CAREER_GUIDANCE[language], seed, 2),
     money: select(MONEY_GUIDANCE[language], seed, 3),
     best_day: select(bestDays, seed, 4),
-    warning:
-      language === 'tr'
-        ? `${localizedLower(SIGN_PROFILES[sign].weaknesses.tr[0], 'tr')} eğilimi yükseldiğinde karar vermeden önce kısa bir ara ver.`
-        : `Pause briefly before deciding when ${localizedLower(SIGN_PROFILES[sign].weaknesses.en[0], 'en')} becomes noticeable.`
+    warning: WEEKLY_WARNING_FORMAT[language](localizedLower(profile.weaknesses[language][0], language))
   };
 }
+
+const MONTHLY_WEEKDAY_NAMES: Record<Language, readonly string[]> = {
+  tr: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Pazar'],
+  en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sunday'],
+  es: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'domingo']
+};
+
+const MONTHLY_SUMMARY_FORMAT: Record<Language, (name: string, focus: string) => string> = {
+  tr: (name, focus) =>
+    `${name} bu ay ${focus} temasını öne çıkarıyor. Kalıcı ilerleme, büyük bir sıçramadan çok düzenli seçimlerle gelecek.`,
+  en: (name, focus) =>
+    `${name} emphasizes ${focus} this month. Durable progress comes from consistent choices rather than one dramatic leap.`,
+  es: (name, focus) =>
+    `${name} destaca el tema de ${focus} este mes. El progreso duradero llega con decisiones constantes, no con un solo salto.`
+};
+
+const MONTHLY_CAREER_FORMAT: Record<Language, (first: string, second: string) => string> = {
+  tr: (first, second) => `${first} ve ${second} becerilerini kullandığın alanlarda görünür ilerleme mümkün.`,
+  en: (first, second) =>
+    `Visible progress is possible where you use strengths related to ${first.toLowerCase()} and ${second.toLowerCase()}.`,
+  es: (first, second) =>
+    `Es posible un progreso visible donde uses fortalezas relacionadas con ${first.toLowerCase()} y ${second.toLowerCase()}.`
+};
+
+const MONTHLY_WARNING_FORMAT: Record<Language, (weakness: string) => string> = {
+  tr: (weakness) => `${weakness} kararlarını gereğinden fazla etkilerse hedefi daha küçük parçalara böl.`,
+  en: (weakness) => `Break the goal into smaller parts if ${weakness} starts shaping decisions too strongly.`,
+  es: (weakness) => `Divide la meta en partes más pequeñas si ${weakness} empieza a influir demasiado en tus decisiones.`
+};
 
 function monthlyEntry(sign: Sign, language: Language, month: string) {
   const name = signName(sign, language);
   const profile = SIGN_PROFILES[sign];
   const seed = stableHash(`${month}:${sign}`);
-  const bestDays = language === 'tr'
-    ? ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Pazar']
-    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sunday'];
+  const bestDays = MONTHLY_WEEKDAY_NAMES[language];
 
   return {
-    summary:
-      language === 'tr'
-        ? `${name} bu ay ${profile.focus.tr} temasını öne çıkarıyor. Kalıcı ilerleme, büyük bir sıçramadan çok düzenli seçimlerle gelecek.`
-        : `${name} emphasizes ${profile.focus.en} this month. Durable progress comes from consistent choices rather than one dramatic leap.`,
+    summary: MONTHLY_SUMMARY_FORMAT[language](name, profile.focus[language]),
     love: select(LOVE_GUIDANCE[language], seed, 2),
-    career:
-      language === 'tr'
-        ? `${profile.careerFit.tr[0]} ve ${profile.careerFit.tr[1]} becerilerini kullandığın alanlarda görünür ilerleme mümkün.`
-        : `Visible progress is possible where you use strengths related to ${profile.careerFit.en[0].toLowerCase()} and ${profile.careerFit.en[1].toLowerCase()}.`,
+    career: MONTHLY_CAREER_FORMAT[language](profile.careerFit[language][0], profile.careerFit[language][1]),
     money: select(MONEY_GUIDANCE[language], seed, 3),
     best_day: select(bestDays, seed, 4),
-    warning:
-      language === 'tr'
-        ? `${localizedLower(profile.weaknesses.tr[1], 'tr')} kararlarını gereğinden fazla etkilerse hedefi daha küçük parçalara böl.`
-        : `Break the goal into smaller parts if ${localizedLower(profile.weaknesses.en[1], 'en')} starts shaping decisions too strongly.`
+    warning: MONTHLY_WARNING_FORMAT[language](localizedLower(profile.weaknesses[language][1], language))
   };
 }
 
@@ -543,34 +789,80 @@ function compatibilityScores(sign1: Sign, sign2: Sign) {
   return { overall, love, friendship, work };
 }
 
+const PAIR_LABEL_FORMAT: Record<Language, (first: string, second: string) => string> = {
+  tr: (first, second) => `${first} ve ${second}`,
+  en: (first, second) => `${first} and ${second}`,
+  es: (first, second) => `${first} y ${second}`
+};
+
+const COMPATIBILITY_STRENGTHS: Record<
+  Language,
+  (sharedElement: boolean, sharedModality: boolean) => [string, string]
+> = {
+  tr: (sharedElement, sharedModality) => [
+    sharedElement ? 'Benzer motivasyon dili' : 'Farklı bakış açılarını birleştirme',
+    sharedModality ? 'Ortak tempo ve kararlılık' : 'Birbirini tamamlayan hareket biçimi'
+  ],
+  en: (sharedElement, sharedModality) => [
+    sharedElement ? 'A familiar motivational language' : 'Combining different perspectives',
+    sharedModality ? 'Shared pace and determination' : 'Complementary ways of taking action'
+  ],
+  es: (sharedElement, sharedModality) => [
+    sharedElement ? 'Un lenguaje motivacional afín' : 'Combinar perspectivas distintas',
+    sharedModality ? 'Ritmo y determinación compartidos' : 'Formas de actuar que se complementan'
+  ]
+};
+
+const COMPATIBILITY_CHALLENGES: Record<
+  Language,
+  (weakness1: string, weakness2: string, sharedModality: boolean) => [string, string]
+> = {
+  tr: (weakness1, weakness2, sharedModality) => [
+    `${weakness1} ile ${weakness2} arasında gerilim`,
+    sharedModality ? 'İki tarafın da aynı anda yön vermek istemesi' : 'Karar hızını eşitleme ihtiyacı'
+  ],
+  en: (weakness1, weakness2, sharedModality) => [
+    `Tension between ${weakness1} and ${weakness2}`,
+    sharedModality ? 'Both partners trying to set direction at once' : 'Aligning different decision speeds'
+  ],
+  es: (weakness1, weakness2, sharedModality) => [
+    `Tensión entre ${weakness1} y ${weakness2}`,
+    sharedModality ? 'Ambos queriendo marcar el rumbo al mismo tiempo' : 'Necesidad de alinear ritmos de decisión distintos'
+  ]
+};
+
+const COMPATIBILITY_SUMMARY_FORMAT: Record<Language, (pairLabel: string) => string> = {
+  tr: (pairLabel) =>
+    `${pairLabel}, güçlü yanlarını bilinçli kullandığında dengeli bir bağ kurabilir. Uyumun kalitesi, farklı ihtiyaçları açıkça konuşabilmelerine bağlı.`,
+  en: (pairLabel) =>
+    `${pairLabel} can build a balanced connection when both use their strengths intentionally. The quality of the match depends on discussing different needs openly.`,
+  es: (pairLabel) =>
+    `${pairLabel} pueden construir una conexión equilibrada cuando ambos usan sus fortalezas con intención. La calidad del vínculo depende de hablar abiertamente sobre necesidades distintas.`
+};
+
+const COMPATIBILITY_ADVICE_FORMAT: Record<Language, (pairLabel: string) => string> = {
+  tr: (pairLabel) =>
+    `Haftada bir kez beklentileri, sınırları ve ortak önceliği açıkça konuşmak ${pairLabel} arasındaki güveni güçlendirir.`,
+  en: (pairLabel) =>
+    `A weekly conversation about expectations, boundaries, and one shared priority can strengthen trust between ${pairLabel}.`,
+  es: (pairLabel) =>
+    `Una conversación semanal sobre expectativas, límites y una prioridad compartida puede fortalecer la confianza entre ${pairLabel}.`
+};
+
 function compatibilityEntry(sign1: Sign, sign2: Sign, language: Language) {
   const profile1 = SIGN_PROFILES[sign1];
   const profile2 = SIGN_PROFILES[sign2];
-  const pairLabel = language === 'tr'
-    ? `${signName(sign1, language)} ve ${signName(sign2, language)}`
-    : `${signName(sign1, language)} and ${signName(sign2, language)}`;
+  const pairLabel = PAIR_LABEL_FORMAT[language](signName(sign1, language), signName(sign2, language));
   const scores = compatibilityScores(sign1, sign2);
   const sharedElement = profile1.element === profile2.element;
   const sharedModality = profile1.modality === profile2.modality;
 
-  const strengths = language === 'tr'
-    ? [
-        sharedElement ? 'Benzer motivasyon dili' : 'Farklı bakış açılarını birleştirme',
-        sharedModality ? 'Ortak tempo ve kararlılık' : 'Birbirini tamamlayan hareket biçimi'
-      ]
-    : [
-        sharedElement ? 'A familiar motivational language' : 'Combining different perspectives',
-        sharedModality ? 'Shared pace and determination' : 'Complementary ways of taking action'
-      ];
-  const challenges = language === 'tr'
-    ? [
-        `${localizedLower(profile1.weaknesses.tr[0], 'tr')} ile ${localizedLower(profile2.weaknesses.tr[0], 'tr')} arasında gerilim`,
-        sharedModality ? 'İki tarafın da aynı anda yön vermek istemesi' : 'Karar hızını eşitleme ihtiyacı'
-      ]
-    : [
-        `Tension between ${localizedLower(profile1.weaknesses.en[0], 'en')} and ${localizedLower(profile2.weaknesses.en[0], 'en')}`,
-        sharedModality ? 'Both partners trying to set direction at once' : 'Aligning different decision speeds'
-      ];
+  const strengths = COMPATIBILITY_STRENGTHS[language](sharedElement, sharedModality);
+  const challenges = COMPATIBILITY_CHALLENGES[language](
+    localizedLower(profile1.weaknesses[language][0], language),
+    localizedLower(profile2.weaknesses[language][0], language),
+    sharedModality
+  );
 
   return {
     sign1,
@@ -580,19 +872,43 @@ function compatibilityEntry(sign1: Sign, sign2: Sign, language: Language) {
     love_score: scores.love,
     friendship_score: scores.friendship,
     work_score: scores.work,
-    summary:
-      language === 'tr'
-        ? `${pairLabel}, güçlü yanlarını bilinçli kullandığında dengeli bir bağ kurabilir. Uyumun kalitesi, farklı ihtiyaçları açıkça konuşabilmelerine bağlı.`
-        : `${pairLabel} can build a balanced connection when both use their strengths intentionally. The quality of the match depends on discussing different needs openly.`,
+    summary: COMPATIBILITY_SUMMARY_FORMAT[language](pairLabel),
     strengths,
     challenges,
-    advice:
-      language === 'tr'
-        ? `Haftada bir kez beklentileri, sınırları ve ortak önceliği açıkça konuşmak ${pairLabel} arasındaki güveni güçlendirir.`
-        : `A weekly conversation about expectations, boundaries, and one shared priority can strengthen trust between ${pairLabel}.`,
+    advice: COMPATIBILITY_ADVICE_FORMAT[language](pairLabel),
     famous_couples: []
   };
 }
+
+const PERSONALITY_TITLE_FORMAT: Record<Language, (name: string) => string> = {
+  tr: (name) => `${name} Burcu Kişilik Analizi`,
+  en: (name) => `${name} Personality Analysis`,
+  es: (name) => `Análisis de Personalidad de ${name}`
+};
+
+const PERSONALITY_SUMMARY_FORMAT: Record<
+  Language,
+  (name: string, strength1: string, strength2: string, weakness: string) => string
+> = {
+  tr: (name, strength1, strength2, weakness) =>
+    `${name}; ${strength1} ve ${strength2} yönleriyle öne çıkar. Denge, ${weakness} eğilimini fark etmekle güçlenir.`,
+  en: (name, strength1, strength2, weakness) =>
+    `${name} often stands out through ${strength1} and ${strength2}. Balance improves by noticing patterns of ${weakness}.`,
+  es: (name, strength1, strength2, weakness) =>
+    `${name} suele destacar por ${strength1} y ${strength2}. El equilibrio mejora al notar patrones de ${weakness}.`
+};
+
+const PERSONALITY_DEEP_ANALYSIS_FORMAT: Record<
+  Language,
+  (name: string, planet: string, element: string, modality: string, focus: string) => string
+> = {
+  tr: (name, planet, element, modality, focus) =>
+    `${planet} yönetimindeki ${name}, ${element} elementinin doğasını ${modality} nitelikle ifade eder. En güçlü gelişim alanı, ${focus} temasını günlük kararlarla sürdürülebilir hale getirmektir.`,
+  en: (name, planet, element, modality, focus) =>
+    `Ruled by ${planet}, ${name} expresses the ${element} element through a ${modality} mode. The central growth task is making ${focus} sustainable through everyday decisions.`,
+  es: (name, planet, element, modality, focus) =>
+    `Regido por ${planet}, ${name} expresa la naturaleza del elemento ${element} con un modo ${modality}. La tarea de crecimiento central es hacer sostenible ${focus} a través de decisiones cotidianas.`
+};
 
 function personalityEntry(sign: Sign, language: Language) {
   const name = signName(sign, language);
@@ -601,15 +917,20 @@ function personalityEntry(sign: Sign, language: Language) {
   return {
     sign,
     language,
-    title: language === 'tr' ? `${name} Burcu Kişilik Analizi` : `${name} Personality Analysis`,
-    summary:
-      language === 'tr'
-        ? `${name}; ${localizedLower(profile.strengths.tr[0], 'tr')} ve ${localizedLower(profile.strengths.tr[1], 'tr')} yönleriyle öne çıkar. Denge, ${localizedLower(profile.weaknesses.tr[0], 'tr')} eğilimini fark etmekle güçlenir.`
-        : `${name} often stands out through ${localizedLower(profile.strengths.en[0], 'en')} and ${localizedLower(profile.strengths.en[1], 'en')}. Balance improves by noticing patterns of ${localizedLower(profile.weaknesses.en[0], 'en')}.`,
-    deep_analysis:
-      language === 'tr'
-        ? `${profile.planet.tr} yönetimindeki ${name}, ${elementName(profile.element, 'tr')} elementinin doğasını ${modalityName(profile.modality, 'tr')} nitelikle ifade eder. En güçlü gelişim alanı, ${profile.focus.tr} temasını günlük kararlarla sürdürülebilir hale getirmektir.`
-        : `Ruled by ${profile.planet.en}, ${name} expresses the ${elementName(profile.element, 'en')} element through a ${modalityName(profile.modality, 'en')} mode. The central growth task is making ${profile.focus.en} sustainable through everyday decisions.`,
+    title: PERSONALITY_TITLE_FORMAT[language](name),
+    summary: PERSONALITY_SUMMARY_FORMAT[language](
+      name,
+      localizedLower(profile.strengths[language][0], language),
+      localizedLower(profile.strengths[language][1], language),
+      localizedLower(profile.weaknesses[language][0], language)
+    ),
+    deep_analysis: PERSONALITY_DEEP_ANALYSIS_FORMAT[language](
+      name,
+      profile.planet[language],
+      elementName(profile.element, language),
+      modalityName(profile.modality, language),
+      profile.focus[language]
+    ),
     strengths: [...profile.strengths[language]],
     weaknesses: [...profile.weaknesses[language]],
     ideal_partners: [...profile.idealPartners],

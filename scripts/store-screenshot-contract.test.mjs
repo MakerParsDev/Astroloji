@@ -12,6 +12,8 @@ const previews = [
   'StoreCompatibilityEnglishScreenshot', 'StorePersonalityEnglishScreenshot', 'StorePremiumEnglishScreenshot',
   'StoreDailyTurkishScreenshot', 'StoreGuidanceTurkishScreenshot', 'StoreToolsTurkishScreenshot',
   'StoreCompatibilityTurkishScreenshot', 'StorePersonalityTurkishScreenshot', 'StorePremiumTurkishScreenshot',
+  'StoreDailySpanishScreenshot', 'StoreGuidanceSpanishScreenshot', 'StoreToolsSpanishScreenshot',
+  'StoreCompatibilitySpanishScreenshot', 'StorePersonalitySpanishScreenshot', 'StorePremiumSpanishScreenshot',
 ];
 const captureScenes = ['daily', 'weekly', 'monthly', 'compatibility', 'profile', 'premium'];
 
@@ -19,7 +21,7 @@ test('phone previews keep stable names and use real-device marketing frames', ()
   assert.ok(fs.existsSync(sourcePath), 'Store listing screenshot source must exist.');
   const source = fs.readFileSync(sourcePath, 'utf8');
   for (const preview of previews) assert.match(source, new RegExp(preview));
-  assert.equal((source.match(/@PreviewTest/g) ?? []).length, 12);
+  assert.equal((source.match(/@PreviewTest/g) ?? []).length, 18);
   assert.match(source, /spec:width=360dp,height=800dp,dpi=480/);
   assert.match(source, /painterResource/);
   assert.match(source, /ContentScale\.Crop/);
@@ -37,9 +39,9 @@ test('screenshot-only raw captures are included in the debug resource table', ()
   assert.match(build, /if \(screenshotTestsEnabled\) \{[\s\S]{0,400}sourceSets\.named\("debug"\)[\s\S]{0,400}res\.directories\s*\+=\s*"src\/screenshotTest\/res"/);
 });
 
-test('all twelve raw device captures are wired into phone previews', () => {
+test('all eighteen raw device captures are wired into phone previews', () => {
   const source = fs.readFileSync(sourcePath, 'utf8');
-  for (const locale of ['en', 'tr']) {
+  for (const locale of ['en', 'tr', 'es']) {
     for (const scene of captureScenes) {
       assert.match(source, new RegExp(`R\\.drawable\\.store_capture_${locale}_${scene}`));
     }
@@ -49,9 +51,9 @@ test('all twelve raw device captures are wired into phone previews', () => {
 test('phone scene manifest declares real-device sources in capture order', () => {
   const manifest = JSON.parse(fs.readFileSync(scenePath, 'utf8'));
   const phones = manifest.scenes.filter((scene) => scene.role === 'phoneScreenshot');
-  assert.equal(phones.length, 12);
+  assert.equal(phones.length, 18);
   assert.ok(phones.every((scene) => scene.sourceKind === 'realDeviceCapture'));
-  for (const locale of ['en-US', 'tr-TR']) {
+  for (const locale of ['en-US', 'tr-TR', 'es-ES']) {
     const rows = phones.filter((scene) => scene.locale === locale).sort((a, b) => a.order - b.order);
     assert.deepEqual(rows.map((row) => row.order), [1, 2, 3, 4, 5, 6]);
     assert.deepEqual(rows.map((row) => row.path.split('/').at(-1)), [
@@ -75,6 +77,12 @@ test('localized marketing copy uses the six approved headlines per locale', () =
     'Burç uyumunu net puanlarla karşılaştır',
     'Burç profilini kişiselleştir',
     'Aylık veya haftalık Premium seç',
+    'Mira tu horóscopo de hoy de un vistazo',
+    'Descubre el ritmo de tu semana',
+    'Explora el panorama completo del mes',
+    'Compara la compatibilidad zodiacal',
+    'Personaliza tu perfil zodiacal',
+    'Elige Premium mensual o semanal',
   ]) assert.match(fixtures, new RegExp(headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 });
 
@@ -89,10 +97,15 @@ test('CI explicitly validates paywall and Play store screenshot suites', () => {
 test('feature graphics and shared icon retain deterministic Compose previews', () => {
   const featurePath = 'Astroloji/app/src/screenshotTest/kotlin/com/parsfilo/astrology/store/StoreFeatureGraphicScreenshotTest.kt';
   const source = fs.readFileSync(featurePath, 'utf8');
-  for (const preview of ['StoreFeatureGraphicEnglishScreenshot', 'StoreFeatureGraphicTurkishScreenshot', 'StoreAppIconScreenshot']) {
+  for (const preview of [
+    'StoreFeatureGraphicEnglishScreenshot',
+    'StoreFeatureGraphicTurkishScreenshot',
+    'StoreFeatureGraphicSpanishScreenshot',
+    'StoreAppIconScreenshot',
+  ]) {
     assert.match(source, new RegExp(preview));
   }
-  assert.equal((source.match(/@PreviewTest/g) ?? []).length, 3);
+  assert.equal((source.match(/@PreviewTest/g) ?? []).length, 4);
   assert.match(source, /spec:width=1024dp,height=500dp,dpi=160/);
   assert.match(source, /spec:width=512dp,height=512dp,dpi=160/);
   assert.doesNotMatch(source, /rating|award|testimonial|countdown|discount/i);

@@ -44,11 +44,15 @@ import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
 import java.util.Locale
 
-@Suppress("LongMethod", "CyclomaticComplexMethod", "FunctionNaming")
+@Suppress("LongMethod", "CyclomaticComplexMethod", "FunctionNaming", "LongParameterList")
 @Composable
 fun SettingsScreen(
     onOpenPremium: () -> Unit,
     onOpenPersonalGuidance: () -> Unit,
+    onOpenFriends: () -> Unit,
+    onOpenReading: () -> Unit,
+    onOpenChat: () -> Unit,
+    onOpenCredits: () -> Unit,
     onAccountDeleted: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -107,6 +111,56 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(stringResource(R.string.chart_settings_cta))
+                }
+            }
+
+            AstrologyCard {
+                Text(
+                    text = stringResource(R.string.friends_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.friends_invite_section_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = onOpenFriends,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.friends_title))
+                }
+            }
+
+            AstrologyCard {
+                Text(
+                    text = stringResource(R.string.ai_features_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.ai_features_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = onOpenReading,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.reading_title))
+                }
+                Button(
+                    onClick = onOpenChat,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.chat_title))
+                }
+                Button(
+                    onClick = onOpenCredits,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.credits_title))
                 }
             }
 
@@ -242,6 +296,7 @@ fun SettingsScreen(
                         listOf(
                             "tr" to stringResource(R.string.language_name_turkish),
                             "en" to stringResource(R.string.language_name_english),
+                            "es" to stringResource(R.string.language_name_spanish),
                         ),
                     selected = uiState.language,
                     onSelect = {
