@@ -15,7 +15,7 @@ class BillingManagerTest {
             price = "₺394,99",
             priceAmountMicros = 394_990_000L,
             billingPeriod = "P1M",
-            displayPriority = 0,
+            displayPriority = 1,
         )
 
     private val weeklyPlan =
@@ -28,7 +28,20 @@ class BillingManagerTest {
             price = "₺129,99",
             priceAmountMicros = 129_990_000L,
             billingPeriod = "P1W",
-            displayPriority = 1,
+            displayPriority = 2,
+        )
+
+    private val yearlyPlan =
+        PremiumPlanUi(
+            planId = "premium_yearly:yearly:default",
+            productId = "premium_yearly",
+            basePlanId = "yearly",
+            offerToken = "yearly-token",
+            title = "Yearly",
+            price = "₺3.499,99",
+            priceAmountMicros = 3_499_990_000L,
+            billingPeriod = "P1Y",
+            displayPriority = 0,
         )
 
     @Test
@@ -41,8 +54,16 @@ class BillingManagerTest {
     fun `recognized purchase product resolution requires a single known premium sku`() {
         assertThat(resolveRecognizedProductId(listOf("premium_weekly"))).isEqualTo("premium_weekly")
         assertThat(resolveRecognizedProductId(listOf("premium_weekly", "premium_monthly"))).isNull()
-        assertThat(resolveRecognizedProductId(listOf("premium_yearly"))).isNull()
+        assertThat(resolveRecognizedProductId(listOf("premium_yearly"))).isEqualTo("premium_yearly")
         assertThat(resolveRecognizedProductId(listOf("unknown_sku"))).isNull()
+    }
+
+    @Test
+    fun `recognized credit purchase resolution requires a single known credit sku`() {
+        assertThat(resolveRecognizedCreditProductId(listOf("credits_medium"))).isEqualTo("credits_medium")
+        assertThat(resolveRecognizedCreditProductId(listOf("credits_medium", "credits_small"))).isNull()
+        assertThat(resolveRecognizedCreditProductId(listOf("premium_monthly"))).isNull()
+        assertThat(resolveRecognizedCreditProductId(listOf("unknown_sku"))).isNull()
     }
 
     @Test
@@ -95,13 +116,23 @@ class BillingManagerTest {
     }
 
     @Test
-    fun `monthly plan is ordered first and selected by default`() {
-        assertThat(defaultDisplayPriority("premium_monthly")).isEqualTo(0)
-        assertThat(defaultDisplayPriority("premium_weekly")).isEqualTo(1)
+    fun `yearly plan is ordered first and selected by default`() {
+        assertThat(defaultDisplayPriority("premium_yearly")).isEqualTo(0)
+        assertThat(defaultDisplayPriority("premium_monthly")).isEqualTo(1)
+        assertThat(defaultDisplayPriority("premium_weekly")).isEqualTo(2)
         assertThat(defaultDisplayPriority("unknown")).isEqualTo(Int.MAX_VALUE)
+        assertThat(defaultPremiumPlan(listOf(weeklyPlan, monthlyPlan, yearlyPlan))).isEqualTo(yearlyPlan)
         assertThat(defaultPremiumPlan(listOf(weeklyPlan, monthlyPlan))).isEqualTo(monthlyPlan)
         assertThat(defaultPremiumPlan(listOf(weeklyPlan))).isEqualTo(weeklyPlan)
         assertThat(defaultPremiumPlan(emptyList())).isNull()
+    }
+
+    @Test
+    fun `credit pack display priority orders small, medium, then large`() {
+        assertThat(defaultCreditDisplayPriority("credits_small")).isEqualTo(0)
+        assertThat(defaultCreditDisplayPriority("credits_medium")).isEqualTo(1)
+        assertThat(defaultCreditDisplayPriority("credits_large")).isEqualTo(2)
+        assertThat(defaultCreditDisplayPriority("unknown")).isEqualTo(Int.MAX_VALUE)
     }
 
     @Test

@@ -12,6 +12,7 @@ class PremiumOfferPresentationTest {
             price = "TRY 394.99",
             billingPeriod = "P1M",
             offerToken = "monthly-token",
+            priceAmountMicros = 394_990_000L,
         )
     private val weeklyPlan =
         plan(
@@ -20,6 +21,15 @@ class PremiumOfferPresentationTest {
             price = "TRY 129.99",
             billingPeriod = "P1W",
             offerToken = "weekly-token",
+        )
+    private val yearlyPlan =
+        plan(
+            productId = "premium_yearly",
+            basePlanId = "yearly",
+            price = "TRY 2399.88",
+            billingPeriod = "P1Y",
+            offerToken = "yearly-token",
+            priceAmountMicros = 2_399_880_000L,
         )
 
     @Test
@@ -38,20 +48,10 @@ class PremiumOfferPresentationTest {
     }
 
     @Test
-    fun `billing cadence supports monthly weekly and unknown plans`() {
+    fun `billing cadence supports monthly weekly and yearly plans`() {
         assertThat(premiumBillingCadence(monthlyPlan)).isEqualTo(PremiumBillingCadence.MONTHLY)
         assertThat(premiumBillingCadence(weeklyPlan)).isEqualTo(PremiumBillingCadence.WEEKLY)
-        assertThat(
-            premiumBillingCadence(
-                plan(
-                    productId = "premium_yearly",
-                    basePlanId = "yearly",
-                    price = "TRY 999.99",
-                    billingPeriod = "P1Y",
-                    offerToken = "yearly-token",
-                ),
-            ),
-        ).isEqualTo(PremiumBillingCadence.UNKNOWN)
+        assertThat(premiumBillingCadence(yearlyPlan)).isEqualTo(PremiumBillingCadence.YEARLY)
     }
 
     @Test
@@ -93,28 +93,46 @@ class PremiumOfferPresentationTest {
     }
 
     @Test
-    fun `only monthly plan is recommended`() {
-        assertThat(isRecommendedPremiumPlan(monthlyPlan)).isTrue()
+    fun `only yearly plan is recommended`() {
+        assertThat(isRecommendedPremiumPlan(yearlyPlan)).isTrue()
+        assertThat(isRecommendedPremiumPlan(monthlyPlan)).isFalse()
         assertThat(isRecommendedPremiumPlan(weeklyPlan)).isFalse()
         assertThat(
             isRecommendedPremiumPlan(
                 plan(
-                    productId = "other_monthly",
-                    basePlanId = "monthly",
+                    productId = "other_yearly",
+                    basePlanId = "yearly",
                     price = "TRY 1.00",
-                    billingPeriod = "P1M",
+                    billingPeriod = "P1Y",
                     offerToken = "other-token",
                 ),
             ),
         ).isFalse()
     }
 
+    @Test
+    fun `yearly savings are computed from real prices, never fabricated`() {
+        assertThat(premiumYearlySavingsPercent(listOf(monthlyPlan, yearlyPlan))).isEqualTo(50)
+        assertThat(premiumYearlySavingsPercent(listOf(monthlyPlan))).isNull()
+        assertThat(premiumYearlySavingsPercent(listOf(yearlyPlan))).isNull()
+        assertThat(premiumYearlySavingsPercent(emptyList())).isNull()
+        assertThat(
+            premiumYearlySavingsPercent(
+                listOf(monthlyPlan, yearlyPlan.copy(priceAmountMicros = null)),
+            ),
+        ).isNull()
+        val moreExpensiveYearly = yearlyPlan.copy(priceAmountMicros = monthlyPlan.priceAmountMicros!! * 13)
+        assertThat(premiumYearlySavingsPercent(listOf(monthlyPlan, moreExpensiveYearly))).isNull()
+    }
+
+    @Suppress("LongParameterList")
     private fun plan(
         productId: String,
         basePlanId: String,
         price: String,
         billingPeriod: String,
         offerToken: String?,
+        priceAmountMicros: Long? = null,
     ): PremiumPlanUi =
         PremiumPlanUi(
             planId = "$productId:$basePlanId:default",
@@ -124,5 +142,6 @@ class PremiumOfferPresentationTest {
             title = productId,
             price = price,
             billingPeriod = billingPeriod,
+            priceAmountMicros = priceAmountMicros,
         )
 }

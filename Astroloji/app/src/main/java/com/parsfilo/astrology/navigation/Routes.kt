@@ -11,7 +11,15 @@ import kotlinx.serialization.Serializable
 
 @Serializable object SettingsRoute
 
+@Serializable object FriendsRoute
+
 @Serializable object PersonalGuidanceRoute
+
+@Serializable object CreditsRoute
+
+@Serializable object ReadingRoute
+
+@Serializable object ChatRoute
 
 @Keep
 @Serializable
@@ -25,6 +33,7 @@ enum class PaywallSource(
     COMPATIBILITY_LOCK("compat_lock"),
     PERSONALITY_LOCK("personality_lock"),
     PROFILE_UPGRADE("profile_upgrade"),
+    ONBOARDING("onboarding"),
 }
 
 @Serializable

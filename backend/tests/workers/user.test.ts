@@ -384,12 +384,130 @@ describe('user routes', () => {
       'DELETE FROM fcm_tokens WHERE user_id = ?',
       'DELETE FROM subscriptions WHERE user_id = ?',
       'DELETE FROM user_birth_data WHERE user_id = ?',
+      'DELETE FROM credit_ledger WHERE user_id = ?',
+      'DELETE FROM mood_logs WHERE user_id = ?',
+      'DELETE FROM friendships WHERE user_a = ? OR user_b = ?',
+      'DELETE FROM invite_codes WHERE owner_user_id = ?',
+      'UPDATE invite_codes SET redeemed_by = NULL, redeemed_at = NULL WHERE redeemed_by = ?',
       'DELETE FROM users WHERE id = ?'
     ]);
     expect(batched.every((statement) => statement.bindings[0] === 'user-1')).toBe(true);
     expect(list).toHaveBeenCalledWith({ prefix: 'reward:user-1:' });
     expect(deletedKeys).toEqual(['reward:user-1:daily:2026-07-20']);
     expect(deleteFirebaseUserMock).toHaveBeenCalledWith(env, 'firebase-1');
+  });
+
+  it('deletes stored deep readings from R2 during account deletion', async () => {
+    const { db } = createDeletionDb();
+    const deletedR2Keys: string[] = [];
+    const r2List = vi.fn().mockResolvedValue({
+      objects: [{ key: 'deep-reading/user-1/abc123' }],
+      truncated: false,
+      cursor: undefined
+    });
+    const content = {
+      async head() {
+        return { size: 1 } as R2Object;
+      },
+      async get() {
+        return null;
+      },
+      async put() {
+        return;
+      },
+      async delete(key: string) {
+        deletedR2Keys.push(key);
+      },
+      list: r2List
+    } as unknown as R2Bucket;
+    const cache = {
+      async get() {
+        return null;
+      },
+      async put() {
+        return;
+      },
+      async delete() {
+        return;
+      },
+      async list() {
+        return { keys: [], list_complete: true, cacheStatus: null };
+      }
+    } as unknown as KVNamespace;
+    const env = createTestEnv({ DB: db, CONTENT: content, CACHE: cache });
+    const jwt = await signAppJwt(env, {
+      userId: 'user-1',
+      isPremium: false,
+      firebaseUid: 'firebase-1'
+    });
+
+    const response = await createApp().request(
+      '/api/v1/users/me',
+      {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${jwt}` }
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    expect(r2List).toHaveBeenCalledWith({ prefix: 'deep-reading/user-1/' });
+    expect(deletedR2Keys).toEqual(['deep-reading/user-1/abc123']);
+  });
+
+  it('completes critical deletion when deep reading cleanup fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { db } = createDeletionDb();
+    const content = {
+      async head() {
+        return { size: 1 } as R2Object;
+      },
+      async get() {
+        return null;
+      },
+      async put() {
+        return;
+      },
+      async delete() {
+        return;
+      },
+      async list() {
+        throw new Error('r2 unavailable');
+      }
+    } as unknown as R2Bucket;
+    const cache = {
+      async get() {
+        return null;
+      },
+      async put() {
+        return;
+      },
+      async delete() {
+        return;
+      },
+      async list() {
+        return { keys: [], list_complete: true, cacheStatus: null };
+      }
+    } as unknown as KVNamespace;
+    const env = createTestEnv({ DB: db, CONTENT: content, CACHE: cache });
+    const jwt = await signAppJwt(env, {
+      userId: 'user-1',
+      isPremium: false,
+      firebaseUid: 'firebase-1'
+    });
+
+    const response = await createApp().request(
+      '/api/v1/users/me',
+      {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${jwt}` }
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    expect(deleteFirebaseUserMock).toHaveBeenCalledWith(env, 'firebase-1');
+    expect(consoleError).toHaveBeenCalledOnce();
   });
 
   it('completes critical deletion when reward cache cleanup fails', async () => {

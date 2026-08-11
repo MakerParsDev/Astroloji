@@ -1,14 +1,26 @@
 import { z } from 'zod';
 
+import { MAX_CHAT_HISTORY_TURNS } from '@/llm/chatConsultationGenerator';
+
 import {
+  CREDIT_PRODUCTS,
+  MOOD_DOMAINS,
+  MOOD_VALUES,
+  type AcceptInviteRequest,
+  type ChatMessageRequest,
   type ContentBackfillRequest,
+  type DeepReadingRequest,
   LANGUAGES,
+  type MoodDomain,
+  type MoodLogRequest,
   NOTIFICATION_TARGET_TYPES,
   PLATFORMS,
   REWARD_TYPES,
   SIGNS,
   SUBSCRIPTION_PRODUCTS,
   USER_EVENT_TYPES,
+  type CreditsSpendRequest,
+  type CreditsVerifyRequest,
   type Language,
   type NatalChartRequest,
   type NotificationRequest,
@@ -80,6 +92,20 @@ export const subscriptionVerifySchema = z.object({
   product_id: productSchema
 });
 
+const creditProductSchema = z.enum(
+  Object.keys(CREDIT_PRODUCTS) as [keyof typeof CREDIT_PRODUCTS, ...Array<keyof typeof CREDIT_PRODUCTS>]
+);
+
+export const creditsVerifySchema = z.object({
+  purchase_token: z.string().min(1),
+  product_id: creditProductSchema
+});
+
+export const creditsSpendSchema = z.object({
+  amount: z.number().int().min(1).max(1000),
+  feature: z.string().min(1).max(64)
+});
+
 export const trackEventSchema = z.object({
   event_type: eventTypeSchema,
   meta: z.record(z.string(), z.unknown()).optional().default({})
@@ -110,6 +136,37 @@ export const rewardPrepareSchema = z
 
 export const rewardClaimSchema = z.object({
   challenge_id: z.uuid()
+});
+
+export const acceptInviteSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/, 'code must be an 8-character invite code.')
+});
+
+export const deepReadingSchema = z.object({
+  language: languageSchema.default('tr')
+});
+
+const chatTurnSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string().min(1).max(2000)
+});
+
+export const chatMessageSchema = z.object({
+  language: languageSchema.default('tr'),
+  message: z.string().min(1).max(2000),
+  history: z.array(chatTurnSchema).max(MAX_CHAT_HISTORY_TURNS * 2).default([])
+});
+
+const moodSchema = z.enum(MOOD_VALUES);
+const moodDomainSchema = z.enum(MOOD_DOMAINS as [MoodDomain, ...MoodDomain[]]);
+
+export const moodLogSchema = z.object({
+  mood: moodSchema,
+  domain: moodDomainSchema.optional()
 });
 
 const optionalSeedDateSchema = z.preprocess(
@@ -254,6 +311,30 @@ export function validateUpdateUserBody(payload: unknown): UpdateUserRequest {
 
 export function validateSubscriptionBody(payload: unknown): SubscriptionVerifyRequest {
   return subscriptionVerifySchema.parse(payload);
+}
+
+export function validateCreditsVerifyBody(payload: unknown): CreditsVerifyRequest {
+  return creditsVerifySchema.parse(payload);
+}
+
+export function validateCreditsSpendBody(payload: unknown): CreditsSpendRequest {
+  return creditsSpendSchema.parse(payload);
+}
+
+export function validateAcceptInviteBody(payload: unknown): AcceptInviteRequest {
+  return acceptInviteSchema.parse(payload);
+}
+
+export function validateDeepReadingBody(payload: unknown): DeepReadingRequest {
+  return deepReadingSchema.parse(payload);
+}
+
+export function validateChatMessageBody(payload: unknown): ChatMessageRequest {
+  return chatMessageSchema.parse(payload);
+}
+
+export function validateMoodLogBody(payload: unknown): MoodLogRequest {
+  return moodLogSchema.parse(payload);
 }
 
 export function validateTrackEventBody(payload: unknown): TrackEventRequest {

@@ -97,7 +97,7 @@ class PersonalGuidanceViewModel
                     )
                 if (requestGeneration != guidanceRequestGeneration) return@launch
                 when (result) {
-                    is AppResult.Success ->
+                    is AppResult.Success -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -105,6 +105,14 @@ class PersonalGuidanceViewModel
                                 error = null,
                             )
                         }
+                        result.data.signals.firstOrNull()?.let { topSignal ->
+                            preferencesRepository.savePersonalizedDailyLine(
+                                title = topSignal.title,
+                                body = topSignal.summary,
+                                date = TimeUtils.dateIdentifier(),
+                            )
+                        }
+                    }
                     is AppResult.Error ->
                         _uiState.update {
                             it.copy(

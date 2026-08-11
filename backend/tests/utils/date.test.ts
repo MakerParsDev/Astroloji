@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getMonthIdentifier, getWeekIdentifier, shouldSendNotificationAtUtcHour } from '@/utils/date';
+import { getLocalDateIdentifier, getMonthIdentifier, getWeekIdentifier, shouldSendNotificationAtUtcHour } from '@/utils/date';
 
 describe('date utils', () => {
   it('builds ISO week identifiers', () => {
@@ -9,6 +9,11 @@ describe('date utils', () => {
 
   it('builds month identifiers', () => {
     expect(getMonthIdentifier(new Date('2026-03-18T12:00:00Z'))).toBe('2026-03');
+  });
+
+  it('resolves the local calendar date across a utc offset boundary', () => {
+    expect(getLocalDateIdentifier(3, new Date('2026-08-11T22:00:00Z'))).toBe('2026-08-12');
+    expect(getLocalDateIdentifier(-5, new Date('2026-08-11T02:00:00Z'))).toBe('2026-08-10');
   });
 
   it('matches notification hours across utc offsets', () => {

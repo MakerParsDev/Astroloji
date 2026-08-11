@@ -101,4 +101,6 @@ data class RemoteFlags(
     val premiumTrialDays: Int = 0,
     val appOpenMinBackgroundMs: Long = RemoteFlagDefaults.APP_OPEN_MIN_BACKGROUND_MS,
     val forceUpdateVersion: Long = 0,
+    val onboardingPaywallEnabled: Boolean = false,
+    val paywallVariant: String = "default",
 )

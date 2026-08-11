@@ -1,9 +1,12 @@
+@file:Suppress("FunctionNaming")
+
 package com.parsfilo.astrology.feature.home
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -27,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -176,9 +180,15 @@ fun HomeScreen(
                     enter = fadeIn() + scaleIn(),
                 ) {
                     uiState.achievedMilestone?.let { milestone ->
-                        MilestoneCelebrationCard(milestone = milestone)
+                        MilestoneCelebrationCard(milestone = milestone, creditsGranted = uiState.streakCreditsGranted)
                     }
                 }
+
+                MoodCheckInCard(
+                    loggedMood = uiState.loggedMood,
+                    insight = uiState.moodInsight,
+                    onLogMood = { mood -> viewModel.onEvent(HomeUiEvent.LogMood(mood, null)) },
+                )
 
                 uiState.weekly?.let { weekly ->
                     AstrologyCard {
@@ -281,7 +291,10 @@ private fun MoonPhaseBar(
 }
 
 @Composable
-private fun MilestoneCelebrationCard(milestone: Int) {
+private fun MilestoneCelebrationCard(
+    milestone: Int,
+    creditsGranted: Int?,
+) {
     AstrologyCard {
         Text(
             text = stringResource(R.string.home_streak_milestone_title),
@@ -293,8 +306,75 @@ private fun MilestoneCelebrationCard(milestone: Int) {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.secondary,
         )
+        if (creditsGranted != null && creditsGranted > 0) {
+            Text(
+                text = stringResource(R.string.home_streak_reward_credits, creditsGranted),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
     }
 }
+
+private val MOOD_OPTIONS = listOf("great", "good", "neutral", "low", "stressed")
+
+@Composable
+private fun MoodCheckInCard(
+    loggedMood: String?,
+    insight: MoodInsightUi?,
+    onLogMood: (String) -> Unit,
+) {
+    AstrologyCard {
+        Text(
+            text = stringResource(R.string.home_mood_title),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        if (loggedMood != null) {
+            Text(
+                text = stringResource(R.string.home_mood_logged, moodEmoji(loggedMood)),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MOOD_OPTIONS.forEach { mood ->
+                    Text(
+                        text = moodEmoji(mood),
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier =
+                            Modifier
+                                .clip(CircleShape)
+                                .clickable { onLogMood(mood) }
+                                .padding(6.dp),
+                    )
+                }
+            }
+        }
+        insight?.let {
+            Text(
+                text =
+                    stringResource(
+                        R.string.home_mood_insight,
+                        it.correlated,
+                        it.occurrences,
+                        it.domain,
+                    ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun moodEmoji(mood: String): String =
+    when (mood) {
+        "great" -> "😄"
+        "good" -> "🙂"
+        "neutral" -> "😐"
+        "low" -> "😕"
+        "stressed" -> "😰"
+        else -> "😐"
+    }
 
 private fun moonPhaseNameRes(phase: MoonPhase): Int =
     when (phase) {

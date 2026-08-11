@@ -25,20 +25,28 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.feature.chart.PersonalGuidanceScreen
+import com.parsfilo.astrology.feature.chat.ChatScreen
 import com.parsfilo.astrology.feature.compatibility.CompatibilityScreen
+import com.parsfilo.astrology.feature.credits.CreditsScreen
 import com.parsfilo.astrology.feature.daily.DailyScreen
+import com.parsfilo.astrology.feature.friends.FriendsScreen
 import com.parsfilo.astrology.feature.home.HomeScreen
 import com.parsfilo.astrology.feature.monthly.MonthlyScreen
 import com.parsfilo.astrology.feature.onboarding.OnboardingScreen
 import com.parsfilo.astrology.feature.personality.PersonalityScreen
 import com.parsfilo.astrology.feature.premium.PremiumScreen
+import com.parsfilo.astrology.feature.reading.ReadingScreen
 import com.parsfilo.astrology.feature.settings.SettingsScreen
 import com.parsfilo.astrology.feature.weekly.WeeklyScreen
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @Composable
@@ -48,6 +56,7 @@ fun AstrologyAppRoot(
     viewModel: RootViewModel = hiltViewModel(),
 ) {
     val startDestination by viewModel.startDestination.collectAsStateWithLifecycle()
+    val onboardingPaywallEnabled by viewModel.onboardingPaywallEnabled.collectAsStateWithLifecycle()
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -60,6 +69,11 @@ fun AstrologyAppRoot(
         }
         if (target.type == "daily" && !target.sign.isNullOrBlank()) {
             navController.navigate(DailyDetailRoute(target.sign)) {
+                launchSingleTop = true
+            }
+            onDeepLinkConsumed()
+        } else if (target.type == "personal_guidance") {
+            navController.navigate(PersonalGuidanceRoute) {
                 launchSingleTop = true
             }
             onDeepLinkConsumed()
@@ -117,7 +131,9 @@ fun AstrologyAppRoot(
                         androidx.compose.ui.Modifier
                             .padding(padding),
                     onComplete = {
-                        navController.navigate(HomeRoute) {
+                        val destination =
+                            if (onboardingPaywallEnabled) PremiumRoute(PaywallSource.ONBOARDING) else HomeRoute
+                        navController.navigate(destination) {
                             popUpTo(OnboardingRoute) { inclusive = true }
                         }
                     },
@@ -159,12 +175,58 @@ fun AstrologyAppRoot(
                             .padding(padding),
                     onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.PROFILE_UPGRADE)) },
                     onOpenPersonalGuidance = { navController.navigate(PersonalGuidanceRoute) },
+                    onOpenFriends = { navController.navigate(FriendsRoute) },
+                    onOpenReading = { navController.navigate(ReadingRoute) },
+                    onOpenChat = { navController.navigate(ChatRoute) },
+                    onOpenCredits = { navController.navigate(CreditsRoute) },
                     onAccountDeleted = {
                         navController.navigate(OnboardingRoute) {
                             popUpTo(navController.graph.startDestinationId) { inclusive = true }
                             launchSingleTop = true
                         }
                     },
+                )
+            }
+            composable<FriendsRoute>(
+                enterTransition = { fadeIn(animationSpec = tween(300)) },
+                exitTransition = { fadeOut(animationSpec = tween(200)) },
+            ) {
+                FriendsScreen(
+                    modifier =
+                        androidx.compose.ui.Modifier
+                            .padding(padding),
+                )
+            }
+            composable<CreditsRoute>(
+                enterTransition = { fadeIn(animationSpec = tween(300)) },
+                exitTransition = { fadeOut(animationSpec = tween(200)) },
+            ) {
+                CreditsScreen(
+                    modifier =
+                        androidx.compose.ui.Modifier
+                            .padding(padding),
+                )
+            }
+            composable<ReadingRoute>(
+                enterTransition = { fadeIn(animationSpec = tween(300)) },
+                exitTransition = { fadeOut(animationSpec = tween(200)) },
+            ) {
+                ReadingScreen(
+                    onOpenCredits = { navController.navigate(CreditsRoute) },
+                    modifier =
+                        androidx.compose.ui.Modifier
+                            .padding(padding),
+                )
+            }
+            composable<ChatRoute>(
+                enterTransition = { fadeIn(animationSpec = tween(300)) },
+                exitTransition = { fadeOut(animationSpec = tween(200)) },
+            ) {
+                ChatScreen(
+                    onOpenCredits = { navController.navigate(CreditsRoute) },
+                    modifier =
+                        androidx.compose.ui.Modifier
+                            .padding(padding),
                 )
             }
             composable<PersonalGuidanceRoute>(
@@ -260,9 +322,19 @@ class RootViewModel
     @Inject
     constructor(
         preferencesRepository: UserPreferencesRepository,
+        private val remoteConfigRepository: RemoteConfigRepository,
     ) : ViewModel() {
         val startDestination =
             preferencesRepository.preferences
                 .map { if (it.onboardingCompleted) HomeRoute else OnboardingRoute }
                 .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), OnboardingRoute)
+
+        private val _onboardingPaywallEnabled = MutableStateFlow(false)
+        val onboardingPaywallEnabled = _onboardingPaywallEnabled.asStateFlow()
+
+        init {
+            viewModelScope.launch {
+                _onboardingPaywallEnabled.value = remoteConfigRepository.fetchFlags().onboardingPaywallEnabled
+            }
+        }
     }

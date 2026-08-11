@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
   is_premium INTEGER NOT NULL DEFAULT 0,
   subscription_state TEXT NOT NULL DEFAULT 'none',
   premium_expires_at TEXT,
+  streak_count INTEGER NOT NULL DEFAULT 0,
+  last_streak_date TEXT,
+  streak_milestone_claimed INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL
 );
@@ -100,6 +103,59 @@ CREATE TABLE IF NOT EXISTS user_birth_data (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS credit_ledger (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purchase_token TEXT UNIQUE,
+  product_id TEXT,
+  delta INTEGER NOT NULL,
+  reason TEXT NOT NULL CHECK (reason IN ('purchase', 'spend', 'streak_reward')),
+  feature TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_id ON credit_ledger(user_id);
+
+CREATE TABLE IF NOT EXISTS mood_logs (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  mood TEXT NOT NULL CHECK (mood IN ('great', 'good', 'neutral', 'low', 'stressed')),
+  domain TEXT CHECK (
+    domain IN (
+      'identity', 'emotions', 'communication', 'relationships', 'action',
+      'growth', 'responsibility', 'change', 'imagination', 'transformation'
+    )
+  ),
+  created_at TEXT NOT NULL,
+  UNIQUE (user_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mood_logs_user_id ON mood_logs(user_id);
+
+CREATE TABLE IF NOT EXISTS invite_codes (
+  code TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  redeemed_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  redeemed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_invite_codes_owner_user_id ON invite_codes(owner_user_id);
+
+CREATE TABLE IF NOT EXISTS friendships (
+  id TEXT PRIMARY KEY,
+  user_a TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_b TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL CHECK (status IN ('active')),
+  created_at TEXT NOT NULL,
+  UNIQUE (user_a, user_b)
+);
+
+CREATE INDEX IF NOT EXISTS idx_friendships_user_a ON friendships(user_a);
+CREATE INDEX IF NOT EXISTS idx_friendships_user_b ON friendships(user_b);
 
 CREATE INDEX IF NOT EXISTS idx_users_sign ON users(sign);
 CREATE INDEX IF NOT EXISTS idx_users_is_premium ON users(is_premium);

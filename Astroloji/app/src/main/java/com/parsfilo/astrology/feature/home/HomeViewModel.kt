@@ -7,8 +7,10 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.ContentRepository
 import com.parsfilo.astrology.core.data.repository.FavoritesRepository
+import com.parsfilo.astrology.core.data.repository.MoodRepository
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.core.data.repository.SessionRepository
+import com.parsfilo.astrology.core.data.repository.StreakRepository
 import com.parsfilo.astrology.core.domain.model.DailyHoroscope
 import com.parsfilo.astrology.core.domain.model.UserProfile
 import com.parsfilo.astrology.core.domain.model.WeeklyHoroscope
@@ -22,6 +24,12 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class MoodInsightUi(
+    val domain: String,
+    val occurrences: Int,
+    val correlated: Int,
+)
+
 data class HomeUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
@@ -31,6 +39,9 @@ data class HomeUiState(
     val favorites: List<String> = emptyList(),
     val streakCount: Int = 0,
     val achievedMilestone: Int? = null,
+    val streakCreditsGranted: Int? = null,
+    val loggedMood: String? = null,
+    val moodInsight: MoodInsightUi? = null,
     val showBannerAd: Boolean = false,
     val error: String? = null,
 )
@@ -41,11 +52,17 @@ sealed interface HomeUiEvent {
     data class ToggleFavorite(
         val sign: String,
     ) : HomeUiEvent
+
+    data class LogMood(
+        val mood: String,
+        val domain: String?,
+    ) : HomeUiEvent
 }
 
 sealed interface HomeUiEffect
 
 @HiltViewModel
+@Suppress("LongParameterList")
 class HomeViewModel
     @Inject
     constructor(
@@ -56,6 +73,8 @@ class HomeViewModel
         private val analyticsRepository: AnalyticsRepository,
         private val remoteConfigRepository: RemoteConfigRepository,
         private val consentManager: GoogleMobileAdsConsentManager,
+        private val streakRepository: StreakRepository,
+        private val moodRepository: MoodRepository,
     ) : MviViewModel<HomeUiState, HomeUiEvent, HomeUiEffect>(HomeUiState()) {
         init {
             refresh(false)
@@ -70,6 +89,58 @@ class HomeViewModel
                         val favorites = favoritesRepository.getFavorites()
                         setState { copy(favorites = favorites) }
                     }
+                }
+                is HomeUiEvent.LogMood -> logMood(event.mood, event.domain)
+            }
+        }
+
+        private fun logMood(
+            mood: String,
+            domain: String?,
+        ) {
+            viewModelScope.launch {
+                when (val result = moodRepository.logMood(mood, domain)) {
+                    is AppResult.Success -> {
+                        setState { copy(loggedMood = result.data.mood) }
+                        analyticsRepository.track(AnalyticsEvents.MOOD_LOGGED, mapOf("mood" to mood))
+                        refreshMoodInsight()
+                    }
+                    is AppResult.Error, AppResult.Loading -> Unit
+                }
+            }
+        }
+
+        private suspend fun refreshMoodInsight() {
+            when (val result = moodRepository.getInsight()) {
+                is AppResult.Success -> {
+                    val insight = result.data.insight
+                    setState {
+                        copy(
+                            moodInsight =
+                                insight?.let { MoodInsightUi(it.domain, it.occurrences, it.correlated) },
+                        )
+                    }
+                }
+                is AppResult.Error, AppResult.Loading -> Unit
+            }
+        }
+
+        private fun checkInStreak() {
+            viewModelScope.launch {
+                when (val result = streakRepository.checkIn()) {
+                    is AppResult.Success -> {
+                        if (result.data.creditsGranted > 0) {
+                            setState { copy(streakCreditsGranted = result.data.creditsGranted) }
+                            analyticsRepository.track(
+                                AnalyticsEvents.STREAK_ACHIEVED,
+                                mapOf(
+                                    "milestone" to result.data.milestoneAchieved.toString(),
+                                    "credits" to result.data.creditsGranted.toString(),
+                                ),
+                            )
+                        }
+                    }
+                    is AppResult.Error, AppResult.Loading -> Unit
                 }
             }
         }
@@ -96,6 +167,8 @@ class HomeViewModel
                     )
                 preferencesRepository.updateStreak(streak.lastDate, streak.count)
                 analyticsRepository.track(AnalyticsEvents.APP_OPEN, mapOf("sign" to sign))
+                checkInStreak()
+                launch { refreshMoodInsight() }
                 val (dailyResult, weeklyResult) =
                     coroutineScope {
                         val dailyDeferred =

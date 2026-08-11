@@ -39,7 +39,27 @@ import kotlin.coroutines.resume
 
 private const val PRODUCT_PREMIUM_MONTHLY = "premium_monthly"
 private const val PRODUCT_PREMIUM_WEEKLY = "premium_weekly"
-private val PREMIUM_PRODUCT_IDS = setOf(PRODUCT_PREMIUM_MONTHLY, PRODUCT_PREMIUM_WEEKLY)
+private const val PRODUCT_PREMIUM_YEARLY = "premium_yearly"
+private val PREMIUM_PRODUCT_IDS = setOf(PRODUCT_PREMIUM_MONTHLY, PRODUCT_PREMIUM_WEEKLY, PRODUCT_PREMIUM_YEARLY)
+
+private const val PRODUCT_CREDITS_SMALL = "credits_small"
+private const val PRODUCT_CREDITS_MEDIUM = "credits_medium"
+private const val PRODUCT_CREDITS_LARGE = "credits_large"
+private val CREDIT_PRODUCT_IDS = setOf(PRODUCT_CREDITS_SMALL, PRODUCT_CREDITS_MEDIUM, PRODUCT_CREDITS_LARGE)
+
+private const val CREDITS_SMALL_AMOUNT = 20
+private const val CREDITS_MEDIUM_AMOUNT = 60
+private const val CREDITS_LARGE_AMOUNT = 150
+
+/** Credits granted per pack. Must stay in sync with backend's `CREDIT_PRODUCTS` (backend/src/types.ts). */
+private val CREDIT_PRODUCT_AMOUNTS =
+    mapOf(
+        PRODUCT_CREDITS_SMALL to CREDITS_SMALL_AMOUNT,
+        PRODUCT_CREDITS_MEDIUM to CREDITS_MEDIUM_AMOUNT,
+        PRODUCT_CREDITS_LARGE to CREDITS_LARGE_AMOUNT,
+    )
+
+private enum class PendingBillingFlow { NONE, PREMIUM, CREDITS }
 
 data class PremiumPlanUi(
     val planId: String,
@@ -55,6 +75,19 @@ data class PremiumPlanUi(
     val offerDescription: String? = null,
     val billingPeriod: String? = null,
     val displayPriority: Int = Int.MAX_VALUE,
+)
+
+data class CreditPackUi(
+    val productId: String,
+    val title: String,
+    val price: String,
+    val credits: Int,
+    val displayPriority: Int = Int.MAX_VALUE,
+)
+
+data class CreditPurchaseResult(
+    val creditsGranted: Int,
+    val balance: Int,
 )
 
 internal data class PricingPhaseSummary(
@@ -86,12 +119,24 @@ sealed interface BillingCatalogueLoadResult {
     ) : BillingCatalogueLoadResult
 }
 
+sealed interface CreditCatalogueLoadResult {
+    data class Success(
+        val packs: List<CreditPackUi>,
+    ) : CreditCatalogueLoadResult
+
+    data class Failure(
+        val message: String,
+    ) : CreditCatalogueLoadResult
+}
+
 @Singleton
+@Suppress("TooManyFunctions")
 class BillingManager
     @Inject
     constructor(
         @ApplicationContext private val context: Context,
         private val sessionRepository: SessionRepository,
+        private val creditsRepository: CreditsRepository,
         private val stringsProvider: StringsProvider,
     ) : com.android.billingclient.api.PurchasesUpdatedListener,
         java.io.Closeable {
@@ -103,6 +148,14 @@ class BillingManager
         private val _purchaseState = MutableStateFlow<AppResult<SubscriptionStatus>?>(null)
         val purchaseState: StateFlow<AppResult<SubscriptionStatus>?> = _purchaseState.asStateFlow()
         private val catalog = mutableMapOf<String, ProductDetails>()
+
+        private val _creditPacks = MutableStateFlow<List<CreditPackUi>>(emptyList())
+        val creditPacks: StateFlow<List<CreditPackUi>> = _creditPacks.asStateFlow()
+
+        private val _creditPurchaseState = MutableStateFlow<AppResult<CreditPurchaseResult>?>(null)
+        val creditPurchaseState: StateFlow<AppResult<CreditPurchaseResult>?> = _creditPurchaseState.asStateFlow()
+        private val creditCatalog = mutableMapOf<String, ProductDetails>()
+        private var pendingFlow: PendingBillingFlow = PendingBillingFlow.NONE
 
         private val billingClient: BillingClient =
             BillingClient
@@ -154,8 +207,102 @@ class BillingManager
             return buildPremiumPlans(productDetails).also { _plans.value = it }
         }
 
+        suspend fun loadCreditPacks(): CreditCatalogueLoadResult {
+            val catalogueUnavailableMessage = stringsProvider.get(R.string.billing_credit_catalogue_unavailable)
+            val readyResult = ensureReady()
+            if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
+                creditCatalog.clear()
+                _creditPacks.value = emptyList()
+                return CreditCatalogueLoadResult.Failure(
+                    readyResult.debugMessage.ifBlank { catalogueUnavailableMessage },
+                )
+            }
+
+            val (billingResult, productDetailsResult) = queryCreditProductDetails(billingClient)
+            logCatalogueDiagnostics(productDetailsResult.toCatalogueDiagnostics())
+            val packs =
+                if (billingResult.responseCode == BillingResponseCode.OK) {
+                    storeCreditCatalogue(productDetailsResult.productDetailsList)
+                } else {
+                    creditCatalog.clear()
+                    _creditPacks.value = emptyList()
+                    emptyList()
+                }
+
+            val queryMessage =
+                billingResult.debugMessage
+                    .takeUnless { billingResult.responseCode == BillingResponseCode.OK }
+                    ?.ifBlank { catalogueUnavailableMessage }
+            return if (packs.isNotEmpty()) {
+                CreditCatalogueLoadResult.Success(packs)
+            } else {
+                CreditCatalogueLoadResult.Failure(queryMessage ?: catalogueUnavailableMessage)
+            }
+        }
+
+        private fun storeCreditCatalogue(productDetails: List<ProductDetails>): List<CreditPackUi> {
+            creditCatalog.clear()
+            productDetails.forEach { detail -> creditCatalog[detail.productId] = detail }
+            return buildCreditPacks(productDetails).also { _creditPacks.value = it }
+        }
+
         fun clearPurchaseState() {
             _purchaseState.value = null
+        }
+
+        fun clearCreditPurchaseState() {
+            _creditPurchaseState.value = null
+        }
+
+        fun launchCreditPurchase(
+            activity: Activity,
+            productId: String,
+        ) {
+            if (BuildConfig.STORE_SCREENSHOT_QA) {
+                _creditPurchaseState.value =
+                    AppResult.Error(
+                        AppException.BillingException(stringsProvider.get(R.string.billing_purchase_failed)),
+                    )
+                return
+            }
+            scope.launch {
+                _creditPurchaseState.value = AppResult.Loading
+                val readyResult = ensureReady()
+                if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
+                    _creditPurchaseState.value =
+                        AppResult.Error(
+                            AppException.BillingException(
+                                readyResult.debugMessage.ifBlank {
+                                    stringsProvider.get(R.string.billing_purchase_failed)
+                                },
+                            ),
+                        )
+                    return@launch
+                }
+                val detail =
+                    fetchProductDetails(productId, creditCatalog, ProductType.INAPP) ?: run {
+                        _creditPurchaseState.value =
+                            AppResult.Error(
+                                AppException.BillingException(
+                                    stringsProvider.get(R.string.billing_credit_pack_not_found),
+                                ),
+                            )
+                        return@launch
+                    }
+                val params =
+                    BillingFlowParams.ProductDetailsParams
+                        .newBuilder()
+                        .setProductDetails(detail)
+                        .build()
+                pendingFlow = PendingBillingFlow.CREDITS
+                billingClient.launchBillingFlow(
+                    activity,
+                    BillingFlowParams
+                        .newBuilder()
+                        .setProductDetailsParamsList(listOf(params))
+                        .build(),
+                )
+            }
         }
 
         fun launchPurchase(
@@ -190,7 +337,7 @@ class BillingManager
                         return@launch
                     }
                 val detail =
-                    fetchProductDetails(plan.productId) ?: run {
+                    fetchProductDetails(plan.productId, catalog, ProductType.SUBS) ?: run {
                         _purchaseState.value =
                             AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_plan_not_found)))
                         return@launch
@@ -207,6 +354,7 @@ class BillingManager
                         .setProductDetails(detail)
                         .setOfferToken(offerToken)
                         .build()
+                pendingFlow = PendingBillingFlow.PREMIUM
                 billingClient.launchBillingFlow(
                     activity,
                     BillingFlowParams
@@ -263,8 +411,20 @@ class BillingManager
             billingResult: BillingResult,
             purchases: MutableList<Purchase>?,
         ) {
+            val flow = pendingFlow
+            pendingFlow = PendingBillingFlow.NONE
             when (billingResult.responseCode) {
                 BillingResponseCode.OK -> {
+                    val creditPurchase =
+                        if (flow == PendingBillingFlow.CREDITS) {
+                            selectCreditPurchaseForVerification(purchases.orEmpty())
+                        } else {
+                            null
+                        }
+                    if (creditPurchase != null) {
+                        scope.launch { _creditPurchaseState.value = verifyCreditPurchase(creditPurchase) }
+                        return
+                    }
                     val purchase = selectPurchaseForVerification(purchases.orEmpty())
                     if (purchase == null) {
                         _purchaseState.value =
@@ -280,22 +440,65 @@ class BillingManager
                     }
                 }
                 BillingResponseCode.USER_CANCELED -> {
-                    _purchaseState.value =
+                    applyPurchaseFlowResult(
+                        flow,
                         AppResult.Error(
                             AppException.BillingException(
                                 message = stringsProvider.get(R.string.billing_purchase_cancelled),
                                 reason = BillingFailureReason.USER_CANCELLED,
                             ),
-                        )
+                        ),
+                    )
                 }
                 else -> {
-                    _purchaseState.value =
+                    applyPurchaseFlowResult(
+                        flow,
                         AppResult.Error(
                             AppException.BillingException(
                                 billingResult.debugMessage.ifBlank { stringsProvider.get(R.string.billing_purchase_failed) },
                             ),
-                        )
+                        ),
+                    )
                 }
+            }
+        }
+
+        private fun applyPurchaseFlowResult(
+            flow: PendingBillingFlow,
+            result: AppResult<Nothing>,
+        ) {
+            if (flow == PendingBillingFlow.CREDITS) {
+                _creditPurchaseState.value = result
+            } else {
+                _purchaseState.value = result
+            }
+        }
+
+        private suspend fun verifyCreditPurchase(purchase: Purchase): AppResult<CreditPurchaseResult> {
+            val productId = resolveRecognizedCreditProductId(purchase.products)
+            val validationError =
+                when {
+                    purchase.purchaseState != Purchase.PurchaseState.PURCHASED ->
+                        AppException.BillingException(stringsProvider.get(R.string.billing_payment_pending))
+                    productId == null ->
+                        AppException.BillingException(stringsProvider.get(R.string.billing_credit_pack_not_found))
+                    else -> null
+                }
+            if (validationError != null) {
+                return AppResult.Error(validationError)
+            }
+
+            val result = creditsRepository.verifyPurchase(purchase.purchaseToken, checkNotNull(productId))
+            return when (result) {
+                is AppResult.Success ->
+                    AppResult.Success(
+                        CreditPurchaseResult(
+                            creditsGranted = result.data.creditsGranted,
+                            balance = result.data.balance,
+                        ),
+                    )
+                is AppResult.Error -> AppResult.Error(result.exception)
+                AppResult.Loading -> AppResult.Loading
             }
         }
 
@@ -344,8 +547,12 @@ class BillingManager
             return response
         }
 
-        private suspend fun fetchProductDetails(productId: String): ProductDetails? {
-            val cachedDetail = catalog[productId]
+        private suspend fun fetchProductDetails(
+            productId: String,
+            catalogCache: MutableMap<String, ProductDetails>,
+            productType: String,
+        ): ProductDetails? {
+            val cachedDetail = catalogCache[productId]
             val readyResult = ensureReady()
             val queriedDetail =
                 if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
@@ -359,7 +566,7 @@ class BillingManager
                                     QueryProductDetailsParams.Product
                                         .newBuilder()
                                         .setProductId(productId)
-                                        .setProductType(ProductType.SUBS)
+                                        .setProductType(productType)
                                         .build(),
                                 ),
                             ).build()
@@ -371,7 +578,7 @@ class BillingManager
                         }
                     if (result.first.responseCode == BillingResponseCode.OK) {
                         result.second.productDetailsList.firstOrNull()?.also { detail ->
-                            catalog[detail.productId] = detail
+                            catalogCache[detail.productId] = detail
                         }
                     } else {
                         null
@@ -412,11 +619,33 @@ private suspend fun queryPremiumProductDetails(
         QueryProductDetailsParams
             .newBuilder()
             .setProductList(
-                listOf(PRODUCT_PREMIUM_MONTHLY, PRODUCT_PREMIUM_WEEKLY).map { productId ->
+                listOf(PRODUCT_PREMIUM_YEARLY, PRODUCT_PREMIUM_MONTHLY, PRODUCT_PREMIUM_WEEKLY).map { productId ->
                     QueryProductDetailsParams.Product
                         .newBuilder()
                         .setProductId(productId)
                         .setProductType(ProductType.SUBS)
+                        .build()
+                },
+            ).build()
+    return suspendCancellableCoroutine { continuation ->
+        billingClient.queryProductDetailsAsync(params) { billingResult, productDetailsResult ->
+            continuation.resume(billingResult to productDetailsResult)
+        }
+    }
+}
+
+private suspend fun queryCreditProductDetails(
+    billingClient: BillingClient,
+): Pair<BillingResult, QueryProductDetailsResult> {
+    val params =
+        QueryProductDetailsParams
+            .newBuilder()
+            .setProductList(
+                CREDIT_PRODUCT_IDS.map { productId ->
+                    QueryProductDetailsParams.Product
+                        .newBuilder()
+                        .setProductId(productId)
+                        .setProductType(ProductType.INAPP)
                         .build()
                 },
             ).build()
@@ -456,10 +685,15 @@ internal fun resolveRecognizedProductId(products: List<String>): String? {
     return if (recognizedProducts.size == 1) recognizedProducts.single() else null
 }
 
+internal fun resolveRecognizedCreditProductId(products: List<String>): String? {
+    val recognizedProducts = products.filter { it in CREDIT_PRODUCT_IDS }.distinct().sorted()
+    return if (recognizedProducts.size == 1) recognizedProducts.single() else null
+}
+
 internal fun isSuccessfulBillingSetup(responseCode: Int): Boolean = responseCode == BillingResponseCode.OK
 
 internal fun defaultPremiumPlan(plans: List<PremiumPlanUi>): PremiumPlanUi? =
-    plans.firstOrNull { it.productId == PRODUCT_PREMIUM_MONTHLY }
+    plans.firstOrNull { it.productId == PRODUCT_PREMIUM_YEARLY }
         ?: plans.minByOrNull { it.displayPriority }
 
 internal fun resolveCatalogueLoadResult(
@@ -482,6 +716,33 @@ private fun selectPurchaseForVerification(purchases: List<Purchase>): Purchase? 
         .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
         .sortedBy { resolveRecognizedProductId(it.products) }
         .firstOrNull { resolveRecognizedProductId(it.products) != null }
+
+private fun selectCreditPurchaseForVerification(purchases: List<Purchase>): Purchase? =
+    purchases
+        .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+        .sortedBy { resolveRecognizedCreditProductId(it.products) }
+        .firstOrNull { resolveRecognizedCreditProductId(it.products) != null }
+
+private fun buildCreditPacks(productDetailsList: List<ProductDetails>): List<CreditPackUi> =
+    productDetailsList
+        .mapNotNull { detail ->
+            val credits = CREDIT_PRODUCT_AMOUNTS[detail.productId] ?: return@mapNotNull null
+            CreditPackUi(
+                productId = detail.productId,
+                title = detail.name,
+                price = detail.oneTimePurchaseOfferDetails?.formattedPrice.orEmpty(),
+                credits = credits,
+                displayPriority = defaultCreditDisplayPriority(detail.productId),
+            )
+        }.sortedBy { it.displayPriority }
+
+internal fun defaultCreditDisplayPriority(productId: String): Int =
+    when (productId) {
+        PRODUCT_CREDITS_SMALL -> 0
+        PRODUCT_CREDITS_MEDIUM -> 1
+        PRODUCT_CREDITS_LARGE -> 2
+        else -> Int.MAX_VALUE
+    }
 
 private fun buildPremiumPlans(productDetailsList: List<ProductDetails>): List<PremiumPlanUi> =
     productDetailsList
@@ -581,8 +842,9 @@ private fun billingPeriodDays(value: String?): Int? {
 
 internal fun defaultDisplayPriority(productId: String): Int =
     when (productId) {
-        PRODUCT_PREMIUM_MONTHLY -> 0
-        PRODUCT_PREMIUM_WEEKLY -> 1
+        PRODUCT_PREMIUM_YEARLY -> 0
+        PRODUCT_PREMIUM_MONTHLY -> 1
+        PRODUCT_PREMIUM_WEEKLY -> 2
         else -> Int.MAX_VALUE
     }
 

@@ -199,6 +199,9 @@ private fun Intent?.toAppDeepLink(): AppDeepLink? {
     if (typeFromExtras == "daily" && signFromExtras != null) {
         return AppDeepLink(type = "daily", sign = signFromExtras)
     }
+    if (typeFromExtras == "transit") {
+        return AppDeepLink(type = "personal_guidance")
+    }
     return parseAppDeepLink(intent.data)
 }
 

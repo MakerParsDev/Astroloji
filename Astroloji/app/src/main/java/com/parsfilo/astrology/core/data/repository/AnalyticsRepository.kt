@@ -45,6 +45,13 @@ object AnalyticsEvents {
     const val PURCHASE_SUCCEEDED = "purchase_succeeded"
     const val PURCHASE_FAILED = "purchase_failed"
     const val PURCHASE_CANCELLED = "purchase_cancelled"
+    const val TRIAL_STARTED = "trial_started"
+    const val FRIEND_INVITED = "friend_invited"
+    const val FRIEND_ACCEPTED = "friend_accepted"
+    const val CREDIT_PURCHASED = "credit_purchased"
+    const val CREDIT_SPENT = "credit_spent"
+    const val DEEP_READING_VIEWED = "deep_reading_viewed"
+    const val MOOD_LOGGED = "mood_logged"
     const val REWARDED_AD_STARTED = "rewarded_ad_started"
     const val REWARDED_AD_COMPLETED = "rewarded_ad_completed"
     const val REWARDED_AD_FAILED = "rewarded_ad_failed"
@@ -66,6 +73,11 @@ private val ALLOWED_ANALYTICS_META_KEYS =
         "locale",
         "reason",
         "format",
+        "credits",
+        "feature",
+        "cached",
+        "milestone",
+        "mood",
     )
 
 internal fun sanitizeAnalyticsMeta(

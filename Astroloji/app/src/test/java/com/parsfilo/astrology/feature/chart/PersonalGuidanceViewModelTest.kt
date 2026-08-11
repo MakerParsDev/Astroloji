@@ -10,6 +10,7 @@ import com.parsfilo.astrology.core.domain.model.PersonalGuidance
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.util.AppResult
 import io.mockk.coEvery
+import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -36,6 +37,7 @@ class PersonalGuidanceViewModelTest {
         runTest {
             val pickerMillis = Instant.parse("1990-01-15T00:00:00.000Z").toEpochMilli()
             coEvery { preferencesRepository.current() } returns UserPreferences(language = "tr")
+            coJustRun { preferencesRepository.savePersonalizedDailyLine(any(), any(), any()) }
             every { chartClock.now() } returns Instant.parse("2026-08-05T11:22:33.987Z")
             coEvery {
                 chartRepository.getPersonalGuidance(
@@ -73,6 +75,7 @@ class PersonalGuidanceViewModelTest {
         runTest {
             val firstDate = Instant.parse("1990-01-15T00:00:00.000Z").toEpochMilli()
             coEvery { preferencesRepository.current() } returns UserPreferences(language = "en")
+            coJustRun { preferencesRepository.savePersonalizedDailyLine(any(), any(), any()) }
             every { chartClock.now() } returns Instant.parse("2026-08-05T11:22:33.987Z")
             coEvery { chartRepository.getPersonalGuidance(any(), any(), any(), any()) } returns
                 AppResult.Success(guidance())
@@ -103,6 +106,7 @@ class PersonalGuidanceViewModelTest {
             val secondResult = CompletableDeferred<AppResult<PersonalGuidance>>()
             val pendingResults = ArrayDeque(listOf(firstResult, secondResult))
             coEvery { preferencesRepository.current() } returns UserPreferences(language = "en")
+            coJustRun { preferencesRepository.savePersonalizedDailyLine(any(), any(), any()) }
             every { chartClock.now() } returns Instant.parse("2026-08-05T11:22:33.987Z")
             coEvery { chartRepository.getPersonalGuidance(any(), any(), any(), any()) } coAnswers {
                 pendingResults.removeFirst().await()

@@ -16,6 +16,13 @@ import type { RewardRouteDependencies } from '@/workers/reward';
 import { validateTrackEventBody } from '@/utils/validators';
 import { registerBirthDataRoutes } from '@/workers/birthData';
 import { registerChartRoutes } from '@/workers/chart';
+import { registerCityRoutes } from '@/workers/cities';
+import { registerChatRoutes } from '@/workers/chat';
+import { registerCreditsRoutes } from '@/workers/credits';
+import { registerFriendRoutes } from '@/workers/friends';
+import { registerMoodRoutes } from '@/workers/mood';
+import { registerReadingRoutes } from '@/workers/reading';
+import { registerStreakRoutes } from '@/workers/streak';
 import { registerContentAdminRoutes, registerContentRoutes } from '@/workers/content';
 import { handleCron } from '@/workers/cron';
 import { registerNotificationRoutes } from '@/workers/notification';
@@ -149,13 +156,26 @@ export function createApp(options: CreateAppOptions = {}) {
   apiRoutes.use('/subscriptions/verify', jwtAuthMiddleware);
   apiRoutes.use('/subscriptions/restore', jwtAuthMiddleware);
   apiRoutes.use('/events/track', jwtAuthMiddleware);
+  apiRoutes.use('/credits/*', jwtAuthMiddleware);
+  apiRoutes.use('/friends/*', jwtAuthMiddleware);
+  apiRoutes.use('/reading/*', jwtAuthMiddleware);
+  apiRoutes.use('/chat/*', jwtAuthMiddleware);
+  apiRoutes.use('/streak/*', jwtAuthMiddleware);
+  apiRoutes.use('/mood/*', jwtAuthMiddleware);
 
   registerUserRoutes(apiRoutes);
   registerBirthDataRoutes(apiRoutes);
+  registerCityRoutes(apiRoutes);
   registerChartRoutes(apiRoutes);
   registerRewardRoutes(apiRoutes, options.reward);
   registerContentRoutes(apiRoutes);
   registerSubscriptionRoutes(apiRoutes, options.subscription);
+  registerCreditsRoutes(apiRoutes);
+  registerFriendRoutes(apiRoutes);
+  registerReadingRoutes(apiRoutes);
+  registerChatRoutes(apiRoutes);
+  registerStreakRoutes(apiRoutes);
+  registerMoodRoutes(apiRoutes);
 
   apiRoutes.post('/events/track', async (c) => {
     const body = validateTrackEventBody(await c.req.json());

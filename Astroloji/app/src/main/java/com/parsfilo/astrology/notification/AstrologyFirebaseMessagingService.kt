@@ -54,6 +54,8 @@ class AstrologyFirebaseMessagingService : FirebaseMessagingService() {
                     data = "astrology://daily/$sign".toUri()
                     putExtra("deeplink_sign", sign)
                     putExtra("deeplink_type", type)
+                } else if (type == "transit") {
+                    putExtra("deeplink_type", type)
                 }
             }
         val pendingIntent =

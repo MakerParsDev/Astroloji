@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package com.parsfilo.astrology.widget
 
 import android.content.Context
@@ -65,10 +67,26 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
                 .build()
 
         return try {
-            val entity = database.dailyDao().get(sign, TimeUtils.dateIdentifier(), language)
-            entity?.toWidgetSnapshot(context) ?: fallbackWidgetSnapshot(context)
+            val personalizedLine = personalizedLineSnapshot(preferences)
+            if (personalizedLine != null) {
+                personalizedLine
+            } else {
+                val entity = database.dailyDao().get(sign, TimeUtils.dateIdentifier(), language)
+                entity?.toWidgetSnapshot(context) ?: fallbackWidgetSnapshot(context)
+            }
         } finally {
             database.close()
+        }
+    }
+
+    private fun personalizedLineSnapshot(preferences: Preferences): WidgetSnapshot? {
+        val isFresh = preferences[PreferencesKeys.PERSONALIZED_LINE_DATE] == TimeUtils.dateIdentifier()
+        val title = preferences[PreferencesKeys.PERSONALIZED_LINE_TITLE]
+        val body = preferences[PreferencesKeys.PERSONALIZED_LINE_BODY]
+        return if (isFresh && title != null && body != null) {
+            WidgetSnapshot(title = title, body = body, energy = null)
+        } else {
+            null
         }
     }
 
@@ -90,7 +108,7 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
     private fun WidgetContent(
         title: String,
         body: String,
-        energy: String,
+        energy: String?,
     ) {
         Column(
             modifier =
@@ -102,7 +120,7 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
         ) {
             Text(title)
             Text(body)
-            Text(energy)
+            energy?.let { Text(it) }
         }
     }
 
@@ -119,5 +137,5 @@ class DailyHoroscopeWidgetReceiver : GlanceAppWidgetReceiver() {
 private data class WidgetSnapshot(
     val title: String,
     val body: String,
-    val energy: String,
+    val energy: String?,
 )

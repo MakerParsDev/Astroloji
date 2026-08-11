@@ -68,6 +68,22 @@ class PremiumViewModelTest {
             displayPriority = 1,
         )
 
+    private val yearlyPlanWithTrial =
+        PremiumPlanUi(
+            planId = "premium_yearly:yearly:trial",
+            productId = "premium_yearly",
+            basePlanId = "yearly",
+            offerId = "trial",
+            offerToken = "yearly-offer-token",
+            title = "Yearly",
+            price = "TRY 2399.88",
+            priceAmountMicros = 2_399_880_000L,
+            billingPeriod = "P1Y",
+            hasFreeTrial = true,
+            trialDays = 7,
+            displayPriority = 0,
+        )
+
     private fun success(
         plans: List<PremiumPlanUi> = listOf(weeklyPlan, monthlyPlan),
     ): BillingCatalogueLoadResult.Success =
@@ -320,6 +336,65 @@ class PremiumViewModelTest {
                     AnalyticsEvents.PURCHASE_SUCCEEDED,
                     mapOf("source" to "nav", "product" to weeklyPlan.productId),
                 )
+            }
+        }
+
+    @Test
+    fun `purchasing a plan with a free trial emits a trial started event`() =
+        runTest {
+            val purchaseState = MutableStateFlow<AppResult<SubscriptionStatus>?>(null)
+            stubDependencies(
+                purchaseState = purchaseState,
+                catalogueResult = success(listOf(yearlyPlanWithTrial, weeklyPlan)),
+            )
+            val viewModel = createViewModel()
+            val activity = mockk<Activity>()
+            advanceUntilIdle()
+
+            viewModel.onEvent(PremiumUiEvent.ScreenViewed(source = "nav"))
+            viewModel.onEvent(PremiumUiEvent.SelectPlan(yearlyPlanWithTrial.planId))
+            viewModel.onEvent(PremiumUiEvent.Purchase(activity))
+            purchaseState.value =
+                AppResult.Success(
+                    SubscriptionStatus(
+                        isPremium = true,
+                        premiumExpiresAt = null,
+                        productId = yearlyPlanWithTrial.productId,
+                    ),
+                )
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                analyticsRepository.track(
+                    AnalyticsEvents.TRIAL_STARTED,
+                    mapOf(
+                        "source" to "nav",
+                        "plan" to yearlyPlanWithTrial.planId,
+                        "product" to yearlyPlanWithTrial.productId,
+                    ),
+                )
+            }
+        }
+
+    @Test
+    fun `purchasing a plan without a free trial does not emit a trial started event`() =
+        runTest {
+            val purchaseState = MutableStateFlow<AppResult<SubscriptionStatus>?>(null)
+            stubDependencies(purchaseState = purchaseState)
+            val viewModel = createViewModel()
+            val activity = mockk<Activity>()
+            advanceUntilIdle()
+
+            viewModel.onEvent(PremiumUiEvent.SelectPlan(weeklyPlan.planId))
+            viewModel.onEvent(PremiumUiEvent.Purchase(activity))
+            purchaseState.value =
+                AppResult.Success(
+                    SubscriptionStatus(isPremium = true, premiumExpiresAt = null, productId = weeklyPlan.productId),
+                )
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) {
+                analyticsRepository.track(AnalyticsEvents.TRIAL_STARTED, any())
             }
         }
 

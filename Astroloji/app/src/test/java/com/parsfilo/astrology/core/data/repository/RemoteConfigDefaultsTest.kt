@@ -30,4 +30,12 @@ class RemoteConfigDefaultsTest {
         assertThat(flags.appOpenMinBackgroundMs)
             .isEqualTo(RemoteConfigDefaults.APP_OPEN_MIN_BACKGROUND_MS)
     }
+
+    @Test
+    fun `onboarding paywall is disabled by default until explicitly enabled remotely`() {
+        val flags = RemoteFlags()
+
+        assertThat(flags.onboardingPaywallEnabled).isFalse()
+        assertThat(flags.paywallVariant).isEqualTo("default")
+    }
 }

@@ -47,6 +47,15 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
       },
       async get() {
         return null;
+      },
+      async put() {
+        return;
+      },
+      async delete() {
+        return;
+      },
+      async list() {
+        return { objects: [], truncated: false, cursor: undefined };
       }
     } as unknown as R2Bucket,
     CACHE: {

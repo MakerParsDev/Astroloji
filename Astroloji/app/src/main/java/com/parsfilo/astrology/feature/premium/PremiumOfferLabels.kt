@@ -10,6 +10,7 @@ internal fun premiumCadenceLabel(plan: PremiumPlanUi): String =
     when (premiumBillingCadence(plan)) {
         PremiumBillingCadence.MONTHLY -> stringResource(R.string.premium_monthly_label)
         PremiumBillingCadence.WEEKLY -> stringResource(R.string.premium_weekly_label)
+        PremiumBillingCadence.YEARLY -> stringResource(R.string.premium_yearly_label)
         PremiumBillingCadence.UNKNOWN -> plan.title
     }
 
@@ -18,5 +19,6 @@ internal fun premiumPeriodLabel(plan: PremiumPlanUi): String =
     when (premiumBillingCadence(plan)) {
         PremiumBillingCadence.MONTHLY -> stringResource(R.string.premium_period_monthly)
         PremiumBillingCadence.WEEKLY -> stringResource(R.string.premium_period_weekly)
+        PremiumBillingCadence.YEARLY -> stringResource(R.string.premium_period_yearly)
         PremiumBillingCadence.UNKNOWN -> stringResource(R.string.premium_period_unknown)
     }

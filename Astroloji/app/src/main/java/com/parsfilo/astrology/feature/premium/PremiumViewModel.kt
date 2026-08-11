@@ -15,6 +15,7 @@ import com.parsfilo.astrology.core.ui.MviViewModel
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.BillingFailureReason
+import com.parsfilo.astrology.core.util.TimeUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -75,6 +76,7 @@ class PremiumViewModel
         private var merchandisingTrialDays: Int = 0
         private var billingAction: BillingAction = BillingAction.NONE
         private var catalogueLoadGeneration: Long = 0
+        private var purchasedPlan: PremiumPlanUi? = null
 
         init {
             viewModelScope.launch {
@@ -96,7 +98,9 @@ class PremiumViewModel
                         is AppResult.Success -> {
                             val language = preferencesRepository.current().language
                             val completedAction = billingAction
+                            val completedPlan = purchasedPlan
                             billingAction = BillingAction.NONE
+                            purchasedPlan = null
                             setState {
                                 copy(
                                     purchaseSuccess = true,
@@ -119,6 +123,16 @@ class PremiumViewModel
                                                 "product" to purchaseState.data.productId,
                                             ),
                                         )
+                                        if (completedPlan?.hasFreeTrial == true) {
+                                            analyticsRepository.track(
+                                                AnalyticsEvents.TRIAL_STARTED,
+                                                mapOf(
+                                                    "source" to state.value.paywallSource,
+                                                    "plan" to completedPlan.planId,
+                                                    "product" to completedPlan.productId,
+                                                ),
+                                            )
+                                        }
                                     }
                                 BillingAction.RESTORE ->
                                     viewModelScope.launch {
@@ -252,6 +266,7 @@ class PremiumViewModel
             val selectedPlan = state.value.plans.firstOrNull { it.planId == state.value.selectedPlanId }
             billingManager.clearPurchaseState()
             billingAction = BillingAction.PURCHASE
+            purchasedPlan = selectedPlan
             setState { copy(purchaseSuccess = false, error = null) }
             if (selectedPlan != null) {
                 viewModelScope.launch {
@@ -298,7 +313,12 @@ class PremiumViewModel
             language: String,
         ): String? {
             val millis = premiumExpiresAt ?: return null
-            val locale = if (language.startsWith("tr")) Locale.forLanguageTag("tr-TR") else Locale.ENGLISH
+            val locale =
+                when (TimeUtils.normalizeLanguageTag(language)) {
+                    "tr" -> Locale.forLanguageTag("tr-TR")
+                    "es" -> Locale.forLanguageTag("es-ES")
+                    else -> Locale.ENGLISH
+                }
             return DateTimeFormatter
                 .ofPattern("d MMM yyyy", locale)
                 .format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate())

@@ -6,6 +6,10 @@ export function getDateIdentifier(date: Date = new Date()): string {
   return date.toISOString().slice(0, 10);
 }
 
+export function getLocalDateIdentifier(utcOffset: number, date: Date = new Date()): string {
+  return getDateIdentifier(new Date(date.getTime() + utcOffset * 3_600_000));
+}
+
 export function getMonthIdentifier(date: Date = new Date()): string {
   return date.toISOString().slice(0, 7);
 }

@@ -87,14 +87,17 @@ private fun PremiumPlanSelector(
     selectedPlanId: String,
     onSelect: (String) -> Unit,
 ) {
+    val yearlySavingsPercent = premiumYearlySavingsPercent(plans)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         plans.forEach { plan ->
+            val isYearly = premiumBillingCadence(plan) == PremiumBillingCadence.YEARLY
             PremiumPlanOption(
                 plan = plan,
                 selected = plan.planId == selectedPlanId,
+                savingsPercent = yearlySavingsPercent.takeIf { isYearly },
                 onClick = { onSelect(plan.planId) },
                 modifier = Modifier.weight(1f),
             )
@@ -106,6 +109,7 @@ private fun PremiumPlanSelector(
 private fun PremiumPlanOption(
     plan: PremiumPlanUi,
     selected: Boolean,
+    savingsPercent: Int?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -151,6 +155,14 @@ private fun PremiumPlanOption(
             )
             if (isRecommendedPremiumPlan(plan)) {
                 PremiumRecommendedChip()
+            }
+            if (savingsPercent != null) {
+                Text(
+                    text = stringResource(R.string.premium_yearly_savings, savingsPercent),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
         }
     }

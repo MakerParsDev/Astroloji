@@ -4,6 +4,8 @@ import {
   normalizeCompatibilityPair,
   sanitizeNotificationData,
   validateContentBackfillBody,
+  validateCreditsSpendBody,
+  validateCreditsVerifyBody,
   validateRegisterBody,
   validateSubscriptionBody,
   validateUpdateUserBody,
@@ -110,7 +112,7 @@ describe('validators', () => {
     });
   });
 
-  it.each(['premium_monthly', 'premium_weekly'])(
+  it.each(['premium_monthly', 'premium_weekly', 'premium_yearly'])(
     'accepts supported subscription product %s',
     (productId) => {
       expect(
@@ -125,7 +127,7 @@ describe('validators', () => {
     }
   );
 
-  it.each(['premium_yearly', 'premium_daily', 'unknown'])(
+  it.each(['premium_daily', 'unknown'])(
     'rejects unsupported subscription product %s',
     (productId) => {
       expect(() =>
@@ -136,6 +138,41 @@ describe('validators', () => {
       ).toThrow();
     }
   );
+
+  it.each(['credits_small', 'credits_medium', 'credits_large'])(
+    'accepts supported credit product %s',
+    (productId) => {
+      expect(
+        validateCreditsVerifyBody({
+          purchase_token: 'purchase-token',
+          product_id: productId
+        })
+      ).toEqual({
+        purchase_token: 'purchase-token',
+        product_id: productId
+      });
+    }
+  );
+
+  it('rejects an unsupported credit product', () => {
+    expect(() =>
+      validateCreditsVerifyBody({
+        purchase_token: 'purchase-token',
+        product_id: 'credits_giant'
+      })
+    ).toThrow();
+  });
+
+  it('accepts a valid credit spend request', () => {
+    expect(validateCreditsSpendBody({ amount: 10, feature: 'deep_reading' })).toEqual({
+      amount: 10,
+      feature: 'deep_reading'
+    });
+  });
+
+  it.each([0, -5, 1001])('rejects an out-of-range credit spend amount %s', (amount) => {
+    expect(() => validateCreditsSpendBody({ amount, feature: 'deep_reading' })).toThrow();
+  });
 
   it('accepts supported mobile platforms on register and update payloads', () => {
     expect(

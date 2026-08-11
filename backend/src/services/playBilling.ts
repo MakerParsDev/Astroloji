@@ -1,4 +1,10 @@
-import type { Env, GooglePlaySubscription, GooglePlaySubscriptionResponse, SubscriptionStatus } from '@/types';
+import type {
+  Env,
+  GooglePlayProductPurchaseResponse,
+  GooglePlaySubscription,
+  GooglePlaySubscriptionResponse,
+  SubscriptionStatus
+} from '@/types';
 import { createGoogleAccessToken } from '@/utils/jwt';
 
 const GOOGLE_PLAY_SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
@@ -200,6 +206,42 @@ export async function verifySubscriptionPurchase(
   packageName: string
 ): Promise<GooglePlaySubscription | null> {
   return getSubscriptionStatus(env, purchaseToken, productId, packageName);
+}
+
+/** purchaseState 0 = purchased, consumptionState 0 = not yet consumed. Both must hold for a redeemable credit purchase. */
+export function isConsumableProductPurchaseValid(
+  purchase: Pick<GooglePlayProductPurchaseResponse, 'purchaseState' | 'consumptionState'>
+): boolean {
+  return purchase.purchaseState === 0 && purchase.consumptionState === 0;
+}
+
+export async function verifyProductPurchase(
+  env: Env,
+  purchaseToken: string,
+  productId: string,
+  packageName: string
+): Promise<GooglePlayProductPurchaseResponse | null> {
+  return playFetch<GooglePlayProductPurchaseResponse | null>(
+    env,
+    `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(
+      packageName
+    )}/purchases/products/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}`
+  );
+}
+
+export async function consumeProductPurchase(
+  env: Env,
+  purchaseToken: string,
+  productId: string,
+  packageName: string
+): Promise<void> {
+  await playFetch(
+    env,
+    `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(
+      packageName
+    )}/purchases/products/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}:consume`,
+    { method: 'POST' }
+  );
 }
 
 export async function cancelSubscription(

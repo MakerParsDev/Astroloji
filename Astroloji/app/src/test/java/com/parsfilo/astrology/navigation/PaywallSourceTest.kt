@@ -15,6 +15,7 @@ class PaywallSourceTest {
                 "compat_lock",
                 "personality_lock",
                 "profile_upgrade",
+                "onboarding",
             ).inOrder()
         assertThat(PaywallSource.entries.map(PaywallSource::analyticsValue).distinct())
             .hasSize(PaywallSource.entries.size)

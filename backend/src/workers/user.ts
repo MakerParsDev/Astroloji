@@ -132,6 +132,23 @@ async function deleteKvKeysByPrefix(cache: KVNamespace, prefix: string): Promise
   } while (cursor);
 }
 
+async function deleteR2KeysByPrefix(bucket: R2Bucket, prefix: string): Promise<void> {
+  let cursor: string | undefined;
+
+  do {
+    const page = await bucket.list({
+      prefix,
+      ...(cursor ? { cursor } : {})
+    });
+    await Promise.all(page.objects.map((object) => bucket.delete(object.key)));
+
+    if (!page.truncated) {
+      return;
+    }
+    cursor = page.cursor;
+  } while (cursor);
+}
+
 async function deleteUserData(env: AppBindings['Bindings'], userId: string): Promise<void> {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM subscription_events WHERE user_id = ?').bind(userId),
@@ -140,6 +157,13 @@ async function deleteUserData(env: AppBindings['Bindings'], userId: string): Pro
     env.DB.prepare('DELETE FROM fcm_tokens WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM subscriptions WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM user_birth_data WHERE user_id = ?').bind(userId),
+    env.DB.prepare('DELETE FROM credit_ledger WHERE user_id = ?').bind(userId),
+    env.DB.prepare('DELETE FROM mood_logs WHERE user_id = ?').bind(userId),
+    env.DB.prepare('DELETE FROM friendships WHERE user_a = ? OR user_b = ?').bind(userId, userId),
+    env.DB.prepare('DELETE FROM invite_codes WHERE owner_user_id = ?').bind(userId),
+    env.DB
+      .prepare('UPDATE invite_codes SET redeemed_by = NULL, redeemed_at = NULL WHERE redeemed_by = ?')
+      .bind(userId),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId)
   ]);
 }
@@ -358,6 +382,12 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
       await deleteKvKeysByPrefix(c.env.CACHE, `reward:${auth.userId}:`);
     } catch (error) {
       console.error('Reward cache cleanup failed during account deletion.', error);
+    }
+
+    try {
+      await deleteR2KeysByPrefix(c.env.CONTENT, `deep-reading/${auth.userId}/`);
+    } catch (error) {
+      console.error('Deep reading cleanup failed during account deletion.', error);
     }
 
     return c.json({

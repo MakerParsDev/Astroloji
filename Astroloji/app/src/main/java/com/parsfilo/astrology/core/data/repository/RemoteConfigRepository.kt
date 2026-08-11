@@ -28,6 +28,8 @@ object RemoteConfigKeys {
     const val REWARDED_DAILY_UNLOCK_LIMIT = "rewarded_daily_unlock_limit"
     const val APP_OPEN_MIN_BACKGROUND_MS = "app_open_min_background_ms"
     const val FORCE_UPDATE_VERSION = "force_update_version"
+    const val ONBOARDING_PAYWALL_ENABLED = "onboarding_paywall_enabled"
+    const val PAYWALL_VARIANT = "paywall_variant"
 }
 
 @Singleton
@@ -59,6 +61,8 @@ class RemoteConfigRepository
                             RemoteConfigKeys.APP_OPEN_MIN_BACKGROUND_MS to
                                 RemoteConfigDefaults.APP_OPEN_MIN_BACKGROUND_MS,
                             RemoteConfigKeys.FORCE_UPDATE_VERSION to 0L,
+                            RemoteConfigKeys.ONBOARDING_PAYWALL_ENABLED to false,
+                            RemoteConfigKeys.PAYWALL_VARIANT to "default",
                         ),
                     ).await()
                 runCatching { remoteConfig.fetchAndActivate().await() }
@@ -73,6 +77,8 @@ class RemoteConfigRepository
                     rewardedDailyUnlockLimit = remoteConfig.getLong(RemoteConfigKeys.REWARDED_DAILY_UNLOCK_LIMIT).toInt(),
                     appOpenMinBackgroundMs = remoteConfig.getLong(RemoteConfigKeys.APP_OPEN_MIN_BACKGROUND_MS),
                     forceUpdateVersion = remoteConfig.getLong(RemoteConfigKeys.FORCE_UPDATE_VERSION),
+                    onboardingPaywallEnabled = remoteConfig.getBoolean(RemoteConfigKeys.ONBOARDING_PAYWALL_ENABLED),
+                    paywallVariant = remoteConfig.getString(RemoteConfigKeys.PAYWALL_VARIANT),
                 )
             }
     }

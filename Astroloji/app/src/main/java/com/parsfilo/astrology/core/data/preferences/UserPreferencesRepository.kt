@@ -39,6 +39,9 @@ object PreferencesKeys {
     val LAST_DAILY_FEEDBACK_SIGN = stringPreferencesKey("last_daily_feedback_sign")
     val LAST_DAILY_FEEDBACK_VALUE = stringPreferencesKey("last_daily_feedback_value")
     val CONSENT_STATUS = intPreferencesKey("consent_status")
+    val PERSONALIZED_LINE_TITLE = stringPreferencesKey("personalized_line_title")
+    val PERSONALIZED_LINE_BODY = stringPreferencesKey("personalized_line_body")
+    val PERSONALIZED_LINE_DATE = stringPreferencesKey("personalized_line_date")
 }
 
 @Singleton
@@ -147,6 +150,18 @@ class UserPreferencesRepository
             dataStore.edit {
                 it[PreferencesKeys.LAST_STREAK_DATE] = lastDate
                 it[PreferencesKeys.STREAK_COUNT] = count
+            }
+        }
+
+        suspend fun savePersonalizedDailyLine(
+            title: String,
+            body: String,
+            date: String,
+        ) {
+            dataStore.edit {
+                it[PreferencesKeys.PERSONALIZED_LINE_TITLE] = title
+                it[PreferencesKeys.PERSONALIZED_LINE_BODY] = body
+                it[PreferencesKeys.PERSONALIZED_LINE_DATE] = date
             }
         }
 
