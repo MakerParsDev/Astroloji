@@ -30,6 +30,7 @@ object RemoteConfigKeys {
     const val FORCE_UPDATE_VERSION = "force_update_version"
     const val ONBOARDING_PAYWALL_ENABLED = "onboarding_paywall_enabled"
     const val PAYWALL_VARIANT = "paywall_variant"
+    const val CREDIT_PACK_VISIBILITY = "credit_pack_visibility"
 }
 
 @Singleton
@@ -63,6 +64,7 @@ class RemoteConfigRepository
                             RemoteConfigKeys.FORCE_UPDATE_VERSION to 0L,
                             RemoteConfigKeys.ONBOARDING_PAYWALL_ENABLED to false,
                             RemoteConfigKeys.PAYWALL_VARIANT to "default",
+                            RemoteConfigKeys.CREDIT_PACK_VISIBILITY to true,
                         ),
                     ).await()
                 runCatching { remoteConfig.fetchAndActivate().await() }
@@ -79,6 +81,7 @@ class RemoteConfigRepository
                     forceUpdateVersion = remoteConfig.getLong(RemoteConfigKeys.FORCE_UPDATE_VERSION),
                     onboardingPaywallEnabled = remoteConfig.getBoolean(RemoteConfigKeys.ONBOARDING_PAYWALL_ENABLED),
                     paywallVariant = remoteConfig.getString(RemoteConfigKeys.PAYWALL_VARIANT),
+                    creditPackVisibility = remoteConfig.getBoolean(RemoteConfigKeys.CREDIT_PACK_VISIBILITY),
                 )
             }
     }

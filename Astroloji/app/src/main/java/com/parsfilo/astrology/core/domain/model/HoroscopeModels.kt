@@ -103,4 +103,5 @@ data class RemoteFlags(
     val forceUpdateVersion: Long = 0,
     val onboardingPaywallEnabled: Boolean = false,
     val paywallVariant: String = "default",
+    val creditPackVisibility: Boolean = true,
 )

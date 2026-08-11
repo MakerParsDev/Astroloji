@@ -8,6 +8,7 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.BillingCatalogueLoadResult
 import com.parsfilo.astrology.core.data.repository.BillingManager
+import com.parsfilo.astrology.core.data.repository.PaywallVariant
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.core.data.repository.defaultPremiumPlan
@@ -36,6 +37,7 @@ data class PremiumUiState(
     val error: String? = null,
     val purchaseSuccess: Boolean = false,
     val paywallSource: String = "nav",
+    val paywallVariant: PaywallVariant = PaywallVariant.YEARLY_FIRST,
 )
 
 sealed interface PremiumUiEvent {
@@ -74,6 +76,7 @@ class PremiumViewModel
         private val preferencesRepository: UserPreferencesRepository,
     ) : MviViewModel<PremiumUiState, PremiumUiEvent, Unit>(PremiumUiState()) {
         private var merchandisingTrialDays: Int = 0
+        private var paywallVariant: PaywallVariant = PaywallVariant.YEARLY_FIRST
         private var billingAction: BillingAction = BillingAction.NONE
         private var catalogueLoadGeneration: Long = 0
         private var purchasedPlan: PremiumPlanUi? = null
@@ -84,10 +87,13 @@ class PremiumViewModel
                 val preferences = preferencesRepository.current()
                 val flags = remoteConfigRepository.fetchFlags()
                 merchandisingTrialDays = flags.premiumTrialDays
+                val resolvedVariant = PaywallVariant.fromRemoteConfigValue(flags.paywallVariant)
+                paywallVariant = resolvedVariant
                 setState {
                     copy(
                         isAlreadyPremium = preferences.isPremium,
                         premiumExpiresAt = formatPremiumExpiration(preferences.premiumExpiresAt, preferences.language),
+                        paywallVariant = resolvedVariant,
                     )
                 }
                 loadCatalogue()
@@ -121,6 +127,7 @@ class PremiumViewModel
                                             mapOf(
                                                 "source" to state.value.paywallSource,
                                                 "product" to purchaseState.data.productId,
+                                                "variant" to paywallVariant.remoteConfigValue,
                                             ),
                                         )
                                         if (completedPlan?.hasFreeTrial == true) {
@@ -130,6 +137,7 @@ class PremiumViewModel
                                                     "source" to state.value.paywallSource,
                                                     "plan" to completedPlan.planId,
                                                     "product" to completedPlan.productId,
+                                                    "variant" to paywallVariant.remoteConfigValue,
                                                 ),
                                             )
                                         }
@@ -209,7 +217,7 @@ class PremiumViewModel
 
                 when (result) {
                     is BillingCatalogueLoadResult.Success -> {
-                        val selectedPlan = defaultPremiumPlan(result.plans)
+                        val selectedPlan = defaultPremiumPlan(result.plans, paywallVariant)
                         setState {
                             copy(
                                 isLoading = false,
@@ -240,7 +248,7 @@ class PremiumViewModel
             viewModelScope.launch {
                 analyticsRepository.track(
                     AnalyticsEvents.PAYWALL_VIEWED,
-                    mapOf("source" to event.source),
+                    mapOf("source" to event.source, "variant" to paywallVariant.remoteConfigValue),
                 )
             }
         }
@@ -293,6 +301,7 @@ class PremiumViewModel
                 "source" to state.value.paywallSource,
                 "plan" to plan.planId,
                 "product" to plan.productId,
+                "variant" to paywallVariant.remoteConfigValue,
             )
 
         private fun resolveTrialDays(

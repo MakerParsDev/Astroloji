@@ -42,6 +42,31 @@ private const val PRODUCT_PREMIUM_WEEKLY = "premium_weekly"
 private const val PRODUCT_PREMIUM_YEARLY = "premium_yearly"
 private val PREMIUM_PRODUCT_IDS = setOf(PRODUCT_PREMIUM_MONTHLY, PRODUCT_PREMIUM_WEEKLY, PRODUCT_PREMIUM_YEARLY)
 
+/**
+ * Which plan the paywall recommends and pre-selects, driven by the `paywall_variant` Remote
+ * Config key so pricing psychology can be A/B tested without a redeploy. [YEARLY_FIRST] is the
+ * long-standing default (highest LTV lever per the product plan); [MONTHLY_FIRST] is the
+ * alternative arm under test.
+ */
+enum class PaywallVariant(
+    val remoteConfigValue: String,
+) {
+    YEARLY_FIRST("default"),
+    MONTHLY_FIRST("monthly_first"),
+    ;
+
+    companion object {
+        fun fromRemoteConfigValue(value: String): PaywallVariant =
+            entries.firstOrNull { it.remoteConfigValue == value } ?: YEARLY_FIRST
+    }
+}
+
+internal fun recommendedPremiumProductId(variant: PaywallVariant): String =
+    when (variant) {
+        PaywallVariant.YEARLY_FIRST -> PRODUCT_PREMIUM_YEARLY
+        PaywallVariant.MONTHLY_FIRST -> PRODUCT_PREMIUM_MONTHLY
+    }
+
 private const val PRODUCT_CREDITS_SMALL = "credits_small"
 private const val PRODUCT_CREDITS_MEDIUM = "credits_medium"
 private const val PRODUCT_CREDITS_LARGE = "credits_large"
@@ -692,8 +717,11 @@ internal fun resolveRecognizedCreditProductId(products: List<String>): String? {
 
 internal fun isSuccessfulBillingSetup(responseCode: Int): Boolean = responseCode == BillingResponseCode.OK
 
-internal fun defaultPremiumPlan(plans: List<PremiumPlanUi>): PremiumPlanUi? =
-    plans.firstOrNull { it.productId == PRODUCT_PREMIUM_YEARLY }
+internal fun defaultPremiumPlan(
+    plans: List<PremiumPlanUi>,
+    variant: PaywallVariant = PaywallVariant.YEARLY_FIRST,
+): PremiumPlanUi? =
+    plans.firstOrNull { it.productId == recommendedPremiumProductId(variant) }
         ?: plans.minByOrNull { it.displayPriority }
 
 internal fun resolveCatalogueLoadResult(

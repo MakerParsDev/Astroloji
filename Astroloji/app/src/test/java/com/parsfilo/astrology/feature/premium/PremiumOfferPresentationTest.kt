@@ -1,6 +1,7 @@
 package com.parsfilo.astrology.feature.premium
 
 import com.google.common.truth.Truth.assertThat
+import com.parsfilo.astrology.core.data.repository.PaywallVariant
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import org.junit.Test
 
@@ -108,6 +109,12 @@ class PremiumOfferPresentationTest {
                 ),
             ),
         ).isFalse()
+    }
+
+    @Test
+    fun `monthly_first variant recommends monthly instead of yearly`() {
+        assertThat(isRecommendedPremiumPlan(monthlyPlan, PaywallVariant.MONTHLY_FIRST)).isTrue()
+        assertThat(isRecommendedPremiumPlan(yearlyPlan, PaywallVariant.MONTHLY_FIRST)).isFalse()
     }
 
     @Test

@@ -128,6 +128,16 @@ class BillingManagerTest {
     }
 
     @Test
+    fun `monthly_first paywall variant recommends monthly over yearly`() {
+        assertThat(
+            defaultPremiumPlan(listOf(weeklyPlan, monthlyPlan, yearlyPlan), PaywallVariant.MONTHLY_FIRST),
+        ).isEqualTo(monthlyPlan)
+        assertThat(
+            defaultPremiumPlan(listOf(weeklyPlan, yearlyPlan), PaywallVariant.MONTHLY_FIRST),
+        ).isEqualTo(yearlyPlan)
+    }
+
+    @Test
     fun `credit pack display priority orders small, medium, then large`() {
         assertThat(defaultCreditDisplayPriority("credits_small")).isEqualTo(0)
         assertThat(defaultCreditDisplayPriority("credits_medium")).isEqualTo(1)

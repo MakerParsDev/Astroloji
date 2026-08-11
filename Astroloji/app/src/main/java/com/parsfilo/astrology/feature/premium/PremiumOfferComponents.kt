@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.parsfilo.astrology.R
+import com.parsfilo.astrology.core.data.repository.PaywallVariant
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.PremiumGoldButton
@@ -56,6 +57,7 @@ internal fun PremiumOfferCard(
         PremiumPlanSelector(
             plans = plans,
             selectedPlanId = selected.planId,
+            variant = uiState.paywallVariant,
             onSelect = callbacks.onSelectPlan,
         )
         PremiumOfferSummary(uiState, selected, purchaseReady)
@@ -85,6 +87,7 @@ internal fun PremiumOfferCard(
 private fun PremiumPlanSelector(
     plans: List<PremiumPlanUi>,
     selectedPlanId: String,
+    variant: PaywallVariant,
     onSelect: (String) -> Unit,
 ) {
     val yearlySavingsPercent = premiumYearlySavingsPercent(plans)
@@ -95,9 +98,13 @@ private fun PremiumPlanSelector(
         plans.forEach { plan ->
             val isYearly = premiumBillingCadence(plan) == PremiumBillingCadence.YEARLY
             PremiumPlanOption(
-                plan = plan,
-                selected = plan.planId == selectedPlanId,
-                savingsPercent = yearlySavingsPercent.takeIf { isYearly },
+                model =
+                    PremiumPlanOptionModel(
+                        plan = plan,
+                        selected = plan.planId == selectedPlanId,
+                        variant = variant,
+                        savingsPercent = yearlySavingsPercent.takeIf { isYearly },
+                    ),
                 onClick = { onSelect(plan.planId) },
                 modifier = Modifier.weight(1f),
             )
@@ -105,14 +112,23 @@ private fun PremiumPlanSelector(
     }
 }
 
+private data class PremiumPlanOptionModel(
+    val plan: PremiumPlanUi,
+    val selected: Boolean,
+    val variant: PaywallVariant,
+    val savingsPercent: Int?,
+)
+
 @Composable
 private fun PremiumPlanOption(
-    plan: PremiumPlanUi,
-    selected: Boolean,
-    savingsPercent: Int?,
+    model: PremiumPlanOptionModel,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val plan = model.plan
+    val selected = model.selected
+    val variant = model.variant
+    val savingsPercent = model.savingsPercent
     val containerColor =
         if (selected) {
             MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
@@ -153,7 +169,7 @@ private fun PremiumPlanOption(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
             )
-            if (isRecommendedPremiumPlan(plan)) {
+            if (isRecommendedPremiumPlan(plan, variant)) {
                 PremiumRecommendedChip()
             }
             if (savingsPercent != null) {

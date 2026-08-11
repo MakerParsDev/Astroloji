@@ -9,6 +9,7 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.BillingCatalogueDiagnostic
 import com.parsfilo.astrology.core.data.repository.BillingCatalogueLoadResult
 import com.parsfilo.astrology.core.data.repository.BillingManager
+import com.parsfilo.astrology.core.data.repository.PaywallVariant
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.core.domain.model.RemoteFlags
@@ -96,12 +97,14 @@ class PremiumViewModelTest {
         purchaseState: MutableStateFlow<AppResult<SubscriptionStatus>?> = MutableStateFlow(null),
         catalogueResult: BillingCatalogueLoadResult = success(),
         preferences: UserPreferences = UserPreferences(language = "tr"),
+        paywallVariant: String = "default",
     ) {
         every { billingManager.purchaseState } returns purchaseState
         coEvery { billingManager.loadPlans() } returns catalogueResult
         justRun { billingManager.clearPurchaseState() }
         justRun { billingManager.launchPurchase(any(), any()) }
-        coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(premiumTrialDays = 7)
+        coEvery { remoteConfigRepository.fetchFlags() } returns
+            RemoteFlags(premiumTrialDays = 7, paywallVariant = paywallVariant)
         coEvery { preferencesRepository.current() } returns preferences
         coJustRun { analyticsRepository.track(any(), any()) }
     }
@@ -125,6 +128,47 @@ class PremiumViewModelTest {
             assertThat(viewModel.state.value.plans).containsExactly(weeklyPlan, monthlyPlan).inOrder()
             assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
             assertThat(viewModel.state.value.isLoading).isFalse()
+        }
+
+    @Test
+    fun `default paywall variant recommends and pre-selects the yearly plan when available`() =
+        runTest {
+            stubDependencies(catalogueResult = success(listOf(yearlyPlanWithTrial, monthlyPlan, weeklyPlan)))
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(yearlyPlanWithTrial.planId)
+            assertThat(viewModel.state.value.paywallVariant).isEqualTo(PaywallVariant.YEARLY_FIRST)
+        }
+
+    @Test
+    fun `monthly_first paywall variant recommends and pre-selects the monthly plan over yearly`() =
+        runTest {
+            stubDependencies(
+                catalogueResult = success(listOf(yearlyPlanWithTrial, monthlyPlan, weeklyPlan)),
+                paywallVariant = "monthly_first",
+            )
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
+            assertThat(viewModel.state.value.paywallVariant).isEqualTo(PaywallVariant.MONTHLY_FIRST)
+        }
+
+    @Test
+    fun `an unrecognized paywall variant string falls back to the yearly-first default`() =
+        runTest {
+            stubDependencies(
+                catalogueResult = success(listOf(yearlyPlanWithTrial, monthlyPlan, weeklyPlan)),
+                paywallVariant = "some_future_variant",
+            )
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.paywallVariant).isEqualTo(PaywallVariant.YEARLY_FIRST)
         }
 
     @Test
@@ -283,7 +327,7 @@ class PremiumViewModelTest {
             coVerify(exactly = 1) {
                 analyticsRepository.track(
                     AnalyticsEvents.PAYWALL_VIEWED,
-                    mapOf("source" to "nav"),
+                    mapOf("source" to "nav", "variant" to "default"),
                 )
             }
             coVerify(exactly = 1) {
@@ -293,6 +337,7 @@ class PremiumViewModelTest {
                         "source" to "nav",
                         "plan" to weeklyPlan.planId,
                         "product" to weeklyPlan.productId,
+                        "variant" to "default",
                     ),
                 )
             }
@@ -328,13 +373,14 @@ class PremiumViewModelTest {
                         "source" to "nav",
                         "plan" to weeklyPlan.planId,
                         "product" to weeklyPlan.productId,
+                        "variant" to "default",
                     ),
                 )
             }
             coVerify(exactly = 1) {
                 analyticsRepository.track(
                     AnalyticsEvents.PURCHASE_SUCCEEDED,
-                    mapOf("source" to "nav", "product" to weeklyPlan.productId),
+                    mapOf("source" to "nav", "product" to weeklyPlan.productId, "variant" to "default"),
                 )
             }
         }
@@ -371,6 +417,7 @@ class PremiumViewModelTest {
                         "source" to "nav",
                         "plan" to yearlyPlanWithTrial.planId,
                         "product" to yearlyPlanWithTrial.productId,
+                        "variant" to "default",
                     ),
                 )
             }

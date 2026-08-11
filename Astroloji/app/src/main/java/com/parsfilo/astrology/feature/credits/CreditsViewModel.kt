@@ -9,6 +9,7 @@ import com.parsfilo.astrology.core.data.repository.BillingManager
 import com.parsfilo.astrology.core.data.repository.CreditCatalogueLoadResult
 import com.parsfilo.astrology.core.data.repository.CreditPackUi
 import com.parsfilo.astrology.core.data.repository.CreditsRepository
+import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.BillingFailureReason
@@ -48,13 +49,18 @@ class CreditsViewModel
         private val billingManager: BillingManager,
         private val creditsRepository: CreditsRepository,
         private val analyticsRepository: AnalyticsRepository,
+        private val remoteConfigRepository: RemoteConfigRepository,
     ) : ViewModel() {
         private val _uiState = MutableStateFlow(CreditsUiState())
         val uiState: StateFlow<CreditsUiState> = _uiState.asStateFlow()
+        private var creditPackVisibility: Boolean = true
 
         init {
             billingManager.clearCreditPurchaseState()
-            loadCatalogue()
+            viewModelScope.launch {
+                creditPackVisibility = remoteConfigRepository.fetchFlags().creditPackVisibility
+                loadCatalogue()
+            }
             loadBalance()
             viewModelScope.launch {
                 billingManager.creditPurchaseState.collectLatest { purchaseState ->
@@ -108,6 +114,10 @@ class CreditsViewModel
         private fun loadCatalogue() {
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true, error = null) }
+                if (!creditPackVisibility) {
+                    _uiState.update { it.copy(isLoading = false, packs = emptyList(), error = null) }
+                    return@launch
+                }
                 when (val result = billingManager.loadCreditPacks()) {
                     is CreditCatalogueLoadResult.Success ->
                         _uiState.update { it.copy(isLoading = false, packs = result.packs) }

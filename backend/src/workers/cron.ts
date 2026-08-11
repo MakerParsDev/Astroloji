@@ -18,6 +18,15 @@ import { cleanupRewardChallenges } from '@/workers/reward';
  * required before a transit push is sent instead of the generic daily one. Keeps
  * notification fatigue down by only interrupting the user for a genuinely tight,
  * weighty transit rather than every minor aspect of the day.
+ *
+ * Intentionally a redeploy-to-tune constant, not a KV-backed runtime setting: every
+ * other tunable in this file (e.g. `PAGE_SIZE` in `dispatchScheduledNotifications`)
+ * follows the same pattern, and this backend has no existing "admin edits a value,
+ * later unrelated requests read it back" infrastructure to extend consistently (the
+ * `CACHE` KV namespace is TTL-based response caching, and `x-admin-secret` routes are
+ * all action-triggering, not settings-persisting). Building that primitive for one
+ * threshold would be new infrastructure, not precedent-following. To retune: change
+ * this value and redeploy.
  */
 const TRANSIT_NOTIFICATION_PRIORITY_THRESHOLD = 65;
 

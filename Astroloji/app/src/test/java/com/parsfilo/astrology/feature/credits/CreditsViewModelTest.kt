@@ -10,6 +10,8 @@ import com.parsfilo.astrology.core.data.repository.CreditCatalogueLoadResult
 import com.parsfilo.astrology.core.data.repository.CreditPackUi
 import com.parsfilo.astrology.core.data.repository.CreditPurchaseResult
 import com.parsfilo.astrology.core.data.repository.CreditsRepository
+import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
+import com.parsfilo.astrology.core.domain.model.RemoteFlags
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import io.mockk.coEvery
@@ -34,6 +36,7 @@ class CreditsViewModelTest {
     private val billingManager = mockk<BillingManager>()
     private val creditsRepository = mockk<CreditsRepository>()
     private val analyticsRepository = mockk<AnalyticsRepository>()
+    private val remoteConfigRepository = mockk<RemoteConfigRepository>()
     private val purchaseState = MutableStateFlow<AppResult<CreditPurchaseResult>?>(null)
 
     private fun stubDependencies(
@@ -42,11 +45,13 @@ class CreditsViewModelTest {
                 listOf(CreditPackUi(productId = "credits_small", title = "Small", price = "$2.99", credits = 20)),
             ),
         balance: AppResult<CreditBalanceResponse> = AppResult.Success(CreditBalanceResponse(balance = 5)),
+        creditPackVisibility: Boolean = true,
     ) {
         every { billingManager.creditPurchaseState } returns purchaseState.asStateFlow()
         justRun { billingManager.clearCreditPurchaseState() }
         coEvery { billingManager.loadCreditPacks() } returns catalogue
         coEvery { creditsRepository.getBalance() } returns balance
+        coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(creditPackVisibility = creditPackVisibility)
         coJustRun { analyticsRepository.track(any(), any()) }
     }
 
@@ -55,6 +60,7 @@ class CreditsViewModelTest {
             billingManager = billingManager,
             creditsRepository = creditsRepository,
             analyticsRepository = analyticsRepository,
+            remoteConfigRepository = remoteConfigRepository,
         )
 
     @Test
@@ -97,6 +103,20 @@ class CreditsViewModelTest {
             coVerify(exactly = 1) {
                 analyticsRepository.track(AnalyticsEvents.CREDIT_PURCHASED, mapOf("credits" to "20"))
             }
+        }
+
+    @Test
+    fun `credit packs are hidden and Play billing is not queried when remotely disabled`() =
+        runTest {
+            stubDependencies(creditPackVisibility = false)
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertThat(viewModel.uiState.value.isLoading).isFalse()
+            assertThat(viewModel.uiState.value.packs).isEmpty()
+            assertThat(viewModel.uiState.value.error).isNull()
+            coVerify(exactly = 0) { billingManager.loadCreditPacks() }
         }
 
     @Test

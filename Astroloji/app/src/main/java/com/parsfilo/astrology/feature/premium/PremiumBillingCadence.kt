@@ -1,6 +1,8 @@
 package com.parsfilo.astrology.feature.premium
 
+import com.parsfilo.astrology.core.data.repository.PaywallVariant
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
+import com.parsfilo.astrology.core.data.repository.recommendedPremiumProductId
 
 internal enum class PremiumBillingCadence {
     MONTHLY,
@@ -23,7 +25,10 @@ internal fun premiumBillingCadence(plan: PremiumPlanUi): PremiumBillingCadence =
         else -> PremiumBillingCadence.UNKNOWN
     }
 
-internal fun isRecommendedPremiumPlan(plan: PremiumPlanUi): Boolean = plan.productId == "premium_yearly"
+internal fun isRecommendedPremiumPlan(
+    plan: PremiumPlanUi,
+    variant: PaywallVariant = PaywallVariant.YEARLY_FIRST,
+): Boolean = plan.productId == recommendedPremiumProductId(variant)
 
 internal fun isPremiumOfferReady(
     plan: PremiumPlanUi?,
