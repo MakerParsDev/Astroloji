@@ -1,8 +1,11 @@
 package com.parsfilo.astrology.core.data.repository
 
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
+import com.parsfilo.astrology.core.data.remote.ChartObserverPayload
 import com.parsfilo.astrology.core.data.remote.GuidanceEvidenceResponse
 import com.parsfilo.astrology.core.data.remote.GuidanceSignalResponse
+import com.parsfilo.astrology.core.data.remote.NatalChartRequest
+import com.parsfilo.astrology.core.data.remote.NatalChartResponse
 import com.parsfilo.astrology.core.data.remote.PersonalGuidanceRequest
 import com.parsfilo.astrology.core.data.remote.PersonalGuidanceResponse
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
@@ -82,6 +85,72 @@ class ChartRepository
                     AppResult.Error(
                         AppException.NetworkException("Personal guidance response was invalid.", exception),
                     )
+                }
+            }
+
+        /**
+         * Computes a real Ascendant/Midheaven when [latitude]/[longitude] and an exact birth
+         * timestamp are both available (see backend ADR-0002) — used for the onboarding chart
+         * reveal. Returns a response with a null ascendant, rather than an error, when the
+         * backend cannot compute one (e.g. birth time is only approximate); callers should
+         * treat that as "no reveal available" rather than a failure.
+         */
+        suspend fun getNatalChart(
+            timestamp: String,
+            timeCertainty: String,
+            latitude: Double?,
+            longitude: Double?,
+        ): AppResult<NatalChartResponse> =
+            withContext(dispatchers.io) {
+                try {
+                    val response =
+                        requestExecutor.execute(
+                            request = {
+                                api.getNatalChart(
+                                    NatalChartRequest(
+                                        timestamp = timestamp,
+                                        timeCertainty = timeCertainty,
+                                        observer =
+                                            if (latitude != null && longitude != null) {
+                                                ChartObserverPayload(latitude, longitude)
+                                            } else {
+                                                null
+                                            },
+                                    ),
+                                )
+                            },
+                            refreshAfterUnauthorized = sessionRepository::refreshAfterUnauthorized,
+                            onUnauthorizedAfterRetry = sessionRepository::invalidateSession,
+                        )
+                    when {
+                        response.code() == HTTP_UNAUTHORIZED ->
+                            AppResult.Error(AppException.UnauthorizedException())
+                        !response.isSuccessful ->
+                            AppResult.Error(
+                                AppException.NetworkException(
+                                    response.message().ifBlank { "Natal chart could not be loaded." },
+                                ),
+                            )
+                        else -> {
+                            val body =
+                                response.body()
+                                    ?: return@withContext AppResult.Error(
+                                        AppException.NetworkException("Natal chart response was empty."),
+                                    )
+                            AppResult.Success(body)
+                        }
+                    }
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: IOException) {
+                    AppResult.Error(
+                        AppException.NetworkException(
+                            exception.message ?: "Natal chart could not be loaded.",
+                            exception,
+                        ),
+                    )
+                } catch (exception: SerializationException) {
+                    AppResult.Error(AppException.NetworkException("Natal chart response was invalid.", exception))
                 }
             }
 

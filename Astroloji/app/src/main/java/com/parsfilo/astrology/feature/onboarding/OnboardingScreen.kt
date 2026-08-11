@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package com.parsfilo.astrology.feature.onboarding
 
 import android.Manifest
@@ -95,6 +97,15 @@ fun OnboardingScreen(
         return
     }
 
+    uiState.chartReveal?.let { reveal ->
+        ChartRevealScreen(
+            reveal = reveal,
+            language = uiState.language,
+            onContinue = onComplete,
+        )
+        return
+    }
+
     Column(
         modifier = modifier.fillMaxSize(),
     ) {
@@ -119,6 +130,13 @@ fun OnboardingScreen(
                                 selected = uiState.selectedSign,
                                 manualSelectionEnabled = uiState.manualSelectionEnabled,
                                 language = uiState.language,
+                                cityQuery = uiState.cityQuery,
+                                citySuggestions = uiState.citySuggestions,
+                                isSearchingCities = uiState.isSearchingCities,
+                                selectedCity = uiState.selectedCity,
+                                birthTimeKnown = uiState.birthTimeKnown,
+                                birthHour = uiState.birthHour,
+                                birthMinute = uiState.birthMinute,
                                 onBirthDateSelected = viewModel::selectBirthDate,
                                 onManualSelectionChange = viewModel::setManualSelectionEnabled,
                                 onLanguageChange = {
@@ -126,6 +144,11 @@ fun OnboardingScreen(
                                     viewModel.setLanguage(it)
                                 },
                                 onSelectSign = viewModel::selectSign,
+                                onCityQueryChange = viewModel::updateCityQuery,
+                                onCitySelected = viewModel::selectCity,
+                                onClearCity = viewModel::clearSelectedCity,
+                                onBirthTimeKnownChange = viewModel::setBirthTimeKnown,
+                                onBirthTimeChange = viewModel::setBirthTime,
                             )
                         else ->
                             OnboardingNotificationPage(
@@ -232,20 +255,112 @@ private fun OnboardingIntroPage() {
     }
 }
 
+@Suppress("LongParameterList")
 @Composable
 private fun OnboardingSignPage(
     birthDateMillis: Long?,
     selected: ZodiacSign?,
     manualSelectionEnabled: Boolean,
     language: String,
+    cityQuery: String,
+    citySuggestions: List<CitySuggestion>,
+    isSearchingCities: Boolean,
+    selectedCity: CitySuggestion?,
+    birthTimeKnown: Boolean,
+    birthHour: Int,
+    birthMinute: Int,
     onBirthDateSelected: (Long) -> Unit,
     onManualSelectionChange: (Boolean) -> Unit,
     onLanguageChange: (String) -> Unit,
     onSelectSign: (ZodiacSign) -> Unit,
+    onCityQueryChange: (String) -> Unit,
+    onCitySelected: (CitySuggestion) -> Unit,
+    onClearCity: () -> Unit,
+    onBirthTimeKnownChange: (Boolean) -> Unit,
+    onBirthTimeChange: (Int, Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(text = stringResource(R.string.onboarding_sign_title), style = MaterialTheme.typography.displayLarge)
+        Text(
+            text = stringResource(R.string.onboarding_sign_body),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        OnboardingLanguageSelector(language = language, onLanguageChange = onLanguageChange)
+        BirthDateCard(
+            birthDateMillis = birthDateMillis,
+            language = language,
+            onBirthDateSelected = onBirthDateSelected,
+        )
+        BirthLocationSection(
+            cityQuery = cityQuery,
+            citySuggestions = citySuggestions,
+            isSearchingCities = isSearchingCities,
+            selectedCity = selectedCity,
+            birthTimeKnown = birthTimeKnown,
+            birthHour = birthHour,
+            birthMinute = birthMinute,
+            onCityQueryChange = onCityQueryChange,
+            onCitySelected = onCitySelected,
+            onClearCity = onClearCity,
+            onBirthTimeKnownChange = onBirthTimeKnownChange,
+            onBirthTimeChange = onBirthTimeChange,
+        )
+        selected?.let { sign ->
+            DetectedSignCard(
+                sign = sign,
+                language = language,
+                manualSelectionEnabled = manualSelectionEnabled,
+                onManualSelectionChange = onManualSelectionChange,
+            )
+        }
+        if (manualSelectionEnabled) {
+            ManualSignGrid(selected = selected, language = language, onSelectSign = onSelectSign)
+        }
+    }
+}
+
+@Composable
+private fun OnboardingLanguageSelector(
+    language: String,
+    onLanguageChange: (String) -> Unit,
+) {
+    val languageCodes = listOf("tr", "en", "es")
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        languageCodes.forEachIndexed { index, code ->
+            SegmentedButton(
+                selected = language == code,
+                onClick = { onLanguageChange(code) },
+                shape =
+                    androidx.compose.material3.SegmentedButtonDefaults
+                        .itemShape(index, languageCodes.size),
+            ) {
+                Text(
+                    text =
+                        when (code) {
+                            "tr" -> stringResource(R.string.language_name_turkish)
+                            "es" -> stringResource(R.string.language_name_spanish)
+                            else -> stringResource(R.string.language_name_english)
+                        },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BirthDateCard(
+    birthDateMillis: Long?,
+    language: String,
+    onBirthDateSelected: (Long) -> Unit,
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = birthDateMillis)
-    val locale = if (language == "tr") Locale.forLanguageTag("tr") else Locale.ENGLISH
+    val locale =
+        when (language) {
+            "tr" -> Locale.forLanguageTag("tr")
+            "es" -> Locale.forLanguageTag("es")
+            else -> Locale.ENGLISH
+        }
     val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("d MMMM yyyy", locale) }
     val selectedDateLabel =
         birthDateMillis?.let {
@@ -279,96 +394,83 @@ private fun OnboardingSignPage(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(text = stringResource(R.string.onboarding_sign_title), style = MaterialTheme.typography.displayLarge)
+    AstrologyCard {
         Text(
-            text = stringResource(R.string.onboarding_sign_body),
+            text = stringResource(R.string.onboarding_birthdate_label),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text = selectedDateLabel ?: stringResource(R.string.onboarding_birthdate_placeholder),
             style = MaterialTheme.typography.bodyLarge,
         )
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            listOf("tr", "en").forEachIndexed { index, code ->
-                SegmentedButton(
-                    selected = language == code,
-                    onClick = { onLanguageChange(code) },
-                    shape =
-                        androidx.compose.material3.SegmentedButtonDefaults
-                            .itemShape(index, 2),
-                ) {
-                    Text(
-                        text =
-                            when (code) {
-                                "tr" -> stringResource(R.string.language_name_turkish)
-                                else -> stringResource(R.string.language_name_english)
-                            },
-                    )
-                }
-            }
+        Button(onClick = { showDatePicker = true }) {
+            Text(stringResource(R.string.onboarding_birthdate_action))
         }
-        AstrologyCard {
+    }
+}
+
+@Composable
+private fun DetectedSignCard(
+    sign: ZodiacSign,
+    language: String,
+    manualSelectionEnabled: Boolean,
+    onManualSelectionChange: (Boolean) -> Unit,
+) {
+    AstrologyCard {
+        Text(
+            text = stringResource(R.string.onboarding_detected_sign_label),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Text(
+            text =
+                stringResource(
+                    R.string.onboarding_detected_sign_value,
+                    sign.localizedName(language),
+                    sign.symbol,
+                ),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            text = sign.localizedDateRange(language),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        TextButton(onClick = { onManualSelectionChange(!manualSelectionEnabled) }) {
             Text(
-                text = stringResource(R.string.onboarding_birthdate_label),
-                style = MaterialTheme.typography.titleMedium,
+                if (manualSelectionEnabled) {
+                    stringResource(R.string.onboarding_hide_manual_selection)
+                } else {
+                    stringResource(R.string.onboarding_show_manual_selection)
+                },
             )
-            Text(
-                text = selectedDateLabel ?: stringResource(R.string.onboarding_birthdate_placeholder),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Button(onClick = { showDatePicker = true }) {
-                Text(stringResource(R.string.onboarding_birthdate_action))
-            }
         }
-        selected?.let { sign ->
-            AstrologyCard {
-                Text(
-                    text = stringResource(R.string.onboarding_detected_sign_label),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text =
-                        stringResource(
-                            R.string.onboarding_detected_sign_value,
-                            sign.localizedName(language),
-                            sign.symbol,
-                        ),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    text = sign.localizedDateRange(language),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                TextButton(onClick = { onManualSelectionChange(!manualSelectionEnabled) }) {
-                    Text(
-                        if (manualSelectionEnabled) {
-                            stringResource(R.string.onboarding_hide_manual_selection)
-                        } else {
-                            stringResource(R.string.onboarding_show_manual_selection)
-                        },
-                    )
-                }
-            }
-        }
-        if (manualSelectionEnabled) {
-            Text(
-                text = stringResource(R.string.onboarding_manual_selection_title),
-                style = MaterialTheme.typography.titleMedium,
+    }
+}
+
+@Composable
+private fun ManualSignGrid(
+    selected: ZodiacSign?,
+    language: String,
+    onSelectSign: (ZodiacSign) -> Unit,
+) {
+    Text(
+        text = stringResource(R.string.onboarding_manual_selection_title),
+        style = MaterialTheme.typography.titleMedium,
+    )
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 152.dp),
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(2.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        items(ZodiacSign.entries) { sign ->
+            ZodiacChip(
+                sign = sign,
+                language = language,
+                selected = selected == sign,
+                modifier = Modifier.widthIn(min = 152.dp),
+                onClick = { onSelectSign(sign) },
             )
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 152.dp),
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(2.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(ZodiacSign.entries) { sign ->
-                    ZodiacChip(
-                        sign = sign,
-                        language = language,
-                        selected = selected == sign,
-                        modifier = Modifier.widthIn(min = 152.dp),
-                        onClick = { onSelectSign(sign) },
-                    )
-                }
-            }
         }
     }
 }

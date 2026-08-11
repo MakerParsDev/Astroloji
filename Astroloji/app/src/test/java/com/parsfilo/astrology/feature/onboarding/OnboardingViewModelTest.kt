@@ -5,6 +5,8 @@ import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
+import com.parsfilo.astrology.core.data.repository.BirthDataRepository
+import com.parsfilo.astrology.core.data.repository.ChartRepository
 import com.parsfilo.astrology.core.data.repository.SessionRepository
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.domain.model.UserProfile
@@ -32,6 +34,8 @@ class OnboardingViewModelTest {
     private val preferencesRepository = mockk<UserPreferencesRepository>()
     private val analyticsRepository = mockk<AnalyticsRepository>()
     private val sessionRepository = mockk<SessionRepository>()
+    private val birthDataRepository = mockk<BirthDataRepository>()
+    private val chartRepository = mockk<ChartRepository>()
     private val stringsProvider = mockk<StringsProvider>()
 
     @Test
@@ -263,6 +267,8 @@ class OnboardingViewModelTest {
         OnboardingViewModel(
             preferencesRepository = preferencesRepository,
             sessionRepository = sessionRepository,
+            birthDataRepository = birthDataRepository,
+            chartRepository = chartRepository,
             stringsProvider = stringsProvider,
             analyticsRepository = analyticsRepository,
         )

@@ -9,6 +9,7 @@ import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Path
 import retrofit2.http.Query
 
 @Serializable
@@ -166,6 +167,137 @@ data class VerifySubscriptionResponse(
 )
 
 @Serializable
+data class VerifyCreditPurchaseRequest(
+    @SerialName("purchase_token") val purchaseToken: String,
+    @SerialName("product_id") val productId: String,
+)
+
+@Serializable
+data class VerifyCreditPurchaseResponse(
+    val ok: Boolean,
+    val duplicate: Boolean = false,
+    @SerialName("credits_granted") val creditsGranted: Int,
+    val balance: Int,
+)
+
+@Serializable
+data class SpendCreditsRequest(
+    val amount: Int,
+    val feature: String,
+)
+
+@Serializable
+data class SpendCreditsResponse(
+    val ok: Boolean,
+    val balance: Int,
+)
+
+@Serializable
+data class CreditBalanceResponse(
+    val balance: Int,
+)
+
+@Serializable
+data class InviteCodeResponse(
+    val code: String,
+    @SerialName("expires_at") val expiresAt: String,
+)
+
+@Serializable
+data class AcceptInviteRequest(
+    val code: String,
+)
+
+@Serializable
+data class AcceptInviteResponse(
+    val ok: Boolean,
+    val duplicate: Boolean = false,
+    @SerialName("friend_user_id") val friendUserId: String,
+)
+
+@Serializable
+data class FriendResponse(
+    @SerialName("user_id") val userId: String,
+    val sign: String,
+    val language: String,
+)
+
+@Serializable
+data class FriendsListResponse(
+    val friends: List<FriendResponse> = emptyList(),
+)
+
+@Serializable
+data class FriendRemovalResponse(
+    val ok: Boolean,
+)
+
+@Serializable
+data class DeepReadingRequest(
+    val language: String,
+)
+
+@Serializable
+data class DeepReadingResponse(
+    val text: String,
+    val cached: Boolean,
+    @SerialName("credits_spent") val creditsSpent: Int,
+)
+
+@Serializable
+data class ChatTurnPayload(
+    val role: String,
+    val content: String,
+)
+
+@Serializable
+data class ChatMessageRequest(
+    val language: String,
+    val message: String,
+    val history: List<ChatTurnPayload> = emptyList(),
+)
+
+@Serializable
+data class ChatMessageResponse(
+    val reply: String,
+    val balance: Int,
+)
+
+@Serializable
+data class StreakCheckInResponse(
+    @SerialName("streak_count") val streakCount: Int,
+    @SerialName("last_streak_date") val lastStreakDate: String,
+    @SerialName("milestone_achieved") val milestoneAchieved: Int? = null,
+    @SerialName("credits_granted") val creditsGranted: Int,
+    val balance: Int,
+)
+
+@Serializable
+data class MoodLogRequest(
+    val mood: String,
+    val domain: String? = null,
+)
+
+@Serializable
+data class MoodLogResponse(
+    val date: String,
+    val mood: String,
+    val domain: String? = null,
+)
+
+@Serializable
+data class MoodInsight(
+    val domain: String,
+    val occurrences: Int,
+    val correlated: Int,
+)
+
+@Serializable
+data class MoodInsightResponse(
+    val insight: MoodInsight? = null,
+)
+
+@Serializable
 data class RewardPrepareRequest(
     @SerialName("reward_type") val rewardType: String,
     val identifier: String,
@@ -248,6 +380,68 @@ data class TrackEventResponse(
 )
 
 @Serializable
+data class CityResponse(
+    val id: String,
+    val name: String,
+    val country: String,
+    val latitude: Double,
+    val longitude: Double,
+    val tzid: String,
+)
+
+@Serializable
+data class CitySearchResponse(
+    val cities: List<CityResponse> = emptyList(),
+)
+
+@Serializable
+data class SaveBirthDataRequest(
+    @SerialName("local_date") val localDate: String,
+    @SerialName("local_time") val localTime: String? = null,
+    @SerialName("time_certainty") val timeCertainty: String,
+    @SerialName("city_id") val cityId: String,
+)
+
+@Serializable
+data class BirthDataResponse(
+    @SerialName("time_certainty") val timeCertainty: String,
+    @SerialName("has_birth_data") val hasBirthData: Boolean,
+)
+
+@Serializable
+data class ChartObserverPayload(
+    val latitude: Double,
+    val longitude: Double,
+)
+
+@Serializable
+data class NatalChartRequest(
+    val timestamp: String,
+    @SerialName("time_certainty") val timeCertainty: String,
+    val observer: ChartObserverPayload? = null,
+)
+
+@Serializable
+data class ChartZodiacPositionResponse(
+    val sign: String,
+    val degree: Double,
+)
+
+@Serializable
+data class ChartAngleResponse(
+    val longitude: Double,
+    val zodiac: ChartZodiacPositionResponse,
+)
+
+@Serializable
+data class NatalChartResponse(
+    val version: String,
+    val ascendant: ChartAngleResponse? = null,
+    val midheaven: ChartAngleResponse? = null,
+    val limitations: List<String> = emptyList(),
+)
+
+@Serializable
 data class ErrorEnvelope(
     val error: ErrorBody,
 )
@@ -323,6 +517,56 @@ interface AstrologyApi {
         @Body body: VerifySubscriptionRequest,
     ): Response<VerifySubscriptionResponse>
 
+    @POST("api/v1/credits/verify")
+    suspend fun verifyCreditPurchase(
+        @Body body: VerifyCreditPurchaseRequest,
+    ): Response<VerifyCreditPurchaseResponse>
+
+    @POST("api/v1/credits/spend")
+    suspend fun spendCredits(
+        @Body body: SpendCreditsRequest,
+    ): Response<SpendCreditsResponse>
+
+    @GET("api/v1/credits/balance")
+    suspend fun getCreditBalance(): Response<CreditBalanceResponse>
+
+    @POST("api/v1/friends/invite")
+    suspend fun createFriendInvite(): Response<InviteCodeResponse>
+
+    @POST("api/v1/friends/accept")
+    suspend fun acceptFriendInvite(
+        @Body body: AcceptInviteRequest,
+    ): Response<AcceptInviteResponse>
+
+    @GET("api/v1/friends")
+    suspend fun getFriends(): Response<FriendsListResponse>
+
+    @DELETE("api/v1/friends/{friendUserId}")
+    suspend fun removeFriend(
+        @Path("friendUserId") friendUserId: String,
+    ): Response<FriendRemovalResponse>
+
+    @POST("api/v1/reading/deep")
+    suspend fun getDeepReading(
+        @Body body: DeepReadingRequest,
+    ): Response<DeepReadingResponse>
+
+    @POST("api/v1/chat/message")
+    suspend fun sendChatMessage(
+        @Body body: ChatMessageRequest,
+    ): Response<ChatMessageResponse>
+
+    @POST("api/v1/streak/checkin")
+    suspend fun checkInStreak(): Response<StreakCheckInResponse>
+
+    @POST("api/v1/mood/log")
+    suspend fun logMood(
+        @Body body: MoodLogRequest,
+    ): Response<MoodLogResponse>
+
+    @GET("api/v1/mood/insight")
+    suspend fun getMoodInsight(): Response<MoodInsightResponse>
+
     @POST("api/v1/rewards/prepare")
     suspend fun prepareReward(
         @Body body: RewardPrepareRequest,
@@ -337,6 +581,22 @@ interface AstrologyApi {
     suspend fun getPersonalGuidance(
         @Body body: PersonalGuidanceRequest,
     ): Response<PersonalGuidanceResponse>
+
+    @POST("api/v1/chart/natal")
+    suspend fun getNatalChart(
+        @Body body: NatalChartRequest,
+    ): Response<NatalChartResponse>
+
+    @GET("api/v1/cities/search")
+    suspend fun searchCities(
+        @Query("q") query: String,
+        @Query("limit") limit: Int = 8,
+    ): Response<CitySearchResponse>
+
+    @PUT("api/v1/users/me/birth-data")
+    suspend fun saveBirthData(
+        @Body body: SaveBirthDataRequest,
+    ): Response<BirthDataResponse>
 
     @POST("api/v1/events/track")
     suspend fun trackEvent(

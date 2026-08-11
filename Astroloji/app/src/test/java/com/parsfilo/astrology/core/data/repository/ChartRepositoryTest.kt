@@ -2,8 +2,11 @@ package com.parsfilo.astrology.core.data.repository
 
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
+import com.parsfilo.astrology.core.data.remote.ChartAngleResponse
+import com.parsfilo.astrology.core.data.remote.ChartZodiacPositionResponse
 import com.parsfilo.astrology.core.data.remote.GuidanceEvidenceResponse
 import com.parsfilo.astrology.core.data.remote.GuidanceSignalResponse
+import com.parsfilo.astrology.core.data.remote.NatalChartResponse
 import com.parsfilo.astrology.core.data.remote.PersonalGuidanceResponse
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.util.AppException
@@ -112,6 +115,63 @@ class ChartRepositoryTest {
             assertThat((result as AppResult.Error).exception)
                 .isInstanceOf(AppException.NetworkException::class.java)
         }
+
+    @Test
+    fun `natal chart request omits observer when coordinates are missing`() =
+        runTest {
+            coEvery { api.getNatalChart(any()) } returns Response.success(natalChartResponse(ascendant = null))
+
+            val result =
+                repository.getNatalChart(
+                    timestamp = "1990-01-15T12:00:00.000Z",
+                    timeCertainty = "unknown",
+                    latitude = null,
+                    longitude = null,
+                )
+
+            assertThat(result).isInstanceOf(AppResult.Success::class.java)
+            assertThat((result as AppResult.Success).data.ascendant).isNull()
+            coVerify(exactly = 1) {
+                api.getNatalChart(match { it.observer == null })
+            }
+        }
+
+    @Test
+    fun `natal chart request carries observer and returns the computed ascendant`() =
+        runTest {
+            coEvery { api.getNatalChart(any()) } returns Response.success(natalChartResponse(ascendant = "leo"))
+
+            val result =
+                repository.getNatalChart(
+                    timestamp = "1990-01-15T12:00:00.000Z",
+                    timeCertainty = "exact",
+                    latitude = 41.0,
+                    longitude = 29.0,
+                )
+
+            assertThat(result).isInstanceOf(AppResult.Success::class.java)
+            val ascendant = (result as AppResult.Success).data.ascendant
+            assertThat(ascendant?.zodiac?.sign).isEqualTo("leo")
+            coVerify(exactly = 1) {
+                api.getNatalChart(
+                    match {
+                        it.observer?.latitude == 41.0 && it.observer.longitude == 29.0
+                    },
+                )
+            }
+        }
+
+    private fun natalChartResponse(ascendant: String?): NatalChartResponse =
+        NatalChartResponse(
+            version = "natal-chart-v1",
+            ascendant =
+                ascendant?.let {
+                    ChartAngleResponse(
+                        longitude = 134.2,
+                        zodiac = ChartZodiacPositionResponse(sign = it, degree = 14.2),
+                    )
+                },
+        )
 
     private fun guidanceResponse(): PersonalGuidanceResponse =
         PersonalGuidanceResponse(

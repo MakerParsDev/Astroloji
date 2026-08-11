@@ -14,6 +14,7 @@ Bu repo yeni bir web/admin paneli icermiyor. Public API path'leri korunur:
 - `/api/v1/content/*`
 - `/api/v1/subscriptions/*`
 - `/api/v1/notifications/send`
+- `/api/v1/cities/search` (public, unauthenticated — static major-cities dataset for onboarding)
 
 ## Mimari Ozet
 
