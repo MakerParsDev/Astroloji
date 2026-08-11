@@ -309,6 +309,48 @@ describe('content filters', () => {
     )).toBe(true);
   });
 
+  it('invalidates the read cache for every document it writes, so a correction is visible immediately', async () => {
+    const deletedCacheKeys: string[] = [];
+    const env = createTestEnv({
+      CONTENT: {
+        async head() {
+          return { size: 1 } as R2Object;
+        },
+        async get() {
+          return null;
+        },
+        async put() {
+          return;
+        }
+      } as unknown as R2Bucket,
+      CACHE: {
+        async get() {
+          return null;
+        },
+        async put() {
+          return;
+        },
+        async delete(key: string) {
+          deletedCacheKeys.push(key);
+        }
+      } as unknown as ReturnType<typeof createTestEnv>['CACHE']
+    });
+
+    const uploads = await backfillContentDocuments(env, {
+      seed_date: '2026-04-10',
+      daily_days: 1,
+      skip_static_content: true,
+      editorial_status: 'approved',
+      approved_by: 'test-editor',
+      approval_reference: 'test:content-backfill'
+    });
+
+    expect(uploads).not.toHaveLength(0);
+    expect(deletedCacheKeys).toHaveLength(uploads.length);
+    // content/daily/tr/2026-04-10.json -> content:tr:daily:2026-04-10
+    expect(deletedCacheKeys).toContain('content:tr:daily:2026-04-10');
+  });
+
   it('replaces daily sign content with LLM output when the AI binding succeeds, tagging provenance', async () => {
     const puts: Array<{ key: string; payload: Record<string, unknown> }> = [];
     const llmSignPayload = {

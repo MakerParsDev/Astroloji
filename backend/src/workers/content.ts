@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { enhanceDailyUploadsWithLlm } from '@/llm/dailyContentEnhancer';
 import { buildDailyContentProviderChain } from '@/llm/dailyContentProviderChain';
 import { requireAdminCapability } from '@/middleware/auth';
-import { getCachedJsonContent } from '@/services/cache';
+import { getCachedJsonContent, invalidateContentCache } from '@/services/cache';
 import { assertSeedQuality, buildDocumentsForSeed } from '@/utils/contentSeed';
 import type { ContentSeedOptions, ContentSeedUpload } from '@/utils/contentSeed';
 import type {
@@ -65,6 +65,7 @@ export async function backfillContentDocuments(
         contentType: 'application/json; charset=utf-8'
       }
     });
+    await invalidateContentCache(env, item.key);
   }
 
   return approvedUploads;
