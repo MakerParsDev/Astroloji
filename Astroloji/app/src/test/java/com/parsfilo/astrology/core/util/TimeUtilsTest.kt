@@ -20,9 +20,20 @@ class TimeUtilsTest {
     }
 
     @Test
+    fun `formatPercentage uses english style for portuguese locale`() {
+        assertThat(TimeUtils.formatPercentage(73, "pt")).isEqualTo("73%")
+    }
+
+    @Test
     fun `normalizeLanguageTag recognizes spanish`() {
         assertThat(TimeUtils.normalizeLanguageTag("es")).isEqualTo("es")
         assertThat(TimeUtils.normalizeLanguageTag("es-ES")).isEqualTo("es")
+    }
+
+    @Test
+    fun `normalizeLanguageTag recognizes portuguese`() {
+        assertThat(TimeUtils.normalizeLanguageTag("pt")).isEqualTo("pt")
+        assertThat(TimeUtils.normalizeLanguageTag("pt-BR")).isEqualTo("pt")
     }
 
     @Test

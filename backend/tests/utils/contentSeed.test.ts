@@ -42,6 +42,38 @@ describe('content seed document builder', () => {
     expect(leoPersonality.element).toBe('fuego');
   });
 
+  it('builds genuine Portuguese content, not an English/Spanish fallback', () => {
+    const uploads = buildDocumentsForSeed({ seedDate: '2026-03-21', dailyDays: 1 });
+
+    const dailyPt = uploads.find((item) => item.key === 'content/daily/pt/2026-03-21.json');
+    expect(dailyPt).toBeDefined();
+    const ariesDaily = (dailyPt?.payload as { signs: Record<string, { short: string }> }).signs.aries;
+    expect(ariesDaily.short).toMatch(/[ãõçáéíóú]/i);
+    expect(ariesDaily.short).not.toMatch(/Focus:/);
+
+    const personalityPt = uploads.find((item) => item.key === 'content/personality/pt/leo.json');
+    expect(personalityPt).toBeDefined();
+    const leoPersonality = personalityPt?.payload as { planet: string; element: string };
+    expect(leoPersonality.planet).toBe('Sol');
+    expect(leoPersonality.element).toBe('fogo');
+  });
+
+  it('restricts output to a single language when requested, to stay under the Worker subrequest limit', () => {
+    const uploads = buildDocumentsForSeed({
+      seedDate: '2026-03-21',
+      dailyDays: 1,
+      skipStaticContent: false,
+      language: 'pt'
+    });
+
+    expect(uploads.length).toBeGreaterThan(0);
+    expect(uploads.every((item) => item.key.includes('/pt/'))).toBe(true);
+    expect(uploads.some((item) => item.key.startsWith('content/compat/pt/'))).toBe(true);
+    expect(uploads.some((item) => item.key.includes('/en/'))).toBe(false);
+    expect(uploads.some((item) => item.key.includes('/tr/'))).toBe(false);
+    expect(uploads.some((item) => item.key.includes('/es/'))).toBe(false);
+  });
+
   it('keeps the legacy three-day window when no range override is provided', () => {
     const uploads = buildDocumentsForSeed({
       seedDate: '2026-03-21'

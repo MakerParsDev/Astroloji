@@ -297,6 +297,7 @@ fun SettingsScreen(
                             "tr" to stringResource(R.string.language_name_turkish),
                             "en" to stringResource(R.string.language_name_english),
                             "es" to stringResource(R.string.language_name_spanish),
+                            "pt" to stringResource(R.string.language_name_portuguese),
                         ),
                     selected = uiState.language,
                     onSelect = {

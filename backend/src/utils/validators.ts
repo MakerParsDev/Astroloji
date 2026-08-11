@@ -280,6 +280,7 @@ export const contentBackfillSchema = z.object({
   seed_date: optionalSeedDateSchema,
   daily_days: z.coerce.number().int().min(1).max(31).optional().default(14),
   skip_static_content: optionalBooleanSchema.default(true),
+  language: languageSchema.optional(),
   editorial_status: z.literal('approved'),
   approved_by: approvalIdentifierSchema,
   approval_reference: approvalIdentifierSchema

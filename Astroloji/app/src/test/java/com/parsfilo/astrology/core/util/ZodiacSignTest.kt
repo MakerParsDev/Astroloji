@@ -21,4 +21,10 @@ class ZodiacSignTest {
         assertThat(ZodiacSign.TAURUS.localizedName("es")).isEqualTo("Tauro")
         assertThat(ZodiacSign.GEMINI.localizedName("es")).isEqualTo("Géminis")
     }
+
+    @Test
+    fun `localizedName returns the Portuguese sign name for Portuguese locale`() {
+        assertThat(ZodiacSign.TAURUS.localizedName("pt")).isEqualTo("Touro")
+        assertThat(ZodiacSign.GEMINI.localizedName("pt")).isEqualTo("Gêmeos")
+    }
 }

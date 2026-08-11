@@ -61,6 +61,7 @@ fun PersonalGuidanceScreen(
         when (TimeUtils.normalizeLanguageTag(language)) {
             "tr" -> Locale.forLanguageTag("tr-TR")
             "es" -> Locale.forLanguageTag("es-ES")
+            "pt" -> Locale.forLanguageTag("pt-BR")
             else -> Locale.ENGLISH
         }
     val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("d MMMM yyyy", locale) }

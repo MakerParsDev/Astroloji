@@ -172,6 +172,61 @@
       "order": 6,
       "path": "es-ES/phoneScreenshots/06-premium.png",
       "sourceKind": "realDeviceCapture"
+    },
+    {
+      "preview": "StoreFeatureGraphicPortugueseScreenshot",
+      "locale": "pt-BR",
+      "role": "featureGraphic",
+      "order": 0,
+      "path": "pt-BR/featureGraphic/feature-graphic.png"
+    },
+    {
+      "preview": "StoreDailyPortugueseScreenshot",
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 1,
+      "path": "pt-BR/phoneScreenshots/01-daily.png",
+      "sourceKind": "realDeviceCapture"
+    },
+    {
+      "preview": "StoreGuidancePortugueseScreenshot",
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 2,
+      "path": "pt-BR/phoneScreenshots/02-weekly.png",
+      "sourceKind": "realDeviceCapture"
+    },
+    {
+      "preview": "StoreToolsPortugueseScreenshot",
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 3,
+      "path": "pt-BR/phoneScreenshots/03-monthly.png",
+      "sourceKind": "realDeviceCapture"
+    },
+    {
+      "preview": "StoreCompatibilityPortugueseScreenshot",
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 4,
+      "path": "pt-BR/phoneScreenshots/04-compatibility.png",
+      "sourceKind": "realDeviceCapture"
+    },
+    {
+      "preview": "StorePersonalityPortugueseScreenshot",
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 5,
+      "path": "pt-BR/phoneScreenshots/05-profile.png",
+      "sourceKind": "realDeviceCapture"
+    },
+    {
+      "preview": "StorePremiumPortugueseScreenshot",
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 6,
+      "path": "pt-BR/phoneScreenshots/06-premium.png",
+      "sourceKind": "realDeviceCapture"
     }
   ]
 }

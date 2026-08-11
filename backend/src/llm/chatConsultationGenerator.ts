@@ -26,19 +26,22 @@ export interface ChatConsultationInput {
 const DISCLAIMER: Record<Language, string> = {
   tr: 'Bu sohbet eğlence ve öz-yansıma amaçlıdır; tıbbi, hukuki veya finansal tavsiye vermezsin. Böyle bir konu açılırsa nazikçe bir uzmana yönlendir.',
   en: 'This chat is for entertainment and self-reflection; you never give medical, legal, or financial advice. If such a topic comes up, gently redirect the user to a qualified professional.',
-  es: 'Esta conversación es para entretenimiento y autorreflexión; nunca das consejos médicos, legales o financieros. Si surge un tema así, redirige con amabilidad a un profesional calificado.'
+  es: 'Esta conversación es para entretenimiento y autorreflexión; nunca das consejos médicos, legales o financieros. Si surge un tema así, redirige con amabilidad a un profesional calificado.',
+  pt: 'Esta conversa é para entretenimento e autorreflexão; você nunca dá conselhos médicos, jurídicos ou financeiros. Se esse tipo de assunto surgir, direcione com gentileza para um profissional qualificado.'
 };
 
 const PERSONA: Record<Language, string> = {
   tr: 'Sen deneyimli, sıcak ve gerçekçi bir astroloji danışmanısın. Kısa, samimi ve somut cevaplar ver (en fazla birkaç paragraf).',
   en: 'You are an experienced, warm, and grounded astrology consultant. Keep answers short, personal, and concrete (a few paragraphs at most).',
-  es: 'Eres un consultor de astrología experimentado, cálido y realista. Da respuestas breves, cercanas y concretas (unos pocos párrafos como máximo).'
+  es: 'Eres un consultor de astrología experimentado, cálido y realista. Da respuestas breves, cercanas y concretas (unos pocos párrafos como máximo).',
+  pt: 'Você é um consultor de astrologia experiente, caloroso e realista. Dê respostas curtas, pessoais e concretas (no máximo alguns parágrafos).'
 };
 
 const UNKNOWN_ASCENDANT: Record<Language, string> = {
   tr: 'bilinmiyor',
   en: 'unknown',
-  es: 'desconocido'
+  es: 'desconocido',
+  pt: 'desconhecido'
 };
 
 function chartLineFor(
@@ -53,7 +56,8 @@ function chartLineFor(
   const lines: Record<Language, string> = {
     tr: `Kullanıcının doğum haritası: Güneş ${chart.sunSign} ${sun}°, Ay ${chart.moonSign} ${moon}°, Yükselen ${ascendant}, Venüs ${chart.venusSign} ${venus}°, Mars ${chart.marsSign} ${mars}°.`,
     en: `The user's birth chart: Sun ${chart.sunSign} ${sun}°, Moon ${chart.moonSign} ${moon}°, Rising ${ascendant}, Venus ${chart.venusSign} ${venus}°, Mars ${chart.marsSign} ${mars}°.`,
-    es: `Carta natal del usuario: Sol en ${chart.sunSign} ${sun}°, Luna en ${chart.moonSign} ${moon}°, Ascendente ${ascendant}, Venus en ${chart.venusSign} ${venus}°, Marte en ${chart.marsSign} ${mars}°.`
+    es: `Carta natal del usuario: Sol en ${chart.sunSign} ${sun}°, Luna en ${chart.moonSign} ${moon}°, Ascendente ${ascendant}, Venus en ${chart.venusSign} ${venus}°, Marte en ${chart.marsSign} ${mars}°.`,
+    pt: `Mapa astral do usuário: Sol em ${chart.sunSign} ${sun}°, Lua em ${chart.moonSign} ${moon}°, Ascendente ${ascendant}, Vênus em ${chart.venusSign} ${venus}°, Marte em ${chart.marsSign} ${mars}°.`
   };
   return lines[language];
 }

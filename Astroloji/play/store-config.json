@@ -4,12 +4,14 @@
   "locales": [
     "en-US",
     "tr-TR",
-    "es-ES"
+    "es-ES",
+    "pt-BR"
   ],
   "androidLocaleMap": {
     "en": "en-US",
     "tr": "tr-TR",
-    "es": "es-ES"
+    "es": "es-ES",
+    "pt": "pt-BR"
   },
   "support": {
     "developer": "ParsFilo",

@@ -29,7 +29,8 @@ export interface DeepReadingGeneratorInput {
 const SYSTEM_PROMPT: Record<Language, string> = {
   tr: 'Sen deneyimli, sıcak ve gerçekçi bir astroloji yazarısın. İçerik eğlence ve öz-yansıma amaçlıdır; tıbbi, hukuki veya finansal tavsiye vermezsin.',
   en: 'You are an experienced, warm, and grounded astrology writer. Content is for entertainment and self-reflection; you never give medical, legal, or financial advice.',
-  es: 'Eres un escritor de astrología experimentado, cálido y realista. El contenido es para entretenimiento y autorreflexión; nunca das consejos médicos, legales o financieros.'
+  es: 'Eres un escritor de astrología experimentado, cálido y realista. El contenido es para entretenimiento y autorreflexión; nunca das consejos médicos, legales o financieros.',
+  pt: 'Você é um redator de astrologia experiente, caloroso e realista. O conteúdo é para entretenimento e autorreflexão; você nunca dá conselhos médicos, jurídicos ou financeiros.'
 };
 
 function formatDegree(sign: string, degree: number): string {
@@ -39,13 +40,15 @@ function formatDegree(sign: string, degree: number): string {
 const ASCENDANT_LINE_LABELS: Record<Language, { known: string; unknown: string }> = {
   tr: { known: 'Yükselen', unknown: 'Yükselen: doğum saati bilinmediği için hesaplanamadı, bu bölümü atla.' },
   en: { known: 'Rising sign', unknown: 'Rising sign: not available because the birth time is unknown, skip this section.' },
-  es: { known: 'Ascendente', unknown: 'Ascendente: no disponible porque se desconoce la hora de nacimiento, omite esta sección.' }
+  es: { known: 'Ascendente', unknown: 'Ascendente: no disponible porque se desconoce la hora de nacimiento, omite esta sección.' },
+  pt: { known: 'Ascendente', unknown: 'Ascendente: não disponível porque a hora de nascimento é desconhecida, pule esta seção.' }
 };
 
 const CHART_BODY_LABELS: Record<Language, { sun: string; moon: string; venus: string; mars: string }> = {
   tr: { sun: 'Güneş', moon: 'Ay', venus: 'Venüs', mars: 'Mars' },
   en: { sun: 'Sun', moon: 'Moon', venus: 'Venus', mars: 'Mars' },
-  es: { sun: 'Sol', moon: 'Luna', venus: 'Venus', mars: 'Marte' }
+  es: { sun: 'Sol', moon: 'Luna', venus: 'Venus', mars: 'Marte' },
+  pt: { sun: 'Sol', moon: 'Lua', venus: 'Vênus', mars: 'Marte' }
 };
 
 function buildChartDescription(chart: DeepReadingChartSummary, language: Language): string {
@@ -71,7 +74,9 @@ const READING_INSTRUCTIONS: Record<Language, (chartDescription: string) => strin
   en: (chartDescription) =>
     `Using the birth chart data below, write a personalized, long-form, in-depth reading. Cover identity/self-expression (Sun), the emotional inner world (Moon), outward approach and first impressions (Rising, if available), relationships and values (Venus), and drive/motivation (Mars). Use a warm, specific, thought-provoking tone; avoid generic filler. Write roughly 500-700 words as plain prose, no headings or bullet points.\n\n${chartDescription}`,
   es: (chartDescription) =>
-    `A partir de los datos de la carta natal a continuación, escribe una lectura personalizada, extensa y profunda. Cubre la identidad/autoexpresión (Sol), el mundo emocional interno (Luna), el enfoque externo y primeras impresiones (Ascendente, si está disponible), relaciones y valores (Venus), e impulso/motivación (Marte). Usa un tono cálido, específico y evocador; evita las generalidades. Escribe aproximadamente 500-700 palabras en prosa continua, sin títulos ni viñetas.\n\n${chartDescription}`
+    `A partir de los datos de la carta natal a continuación, escribe una lectura personalizada, extensa y profunda. Cubre la identidad/autoexpresión (Sol), el mundo emocional interno (Luna), el enfoque externo y primeras impresiones (Ascendente, si está disponible), relaciones y valores (Venus), e impulso/motivación (Marte). Usa un tono cálido, específico y evocador; evita las generalidades. Escribe aproximadamente 500-700 palabras en prosa continua, sin títulos ni viñetas.\n\n${chartDescription}`,
+  pt: (chartDescription) =>
+    `A partir dos dados da carta natal abaixo, escreva uma leitura personalizada, longa e profunda. Cubra identidade/autoexpressão (Sol), o mundo emocional interno (Lua), a postura externa e primeiras impressões (Ascendente, se disponível), relacionamentos e valores (Vênus), e impulso/motivação (Marte). Use um tom caloroso, específico e instigante; evite generalidades. Escreva aproximadamente 500-700 palavras em prosa contínua, sem títulos ou marcadores.\n\n${chartDescription}`
 };
 
 export function buildDeepReadingPrompt(input: DeepReadingGeneratorInput): LlmGenerateRequest {

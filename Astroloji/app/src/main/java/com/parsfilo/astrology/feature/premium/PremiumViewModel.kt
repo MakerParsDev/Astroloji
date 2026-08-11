@@ -317,6 +317,7 @@ class PremiumViewModel
                 when (TimeUtils.normalizeLanguageTag(language)) {
                     "tr" -> Locale.forLanguageTag("tr-TR")
                     "es" -> Locale.forLanguageTag("es-ES")
+                    "pt" -> Locale.forLanguageTag("pt-BR")
                     else -> Locale.ENGLISH
                 }
             return DateTimeFormatter

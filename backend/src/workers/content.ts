@@ -40,7 +40,8 @@ export async function backfillContentDocuments(
   const uploads = buildDocuments({
     seedDate: request.seed_date,
     dailyDays: request.daily_days,
-    skipStaticContent: request.skip_static_content
+    skipStaticContent: request.skip_static_content,
+    language: request.language
   });
   assertSeedQuality(uploads);
 

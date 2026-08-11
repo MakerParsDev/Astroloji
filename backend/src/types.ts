@@ -17,7 +17,7 @@ export const SIGNS = [
   'pisces'
 ] as const;
 
-export const LANGUAGES = ['tr', 'en', 'es'] as const;
+export const LANGUAGES = ['tr', 'en', 'es', 'pt'] as const;
 export const PLATFORMS = ['android', 'ios'] as const;
 export const NOTIFICATION_TARGET_TYPES = ['token', 'fid'] as const;
 export const SUBSCRIPTION_PRODUCTS = ['premium_monthly', 'premium_weekly', 'premium_yearly'] as const;
@@ -589,6 +589,7 @@ export interface ContentBackfillRequest {
   seed_date?: string;
   daily_days: number;
   skip_static_content: boolean;
+  language?: Language;
   editorial_status: 'approved';
   approved_by: string;
   approval_reference: string;

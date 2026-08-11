@@ -6,7 +6,7 @@ import {
   type TransitSnapshotV1
 } from '@/chart-engine/transitSnapshot';
 
-export type GuidanceLanguage = 'tr' | 'en' | 'es';
+export type GuidanceLanguage = 'tr' | 'en' | 'es' | 'pt';
 
 export type GuidanceDomain =
   | 'identity'
@@ -83,6 +83,18 @@ const BODY_LABELS: Record<GuidanceLanguage, Record<ChartBody, string>> = {
     uranus: 'Urano',
     neptune: 'Neptuno',
     pluto: 'Plutón'
+  },
+  pt: {
+    sun: 'Sol',
+    moon: 'Lua',
+    mercury: 'Mercúrio',
+    venus: 'Vênus',
+    mars: 'Marte',
+    jupiter: 'Júpiter',
+    saturn: 'Saturno',
+    uranus: 'Urano',
+    neptune: 'Netuno',
+    pluto: 'Plutão'
   }
 };
 
@@ -107,6 +119,13 @@ const ASPECT_LABELS: Record<GuidanceLanguage, Record<MajorAspectType, string>> =
     square: 'cuadratura',
     trine: 'trígono',
     opposition: 'oposición'
+  },
+  pt: {
+    conjunction: 'conjunção',
+    sextile: 'sextil',
+    square: 'quadratura',
+    trine: 'trígono',
+    opposition: 'oposição'
   }
 };
 
@@ -159,13 +178,26 @@ const DOMAIN_LABELS: Record<GuidanceLanguage, Record<GuidanceDomain, string>> = 
     change: 'cambio y libertad',
     imagination: 'intuición e imaginación',
     transformation: 'transformación profunda'
+  },
+  pt: {
+    identity: 'autoexpressão',
+    emotions: 'necessidades emocionais',
+    communication: 'comunicação e pensamento',
+    relationships: 'relacionamentos e valores',
+    action: 'ação e limites',
+    growth: 'crescimento e propósito',
+    responsibility: 'responsabilidade e estrutura',
+    change: 'mudança e liberdade',
+    imagination: 'intuição e imaginação',
+    transformation: 'transformação profunda'
   }
 };
 
 const DISCLAIMERS: Record<GuidanceLanguage, string> = {
   tr: 'Bu içerik eğlence ve öz değerlendirme içindir; tıbbi, hukuki veya finansal tavsiye değildir.',
   en: 'This content is for reflection and entertainment, not medical, legal, or financial advice.',
-  es: 'Este contenido es para reflexión y entretenimiento; no es un consejo médico, legal ni financiero.'
+  es: 'Este contenido es para reflexión y entretenimiento; no es un consejo médico, legal ni financiero.',
+  pt: 'Este conteúdo é para reflexão e entretenimento; não é um conselho médico, jurídico ou financeiro.'
 };
 
 const TRANSIT_BODY_WEIGHT: Record<ChartBody, number> = {
@@ -223,6 +255,13 @@ function localizedSummary(
       square: `Una fricción constructiva puede invitar a un ajuste consciente en torno a ${domainLabel}.`,
       trine: `Un flujo más fluido puede ayudarte a usar habilidades relacionadas con ${domainLabel}.`,
       opposition: `Equilibrar dos polos puede aportar más claridad en torno a ${domainLabel}.`
+    },
+    pt: {
+      conjunction: `Uma ênfase concentrada pode tornar os temas de ${domainLabel} mais visíveis.`,
+      sextile: `Uma abertura favorável pode fortalecer com suavidade ${domainLabel}.`,
+      square: `Um atrito construtivo pode convidar a um ajuste consciente em torno de ${domainLabel}.`,
+      trine: `Um fluxo mais leve pode ajudar você a usar habilidades ligadas a ${domainLabel}.`,
+      opposition: `Equilibrar dois polos pode trazer mais clareza em torno de ${domainLabel}.`
     }
   };
   return summariesByLanguage[language][aspect];
@@ -265,6 +304,18 @@ function localizedActionPrompt(language: GuidanceLanguage, domain: GuidanceDomai
       change: 'Prueba una alternativa segura y pequeña al método habitual.',
       imagination: 'Convierte tu intuición en una nota, boceto o ejercicio creativo breve.',
       transformation: 'Escribe un hábito que estés listo para soltar y la conducta que lo reemplazará.'
+    },
+    pt: {
+      identity: 'Escreva uma frase honesta sobre o que você quer expressar hoje.',
+      emotions: 'Nomeie o sentimento e faça uma pausa antes de tentar mudá-lo.',
+      communication: 'Esclareça sua intenção em uma frase antes de uma conversa importante.',
+      relationships: 'Troque uma suposição por uma pergunta aberta e mútua.',
+      action: 'Escolha um único passo possível de concluir em vez de dispersar sua energia.',
+      growth: 'Defina uma meta de aprendizado pequena e mensurável.',
+      responsibility: 'Reveja com sinceridade qual responsabilidade é realmente sua.',
+      change: 'Experimente uma alternativa segura e pequena ao método habitual.',
+      imagination: 'Transforme sua intuição em uma anotação, esboço ou exercício criativo breve.',
+      transformation: 'Escreva um hábito que você esteja pronto para soltar e o comportamento que vai substituí-lo.'
     }
   };
   return prompts[language][domain];
@@ -278,7 +329,8 @@ function toSignal(aspect: TransitAspect, language: GuidanceLanguage): PersonalGu
   const titleFormats: Record<GuidanceLanguage, string> = {
     tr: `${transitLabel}, natal ${natalLabel} ile ${aspectLabel}`,
     en: `${transitLabel} ${aspectLabel} natal ${natalLabel}`,
-    es: `${transitLabel} en ${aspectLabel} con ${natalLabel} natal`
+    es: `${transitLabel} en ${aspectLabel} con ${natalLabel} natal`,
+    pt: `${transitLabel} em ${aspectLabel} com ${natalLabel} natal`
   };
   const title = titleFormats[language];
 
@@ -305,8 +357,8 @@ export function createPersonalGuidance(input: {
   targetTimestamp: string;
   language: GuidanceLanguage;
 }): PersonalGuidanceV1 {
-  if (input.language !== 'tr' && input.language !== 'en' && input.language !== 'es') {
-    throw new Error('language must be tr, en, or es.');
+  if (input.language !== 'tr' && input.language !== 'en' && input.language !== 'es' && input.language !== 'pt') {
+    throw new Error('language must be tr, en, es, or pt.');
   }
 
   const snapshot = createTransitSnapshot({

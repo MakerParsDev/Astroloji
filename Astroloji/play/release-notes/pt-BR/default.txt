@@ -1,0 +1,1 @@
+Adicionado suporte completo em português para o app, incluindo horóscopos diários, semanais e mensais, compatibilidade zodiacal e conteúdo premium. Melhoramos a seleção de plano premium mensal e semanal, com nova tentativa automática em caso de erro de carregamento.

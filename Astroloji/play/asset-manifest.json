@@ -220,6 +220,76 @@
       "width": 1080,
       "height": 2400,
       "sha256": "e54f6753847460fabe4048795b8af211dd03bfe68ae9e075bc1590af45a668e3"
+    },
+    {
+      "locale": "pt-BR",
+      "role": "featureGraphic",
+      "order": 0,
+      "path": "pt-BR/featureGraphic/feature-graphic.png",
+      "format": "png",
+      "width": 1024,
+      "height": 500,
+      "sha256": "6154895535e8611d853477943485fc50ee374ef05bded17583298c05825ceff8"
+    },
+    {
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 1,
+      "path": "pt-BR/phoneScreenshots/01-daily.png",
+      "format": "png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "a09f8babcada17830eb4e2e2e61dcbf6db53e2da2342a5f3bde2a1a7b7ac683d"
+    },
+    {
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 2,
+      "path": "pt-BR/phoneScreenshots/02-weekly.png",
+      "format": "png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "d8dbfd6d90223ab51068bdde943116efa77972281c4bd896914737849ec51506"
+    },
+    {
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 3,
+      "path": "pt-BR/phoneScreenshots/03-monthly.png",
+      "format": "png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "5bd98536bed1a3876f192cf3bfec898d0c79fb1938e1c2bf7133acf3125acece"
+    },
+    {
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 4,
+      "path": "pt-BR/phoneScreenshots/04-compatibility.png",
+      "format": "png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "7b0ce9d7a90200f06eeb3d8636a4d34b2a8b39bc58f4fc7dc46324c58638ac96"
+    },
+    {
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 5,
+      "path": "pt-BR/phoneScreenshots/05-profile.png",
+      "format": "png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "f849ad9af8ed2c3d2db79e02109a81f33508f64c69793365320789df819307e9"
+    },
+    {
+      "locale": "pt-BR",
+      "role": "phoneScreenshot",
+      "order": 6,
+      "path": "pt-BR/phoneScreenshots/06-premium.png",
+      "format": "png",
+      "width": 1080,
+      "height": 2400,
+      "sha256": "bad562f8a908403378c29938ed5d6e6f087553f999967887c8e4e57a39026236"
     }
   ]
 }

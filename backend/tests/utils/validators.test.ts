@@ -112,6 +112,30 @@ describe('validators', () => {
     });
   });
 
+  it('accepts an optional language filter for content backfill so a single-language backfill stays under the Worker subrequest limit', () => {
+    expect(
+      validateContentBackfillBody({
+        daily_days: 1,
+        skip_static_content: false,
+        language: 'pt',
+        editorial_status: 'approved',
+        approved_by: 'github-actions',
+        approval_reference: 'workflow:content-backfill'
+      })
+    ).toMatchObject({ language: 'pt' });
+
+    expect(() =>
+      validateContentBackfillBody({
+        daily_days: 1,
+        skip_static_content: false,
+        language: 'de',
+        editorial_status: 'approved',
+        approved_by: 'github-actions',
+        approval_reference: 'workflow:content-backfill'
+      })
+    ).toThrow();
+  });
+
   it.each(['premium_monthly', 'premium_weekly', 'premium_yearly'])(
     'accepts supported subscription product %s',
     (productId) => {

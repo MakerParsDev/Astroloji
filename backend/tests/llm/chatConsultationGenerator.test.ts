@@ -100,6 +100,12 @@ describe('buildChatConsultationPrompt', () => {
 
     expect(request.messages[0]?.content).toMatch(/consejos médicos, legales o financieros/);
   });
+
+  it('includes a non-advice disclaimer in Portuguese for pt requests', () => {
+    const request = buildChatConsultationPrompt({ ...baseInput, language: 'pt' });
+
+    expect(request.messages[0]?.content).toMatch(/conselhos médicos, jurídicos ou financeiros/);
+  });
 });
 
 describe('generateChatReply', () => {

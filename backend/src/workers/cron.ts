@@ -63,13 +63,28 @@ const SIGN_LABELS = {
     capricorn: 'Capricornio',
     aquarius: 'Acuario',
     pisces: 'Piscis'
+  },
+  pt: {
+    aries: 'Áries',
+    taurus: 'Touro',
+    gemini: 'Gêmeos',
+    cancer: 'Câncer',
+    leo: 'Leão',
+    virgo: 'Virgem',
+    libra: 'Libra',
+    scorpio: 'Escorpião',
+    sagittarius: 'Sagitário',
+    capricorn: 'Capricórnio',
+    aquarius: 'Aquário',
+    pisces: 'Peixes'
   }
 } as const;
 
 const NOTIFICATION_TITLE_FORMAT: Record<keyof typeof SIGN_LABELS, (signLabel: string) => string> = {
   tr: (signLabel) => `${signLabel} Burcu Bugün`,
   en: (signLabel) => `${signLabel} Horoscope Today`,
-  es: (signLabel) => `Horóscopo de ${signLabel} Hoy`
+  es: (signLabel) => `Horóscopo de ${signLabel} Hoy`,
+  pt: (signLabel) => `Horóscopo de ${signLabel} Hoje`
 };
 
 export function buildDailyNotificationTitle(sign: keyof typeof SIGN_LABELS.tr, language: keyof typeof SIGN_LABELS) {

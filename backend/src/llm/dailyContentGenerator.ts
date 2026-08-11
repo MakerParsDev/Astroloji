@@ -49,20 +49,24 @@ export interface DailyContentGeneratorInput {
 const RESPONSE_INSTRUCTIONS: Record<Language, string> = {
   tr: 'Yalnızca aşağıdaki alanları içeren geçerli bir JSON nesnesi döndür, başka metin ekleme: short, full, love, career, money, health, lucky_number (1-99 arası tam sayı), lucky_color, energy (0-100 tam sayı), love_score (0-100 tam sayı), career_score (0-100 tam sayı), money_score (0-100 tam sayı), health_score (0-100 tam sayı), daily_tip.',
   en: 'Return only a valid JSON object with exactly these fields, no other text: short, full, love, career, money, health, lucky_number (integer 1-99), lucky_color, energy (integer 0-100), love_score (integer 0-100), career_score (integer 0-100), money_score (integer 0-100), health_score (integer 0-100), daily_tip.',
-  es: 'Devuelve únicamente un objeto JSON válido con exactamente estos campos, sin ningún otro texto: short, full, love, career, money, health, lucky_number (entero 1-99), lucky_color, energy (entero 0-100), love_score (entero 0-100), career_score (entero 0-100), money_score (entero 0-100), health_score (entero 0-100), daily_tip.'
+  es: 'Devuelve únicamente un objeto JSON válido con exactamente estos campos, sin ningún otro texto: short, full, love, career, money, health, lucky_number (entero 1-99), lucky_color, energy (entero 0-100), love_score (entero 0-100), career_score (entero 0-100), money_score (entero 0-100), health_score (entero 0-100), daily_tip.',
+  pt: 'Retorne apenas um objeto JSON válido com exatamente estes campos, sem nenhum outro texto: short, full, love, career, money, health, lucky_number (número inteiro de 1 a 99), lucky_color, energy (número inteiro de 0 a 100), love_score (número inteiro de 0 a 100), career_score (número inteiro de 0 a 100), money_score (número inteiro de 0 a 100), health_score (número inteiro de 0 a 100), daily_tip.'
 };
 
 const SYSTEM_PROMPT: Record<Language, string> = {
   tr: 'Sen deneyimli, sıcak ve gerçekçi bir astroloji yazarısın. İçerik eğlence ve öz-yansıma amaçlıdır; tıbbi, hukuki veya finansal tavsiye vermezsin.',
   en: 'You are an experienced, warm, and grounded astrology writer. Content is for entertainment and self-reflection; you never give medical, legal, or financial advice.',
-  es: 'Eres un escritor de astrología experimentado, cálido y realista. El contenido es para entretenimiento y autorreflexión; nunca das consejos médicos, legales o financieros.'
+  es: 'Eres un escritor de astrología experimentado, cálido y realista. El contenido es para entretenimiento y autorreflexión; nunca das consejos médicos, legales o financieros.',
+  pt: 'Você é um redator de astrologia experiente, caloroso e realista. O conteúdo é para entretenimento e autorreflexão; você nunca dá conselhos médicos, jurídicos ou financeiros.'
 };
 
 const USER_PROMPT: Record<Language, (input: DailyContentGeneratorInput) => string> = {
   tr: (input) => `${input.sign} burcu için ${input.date} tarihli günlük yorumu yaz. ${RESPONSE_INSTRUCTIONS.tr}`,
   en: (input) => `Write the daily horoscope for ${input.sign} for ${input.date}. ${RESPONSE_INSTRUCTIONS.en}`,
   es: (input) =>
-    `Escribe el horóscopo diario para ${input.sign} para el ${input.date}. ${RESPONSE_INSTRUCTIONS.es}`
+    `Escribe el horóscopo diario para ${input.sign} para el ${input.date}. ${RESPONSE_INSTRUCTIONS.es}`,
+  pt: (input) =>
+    `Escreva o horóscopo diário para ${input.sign} para ${input.date}. ${RESPONSE_INSTRUCTIONS.pt}`
 };
 
 export function buildDailyContentPrompt(input: DailyContentGeneratorInput): LlmGenerateRequest {
