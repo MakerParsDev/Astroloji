@@ -27,6 +27,7 @@ import androidx.navigation.toRoute
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.feature.chart.PersonalGuidanceScreen
+import com.parsfilo.astrology.feature.chart.VedicChartScreen
 import com.parsfilo.astrology.feature.chat.ChatScreen
 import com.parsfilo.astrology.feature.compatibility.CompatibilityScreen
 import com.parsfilo.astrology.feature.credits.CreditsScreen
@@ -175,6 +176,7 @@ fun AstrologyAppRoot(
                             .padding(padding),
                     onOpenPremium = { navController.navigate(PremiumRoute(PaywallSource.PROFILE_UPGRADE)) },
                     onOpenPersonalGuidance = { navController.navigate(PersonalGuidanceRoute) },
+                    onOpenVedicChart = { navController.navigate(VedicChartRoute) },
                     onOpenFriends = { navController.navigate(FriendsRoute) },
                     onOpenReading = { navController.navigate(ReadingRoute) },
                     onOpenChat = { navController.navigate(ChatRoute) },
@@ -234,6 +236,17 @@ fun AstrologyAppRoot(
                 exitTransition = { fadeOut(animationSpec = tween(200)) },
             ) {
                 PersonalGuidanceScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    modifier =
+                        androidx.compose.ui.Modifier
+                            .padding(padding),
+                )
+            }
+            composable<VedicChartRoute>(
+                enterTransition = { fadeIn(animationSpec = tween(300)) },
+                exitTransition = { fadeOut(animationSpec = tween(200)) },
+            ) {
+                VedicChartScreen(
                     onNavigateBack = { navController.popBackStack() },
                     modifier =
                         androidx.compose.ui.Modifier

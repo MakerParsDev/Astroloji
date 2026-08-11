@@ -10,6 +10,11 @@ import {
   validatePersonalGuidanceBody,
   validateTransitChartBody
 } from '@/utils/validators';
+import { getDecryptedBirthData } from '@/workers/birthData';
+
+function jsonError(status: number, code: string, message: string) {
+  return Response.json({ error: { code, message } }, { status });
+}
 
 export function registerChartRoutes(app: Hono<AppBindings>) {
   app.post('/chart/natal', async (context) => {
@@ -29,6 +34,25 @@ export function registerChartRoutes(app: Hono<AppBindings>) {
       createVedicChart({
         timestamp: request.timestamp,
         timeCertainty: request.time_certainty
+      })
+    );
+  });
+
+  app.get('/chart/vedic/me', async (context) => {
+    const auth = context.get('auth');
+    const birthData = await getDecryptedBirthData(context.env, auth.userId);
+    if (!birthData) {
+      return jsonError(
+        400,
+        'BIRTH_DATA_REQUIRED',
+        'Save your birth date, time, and city before requesting your Vedic chart.'
+      );
+    }
+
+    return context.json(
+      createVedicChart({
+        timestamp: birthData.plaintext.timestamp,
+        timeCertainty: birthData.timeCertainty
       })
     );
   });

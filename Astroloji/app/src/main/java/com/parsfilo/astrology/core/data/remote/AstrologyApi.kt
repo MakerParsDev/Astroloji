@@ -442,6 +442,41 @@ data class NatalChartResponse(
 )
 
 @Serializable
+data class SiderealPositionResponse(
+    val body: String,
+    val longitude: Double,
+    val latitude: Double,
+    val zodiac: ChartZodiacPositionResponse,
+)
+
+@Serializable
+data class MoonNakshatraResponse(
+    val nakshatra: String,
+    val index: Int,
+    val pada: Int,
+)
+
+@Serializable
+data class MahadashaResponse(
+    val graha: String,
+    @SerialName("startDate") val startDate: String,
+    @SerialName("endDate") val endDate: String,
+    val years: Double,
+)
+
+@Serializable
+data class VedicChartResponse(
+    val version: String,
+    @SerialName("calculationVersion") val calculationVersion: String,
+    @SerialName("timeCertainty") val timeCertainty: String,
+    val ayanamsa: Double,
+    val positions: List<SiderealPositionResponse>,
+    @SerialName("moonNakshatra") val moonNakshatra: MoonNakshatraResponse,
+    val mahadashas: List<MahadashaResponse>,
+    val limitations: List<String> = emptyList(),
+)
+
+@Serializable
 data class ErrorEnvelope(
     val error: ErrorBody,
 )
@@ -586,6 +621,9 @@ interface AstrologyApi {
     suspend fun getNatalChart(
         @Body body: NatalChartRequest,
     ): Response<NatalChartResponse>
+
+    @GET("api/v1/chart/vedic/me")
+    suspend fun getVedicChartForMe(): Response<VedicChartResponse>
 
     @GET("api/v1/cities/search")
     suspend fun searchCities(

@@ -49,6 +49,7 @@ import java.util.Locale
 fun SettingsScreen(
     onOpenPremium: () -> Unit,
     onOpenPersonalGuidance: () -> Unit,
+    onOpenVedicChart: () -> Unit,
     onOpenFriends: () -> Unit,
     onOpenReading: () -> Unit,
     onOpenChat: () -> Unit,
@@ -111,6 +112,25 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(stringResource(R.string.chart_settings_cta))
+                }
+            }
+
+            AstrologyCard {
+                Text(
+                    text = stringResource(R.string.chart_vedic_settings_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.chart_vedic_settings_body),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(
+                    onClick = onOpenVedicChart,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.chart_vedic_settings_cta))
                 }
             }
 

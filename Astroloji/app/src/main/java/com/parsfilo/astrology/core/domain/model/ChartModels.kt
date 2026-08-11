@@ -28,3 +28,34 @@ data class GuidanceEvidence(
     val orb: Double,
     val maximumOrb: Double,
 )
+
+data class VedicChart(
+    val version: String,
+    val calculationVersion: String,
+    val timeCertainty: String,
+    val ayanamsa: Double,
+    val positions: List<SiderealPosition>,
+    val moonNakshatra: MoonNakshatra,
+    val mahadashas: List<Mahadasha>,
+    val limitations: List<String>,
+)
+
+data class SiderealPosition(
+    val body: String,
+    val longitude: Double,
+    val signKey: String,
+    val degreeInSign: Double,
+)
+
+data class MoonNakshatra(
+    val nakshatra: String,
+    val index: Int,
+    val pada: Int,
+)
+
+data class Mahadasha(
+    val graha: String,
+    val startDate: String,
+    val endDate: String,
+    val years: Double,
+)

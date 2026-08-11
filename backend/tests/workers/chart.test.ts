@@ -1,10 +1,28 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { getDecryptedBirthData } = vi.hoisted(() => ({
+  getDecryptedBirthData: vi.fn()
+}));
+
+vi.mock('@/workers/birthData', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/workers/birthData')>();
+  return { ...actual, getDecryptedBirthData };
+});
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
 import { createRateLimiterNamespace, createTestEnv } from '../helpers/env';
 
+const VALID_BIRTH_DATA = {
+  plaintext: { timestamp: '1990-01-15T12:00:00.000Z', latitude: 41, longitude: 29, tzid: 'Europe/Istanbul' },
+  timeCertainty: 'exact' as const
+};
+
 describe('chart routes', () => {
+  beforeEach(() => {
+    getDecryptedBirthData.mockReset();
+  });
+
   it.each([
     ['denied', async () => ({ allowed: false, remaining: 0, retryAfterSeconds: 8 }), 429, 'RATE_LIMITED'],
     ['unavailable', async () => { throw new Error('rate limiter unavailable'); }, 503, 'RATE_LIMIT_UNAVAILABLE']
@@ -204,6 +222,48 @@ describe('chart routes', () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { limitations: string[] };
     expect(body.limitations).toEqual(['birth_time_uncertain', 'moon_position_time_sensitive']);
+  });
+
+  it('requires saved birth data before returning a personal Vedic chart', async () => {
+    getDecryptedBirthData.mockResolvedValue(null);
+    const env = createTestEnv();
+    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
+
+    const response = await createApp().request(
+      '/api/v1/chart/vedic/me',
+      { method: 'GET', headers: { authorization: `Bearer ${jwt}` } },
+      env
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'BIRTH_DATA_REQUIRED' } });
+  });
+
+  it('returns a personal Vedic chart derived from saved birth data, without re-exposing it', async () => {
+    getDecryptedBirthData.mockResolvedValue(VALID_BIRTH_DATA);
+    const env = createTestEnv();
+    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
+
+    const response = await createApp().request(
+      '/api/v1/chart/vedic/me',
+      { method: 'GET', headers: { authorization: `Bearer ${jwt}` } },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      version: string;
+      timeCertainty: string;
+      positions: unknown[];
+      mahadashas: unknown[];
+    };
+    expect(body.version).toBe('vedic-chart-v1');
+    expect(body.timeCertainty).toBe('exact');
+    expect(body.positions).toHaveLength(10);
+    expect(body.mahadashas).toHaveLength(9);
+    const serialized = JSON.stringify(body);
+    expect(serialized).not.toContain('tzid');
+    expect(serialized).not.toContain('Europe/Istanbul');
   });
 
   it('returns a bounded stateless transit snapshot', async () => {

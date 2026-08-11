@@ -15,6 +15,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable object PersonalGuidanceRoute
 
+@Serializable object VedicChartRoute
+
 @Serializable object CreditsRoute
 
 @Serializable object ReadingRoute

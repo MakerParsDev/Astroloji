@@ -6,12 +6,20 @@ import com.parsfilo.astrology.core.data.remote.GuidanceEvidenceResponse
 import com.parsfilo.astrology.core.data.remote.GuidanceSignalResponse
 import com.parsfilo.astrology.core.data.remote.NatalChartRequest
 import com.parsfilo.astrology.core.data.remote.NatalChartResponse
+import com.parsfilo.astrology.core.data.remote.MahadashaResponse
+import com.parsfilo.astrology.core.data.remote.MoonNakshatraResponse
 import com.parsfilo.astrology.core.data.remote.PersonalGuidanceRequest
 import com.parsfilo.astrology.core.data.remote.PersonalGuidanceResponse
+import com.parsfilo.astrology.core.data.remote.SiderealPositionResponse
+import com.parsfilo.astrology.core.data.remote.VedicChartResponse
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.domain.model.GuidanceEvidence
 import com.parsfilo.astrology.core.domain.model.GuidanceSignal
+import com.parsfilo.astrology.core.domain.model.Mahadasha
+import com.parsfilo.astrology.core.domain.model.MoonNakshatra
 import com.parsfilo.astrology.core.domain.model.PersonalGuidance
+import com.parsfilo.astrology.core.domain.model.SiderealPosition
+import com.parsfilo.astrology.core.domain.model.VedicChart
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.DispatchersProvider
@@ -154,6 +162,81 @@ class ChartRepository
                 }
             }
 
+        /**
+         * Uses the user's saved, encrypted birth data server-side — see backend
+         * `GET /chart/vedic/me` — rather than asking them to re-enter it. Returns
+         * [AppException.NetworkException] with a birth-data-specific message on HTTP 400,
+         * matching the same convention `ReadingRepository` uses for `/reading/deep`.
+         */
+        suspend fun getVedicChart(): AppResult<VedicChart> =
+            withContext(dispatchers.io) {
+                try {
+                    val response =
+                        requestExecutor.execute(
+                            request = { api.getVedicChartForMe() },
+                            refreshAfterUnauthorized = sessionRepository::refreshAfterUnauthorized,
+                            onUnauthorizedAfterRetry = sessionRepository::invalidateSession,
+                        )
+                    when {
+                        response.code() == HTTP_UNAUTHORIZED ->
+                            AppResult.Error(AppException.UnauthorizedException())
+                        response.code() == HTTP_BAD_REQUEST ->
+                            AppResult.Error(AppException.NetworkException("Birth data is required for this feature."))
+                        !response.isSuccessful ->
+                            AppResult.Error(
+                                AppException.NetworkException(
+                                    response.message().ifBlank { "Vedic chart could not be loaded." },
+                                ),
+                            )
+                        else -> {
+                            val body =
+                                response.body()
+                                    ?: return@withContext AppResult.Error(
+                                        AppException.NetworkException("Vedic chart response was empty."),
+                                    )
+                            AppResult.Success(body.toDomain())
+                        }
+                    }
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: IOException) {
+                    AppResult.Error(
+                        AppException.NetworkException(
+                            exception.message ?: "Vedic chart could not be loaded.",
+                            exception,
+                        ),
+                    )
+                } catch (exception: SerializationException) {
+                    AppResult.Error(AppException.NetworkException("Vedic chart response was invalid.", exception))
+                }
+            }
+
+        private fun VedicChartResponse.toDomain(): VedicChart =
+            VedicChart(
+                version = version,
+                calculationVersion = calculationVersion,
+                timeCertainty = timeCertainty,
+                ayanamsa = ayanamsa,
+                positions = positions.map { it.toDomain() },
+                moonNakshatra = moonNakshatra.toDomain(),
+                mahadashas = mahadashas.map { it.toDomain() },
+                limitations = limitations,
+            )
+
+        private fun SiderealPositionResponse.toDomain(): SiderealPosition =
+            SiderealPosition(
+                body = body,
+                longitude = longitude,
+                signKey = zodiac.sign,
+                degreeInSign = zodiac.degree,
+            )
+
+        private fun MoonNakshatraResponse.toDomain(): MoonNakshatra =
+            MoonNakshatra(nakshatra = nakshatra, index = index, pada = pada)
+
+        private fun MahadashaResponse.toDomain(): Mahadasha =
+            Mahadasha(graha = graha, startDate = startDate, endDate = endDate, years = years)
+
         private fun PersonalGuidanceResponse.toDomain(): PersonalGuidance =
             PersonalGuidance(
                 version = version,
@@ -188,5 +271,6 @@ class ChartRepository
 
         private companion object {
             const val HTTP_UNAUTHORIZED = 401
+            const val HTTP_BAD_REQUEST = 400
         }
     }

@@ -6,8 +6,12 @@ import com.parsfilo.astrology.core.data.remote.ChartAngleResponse
 import com.parsfilo.astrology.core.data.remote.ChartZodiacPositionResponse
 import com.parsfilo.astrology.core.data.remote.GuidanceEvidenceResponse
 import com.parsfilo.astrology.core.data.remote.GuidanceSignalResponse
+import com.parsfilo.astrology.core.data.remote.MahadashaResponse
+import com.parsfilo.astrology.core.data.remote.MoonNakshatraResponse
 import com.parsfilo.astrology.core.data.remote.NatalChartResponse
 import com.parsfilo.astrology.core.data.remote.PersonalGuidanceResponse
+import com.parsfilo.astrology.core.data.remote.SiderealPositionResponse
+import com.parsfilo.astrology.core.data.remote.VedicChartResponse
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
@@ -160,6 +164,84 @@ class ChartRepositoryTest {
                 )
             }
         }
+
+    @Test
+    fun `vedic chart response maps sidereal positions, moon nakshatra, and mahadashas`() =
+        runTest {
+            coEvery { api.getVedicChartForMe() } returns Response.success(vedicChartResponse())
+
+            val result = repository.getVedicChart()
+
+            assertThat(result).isInstanceOf(AppResult.Success::class.java)
+            val chart = (result as AppResult.Success).data
+            assertThat(chart.version).isEqualTo("vedic-chart-v1")
+            assertThat(chart.ayanamsa).isEqualTo(23.7)
+            assertThat(chart.positions).hasSize(1)
+            assertThat(chart.positions.first().body).isEqualTo("moon")
+            assertThat(chart.positions.first().signKey).isEqualTo("leo")
+            assertThat(chart.moonNakshatra.nakshatra).isEqualTo("purva_phalguni")
+            assertThat(chart.moonNakshatra.pada).isEqualTo(4)
+            assertThat(chart.mahadashas).hasSize(1)
+            assertThat(chart.mahadashas.first().graha).isEqualTo("venus")
+            coVerify(exactly = 1) { api.getVedicChartForMe() }
+        }
+
+    @Test
+    fun `vedic chart request surfaces a birth-data-required error on HTTP 400`() =
+        runTest {
+            coEvery { api.getVedicChartForMe() } returns
+                Response.error(400, "birth data required".toResponseBody())
+
+            val result = repository.getVedicChart()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception)
+                .isInstanceOf(AppException.NetworkException::class.java)
+        }
+
+    @Test
+    fun `unauthorized vedic chart response uses deterministic refresh and surfaces unauthorized`() =
+        runTest {
+            coEvery { api.getVedicChartForMe() } returns
+                Response.error(401, "unauthorized".toResponseBody())
+            coEvery { sessionRepository.refreshAfterUnauthorized(null) } returns
+                AppResult.Error(AppException.UnauthorizedException())
+
+            val result = repository.getVedicChart()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception)
+                .isInstanceOf(AppException.UnauthorizedException::class.java)
+            coVerify(exactly = 1) { sessionRepository.refreshAfterUnauthorized(null) }
+        }
+
+    private fun vedicChartResponse(): VedicChartResponse =
+        VedicChartResponse(
+            version = "vedic-chart-v1",
+            calculationVersion = "astronomy-engine-2.1.19-true-chitrapaksha",
+            timeCertainty = "exact",
+            ayanamsa = 23.7,
+            positions =
+                listOf(
+                    SiderealPositionResponse(
+                        body = "moon",
+                        longitude = 143.8,
+                        latitude = -2.7,
+                        zodiac = ChartZodiacPositionResponse(sign = "leo", degree = 23.8),
+                    ),
+                ),
+            moonNakshatra = MoonNakshatraResponse(nakshatra = "purva_phalguni", index = 10, pada = 4),
+            mahadashas =
+                listOf(
+                    MahadashaResponse(
+                        graha = "venus",
+                        startDate = "1990-01-15T12:00:00.000Z",
+                        endDate = "1994-05-07T15:42:14.844Z",
+                        years = 4.3,
+                    ),
+                ),
+            limitations = emptyList(),
+        )
 
     private fun natalChartResponse(ascendant: String?): NatalChartResponse =
         NatalChartResponse(
