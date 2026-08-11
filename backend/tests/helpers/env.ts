@@ -100,7 +100,7 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
     ADMIN_PLAY_READ_SECRET: 'play-read-secret',
     ADMIN_PLAY_WRITE_SECRET: 'play-write-secret',
     ADMOB_REWARDED_ID: 'ca-app-pub-3940256099942544/5224354917',
-    BIRTH_DATA_ENCRYPTION_KEY: 'EPGCA29Qg8Iq8W4pvVUYZ1Monfi3j4mH1/radF2jVMk=',
+    BIRTH_DATA_ENCRYPTION_KEY: 'VEVTVC1PTkxZLUZBS0UtS0VZLU5PVC1SRUFMLTAwMDA=',
     ...overrides
   };
 }

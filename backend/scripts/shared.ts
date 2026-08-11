@@ -9,6 +9,7 @@ export const CLOUDFLARE_SECRET_NAMES = [
   'GOOGLE_SERVICE_ACCOUNT_JSON',
   'FIREBASE_SERVICE_ACCOUNT_JSON',
   'ADMOB_REWARDED_ID',
+  'BIRTH_DATA_ENCRYPTION_KEY',
 ] as const;
 
 export type CloudflareSecretName = (typeof CLOUDFLARE_SECRET_NAMES)[number];

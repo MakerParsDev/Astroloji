@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { decryptBirthData, encryptBirthData, type BirthDataPlaintext } from '@/services/birthDataEncryption';
 
 // Fixture key only — never a real secret. 32 random bytes, base64-encoded.
-const TEST_KEY = 'EPGCA29Qg8Iq8W4pvVUYZ1Monfi3j4mH1/radF2jVMk=';
-const OTHER_KEY = '1c0+e2rECU37Cyw/v0/PFpDlCmI1RgGV69WORFLUHbs=';
+const TEST_KEY = 'VEVTVC1PTkxZLUZBS0UtS0VZLU5PVC1SRUFMLTAwMDA=';
+const OTHER_KEY = 'VEVTVC1PTkxZLU9USEVSLUZBS0UtS0VZLU5PVC0wMDI=';
 
 const plaintext: BirthDataPlaintext = {
   timestamp: '1990-06-15T09:15:00.000Z',
