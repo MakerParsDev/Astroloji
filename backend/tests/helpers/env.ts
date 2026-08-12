@@ -61,8 +61,12 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
     CACHE: (() => {
       const store = new Map<string, string>();
       return {
-        async get(key: string) {
-          return store.get(key) ?? null;
+        async get(key: string, type?: string) {
+          const value = store.get(key) ?? null;
+          if (value !== null && type === 'json') {
+            return JSON.parse(value);
+          }
+          return value;
         },
         async put(key: string, value: string) {
           store.set(key, value);

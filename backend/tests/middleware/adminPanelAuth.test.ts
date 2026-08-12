@@ -117,6 +117,20 @@ describe('requireAdminPanelAuth', () => {
     expect(response.status).toBe(403);
   });
 
+  it('rejects with 403, not 500, when ADMIN_PANEL_ALLOWED_EMAILS is unset', async () => {
+    verifyAdminPanelIdentityMock.mockResolvedValue({
+      sub: 'panel-uid-4',
+      email: 'ops@example.com',
+      emailVerified: true
+    });
+    const response = await protectedApp().request(
+      '/protected',
+      { headers: { authorization: 'Bearer test-token' } },
+      createTestEnv({ ADMIN_PANEL_ALLOWED_EMAILS: undefined as unknown as string })
+    );
+    expect(response.status).toBe(403);
+  });
+
   it('classifies downstream failures as failed, never completed', async () => {
     verifyAdminPanelIdentityMock.mockResolvedValue({
       sub: 'panel-uid-1',

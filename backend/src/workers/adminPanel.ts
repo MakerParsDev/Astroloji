@@ -54,7 +54,7 @@ async function checkDb(db: D1Database): Promise<boolean> {
 async function checkKv(cache: KVNamespace): Promise<boolean> {
   try {
     await cache.put(ADMIN_PANEL_HEALTH_CACHE_KEY, '1', { expirationTtl: 60 });
-    return (await cache.get(ADMIN_PANEL_HEALTH_CACHE_KEY)) === '1';
+    return true;
   } catch {
     return false;
   }

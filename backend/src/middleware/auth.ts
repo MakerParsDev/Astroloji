@@ -128,7 +128,7 @@ async function runAdminPanelAuth(c: AppContext, next: Next, operation: AdminOper
     return jsonError(c, 401, 'INVALID_TOKEN', 'Authorization token is invalid or expired.');
   }
 
-  const allowedEmails = resolveAdminPanelAllowedEmails(c.env.ADMIN_PANEL_ALLOWED_EMAILS);
+  const allowedEmails = resolveAdminPanelAllowedEmails(c.env.ADMIN_PANEL_ALLOWED_EMAILS ?? '');
   const email = identity.email?.toLowerCase();
   if (!identity.emailVerified || !email || !allowedEmails.includes(email)) {
     audit('rejected');
