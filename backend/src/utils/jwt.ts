@@ -109,15 +109,33 @@ async function resolveFirebaseVerificationKey(env: Env, token: string): Promise<
   return importX509(certificate, 'RS256');
 }
 
-export async function verifyFirebaseIdToken(env: Env, token: string): Promise<FirebaseIdTokenClaims> {
-  const account = getGoogleServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
-  const issuer = `https://securetoken.google.com/${account.project_id}`;
+interface VerifiedFirebaseToken {
+  aud: string;
+  iss: string;
+  sub: string;
+  user_id?: string;
+  email?: string;
+  emailVerified: boolean;
+  firebase?: { sign_in_provider?: string };
+}
+
+/**
+ * Shared JWKS/signature verification core. Google's certificate endpoint is
+ * shared across every Firebase project, so only the issuer/audience check is
+ * project-specific — callers supply which project's tokens they trust.
+ */
+async function verifyFirebaseIdTokenForProject(
+  env: Env,
+  token: string,
+  projectId: string
+): Promise<VerifiedFirebaseToken> {
+  const issuer = `https://securetoken.google.com/${projectId}`;
   const key = await resolveFirebaseVerificationKey(env, token);
 
   const { payload } = await jwtVerify(token, key, {
     algorithms: ['RS256'],
     issuer,
-    audience: account.project_id
+    audience: projectId
   });
 
   if (!payload.sub) {
@@ -129,8 +147,37 @@ export async function verifyFirebaseIdToken(env: Env, token: string): Promise<Fi
     iss: String(payload.iss ?? ''),
     sub: String(payload.sub),
     user_id: payload['user_id'] != null ? String(payload['user_id']) : undefined,
-    firebase: (payload['firebase'] as FirebaseIdTokenClaims['firebase']) ?? undefined,
+    email: typeof payload['email'] === 'string' ? payload['email'] : undefined,
+    emailVerified: payload['email_verified'] === true,
+    firebase: (payload['firebase'] as VerifiedFirebaseToken['firebase']) ?? undefined
   };
+}
+
+export async function verifyFirebaseIdToken(env: Env, token: string): Promise<FirebaseIdTokenClaims> {
+  const account = getGoogleServiceAccount(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  const verified = await verifyFirebaseIdTokenForProject(env, token, account.project_id);
+
+  return {
+    aud: verified.aud,
+    iss: verified.iss,
+    sub: verified.sub,
+    user_id: verified.user_id,
+    firebase: verified.firebase
+  };
+}
+
+/**
+ * Verifies a Firebase ID token issued by the admin-notifications panel's OWN
+ * Firebase project (ADMIN_PANEL_FIREBASE_PROJECT_ID) — a different project
+ * than Astroloji's own end-user Firebase project. Used only by
+ * requireAdminPanelAuth (middleware/auth.ts).
+ */
+export async function verifyAdminPanelIdentity(
+  env: Env,
+  token: string
+): Promise<{ sub: string; email?: string; emailVerified: boolean }> {
+  const verified = await verifyFirebaseIdTokenForProject(env, token, env.ADMIN_PANEL_FIREBASE_PROJECT_ID);
+  return { sub: verified.sub, email: verified.email, emailVerified: verified.emailVerified };
 }
 
 export async function createGoogleAccessToken(
