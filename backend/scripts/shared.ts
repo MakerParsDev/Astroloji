@@ -10,6 +10,7 @@ export const CLOUDFLARE_SECRET_NAMES = [
   'FIREBASE_SERVICE_ACCOUNT_JSON',
   'ADMOB_REWARDED_ID',
   'BIRTH_DATA_ENCRYPTION_KEY',
+  'ADMIN_PANEL_ALLOWED_EMAILS',
 ] as const;
 
 export type CloudflareSecretName = (typeof CLOUDFLARE_SECRET_NAMES)[number];

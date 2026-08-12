@@ -9,6 +9,8 @@ const RTDN_RUNTIME_VARIABLES = [
   'PLAY_RTDN_SERVICE_ACCOUNT_EMAIL'
 ] as const;
 
+const ADMIN_PANEL_RUNTIME_VARIABLES = ['ADMIN_PANEL_FIREBASE_PROJECT_ID'] as const;
+
 type Execute = (
   executable: string,
   args: string[],
@@ -23,7 +25,7 @@ export interface WorkerDeployOptions {
 }
 
 export function buildWorkerDeployArgs(environment: NodeJS.ProcessEnv): string[] {
-  for (const name of RTDN_RUNTIME_VARIABLES) {
+  for (const name of [...RTDN_RUNTIME_VARIABLES, ...ADMIN_PANEL_RUNTIME_VARIABLES]) {
     if (!environment[name]) {
       throw new Error(`Missing required Worker runtime variable: ${name}`);
     }
@@ -34,7 +36,9 @@ export function buildWorkerDeployArgs(environment: NodeJS.ProcessEnv): string[] 
     '--var',
     `PLAY_RTDN_AUDIENCE:${environment.PLAY_RTDN_AUDIENCE}`,
     '--var',
-    `PLAY_RTDN_SERVICE_ACCOUNT_EMAIL:${environment.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL}`
+    `PLAY_RTDN_SERVICE_ACCOUNT_EMAIL:${environment.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL}`,
+    '--var',
+    `ADMIN_PANEL_FIREBASE_PROJECT_ID:${environment.ADMIN_PANEL_FIREBASE_PROJECT_ID}`
   ];
 }
 

@@ -5,7 +5,8 @@ import { buildWorkerDeployArgs, runWorkerDeploy } from '../../scripts/deploy-wor
 function runtimeEnvironment(): NodeJS.ProcessEnv {
   return {
     PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
-    PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com'
+    PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
+    ADMIN_PANEL_FIREBASE_PROJECT_ID: 'panel-project'
   };
 }
 
@@ -18,7 +19,9 @@ describe('Worker deploy runtime configuration', () => {
       '--var',
       `PLAY_RTDN_AUDIENCE:${environment.PLAY_RTDN_AUDIENCE}`,
       '--var',
-      `PLAY_RTDN_SERVICE_ACCOUNT_EMAIL:${environment.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL}`
+      `PLAY_RTDN_SERVICE_ACCOUNT_EMAIL:${environment.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL}`,
+      '--var',
+      `ADMIN_PANEL_FIREBASE_PROJECT_ID:${environment.ADMIN_PANEL_FIREBASE_PROJECT_ID}`
     ]);
   });
   it.each(['PLAY_RTDN_AUDIENCE', 'PLAY_RTDN_SERVICE_ACCOUNT_EMAIL'] as const)(
@@ -45,5 +48,32 @@ describe('Worker deploy runtime configuration', () => {
       buildWorkerDeployArgs(environment),
       expect.objectContaining({ cwd: '/repo', shell: false, stdio: 'inherit' })
     );
+  });
+});
+
+describe('buildWorkerDeployArgs admin panel variable', () => {
+  function baseEnv(): NodeJS.ProcessEnv {
+    return {
+      PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
+      PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
+      ADMIN_PANEL_FIREBASE_PROJECT_ID: 'panel-project'
+    };
+  }
+
+  it('passes the admin panel Firebase project id as a deploy-time var', () => {
+    const args = buildWorkerDeployArgs(baseEnv());
+    expect(args).toContain('ADMIN_PANEL_FIREBASE_PROJECT_ID:panel-project');
+  });
+
+  it('throws when ADMIN_PANEL_FIREBASE_PROJECT_ID is missing', () => {
+    const env = baseEnv();
+    delete env.ADMIN_PANEL_FIREBASE_PROJECT_ID;
+    expect(() => buildWorkerDeployArgs(env)).toThrow(/ADMIN_PANEL_FIREBASE_PROJECT_ID/);
+  });
+
+  it('still requires the pre-existing RTDN variables', () => {
+    const env = baseEnv();
+    delete env.PLAY_RTDN_AUDIENCE;
+    expect(() => buildWorkerDeployArgs(env)).toThrow(/PLAY_RTDN_AUDIENCE/);
   });
 });
