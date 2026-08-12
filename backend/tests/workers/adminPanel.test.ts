@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-const { verifyAdminPanelIdentityMock } = vi.hoisted(() => ({
-  verifyAdminPanelIdentityMock: vi.fn()
+const { verifyCloudflareAccessJwtMock } = vi.hoisted(() => ({
+  verifyCloudflareAccessJwtMock: vi.fn()
 }));
 
-vi.mock('@/utils/jwt', async () => {
-  const actual = await vi.importActual<typeof import('@/utils/jwt')>('@/utils/jwt');
+vi.mock('@/utils/cloudflareAccess', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/cloudflareAccess')>('@/utils/cloudflareAccess');
   return {
     ...actual,
-    verifyAdminPanelIdentity: verifyAdminPanelIdentityMock
+    verifyCloudflareAccessJwt: verifyCloudflareAccessJwtMock
   };
 });
 
@@ -16,15 +16,11 @@ import { createApp } from '@/index';
 import { createTestEnv } from '../helpers/env';
 
 function env() {
-  return createTestEnv({ ADMIN_PANEL_ALLOWED_EMAILS: 'ops@example.com' });
+  return createTestEnv();
 }
 
 function authorize() {
-  verifyAdminPanelIdentityMock.mockResolvedValue({
-    sub: 'panel-uid-1',
-    email: 'ops@example.com',
-    emailVerified: true
-  });
+  verifyCloudflareAccessJwtMock.mockResolvedValue({ email: 'ops@example.com' });
 }
 
 describe('GET /api/v1/admin/panel/health', () => {
@@ -40,7 +36,7 @@ describe('GET /api/v1/admin/panel/health', () => {
 
     const response = await app.request(
       '/api/v1/admin/panel/health',
-      { headers: { authorization: 'Bearer test-token' } },
+      { headers: { 'cf-access-jwt-assertion': 'test-token' } },
       env()
     );
 
@@ -84,7 +80,7 @@ describe('POST /api/v1/admin/panel/llm/test', () => {
       '/api/v1/admin/panel/llm/test',
       {
         method: 'POST',
-        headers: { authorization: 'Bearer test-token', 'content-type': 'application/json' },
+        headers: { 'cf-access-jwt-assertion': 'test-token', 'content-type': 'application/json' },
         body: JSON.stringify({ taskType: 'not-a-real-task' })
       },
       env()
@@ -95,7 +91,6 @@ describe('POST /api/v1/admin/panel/llm/test', () => {
   it('returns the provider fallback attempts when every provider fails', async () => {
     authorize();
     const failingEnv = createTestEnv({
-      ADMIN_PANEL_ALLOWED_EMAILS: 'ops@example.com',
       AI: {
         async run() {
           throw new Error('simulated provider outage');
@@ -108,7 +103,7 @@ describe('POST /api/v1/admin/panel/llm/test', () => {
       '/api/v1/admin/panel/llm/test',
       {
         method: 'POST',
-        headers: { authorization: 'Bearer test-token', 'content-type': 'application/json' },
+        headers: { 'cf-access-jwt-assertion': 'test-token', 'content-type': 'application/json' },
         body: JSON.stringify({ taskType: 'daily_content' })
       },
       failingEnv
@@ -125,7 +120,6 @@ describe('POST /api/v1/admin/panel/llm/test', () => {
     authorize();
     const cachePutSpy = vi.fn();
     const workingEnv = createTestEnv({
-      ADMIN_PANEL_ALLOWED_EMAILS: 'ops@example.com',
       AI: {
         async run() {
           return { response: 'ok', usage: { prompt_tokens: 12, completion_tokens: 1 } };
@@ -147,7 +141,7 @@ describe('POST /api/v1/admin/panel/llm/test', () => {
       '/api/v1/admin/panel/llm/test',
       {
         method: 'POST',
-        headers: { authorization: 'Bearer test-token', 'content-type': 'application/json' },
+        headers: { 'cf-access-jwt-assertion': 'test-token', 'content-type': 'application/json' },
         body: JSON.stringify({ taskType: 'deep_reading' })
       },
       workingEnv

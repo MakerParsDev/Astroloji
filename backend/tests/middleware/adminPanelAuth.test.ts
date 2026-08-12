@@ -1,15 +1,15 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const { verifyAdminPanelIdentityMock } = vi.hoisted(() => ({
-  verifyAdminPanelIdentityMock: vi.fn()
+const { verifyCloudflareAccessJwtMock } = vi.hoisted(() => ({
+  verifyCloudflareAccessJwtMock: vi.fn()
 }));
 
-vi.mock('@/utils/jwt', async () => {
-  const actual = await vi.importActual<typeof import('@/utils/jwt')>('@/utils/jwt');
+vi.mock('@/utils/cloudflareAccess', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/cloudflareAccess')>('@/utils/cloudflareAccess');
   return {
     ...actual,
-    verifyAdminPanelIdentity: verifyAdminPanelIdentityMock
+    verifyCloudflareAccessJwt: verifyCloudflareAccessJwtMock
   };
 });
 
@@ -18,7 +18,7 @@ import type { AppBindings } from '@/types';
 import { createTestEnv } from '../helpers/env';
 
 function env() {
-  return createTestEnv({ ADMIN_PANEL_ALLOWED_EMAILS: 'ops@example.com, second@example.com' });
+  return createTestEnv();
 }
 
 function protectedApp(status = 200) {
@@ -47,21 +47,17 @@ function adminEvents(spy: ReturnType<typeof vi.spyOn>) {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  verifyAdminPanelIdentityMock.mockReset();
+  verifyCloudflareAccessJwtMock.mockReset();
 });
 
 describe('requireAdminPanelAuth', () => {
-  it('authorizes a verified, allowlisted identity and emits sanitized audit events', async () => {
-    verifyAdminPanelIdentityMock.mockResolvedValue({
-      sub: 'panel-uid-1',
-      email: 'ops@example.com',
-      emailVerified: true
-    });
+  it('authorizes a valid Cloudflare Access token and emits sanitized audit events', async () => {
+    verifyCloudflareAccessJwtMock.mockResolvedValue({ email: 'oaslananka@gmail.com' });
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     const response = await protectedApp().request(
       '/protected',
-      { headers: { authorization: 'Bearer test-token' } },
+      { headers: { 'cf-access-jwt-assertion': 'test-token' } },
       env()
     );
 
@@ -69,79 +65,50 @@ describe('requireAdminPanelAuth', () => {
     const events = adminEvents(log);
     expect(events.map((event) => event.outcome)).toEqual(['authorized', 'completed']);
     expect(events.every((event) => event.capability === 'admin-panel' && event.operation === 'panel.health')).toBe(true);
-    expect(JSON.stringify(events)).not.toContain('ops@example.com');
+    expect(JSON.stringify(events)).not.toContain('oaslananka@gmail.com');
     expect(JSON.stringify(events)).not.toContain('test-token');
   });
 
-  it('rejects with 401 when the authorization header is missing', async () => {
+  it('rejects with 401 when the Cf-Access-Jwt-Assertion header is missing', async () => {
     const response = await protectedApp().request('/protected', {}, env());
     expect(response.status).toBe(401);
-    expect(verifyAdminPanelIdentityMock).not.toHaveBeenCalled();
+    expect(verifyCloudflareAccessJwtMock).not.toHaveBeenCalled();
   });
 
-  it('rejects with 401 when token verification fails', async () => {
-    verifyAdminPanelIdentityMock.mockRejectedValue(new Error('token expired'));
+  it('rejects with 401 when token verification fails (bad signature, wrong aud, expired)', async () => {
+    verifyCloudflareAccessJwtMock.mockRejectedValue(new Error('signature verification failed'));
     const response = await protectedApp().request(
       '/protected',
-      { headers: { authorization: 'Bearer bad-token' } },
+      { headers: { 'cf-access-jwt-assertion': 'bad-token' } },
       env()
     );
     expect(response.status).toBe(401);
   });
 
-  it('rejects with 403 when the email is not in the allowlist', async () => {
-    verifyAdminPanelIdentityMock.mockResolvedValue({
-      sub: 'panel-uid-2',
-      email: 'stranger@example.com',
-      emailVerified: true
+  it('passes this backend\'s team domain and aud to the verifier', async () => {
+    verifyCloudflareAccessJwtMock.mockResolvedValue({ email: 'oaslananka@gmail.com' });
+    const testEnv = createTestEnv({
+      ADMIN_PANEL_ACCESS_TEAM_DOMAIN: 'oaslananka.cloudflareaccess.com',
+      ADMIN_PANEL_ACCESS_AUD: 'astroloji-specific-aud'
     });
-    const response = await protectedApp().request(
-      '/protected',
-      { headers: { authorization: 'Bearer test-token' } },
-      env()
-    );
-    expect(response.status).toBe(403);
-  });
 
-  it('rejects with 403 when the email is not verified', async () => {
-    verifyAdminPanelIdentityMock.mockResolvedValue({
-      sub: 'panel-uid-3',
-      email: 'ops@example.com',
-      emailVerified: false
-    });
-    const response = await protectedApp().request(
-      '/protected',
-      { headers: { authorization: 'Bearer test-token' } },
-      env()
-    );
-    expect(response.status).toBe(403);
-  });
+    await protectedApp().request('/protected', { headers: { 'cf-access-jwt-assertion': 'test-token' } }, testEnv);
 
-  it('rejects with 403, not 500, when ADMIN_PANEL_ALLOWED_EMAILS is unset', async () => {
-    verifyAdminPanelIdentityMock.mockResolvedValue({
-      sub: 'panel-uid-4',
-      email: 'ops@example.com',
-      emailVerified: true
-    });
-    const response = await protectedApp().request(
-      '/protected',
-      { headers: { authorization: 'Bearer test-token' } },
-      createTestEnv({ ADMIN_PANEL_ALLOWED_EMAILS: undefined as unknown as string })
+    expect(verifyCloudflareAccessJwtMock).toHaveBeenCalledWith(
+      expect.anything(),
+      'test-token',
+      'oaslananka.cloudflareaccess.com',
+      'astroloji-specific-aud'
     );
-    expect(response.status).toBe(403);
   });
 
   it('classifies downstream failures as failed, never completed', async () => {
-    verifyAdminPanelIdentityMock.mockResolvedValue({
-      sub: 'panel-uid-1',
-      email: 'ops@example.com',
-      emailVerified: true
-    });
+    verifyCloudflareAccessJwtMock.mockResolvedValue({ email: 'oaslananka@gmail.com' });
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     const response = await protectedApp(500).request(
       '/protected',
-      { headers: { authorization: 'Bearer test-token' } },
+      { headers: { 'cf-access-jwt-assertion': 'test-token' } },
       env()
     );
 

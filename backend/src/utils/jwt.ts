@@ -114,8 +114,6 @@ interface VerifiedFirebaseToken {
   iss: string;
   sub: string;
   user_id?: string;
-  email?: string;
-  emailVerified: boolean;
   firebase?: { sign_in_provider?: string };
 }
 
@@ -147,8 +145,6 @@ async function verifyFirebaseIdTokenForProject(
     iss: String(payload.iss ?? ''),
     sub: String(payload.sub),
     user_id: payload['user_id'] != null ? String(payload['user_id']) : undefined,
-    email: typeof payload['email'] === 'string' ? payload['email'] : undefined,
-    emailVerified: payload['email_verified'] === true,
     firebase: (payload['firebase'] as VerifiedFirebaseToken['firebase']) ?? undefined
   };
 }
@@ -164,20 +160,6 @@ export async function verifyFirebaseIdToken(env: Env, token: string): Promise<Fi
     user_id: verified.user_id,
     firebase: verified.firebase
   };
-}
-
-/**
- * Verifies a Firebase ID token issued by the admin-notifications panel's OWN
- * Firebase project (ADMIN_PANEL_FIREBASE_PROJECT_ID) — a different project
- * than Astroloji's own end-user Firebase project. Used only by
- * requireAdminPanelAuth (middleware/auth.ts).
- */
-export async function verifyAdminPanelIdentity(
-  env: Env,
-  token: string
-): Promise<{ sub: string; email?: string; emailVerified: boolean }> {
-  const verified = await verifyFirebaseIdTokenForProject(env, token, env.ADMIN_PANEL_FIREBASE_PROJECT_ID);
-  return { sub: verified.sub, email: verified.email, emailVerified: verified.emailVerified };
 }
 
 export async function createGoogleAccessToken(

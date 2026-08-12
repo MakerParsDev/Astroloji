@@ -106,8 +106,8 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
     ADMIN_NOTIFICATION_SECRET: 'notification-secret',
     ADMIN_PLAY_READ_SECRET: 'play-read-secret',
     ADMIN_PLAY_WRITE_SECRET: 'play-write-secret',
-    ADMIN_PANEL_ALLOWED_EMAILS: 'ops@example.com',
-    ADMIN_PANEL_FIREBASE_PROJECT_ID: 'panel-demo-project',
+    ADMIN_PANEL_ACCESS_TEAM_DOMAIN: 'oaslananka.cloudflareaccess.com',
+    ADMIN_PANEL_ACCESS_AUD: 'test-aud-astroloji',
     ADMOB_REWARDED_ID: 'ca-app-pub-3940256099942544/5224354917',
     BIRTH_DATA_ENCRYPTION_KEY: 'VEVTVC1PTkxZLUZBS0UtS0VZLU5PVC1SRUFMLTAwMDA=',
     ...overrides

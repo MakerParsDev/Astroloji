@@ -151,8 +151,6 @@ interface SecretBindings {
   ADMIN_NOTIFICATION_SECRET: string;
   ADMIN_PLAY_READ_SECRET: string;
   ADMIN_PLAY_WRITE_SECRET: string;
-  /** Comma-separated allowlist of Firebase account emails permitted to call /admin/panel/*. */
-  ADMIN_PANEL_ALLOWED_EMAILS: string;
   ADMOB_REWARDED_ID: string;
   /** Base64-encoded 32-byte (AES-256) key. Generate with `openssl rand -base64 32`. See services/birthDataEncryption.ts. */
   BIRTH_DATA_ENCRYPTION_KEY: string;
@@ -161,8 +159,10 @@ interface SecretBindings {
 interface RuntimeConfigBindings {
   PLAY_RTDN_AUDIENCE: string;
   PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: string;
-  /** Firebase project ID the admin-notifications panel signs into. Not a secret — already public in that panel's bundled JS. */
-  ADMIN_PANEL_FIREBASE_PROJECT_ID: string;
+  /** Cloudflare Access team domain, e.g. "oaslananka.cloudflareaccess.com". */
+  ADMIN_PANEL_ACCESS_TEAM_DOMAIN: string;
+  /** This Access Application's aud tag — scopes verification to astrology.parsfilo.com/api/v1/admin/panel/* specifically. */
+  ADMIN_PANEL_ACCESS_AUD: string;
 }
 
 export type Env = CloudflareEnv & SecretBindings & RuntimeConfigBindings;

@@ -3,7 +3,8 @@ import type { Next } from 'hono';
 import { logAdminOperation } from '@/services/adminAudit';
 import { verifyPlayRtdnIdentity } from '@/services/playRtdnAuth';
 import type { AdminCapability, AdminOperation, AppContext, AppMiddleware, Env } from '@/types';
-import { verifyAdminPanelIdentity, verifyAppJwt } from '@/utils/jwt';
+import { verifyAppJwt } from '@/utils/jwt';
+import { verifyCloudflareAccessJwt } from '@/utils/cloudflareAccess';
 import { matchesSecret } from '@/utils/security';
 import { parseBooleanFlag } from '@/utils/validators';
 
@@ -103,36 +104,21 @@ export function requireAdminCapability(
   return (c, next) => runAdminCapability(c, next, capability, operation);
 }
 
-function resolveAdminPanelAllowedEmails(raw: string): string[] {
-  return raw
-    .split(',')
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 async function runAdminPanelAuth(c: AppContext, next: Next, operation: AdminOperation): Promise<Response | void> {
   const audit = (outcome: 'authorized' | 'rejected' | 'completed' | 'failed') =>
     logAdminOperation({ requestId: c.get('requestId'), capability: 'admin-panel', operation, outcome });
 
-  const token = getBearerToken(c.req.header('authorization'));
+  const token = c.req.header('cf-access-jwt-assertion');
   if (!token) {
     audit('rejected');
-    return jsonError(c, 401, 'UNAUTHORIZED', 'Missing authorization header.');
+    return jsonError(c, 401, 'UNAUTHORIZED', 'Missing Cloudflare Access token.');
   }
 
-  let identity: { sub: string; email?: string; emailVerified: boolean };
   try {
-    identity = await verifyAdminPanelIdentity(c.env, token);
+    await verifyCloudflareAccessJwt(c.env, token, c.env.ADMIN_PANEL_ACCESS_TEAM_DOMAIN, c.env.ADMIN_PANEL_ACCESS_AUD);
   } catch {
     audit('rejected');
-    return jsonError(c, 401, 'INVALID_TOKEN', 'Authorization token is invalid or expired.');
-  }
-
-  const allowedEmails = resolveAdminPanelAllowedEmails(c.env.ADMIN_PANEL_ALLOWED_EMAILS ?? '');
-  const email = identity.email?.toLowerCase();
-  if (!identity.emailVerified || !email || !allowedEmails.includes(email)) {
-    audit('rejected');
-    return jsonError(c, 403, 'FORBIDDEN', 'This account is not authorized for the admin panel.');
+    return jsonError(c, 401, 'INVALID_TOKEN', 'Cloudflare Access token is invalid or expired.');
   }
 
   audit('authorized');
