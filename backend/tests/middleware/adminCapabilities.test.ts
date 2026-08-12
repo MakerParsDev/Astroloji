@@ -12,7 +12,8 @@ const scopedSecrets: Record<AdminCapability, string> = {
   'content-ops': 'content-secret',
   'notification-ops': 'notification-secret',
   'play-read': 'play-read-secret',
-  'play-write': 'play-write-secret'
+  'play-write': 'play-write-secret',
+  'admin-panel': 'ops@example.com'
 };
 
 function env() {

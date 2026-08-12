@@ -115,7 +115,7 @@ export const USER_EVENT_TYPES = [
 ] as const;
 export const CONTENT_TYPES = ['daily', 'weekly', 'monthly', 'compat', 'personality'] as const;
 export const REWARD_TYPES = ['daily', 'weekly'] as const;
-export const ADMIN_CAPABILITIES = ['content-ops', 'notification-ops', 'play-read', 'play-write'] as const;
+export const ADMIN_CAPABILITIES = ['content-ops', 'notification-ops', 'play-read', 'play-write', 'admin-panel'] as const;
 export const ADMIN_OPERATIONS = [
   'content.backfill',
   'content.cache_bypass',
@@ -124,7 +124,9 @@ export const ADMIN_OPERATIONS = [
   'play.subscription_update',
   'play.subscription_audit',
   'play.review_list',
-  'play.review_reply'
+  'play.review_reply',
+  'panel.health',
+  'panel.llm_test'
 ] as const;
 
 export type Sign = (typeof SIGNS)[number];
@@ -149,6 +151,8 @@ interface SecretBindings {
   ADMIN_NOTIFICATION_SECRET: string;
   ADMIN_PLAY_READ_SECRET: string;
   ADMIN_PLAY_WRITE_SECRET: string;
+  /** Comma-separated allowlist of Firebase account emails permitted to call /admin/panel/*. */
+  ADMIN_PANEL_ALLOWED_EMAILS: string;
   ADMOB_REWARDED_ID: string;
   /** Base64-encoded 32-byte (AES-256) key. Generate with `openssl rand -base64 32`. See services/birthDataEncryption.ts. */
   BIRTH_DATA_ENCRYPTION_KEY: string;
@@ -157,6 +161,8 @@ interface SecretBindings {
 interface RuntimeConfigBindings {
   PLAY_RTDN_AUDIENCE: string;
   PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: string;
+  /** Firebase project ID the admin-notifications panel signs into. Not a secret — already public in that panel's bundled JS. */
+  ADMIN_PANEL_FIREBASE_PROJECT_ID: string;
 }
 
 export type Env = CloudflareEnv & SecretBindings & RuntimeConfigBindings;
