@@ -1239,7 +1239,7 @@ git commit -m "feat(admin-panel): wire ADMIN_PANEL_ALLOWED_EMAILS and ADMIN_PANE
 
 - [ ] **Step 11 (manual, operator-only — not code): provision the real values**
 
-This step cannot be automated by an engineer with no access to the target Firebase project or Doppler account; it must be done by whoever has both. Two values need real production data before the next deploy:
+This step cannot be automated by an engineer with no access to the target Firebase project or Doppler account; it must be done by whoever has both. Three values need real production data before the panel can actually call these routes from a browser:
 
 1. **`ADMIN_PANEL_FIREBASE_PROJECT_ID`** — the Firebase project ID the admin-notifications panel signs into (found in that repo's deployed `VITE_FIREBASE_PROJECT_ID` or its CI secrets). Set it as a GitHub Actions repository variable:
    ```bash
@@ -1249,8 +1249,13 @@ This step cannot be automated by an engineer with no access to the target Fireba
    ```bash
    doppler secrets set ADMIN_PANEL_ALLOWED_EMAILS --project mobil-apps --config astrology
    ```
+3. **The panel's deployed origin must be added to `ALLOWED_ORIGINS` in `backend/wrangler.toml:35`.** *(Found during the final whole-branch review — neither the design spec nor the original 6-task plan accounted for CORS.)* `corsMiddleware` (`backend/src/middleware/cors.ts`) only emits `Access-Control-Allow-Origin` for origins in this comma-separated list; `Access-Control-Allow-Headers` already includes `Authorization`, so no other CORS change is needed. Without this, the panel's browser preflight for both `/admin/panel/health` and `/admin/panel/llm/test` fails before the request ever reaches `requireAdminPanelAuth` — the feature is unreachable from the panel's actual browser bundle until this is set. `resolveAllowedOrigins` (`cors.ts:3-8`) already splits on commas, so this is a one-line edit once the panel's real deployed URL is known:
+   ```
+   ALLOWED_ORIGINS = "https://astrology.parsfilo.com,https://<panel-real-origin>"
+   ```
+   Commit this change directly (it's a static value in `wrangler.toml`, not Doppler-sourced) and redeploy.
 
-Neither value is needed for the automated test suite (Tasks 1–5 use `createTestEnv` defaults) or for `npm run build`/`npm test` to pass. They are only required before the next `npm run deploy:doppler` / `backend-production-deploy` workflow run — do not block merging Tasks 1–6 on having them yet.
+None of the three values are needed for the automated test suite (Tasks 1–6 use `createTestEnv` defaults) or for `npm run build`/`npm test` to pass. They are only required before the admin panel can actually reach these routes in production — do not block merging Tasks 1–6 on having them yet.
 
 ---
 
