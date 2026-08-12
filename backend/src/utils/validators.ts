@@ -354,6 +354,16 @@ export function validateNatalChartBody(payload: unknown): NatalChartRequest {
   return natalChartSchema.parse(payload);
 }
 
+const adminPanelLlmTestSchema = z.object({
+  taskType: z.enum(['daily_content', 'deep_reading', 'chat_consultation'])
+});
+
+export type AdminPanelLlmTestRequest = z.infer<typeof adminPanelLlmTestSchema>;
+
+export function validateAdminPanelLlmTestBody(payload: unknown): AdminPanelLlmTestRequest {
+  return adminPanelLlmTestSchema.parse(payload);
+}
+
 export function validateSaveBirthDataBody(payload: unknown): SaveBirthDataRequest {
   return saveBirthDataSchema.parse(payload);
 }
