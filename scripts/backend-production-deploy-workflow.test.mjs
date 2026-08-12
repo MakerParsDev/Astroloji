@@ -31,7 +31,8 @@ test('backend production deploy applies, deploys, and verifies rewarded SSV in o
   assert.ok(deploy < verification, 'Live SSV verification must run after deployment.');
 });
 
-test('backend production deploy passes the admin panel Firebase project id to the Worker deploy step', () => {
-  assert.match(workflow, /ADMIN_PANEL_FIREBASE_PROJECT_ID: \$\{\{ vars\.ADMIN_PANEL_FIREBASE_PROJECT_ID \}\}/);
-  assert.match(workflow, /PLAY_RTDN_SERVICE_ACCOUNT_EMAIL ADMIN_PANEL_FIREBASE_PROJECT_ID/);
+test('backend production deploy passes the Cloudflare Access team domain and aud to the Worker deploy step', () => {
+  assert.match(workflow, /ADMIN_PANEL_ACCESS_TEAM_DOMAIN: \$\{\{ vars\.ADMIN_PANEL_ACCESS_TEAM_DOMAIN \}\}/);
+  assert.match(workflow, /ADMIN_PANEL_ACCESS_AUD: \$\{\{ vars\.ADMIN_PANEL_ACCESS_AUD \}\}/);
+  assert.match(workflow, /PLAY_RTDN_SERVICE_ACCOUNT_EMAIL ADMIN_PANEL_ACCESS_TEAM_DOMAIN ADMIN_PANEL_ACCESS_AUD/);
 });

@@ -32,7 +32,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       PLAY_RTDN_AUDIENCE: ${{ vars.PLAY_RTDN_AUDIENCE }}
       PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: ${{ vars.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL }}
-      ADMIN_PANEL_FIREBASE_PROJECT_ID: ${{ vars.ADMIN_PANEL_FIREBASE_PROJECT_ID }}
+      ADMIN_PANEL_ACCESS_TEAM_DOMAIN: ${{ vars.ADMIN_PANEL_ACCESS_TEAM_DOMAIN }}
+      ADMIN_PANEL_ACCESS_AUD: ${{ vars.ADMIN_PANEL_ACCESS_AUD }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
     steps:
       - uses: actions/checkout@v6
@@ -46,7 +47,7 @@ jobs:
       - name: Validate deployment configuration
         run: |
           missing=0
-          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID PLAY_RTDN_AUDIENCE PLAY_RTDN_SERVICE_ACCOUNT_EMAIL ADMIN_PANEL_FIREBASE_PROJECT_ID; do
+          for name in DOPPLER_TOKEN DOPPLER_PROJECT DOPPLER_CONFIG CLOUDFLARE_ACCOUNT_ID PLAY_RTDN_AUDIENCE PLAY_RTDN_SERVICE_ACCOUNT_EMAIL ADMIN_PANEL_ACCESS_TEAM_DOMAIN ADMIN_PANEL_ACCESS_AUD; do
             if [ -z "${!name:-}" ]; then
               echo "Missing required production setting: $name"
               missing=1

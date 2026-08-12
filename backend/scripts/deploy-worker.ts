@@ -9,7 +9,7 @@ const RTDN_RUNTIME_VARIABLES = [
   'PLAY_RTDN_SERVICE_ACCOUNT_EMAIL'
 ] as const;
 
-const ADMIN_PANEL_RUNTIME_VARIABLES = ['ADMIN_PANEL_FIREBASE_PROJECT_ID'] as const;
+const ADMIN_PANEL_RUNTIME_VARIABLES = ['ADMIN_PANEL_ACCESS_TEAM_DOMAIN', 'ADMIN_PANEL_ACCESS_AUD'] as const;
 
 type Execute = (
   executable: string,
@@ -38,7 +38,9 @@ export function buildWorkerDeployArgs(environment: NodeJS.ProcessEnv): string[] 
     '--var',
     `PLAY_RTDN_SERVICE_ACCOUNT_EMAIL:${environment.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL}`,
     '--var',
-    `ADMIN_PANEL_FIREBASE_PROJECT_ID:${environment.ADMIN_PANEL_FIREBASE_PROJECT_ID}`
+    `ADMIN_PANEL_ACCESS_TEAM_DOMAIN:${environment.ADMIN_PANEL_ACCESS_TEAM_DOMAIN}`,
+    '--var',
+    `ADMIN_PANEL_ACCESS_AUD:${environment.ADMIN_PANEL_ACCESS_AUD}`
   ];
 }
 

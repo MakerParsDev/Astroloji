@@ -6,7 +6,8 @@ function runtimeEnvironment(): NodeJS.ProcessEnv {
   return {
     PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
     PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
-    ADMIN_PANEL_FIREBASE_PROJECT_ID: 'panel-project'
+    ADMIN_PANEL_ACCESS_TEAM_DOMAIN: 'oaslananka.cloudflareaccess.com',
+    ADMIN_PANEL_ACCESS_AUD: 'test-astroloji-aud'
   };
 }
 
@@ -21,7 +22,9 @@ describe('Worker deploy runtime configuration', () => {
       '--var',
       `PLAY_RTDN_SERVICE_ACCOUNT_EMAIL:${environment.PLAY_RTDN_SERVICE_ACCOUNT_EMAIL}`,
       '--var',
-      `ADMIN_PANEL_FIREBASE_PROJECT_ID:${environment.ADMIN_PANEL_FIREBASE_PROJECT_ID}`
+      `ADMIN_PANEL_ACCESS_TEAM_DOMAIN:${environment.ADMIN_PANEL_ACCESS_TEAM_DOMAIN}`,
+      '--var',
+      `ADMIN_PANEL_ACCESS_AUD:${environment.ADMIN_PANEL_ACCESS_AUD}`
     ]);
   });
   it.each(['PLAY_RTDN_AUDIENCE', 'PLAY_RTDN_SERVICE_ACCOUNT_EMAIL'] as const)(
@@ -51,24 +54,32 @@ describe('Worker deploy runtime configuration', () => {
   });
 });
 
-describe('buildWorkerDeployArgs admin panel variable', () => {
+describe('buildWorkerDeployArgs admin panel variables', () => {
   function baseEnv(): NodeJS.ProcessEnv {
     return {
       PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
       PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
-      ADMIN_PANEL_FIREBASE_PROJECT_ID: 'panel-project'
+      ADMIN_PANEL_ACCESS_TEAM_DOMAIN: 'oaslananka.cloudflareaccess.com',
+      ADMIN_PANEL_ACCESS_AUD: 'test-astroloji-aud'
     };
   }
 
-  it('passes the admin panel Firebase project id as a deploy-time var', () => {
+  it('passes the Cloudflare Access team domain and aud as deploy-time vars', () => {
     const args = buildWorkerDeployArgs(baseEnv());
-    expect(args).toContain('ADMIN_PANEL_FIREBASE_PROJECT_ID:panel-project');
+    expect(args).toContain('ADMIN_PANEL_ACCESS_TEAM_DOMAIN:oaslananka.cloudflareaccess.com');
+    expect(args).toContain('ADMIN_PANEL_ACCESS_AUD:test-astroloji-aud');
   });
 
-  it('throws when ADMIN_PANEL_FIREBASE_PROJECT_ID is missing', () => {
+  it('throws when ADMIN_PANEL_ACCESS_TEAM_DOMAIN is missing', () => {
     const env = baseEnv();
-    delete env.ADMIN_PANEL_FIREBASE_PROJECT_ID;
-    expect(() => buildWorkerDeployArgs(env)).toThrow(/ADMIN_PANEL_FIREBASE_PROJECT_ID/);
+    delete env.ADMIN_PANEL_ACCESS_TEAM_DOMAIN;
+    expect(() => buildWorkerDeployArgs(env)).toThrow(/ADMIN_PANEL_ACCESS_TEAM_DOMAIN/);
+  });
+
+  it('throws when ADMIN_PANEL_ACCESS_AUD is missing', () => {
+    const env = baseEnv();
+    delete env.ADMIN_PANEL_ACCESS_AUD;
+    expect(() => buildWorkerDeployArgs(env)).toThrow(/ADMIN_PANEL_ACCESS_AUD/);
   });
 
   it('still requires the pre-existing RTDN variables', () => {
