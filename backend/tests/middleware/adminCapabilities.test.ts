@@ -8,12 +8,11 @@ import {
 import type { AdminCapability, AdminOperation, AppBindings } from '@/types';
 import { createTestEnv } from '../helpers/env';
 
-const scopedSecrets: Record<AdminCapability, string> = {
+const scopedSecrets: Record<Exclude<AdminCapability, 'admin-panel'>, string> = {
   'content-ops': 'content-secret',
   'notification-ops': 'notification-secret',
   'play-read': 'play-read-secret',
-  'play-write': 'play-write-secret',
-  'admin-panel': 'ops@example.com'
+  'play-write': 'play-write-secret'
 };
 
 function env() {
@@ -26,7 +25,7 @@ function env() {
 }
 
 function protectedApp(
-  capability: AdminCapability,
+  capability: Exclude<AdminCapability, 'admin-panel'>,
   operation: AdminOperation,
   status = 200
 ) {

@@ -59,11 +59,13 @@ const ADMIN_CAPABILITY_SECRET_BINDINGS = {
   'content-ops': 'ADMIN_CONTENT_SECRET',
   'notification-ops': 'ADMIN_NOTIFICATION_SECRET',
   'play-read': 'ADMIN_PLAY_READ_SECRET',
-  'play-write': 'ADMIN_PLAY_WRITE_SECRET',
-  'admin-panel': 'ADMIN_PANEL_ALLOWED_EMAILS'
-} as const satisfies Record<AdminCapability, keyof Env>;
+  'play-write': 'ADMIN_PLAY_WRITE_SECRET'
+} as const satisfies Record<Exclude<AdminCapability, 'admin-panel'>, keyof Env>;
 
-function matchesAdminCapability(c: AppContext, capability: AdminCapability): boolean {
+function matchesAdminCapability(
+  c: AppContext,
+  capability: Exclude<AdminCapability, 'admin-panel'>
+): boolean {
   const provided = c.req.header('x-admin-secret');
   return matchesSecret(c.env[ADMIN_CAPABILITY_SECRET_BINDINGS[capability]], provided);
 }
@@ -71,7 +73,7 @@ function matchesAdminCapability(c: AppContext, capability: AdminCapability): boo
 async function runAdminCapability(
   c: AppContext,
   next: Next,
-  capability: AdminCapability,
+  capability: Exclude<AdminCapability, 'admin-panel'>,
   operation: AdminOperation,
   beforeNext?: () => void
 ): Promise<Response | void> {
@@ -95,7 +97,7 @@ async function runAdminCapability(
 }
 
 export function requireAdminCapability(
-  capability: AdminCapability,
+  capability: Exclude<AdminCapability, 'admin-panel'>,
   operation: AdminOperation
 ): AppMiddleware {
   return (c, next) => runAdminCapability(c, next, capability, operation);
