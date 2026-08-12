@@ -58,17 +58,20 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
         return { objects: [], truncated: false, cursor: undefined };
       }
     } as unknown as R2Bucket,
-    CACHE: {
-      async get() {
-        return null;
-      },
-      async put() {
-        return;
-      },
-      async delete() {
-        return;
-      }
-    } as unknown as KVNamespace,
+    CACHE: (() => {
+      const store = new Map<string, string>();
+      return {
+        async get(key: string) {
+          return store.get(key) ?? null;
+        },
+        async put(key: string, value: string) {
+          store.set(key, value);
+        },
+        async delete(key: string) {
+          store.delete(key);
+        }
+      };
+    })() as unknown as KVNamespace,
     RATE_LIMITER: createRateLimiterNamespace(),
     AI: {
       async run() {

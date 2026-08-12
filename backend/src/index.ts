@@ -14,6 +14,7 @@ import { enforceStrictRateLimit, mapStrictRateLimitResult, RATE_LIMIT_POLICIES }
 import type { AppBindings } from '@/types';
 import type { RewardRouteDependencies } from '@/workers/reward';
 import { validateTrackEventBody } from '@/utils/validators';
+import { registerAdminPanelRoutes } from '@/workers/adminPanel';
 import { registerBirthDataRoutes } from '@/workers/birthData';
 import { registerChartRoutes } from '@/workers/chart';
 import { registerCityRoutes } from '@/workers/cities';
@@ -195,6 +196,7 @@ export function createApp(options: CreateAppOptions = {}) {
     return c.json({ ok: true });
   });
 
+  registerAdminPanelRoutes(apiAdminRoutes);
   registerContentAdminRoutes(apiAdminRoutes);
   registerNotificationRoutes(apiAdminRoutes);
   registerSubscriptionAdminRoutes(apiAdminRoutes);
