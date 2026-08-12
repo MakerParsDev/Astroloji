@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,13 +24,16 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -63,6 +67,7 @@ import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -279,7 +284,10 @@ private fun OnboardingSignPage(
     onBirthTimeKnownChange: (Boolean) -> Unit,
     onBirthTimeChange: (Int, Int) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
         Text(text = stringResource(R.string.onboarding_sign_title), style = MaterialTheme.typography.displayLarge)
         Text(
             text = stringResource(R.string.onboarding_sign_body),
@@ -325,30 +333,49 @@ private fun OnboardingLanguageSelector(
     onLanguageChange: (String) -> Unit,
 ) {
     val languageCodes = listOf("tr", "en", "es", "pt", "de", "fr")
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        languageCodes.forEachIndexed { index, code ->
-            SegmentedButton(
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        languageCodes.forEach { code ->
+            FilterChip(
                 selected = language == code,
                 onClick = { onLanguageChange(code) },
-                shape =
-                    androidx.compose.material3.SegmentedButtonDefaults
-                        .itemShape(index, languageCodes.size),
-            ) {
-                Text(
-                    text =
-                        when (code) {
-                            "tr" -> stringResource(R.string.language_name_turkish)
-                            "es" -> stringResource(R.string.language_name_spanish)
-                            "pt" -> stringResource(R.string.language_name_portuguese)
-                            "de" -> stringResource(R.string.language_name_german)
-                            "fr" -> stringResource(R.string.language_name_french)
-                            else -> stringResource(R.string.language_name_english)
-                        },
-                )
-            }
+                label = {
+                    Text(
+                        text =
+                            when (code) {
+                                "tr" -> stringResource(R.string.language_name_turkish)
+                                "es" -> stringResource(R.string.language_name_spanish)
+                                "pt" -> stringResource(R.string.language_name_portuguese)
+                                "de" -> stringResource(R.string.language_name_german)
+                                "fr" -> stringResource(R.string.language_name_french)
+                                else -> stringResource(R.string.language_name_english)
+                            },
+                    )
+                },
+            )
         }
     }
 }
+
+private fun notInTheFutureSelectableDates(currentYear: Int): SelectableDates =
+    object : SelectableDates {
+        override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= System.currentTimeMillis()
+
+        override fun isSelectableYear(year: Int): Boolean = year <= currentYear
+    }
+
+private fun localeForLanguage(language: String): Locale =
+    when (language) {
+        "tr" -> Locale.forLanguageTag("tr")
+        "es" -> Locale.forLanguageTag("es")
+        "pt" -> Locale.forLanguageTag("pt-BR")
+        "de" -> Locale.forLanguageTag("de-DE")
+        "fr" -> Locale.forLanguageTag("fr-FR")
+        else -> Locale.ENGLISH
+    }
 
 @Composable
 private fun BirthDateCard(
@@ -357,16 +384,14 @@ private fun BirthDateCard(
     onBirthDateSelected: (Long) -> Unit,
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
-    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = birthDateMillis)
-    val locale =
-        when (language) {
-            "tr" -> Locale.forLanguageTag("tr")
-            "es" -> Locale.forLanguageTag("es")
-            "pt" -> Locale.forLanguageTag("pt-BR")
-            "de" -> Locale.forLanguageTag("de-DE")
-            "fr" -> Locale.forLanguageTag("fr-FR")
-            else -> Locale.ENGLISH
-        }
+    val currentYear = remember { LocalDate.now().year }
+    val datePickerState =
+        rememberDatePickerState(
+            initialSelectedDateMillis = birthDateMillis,
+            yearRange = DatePickerDefaults.YearRange.first..currentYear,
+            selectableDates = remember { notInTheFutureSelectableDates(currentYear) },
+        )
+    val locale = localeForLanguage(language)
     val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("d MMMM yyyy", locale) }
     val selectedDateLabel =
         birthDateMillis?.let {
@@ -492,7 +517,10 @@ private fun OnboardingNotificationPage(
             initialMinute = 0,
             is24Hour = true,
         )
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
         Text(text = stringResource(R.string.onboarding_notifications_title), style = MaterialTheme.typography.displayLarge)
         Text(
             text = stringResource(R.string.onboarding_notifications_body),
@@ -500,7 +528,7 @@ private fun OnboardingNotificationPage(
         )
         TimePicker(
             state = timePickerState,
-            modifier = Modifier.fillMaxWidth().height(320.dp),
+            modifier = Modifier.fillMaxWidth(),
         )
         Button(onClick = { onNotificationHourChange(timePickerState.hour) }) {
             Text(stringResource(R.string.onboarding_save_hour))

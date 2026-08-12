@@ -140,7 +140,14 @@ class ContentRepository
 
                 when (val network = fetchCompatibility(pair[0], pair[1], language)) {
                     is AppResult.Success -> {
-                        compatibilityDao.upsert(network.data.toEntity())
+                        // Free-tier responses omit love/friendship/work scores (see
+                        // filterCompatibilityContent on the backend); caching them would
+                        // coalesce that "not entitled" null into a persisted literal 0,
+                        // which then reads back as a real (fake) score. Only cache the
+                        // full premium document.
+                        if (network.data.loveScore != null) {
+                            compatibilityDao.upsert(network.data.toEntity())
+                        }
                         network
                     }
                     is AppResult.Error -> cached?.let { AppResult.Success(it.toDomain()) } ?: network
