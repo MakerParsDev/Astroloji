@@ -23,7 +23,10 @@ export const corsMiddleware: AppMiddleware = async (c, next) => {
   }
 
   if (c.req.method === 'OPTIONS') {
-    return new Response(null, { status: 204 });
+    // c.body() merges headers already queued via c.header() into the final
+    // Response; returning `new Response(...)` directly bypasses that merge
+    // and silently drops every CORS header set above.
+    return c.body(null, 204);
   }
 
   await next();
