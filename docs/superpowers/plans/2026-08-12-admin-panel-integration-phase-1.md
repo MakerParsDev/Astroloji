@@ -1249,13 +1249,14 @@ This step cannot be automated by an engineer with no access to the target Fireba
    ```bash
    doppler secrets set ADMIN_PANEL_ALLOWED_EMAILS --project mobil-apps --config astrology
    ```
-3. **The panel's deployed origin must be added to `ALLOWED_ORIGINS` in `backend/wrangler.toml:35`.** *(Found during the final whole-branch review — neither the design spec nor the original 6-task plan accounted for CORS.)* `corsMiddleware` (`backend/src/middleware/cors.ts`) only emits `Access-Control-Allow-Origin` for origins in this comma-separated list; `Access-Control-Allow-Headers` already includes `Authorization`, so no other CORS change is needed. Without this, the panel's browser preflight for both `/admin/panel/health` and `/admin/panel/llm/test` fails before the request ever reaches `requireAdminPanelAuth` — the feature is unreachable from the panel's actual browser bundle until this is set. `resolveAllowedOrigins` (`cors.ts:3-8`) already splits on commas, so this is a one-line edit once the panel's real deployed URL is known:
-   ```
-   ALLOWED_ORIGINS = "https://astrology.parsfilo.com,https://<panel-real-origin>"
-   ```
-   Commit this change directly (it's a static value in `wrangler.toml`, not Doppler-sourced) and redeploy.
+3. ~~**The panel's deployed origin must be added to `ALLOWED_ORIGINS`.**~~ **Done.** Confirmed the panel is live at `https://admin.parsfilo.com` (served `<title>Notifications Admin</title>` with a `firebase-vendor` bundle chunk, matching `side-projects/admin-notifications/` in the framework repo) and added it to `backend/wrangler.toml:35`: `ALLOWED_ORIGINS = "https://astrology.parsfilo.com,https://admin.parsfilo.com"`.
 
-None of the three values are needed for the automated test suite (Tasks 1–6 use `createTestEnv` defaults) or for `npm run build`/`npm test` to pass. They are only required before the admin panel can actually reach these routes in production — do not block merging Tasks 1–6 on having them yet.
+All three provisioning items are now complete:
+1. `ADMIN_PANEL_FIREBASE_PROJECT_ID` = `makerpars-oaslananka-mobil` — set as a GitHub Actions repo variable (confirmed via `firebase projects:list` — the only project visible to the operator's Firebase CLI login, matching the framework repo's naming convention).
+2. `ADMIN_PANEL_ALLOWED_EMAILS` = `oaslananka@gmail.com` — set in the `mobil-apps/astrology` Doppler config.
+3. `ALLOWED_ORIGINS` in `backend/wrangler.toml` now includes `https://admin.parsfilo.com`.
+
+None of the three values were needed for the automated test suite (Tasks 1–6 use `createTestEnv` defaults) or for `npm run build`/`npm test` to pass — they only gate the admin panel actually reaching these routes in production. The `wrangler.toml` change (item 3) takes effect on the next backend deploy; items 1–2 take effect on the next `backend-production-deploy` workflow run / `npm run doppler:cf-secrets` sync.
 
 ---
 
