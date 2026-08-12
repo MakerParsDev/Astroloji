@@ -1038,29 +1038,25 @@ git commit -m "feat(admin-panel): add POST /admin/panel/llm/test"
 - Modify: `backend/scripts/shared.ts` (`CLOUDFLARE_SECRET_NAMES`)
 - Modify: `backend/scripts/deploy-worker.ts` (`buildWorkerDeployArgs`)
 - Modify: `.github/workflows/backend-production-deploy.yml`
-- Test: `backend/tests/scripts/deployWorker.test.ts` (new), `scripts/backend-production-deploy-workflow.test.mjs` (extended)
+- Test: `backend/tests/scripts/deployWorker.test.ts` (already exists — covers the two pre-existing RTDN vars; append a new `describe` block for the admin-panel var, do not replace the file), `scripts/backend-production-deploy-workflow.test.mjs` (extended)
 
 **Interfaces:**
 - Produces: `ADMIN_PANEL_ALLOWED_EMAILS` flows through the existing Doppler → `wrangler secret put` pipeline (`npm run doppler:cf-secrets`); `ADMIN_PANEL_FIREBASE_PROJECT_ID` flows through the existing GitHub-Actions-repo-variable → `wrangler deploy --var` pipeline (`npm run deploy:doppler`).
 
 - [ ] **Step 1: Write the failing test for `buildWorkerDeployArgs`**
 
-Create `backend/tests/scripts/deployWorker.test.ts`:
+`backend/tests/scripts/deployWorker.test.ts` already exists (it covers `PLAY_RTDN_AUDIENCE`/`PLAY_RTDN_SERVICE_ACCOUNT_EMAIL` today) — do not overwrite it. Append this new `describe` block at the end of the file, after the existing `describe('Worker deploy runtime configuration', ...)` block:
 
 ```ts
-import { describe, expect, it } from 'vitest';
+describe('buildWorkerDeployArgs admin panel variable', () => {
+  function baseEnv(): NodeJS.ProcessEnv {
+    return {
+      PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
+      PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
+      ADMIN_PANEL_FIREBASE_PROJECT_ID: 'panel-project'
+    };
+  }
 
-import { buildWorkerDeployArgs } from '../../scripts/deploy-worker';
-
-function baseEnv(): NodeJS.ProcessEnv {
-  return {
-    PLAY_RTDN_AUDIENCE: 'https://example.test/api/v1/webhooks/play-rtdn',
-    PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: 'play-rtdn-push@example-project.iam.gserviceaccount.com',
-    ADMIN_PANEL_FIREBASE_PROJECT_ID: 'panel-project'
-  };
-}
-
-describe('buildWorkerDeployArgs', () => {
   it('passes the admin panel Firebase project id as a deploy-time var', () => {
     const args = buildWorkerDeployArgs(baseEnv());
     expect(args).toContain('ADMIN_PANEL_FIREBASE_PROJECT_ID:panel-project');
@@ -1079,6 +1075,8 @@ describe('buildWorkerDeployArgs', () => {
   });
 });
 ```
+
+No new imports are needed — `describe`, `expect`, `it`, and `buildWorkerDeployArgs` are already imported at the top of the file.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
@@ -1152,7 +1150,7 @@ export function buildWorkerDeployArgs(environment: NodeJS.ProcessEnv): string[] 
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `cd backend && npx vitest run tests/scripts/deployWorker.test.ts`
-Expected: PASS (3 tests)
+Expected: PASS (7 tests: 4 pre-existing + 3 new)
 
 - [ ] **Step 5: Add `ADMIN_PANEL_ALLOWED_EMAILS` to the Doppler-synced secret list**
 
