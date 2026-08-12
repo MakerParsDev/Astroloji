@@ -3,7 +3,7 @@ import type { Next } from 'hono';
 import { logAdminOperation } from '@/services/adminAudit';
 import { verifyPlayRtdnIdentity } from '@/services/playRtdnAuth';
 import type { AdminCapability, AdminOperation, AppContext, AppMiddleware, Env } from '@/types';
-import { verifyAppJwt } from '@/utils/jwt';
+import { verifyAdminPanelIdentity, verifyAppJwt } from '@/utils/jwt';
 import { matchesSecret } from '@/utils/security';
 import { parseBooleanFlag } from '@/utils/validators';
 
@@ -101,6 +101,52 @@ export function requireAdminCapability(
   operation: AdminOperation
 ): AppMiddleware {
   return (c, next) => runAdminCapability(c, next, capability, operation);
+}
+
+function resolveAdminPanelAllowedEmails(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+async function runAdminPanelAuth(c: AppContext, next: Next, operation: AdminOperation): Promise<Response | void> {
+  const audit = (outcome: 'authorized' | 'rejected' | 'completed' | 'failed') =>
+    logAdminOperation({ requestId: c.get('requestId'), capability: 'admin-panel', operation, outcome });
+
+  const token = getBearerToken(c.req.header('authorization'));
+  if (!token) {
+    audit('rejected');
+    return jsonError(c, 401, 'UNAUTHORIZED', 'Missing authorization header.');
+  }
+
+  let identity: { sub: string; email?: string; emailVerified: boolean };
+  try {
+    identity = await verifyAdminPanelIdentity(c.env, token);
+  } catch {
+    audit('rejected');
+    return jsonError(c, 401, 'INVALID_TOKEN', 'Authorization token is invalid or expired.');
+  }
+
+  const allowedEmails = resolveAdminPanelAllowedEmails(c.env.ADMIN_PANEL_ALLOWED_EMAILS);
+  const email = identity.email?.toLowerCase();
+  if (!identity.emailVerified || !email || !allowedEmails.includes(email)) {
+    audit('rejected');
+    return jsonError(c, 403, 'FORBIDDEN', 'This account is not authorized for the admin panel.');
+  }
+
+  audit('authorized');
+  try {
+    await next();
+    audit(c.res.status < 400 ? 'completed' : 'failed');
+  } catch (error) {
+    audit('failed');
+    throw error;
+  }
+}
+
+export function requireAdminPanelAuth(operation: AdminOperation): AppMiddleware {
+  return (c, next) => runAdminPanelAuth(c, next, operation);
 }
 
 export const contentCacheBypassMiddleware: AppMiddleware = async (c, next: Next) => {
