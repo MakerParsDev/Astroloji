@@ -1478,42 +1478,43 @@ git commit -m "feat(admin-notifications): remove Firebase Auth, migrate to Cloud
 
 ## Part D — Firebase Cloud Functions cleanup
 
-### Task D1: Delete the dead admin-auth Cloud Functions
+### Task D1: Delete the dead `adminAccessCheck` Cloud Function
+
+**Revised during execution:** the original brief assumed both `adminAccessCheck.ts` and `adminAuth.ts` were unreachable. Step 1's grep found `adminAuth.ts`'s `authenticateAdminRequest` is still imported by five other Cloud Functions (`adminRemoteConfig.ts`, `sendTestNotification.ts`, `adPerformanceReport.ts`, `deviceCoverageReport.ts`, `adminSummary.ts`) — all explicitly out of scope per this plan's design spec ("Any other exports in `side-projects/firebase/functions` beyond `adminAccessCheck.ts`/`adminAuth.ts`"). `authenticateAdminRequest` internally calls `resolveAdminAccess` (the other export in the same file), so `adminAuth.ts` cannot be partially gutted — it stays intact as a whole file. Only `adminAccessCheck.ts` (genuinely orphaned — nothing calls it, the panel's `/adminAccessCheck` request goes to the Worker, not Cloud Functions) is deleted.
 
 **Files:**
 - Delete: `side-projects/firebase/functions/src/adminAccessCheck.ts`
-- Delete: `side-projects/firebase/functions/src/adminAuth.ts`
-- Modify: `side-projects/firebase/functions/src/index.ts` (remove the `export { adminAccessCheck } from "./adminAccessCheck";`-shaped line, or equivalent — `grep -n "adminAccessCheck\|adminAuth" side-projects/firebase/functions/src/index.ts` first)
+- Modify: `side-projects/firebase/functions/src/index.ts` (remove only the `adminAccessCheck` export line)
 
 **Interfaces:**
-- None — this is pure deletion of already-unreachable code (nothing calls `VITE_FUNCTIONS_BASE_URL`'s Cloud Functions origin anymore after the earlier interim fix pointed the panel at the Worker instead).
+- None — pure deletion of already-unreachable code.
 
-- [ ] **Step 1: Confirm nothing else imports these files**
+- [ ] **Step 1: Confirm nothing else imports `adminAccessCheck`**
 
 ```bash
-grep -rn "adminAccessCheck\|adminAuth\b\|resolveAdminAccess\|authenticateAdminRequest" side-projects/firebase/functions/src/ | grep -v "adminAccessCheck.ts:\|adminAuth.ts:"
+grep -rn "adminAccessCheck" side-projects/firebase/functions/src/ | grep -v "adminAccessCheck.ts:"
 ```
-Expected: no output (only self-references inside the two files being deleted). If this finds a caller elsewhere in the Functions project, stop and report it — do not delete.
+Expected: no output (only self-references inside the file being deleted, plus its one export line in `index.ts`, which Step 2 removes). If this finds any other caller, stop and report it — do not delete.
 
 - [ ] **Step 2: Delete and update the export barrel**
 
 ```bash
 cd side-projects/firebase/functions
-git rm src/adminAccessCheck.ts src/adminAuth.ts
+git rm src/adminAccessCheck.ts
 ```
 
-Remove the corresponding export line(s) from `src/index.ts`.
+Remove only the `adminAccessCheck` export line from `src/index.ts` — leave every other export, including anything related to `adminAuth`, untouched.
 
 - [ ] **Step 3: Build this project**
 
 Run whatever this project's build/typecheck command is (check `package.json` — likely `npm run build` or `tsc`).
-Expected: PASS — confirms no other file referenced the deleted exports.
+Expected: PASS — confirms no other file referenced the deleted export.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add src/index.ts
-git commit -m "chore(functions): delete dead admin-auth Cloud Functions"
+git commit -m "chore(functions): delete dead adminAccessCheck Cloud Function"
 ```
 
 ---
