@@ -1172,6 +1172,12 @@ git commit -m "feat(admin-api): add scheduled-events and device-preview routes f
 
 ---
 
+### Task B3: Device-finder Worker routes (plan gap found during Task C1 review)
+
+Found during Task C1's task review: `App.tsx`'s "Device finder" feature (`lookupDeviceByInstallationId`, `loadRecentDevices`) reads Firestore's `devices` collection directly via the client SDK, gated by a security rule requiring a real Firebase Auth session — a session Task C1 removes entirely. Task B2 only covered `scheduled_events` and the target-device-*count* preview, not device lookup/listing; this gap was missed in the original plan. Full task text: `.superpowers/sdd/2026-08-12-admin-panel-cloudflare-access-migration/task-B3-brief.md` (written after Task C1's review, following B2's exact pattern — `POST /adminLookupDevice` and `POST /adminListRecentDevices`, reusing `getFirestoreDoc`/`runFirestoreQuery`/`parseFirestoreDocument`/`extractDocumentId`). Task C1's fix-loop round then rewires the panel to call these instead of Firestore directly.
+
+---
+
 ## Part C — `admin-notifications` panel (`side-projects/admin-notifications/`, same framework repo)
 
 ### Task C1: Remove Firebase Auth, wire everything through Cloudflare Access
