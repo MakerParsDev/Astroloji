@@ -77,12 +77,15 @@ function createRecordingDb(options: RecordingDbOptions = {}) {
 function activeWeeklySubscription(
   purchaseToken = 'weekly-purchase-token'
 ): GooglePlaySubscription {
+  const now = Date.now();
+  const startsAt = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(now + 7 * 24 * 60 * 60 * 1000).toISOString();
   return {
     purchaseToken,
     productId: 'premium_weekly',
     status: 'active',
-    startsAt: '2026-08-06T10:00:00.000Z',
-    expiresAt: '2026-08-13T10:00:00.000Z',
+    startsAt,
+    expiresAt,
     autoRenewing: true,
     cancelReason: null,
     raw: {
@@ -90,7 +93,7 @@ function activeWeeklySubscription(
       lineItems: [
         {
           productId: 'premium_weekly',
-          expiryTime: '2026-08-13T10:00:00.000Z',
+          expiryTime: expiresAt,
           autoRenewingPlan: {}
         }
       ]
