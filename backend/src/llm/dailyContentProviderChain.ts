@@ -4,11 +4,14 @@ import { WorkersAiAdapter } from './adapters/workersAi';
 import type { LlmProvider } from './provider';
 
 /**
- * Small, fast instruction-tuned model — a good fit for short daily-horoscope
- * generation on Cloudflare's free Workers AI tier (10,000 neurons/day,
- * https://developers.cloudflare.com/workers-ai/platform/pricing/).
+ * Small, fast, multilingual instruction-tuned model — a good fit for short
+ * daily-horoscope generation (EN+TR) on Cloudflare's free Workers AI tier
+ * (10,000 neurons/day, https://developers.cloudflare.com/workers-ai/platform/pricing/).
+ * Was `@cf/meta/llama-3.1-8b-instruct` until Cloudflare deprecated it on
+ * 2026-05-30; this is one of Cloudflare's listed replacements
+ * (https://developers.cloudflare.com/changelog/post/2026-05-08-planned-model-deprecations).
  */
-const DAILY_CONTENT_WORKERS_AI_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+const DAILY_CONTENT_WORKERS_AI_MODEL = '@cf/zai-org/glm-4.7-flash';
 
 /**
  * Faz 0.1 default: Workers AI only. The `AI` binding is always available on
