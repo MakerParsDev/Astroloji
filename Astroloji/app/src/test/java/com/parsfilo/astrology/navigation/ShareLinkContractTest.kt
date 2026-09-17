@@ -42,6 +42,7 @@ class ShareLinkContractTest {
         assertThat(parseAppDeepLink(Uri.parse(uri)))
             .isEqualTo(AppDeepLink(type = "daily", sign = "pisces"))
     }
+
     @Test
     fun `verified https app link parser accepts valid daily links and rejects invalid hosts or paths`() {
         assertThat(parseAppDeepLink(Uri.parse("https://astrology.parsfilo.com/share/daily/aries")))
