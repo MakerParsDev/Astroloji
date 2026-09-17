@@ -27,15 +27,27 @@ internal fun compatibilityShareLandingUrl(
 
 internal fun dailyAppUri(sign: String): String? = normalizedSign(sign)?.let { "$APP_SCHEME://$DAILY_HOST/$it" }
 
-internal fun parseAppDeepLink(uri: Uri?): AppDeepLink? =
-    uri
-        ?.takeIf {
-            it.scheme == APP_SCHEME &&
-                it.host == DAILY_HOST &&
-                it.pathSegments.size == 1 &&
-                it.query == null &&
-                it.fragment == null
-        }?.pathSegments
-        ?.singleOrNull()
-        ?.let(::normalizedSign)
-        ?.let { AppDeepLink(type = DAILY_HOST, sign = it) }
+private const val SHARE_HOST = "astrology.parsfilo.com"
+
+internal fun parseAppDeepLink(uri: Uri?): AppDeepLink? {
+    if (uri == null) return null
+    if (uri.query != null || uri.fragment != null) return null
+
+    if (uri.scheme == APP_SCHEME && uri.host == DAILY_HOST) {
+        if (uri.pathSegments.size == 1) {
+            val sign = normalizedSign(uri.pathSegments[0]) ?: return null
+            return AppDeepLink(type = DAILY_HOST, sign = sign)
+        }
+        return null
+    }
+
+    if (uri.scheme == "https" && uri.host == SHARE_HOST) {
+        if (uri.pathSegments.size == 3 && uri.pathSegments[0] == "share" && uri.pathSegments[1] == "daily") {
+            val sign = normalizedSign(uri.pathSegments[2]) ?: return null
+            return AppDeepLink(type = DAILY_HOST, sign = sign)
+        }
+        return null
+    }
+
+    return null
+}
