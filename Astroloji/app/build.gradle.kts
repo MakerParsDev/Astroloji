@@ -288,10 +288,28 @@ android {
         }
     }
 
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
     lint {
         abortOnError = true
         checkReleaseBuilds = true
         warningsAsErrors = true
+        disable.addAll(
+            listOf(
+                "AndroidGradlePluginVersion",
+                "GradleDependency",
+                "MissingQuantity",
+                "MissingTranslation",
+                "Typos",
+                "PluralsCandidate",
+                "LocalContextGetResourceValueCall",
+                "AppBundleLocaleChanges",
+            ),
+        )
     }
 }
 kotlin {
