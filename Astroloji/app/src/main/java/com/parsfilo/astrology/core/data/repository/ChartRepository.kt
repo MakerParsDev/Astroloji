@@ -4,10 +4,10 @@ import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.ChartObserverPayload
 import com.parsfilo.astrology.core.data.remote.GuidanceEvidenceResponse
 import com.parsfilo.astrology.core.data.remote.GuidanceSignalResponse
-import com.parsfilo.astrology.core.data.remote.MahadashaResponse
-import com.parsfilo.astrology.core.data.remote.MoonNakshatraResponse
 import com.parsfilo.astrology.core.data.remote.NatalChartRequest
 import com.parsfilo.astrology.core.data.remote.NatalChartResponse
+import com.parsfilo.astrology.core.data.remote.MahadashaResponse
+import com.parsfilo.astrology.core.data.remote.MoonNakshatraResponse
 import com.parsfilo.astrology.core.data.remote.PersonalGuidanceRequest
 import com.parsfilo.astrology.core.data.remote.PersonalGuidanceResponse
 import com.parsfilo.astrology.core.data.remote.SiderealPositionResponse
@@ -232,19 +232,10 @@ class ChartRepository
             )
 
         private fun MoonNakshatraResponse.toDomain(): MoonNakshatra =
-            MoonNakshatra(
-                nakshatra = nakshatra,
-                index = index,
-                pada = pada,
-            )
+            MoonNakshatra(nakshatra = nakshatra, index = index, pada = pada)
 
         private fun MahadashaResponse.toDomain(): Mahadasha =
-            Mahadasha(
-                graha = graha,
-                startDate = startDate,
-                endDate = endDate,
-                years = years,
-            )
+            Mahadasha(graha = graha, startDate = startDate, endDate = endDate, years = years)
 
         private fun PersonalGuidanceResponse.toDomain(): PersonalGuidance =
             PersonalGuidance(

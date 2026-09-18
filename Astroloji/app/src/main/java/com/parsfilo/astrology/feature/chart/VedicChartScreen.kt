@@ -107,19 +107,17 @@ private fun VedicChartContent(
         symbol = "☽",
         eyebrow = stringResource(R.string.chart_vedic_moon_nakshatra_title),
         title = nakshatraDisplayName(chart.moonNakshatra.nakshatra),
-        subtitle =
-            stringResource(R.string.chart_vedic_pada_label, chart.moonNakshatra.pada) +
-                (moonSign?.let { " · ${it.localizedName(language)}" } ?: ""),
+        subtitle = stringResource(R.string.chart_vedic_pada_label, chart.moonNakshatra.pada) +
+            (moonSign?.let { " · ${it.localizedName(language)}" } ?: ""),
     )
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         PremiumPill(
-            text =
-                stringResource(
-                    R.string.chart_vedic_ayanamsa_label,
-                ) + " " + "%.2f°".format(locale = Locale.US, chart.ayanamsa),
+            text = stringResource(
+                R.string.chart_vedic_ayanamsa_label,
+            ) + " " + "%.2f°".format(locale = Locale.US, chart.ayanamsa),
         )
     }
     if (chart.limitations.isNotEmpty()) {
@@ -152,7 +150,8 @@ private fun VedicChartContent(
     }
 }
 
-private fun moonSignKey(chart: VedicChart): String? = chart.positions.firstOrNull { it.body == "moon" }?.signKey
+private fun moonSignKey(chart: VedicChart): String? =
+    chart.positions.firstOrNull { it.body == "moon" }?.signKey
 
 @Composable
 private fun SiderealPositionRow(
@@ -169,9 +168,8 @@ private fun SiderealPositionRow(
             style = MaterialTheme.typography.bodyLarge,
         )
         Text(
-            text =
-                "${sign?.symbol.orEmpty()} ${sign?.localizedName(language).orEmpty()} " +
-                    "%.1f°".format(locale = Locale.US, position.degreeInSign),
+            text = "${sign?.symbol.orEmpty()} ${sign?.localizedName(language).orEmpty()} " +
+                "%.1f°".format(locale = Locale.US, position.degreeInSign),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

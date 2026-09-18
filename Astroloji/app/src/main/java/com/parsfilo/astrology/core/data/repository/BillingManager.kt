@@ -57,9 +57,7 @@ enum class PaywallVariant(
 
     companion object {
         fun fromRemoteConfigValue(value: String): PaywallVariant =
-            entries.firstOrNull {
-                it.remoteConfigValue == value
-            } ?: YEARLY_FIRST
+            entries.firstOrNull { it.remoteConfigValue == value } ?: YEARLY_FIRST
     }
 }
 
