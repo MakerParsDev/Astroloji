@@ -1,0 +1,14 @@
+merge_protections_settings:
+  auto_merge_conditions:
+    - label = risk:low
+    - label != risk:high
+    - label != needs-human
+
+merge_protections:
+  - name: Block autonomous high-risk merges
+    description: High-risk or human-gated pull requests must never be merged automatically by Mergify.
+    if:
+      - base = main
+    success_conditions:
+      - label != risk:high
+      - label != needs-human
