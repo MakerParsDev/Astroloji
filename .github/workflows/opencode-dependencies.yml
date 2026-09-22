@@ -1,0 +1,58 @@
+name: opencode-dependencies
+on:
+  schedule:
+    - cron: "45 3 * * 4"
+  workflow_dispatch:
+concurrency:
+  group: opencode-dependencies
+  cancel-in-progress: true
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Prepare dependency environment
+        shell: bash
+        run: |
+          npm ci --prefix backend --ignore-scripts
+          cp Astroloji/app/google-services.example.json Astroloji/app/google-services.json
+      - name: Select a currently free OpenCode model
+        id: free_model
+        run: node scripts/select-opencode-free-model.mjs
+      - name: Weekly dependency curator
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_EXPERIMENTAL_LSP_TOOL: "true"
+        with:
+          model: ${{ steps.free_model.outputs.model }}
+          agent: maintainer
+          share: false
+          use_github_token: true
+          prompt: |
+            Audit dependency pins against current authoritative release notes and security advisories.
+            Follow the dependency-upgrade skill.
+            Make at most ONE coherent upgrade PR per run, only when compatibility can be demonstrated
+            by the repository's deterministic gates. Prefer security fixes and low-risk patch/minor
+            updates. Never silently combine unrelated major platform upgrades. Major AGP/Kotlin/KSP,
+            Play Billing, Firebase, Hono/Wrangler runtime, auth or release-tool changes must remain
+            explicitly high-risk and must not be auto-merged.

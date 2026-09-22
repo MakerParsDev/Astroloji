@@ -1,0 +1,47 @@
+name: opencode-model-canary
+
+on:
+  schedule:
+    - cron: "35 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: opencode-model-canary
+  cancel-in-progress: true
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install current OpenCode CLI
+        run: npm install --global opencode-ai@latest
+
+      - name: Select a currently free OpenCode model
+        id: free_model
+        run: node scripts/select-opencode-free-model.mjs
+
+      - name: Validate project configuration
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: opencode debug config > /dev/null
+
+      - name: Verify free model inference
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          MODEL: ${{ steps.free_model.outputs.model }}
+        shell: bash
+        run: |
+          output="$(timeout 120s opencode run --pure --auto --model "$MODEL"             "Reply exactly FREE_MODEL_CANARY_OK. Do not call tools.")"
+          printf '%s' "$output" | grep -F "FREE_MODEL_CANARY_OK"

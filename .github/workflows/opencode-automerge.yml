@@ -1,0 +1,189 @@
+name: opencode-automerge
+
+on:
+  workflow_run:
+    workflows: [opencode-review]
+    types: [completed]
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: opencode-automerge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      checks: read
+      contents: write
+      issues: read
+      pull-requests: write
+      statuses: read
+
+    steps:
+      - name: Merge exact-head low-risk OpenCode PRs
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const requiredChecks = [
+              'secret-scan',
+              'backend-verify',
+              'android-verify',
+              'CodeRabbit',
+              'GitGuardian Security Checks',
+              'SonarCloud Code Analysis',
+              'semgrep-cloud-platform/scan',
+            ]
+            const sensitive = [
+              '.github/',
+              'release_runbook.md',
+              'backend/migrations/',
+              'backend/wrangler',
+              'androidmanifest.xml',
+              'gradle.properties',
+              'google-services',
+              'service-account',
+              'keystore',
+              'auth',
+              'admin',
+              'subscription',
+              'billing',
+              'rtdn',
+              'ssv',
+              'rate-limit',
+              'secret',
+              'deploy',
+              'release',
+              '/play/',
+            ]
+
+            async function candidates() {
+              if (context.eventName === 'workflow_run') {
+                const sha = context.payload.workflow_run.head_sha
+                const prs = await github.paginate(
+                  github.rest.repos.listPullRequestsAssociatedWithCommit,
+                  { owner, repo, commit_sha: sha, per_page: 100 },
+                )
+                return prs.filter((pr) => pr.state === 'open' && pr.head.sha === sha)
+              }
+              return github.paginate(github.rest.pulls.list, {
+                owner, repo, state: 'open', base: 'main', per_page: 100,
+              })
+            }
+
+            async function checksFor(sha) {
+              const checkRuns = await github.paginate(github.rest.checks.listForRef, {
+                owner, repo, ref: sha, per_page: 100,
+              })
+              const statuses = await github.paginate(github.rest.repos.listCommitStatusesForRef, {
+                owner, repo, ref: sha, per_page: 100,
+              })
+              const state = new Map()
+              for (const check of checkRuns) {
+                state.set(check.name, check.status === 'completed' ? check.conclusion : check.status)
+              }
+              for (const status of statuses) state.set(status.context, status.state)
+              return state
+            }
+            async function allRequiredChecksPass(sha) {
+              for (let attempt = 0; attempt < 20; attempt++) {
+                const state = await checksFor(sha)
+                const values = requiredChecks.map((name) => [name, state.get(name)])
+                const failed = values.filter(([, value]) =>
+                  ['failure', 'cancelled', 'timed_out', 'action_required', 'error'].includes(value),
+                )
+                if (failed.length) {
+                  core.notice(`Required checks failed for ${sha}: ${JSON.stringify(failed)}`)
+                  return false
+                }
+                if (values.every(([, value]) => value === 'success')) return true
+                if (attempt < 19) await new Promise((resolve) => setTimeout(resolve, 15_000))
+              }
+              core.notice(`Required checks did not all reach success for ${sha}.`)
+              return false
+            }
+
+            async function hasUnresolvedThreads(number) {
+              const result = await github.graphql(
+                `query($owner:String!,$repo:String!,$number:Int!) {
+                  repository(owner:$owner,name:$repo) {
+                    pullRequest(number:$number) {
+                      reviewThreads(first:100) { nodes { isResolved } }
+                    }
+                  }
+                }`,
+                { owner, repo, number },
+              )
+              return result.repository.pullRequest.reviewThreads.nodes.some(
+                (thread) => !thread.isResolved,
+              )
+            }
+            for (const candidate of await candidates()) {
+              const { data: pr } = await github.rest.pulls.get({
+                owner, repo, pull_number: candidate.number,
+              })
+              const labels = new Set(pr.labels.map((label) => label.name))
+              if (pr.draft) continue
+              if (pr.base.ref !== 'main') continue
+              if (pr.head.repo?.full_name !== `${owner}/${repo}`) continue
+              if (!pr.head.ref.startsWith('opencode/')) continue
+              if (!labels.has('opencode-autonomous') || !labels.has('risk:low')) continue
+              if (labels.has('risk:high') || labels.has('needs-human')) continue
+
+              const files = await github.paginate(github.rest.pulls.listFiles, {
+                owner, repo, pull_number: pr.number, per_page: 100,
+              })
+              const totalChanges = files.reduce(
+                (sum, file) => sum + file.additions + file.deletions,
+                0,
+              )
+              const unsafePath = files.find((file) => {
+                const path = file.filename.toLowerCase()
+                return sensitive.some((marker) => path.includes(marker))
+              })
+              if (unsafePath || files.length > 20 || totalChanges > 1000) {
+                core.notice(`PR #${pr.number} failed deterministic risk re-check.`)
+                continue
+              }
+
+              if (!(await allRequiredChecksPass(pr.head.sha))) continue
+              if (await hasUnresolvedThreads(pr.number)) {
+                core.notice(`PR #${pr.number} has unresolved review threads.`)
+                continue
+              }
+              const { data: latest } = await github.rest.pulls.get({
+                owner, repo, pull_number: pr.number,
+              })
+              if (latest.head.sha !== pr.head.sha || latest.state !== 'open') continue
+              if (latest.mergeable === false || latest.mergeable_state === 'dirty') continue
+
+              const result = await github.rest.pulls.merge({
+                owner,
+                repo,
+                pull_number: pr.number,
+                sha: pr.head.sha,
+                merge_method: 'squash',
+                commit_title: `${pr.title} (#${pr.number})`,
+              })
+              if (!result.data.merged) {
+                core.notice(`PR #${pr.number} was not merged: ${result.data.message}`)
+                continue
+              }
+
+              core.notice(`Merged low-risk OpenCode PR #${pr.number} at exact head ${pr.head.sha}.`)
+              try {
+                await github.rest.git.deleteRef({
+                  owner, repo, ref: `heads/${pr.head.ref}`,
+                })
+              } catch (error) {
+                core.warning(`Merged PR #${pr.number}, but branch cleanup failed: ${error.message}`)
+              }
+            }

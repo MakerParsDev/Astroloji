@@ -1,0 +1,105 @@
+name: opencode-pr-policy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: opencode-pr-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'opencode/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Classify autonomous PR risk
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const pull_number = context.payload.pull_request.number
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner, repo, pull_number, per_page: 100,
+            })
+            const paths = files.map((file) => file.filename.toLowerCase())
+            const totalChanges = files.reduce(
+              (sum, file) => sum + file.additions + file.deletions,
+              0,
+            )
+            const sensitive = [
+              '.github/',
+              'release_runbook.md',
+              'backend/migrations/',
+              'backend/wrangler',
+              'androidmanifest.xml',
+              'gradle.properties',
+              'google-services',
+              'service-account',
+              'keystore',
+              'auth',
+              'admin',
+              'subscription',
+              'billing',
+              'rtdn',
+              'ssv',
+              'rate-limit',
+              'secret',
+              'deploy',
+              'release',
+              '/play/',
+            ]
+            const reasons = []
+            for (const path of paths) {
+              const marker = sensitive.find((value) => path.includes(value))
+              if (marker) reasons.push(`${path} matched ${marker}`)
+            }
+            if (files.length > 20) {
+              reasons.push(`changed file count ${files.length} exceeds 20`)
+            }
+            if (totalChanges > 1000) {
+              reasons.push(`diff size ${totalChanges} exceeds 1000 lines`)
+            }
+
+            const highRisk = reasons.length > 0
+            const add = highRisk
+              ? ['opencode-autonomous', 'risk:high', 'needs-human']
+              : ['opencode-autonomous', 'risk:low']
+            const remove = highRisk
+              ? ['risk:low']
+              : ['risk:high', 'needs-human']
+
+            await github.rest.issues.addLabels({
+              owner, repo, issue_number: pull_number, labels: add,
+            })
+
+            const currentLabels = new Set(
+              context.payload.pull_request.labels.map((label) => label.name),
+            )
+            for (const name of remove) {
+              if (!currentLabels.has(name)) continue
+              try {
+                await github.rest.issues.removeLabel({
+                  owner, repo, issue_number: pull_number, name,
+                })
+              } catch (error) {
+                if (error.status !== 404) throw error
+              }
+            }
+            core.summary
+              .addHeading('OpenCode autonomous PR policy')
+              .addRaw(`Risk: ${highRisk ? 'high' : 'low'}\n\n`)
+              .addRaw(`Files: ${files.length}\n\n`)
+              .addRaw(`Changed lines: ${totalChanges}\n\n`)
+            if (reasons.length) {
+              core.summary.addHeading('Human-control reasons', 3)
+              core.summary.addList(reasons)
+            }
+            await core.summary.write()

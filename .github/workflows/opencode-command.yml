@@ -1,0 +1,55 @@
+name: opencode-command
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+concurrency:
+  group: opencode-command-${{ github.event.comment.id }}
+  cancel-in-progress: false
+jobs:
+  command:
+    if: >-
+      (contains(github.event.comment.body, '/oc') ||
+       contains(github.event.comment.body, '/opencode')) &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Prepare engineering environment
+        shell: bash
+        run: |
+          npm ci --prefix backend --ignore-scripts
+          cp Astroloji/app/google-services.example.json Astroloji/app/google-services.json
+      - name: Select a currently free OpenCode model
+        id: free_model
+        run: node scripts/select-opencode-free-model.mjs
+      - name: Run autonomous maintainer
+        uses: anomalyco/opencode/github@latest
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_EXPERIMENTAL_LSP_TOOL: "true"
+        with:
+          model: ${{ steps.free_model.outputs.model }}
+          agent: maintainer
+          share: false
+          use_github_token: true
