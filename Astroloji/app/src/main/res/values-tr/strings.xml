@@ -174,11 +174,20 @@
     <string name="friends_list_empty">Henüz arkadaşın yok. Başlamak için kodunu paylaş.</string>
     <string name="friends_remove_cta">Kaldır</string>
     <string name="credits_title">Krediler</string>
-    <string name="credits_balance_label">Bakiye: %1$d kredi</string>
+    <plurals name="credits_balance_label">
+        <item quantity="one">Bakiye: %1$d kredi</item>
+        <item quantity="other">Bakiye: %1$d kredi</item>
+    </plurals>
     <string name="credits_body">Krediler derin okuma veya AI danışma mesajı için kullanılır.</string>
     <string name="credits_catalogue_unavailable">Kredi paketleri yüklenemedi. Tekrar dene.</string>
-    <string name="credits_purchase_success">%1$d kredi bakiyene eklendi.</string>
-    <string name="credits_pack_amount">%1$d kredi</string>
+    <plurals name="credits_purchase_success">
+        <item quantity="one">%1$d kredi bakiyene eklendi.</item>
+        <item quantity="other">%1$d kredi bakiyene eklendi.</item>
+    </plurals>
+    <plurals name="credits_pack_amount">
+        <item quantity="one">%1$d kredi</item>
+        <item quantity="other">%1$d kredi</item>
+    </plurals>
     <string name="ai_features_title">AI Astrolog</string>
     <string name="ai_features_body">Haritanın derin okumasını al ya da kişisel AI astroloğuna bir soru sor.</string>
     <string name="reading_title">Derin Okuma</string>
@@ -232,7 +241,10 @@
     <string name="home_subscription_fix_action">Ödemeyi düzelt</string>
     <string name="home_moon_phase_title">Ay Fazı</string>
     <string name="home_streak_milestone_title">Yeni rozet açıldı</string>
-    <string name="home_streak_reward_credits">+%1$d kredi bakiyene eklendi.</string>
+    <plurals name="home_streak_reward_credits">
+        <item quantity="one">+%1$d kredi bakiyene eklendi.</item>
+        <item quantity="other">+%1$d kredi bakiyene eklendi.</item>
+    </plurals>
     <string name="home_mood_title">Bugün nasıl hissediyorsun?</string>
     <string name="home_mood_logged">Kaydedildi: %1$s Kayıt için teşekkürler.</string>
     <string name="home_mood_insight">Son %2$d düşük ruh hali kaydından %1$d tanesinde, %3$s alanında haritanda eşleşen bir transit vardı.</string>

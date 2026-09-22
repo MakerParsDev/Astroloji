@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -38,13 +39,14 @@ fun FriendsScreen(
 ) {
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val resources = LocalResources.current
     val shareChooserTitle = stringResource(R.string.friends_share_cta)
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, resources, shareChooserTitle) {
         viewModel.effects.collect { effect ->
             when (effect) {
                 is FriendsUiEffect.ShareInvite -> {
-                    val message = context.getString(R.string.friends_share_message, effect.code)
+                    val message = resources.getString(R.string.friends_share_message, effect.code)
                     val intent =
                         Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"

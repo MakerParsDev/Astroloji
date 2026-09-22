@@ -174,11 +174,20 @@
     <string name="friends_list_empty">No friends yet. Share your code to get started.</string>
     <string name="friends_remove_cta">Remove</string>
     <string name="credits_title">Credits</string>
-    <string name="credits_balance_label">Balance: %1$d credits</string>
+    <plurals name="credits_balance_label">
+        <item quantity="one">Balance: %1$d credit</item>
+        <item quantity="other">Balance: %1$d credits</item>
+    </plurals>
     <string name="credits_body">Use credits for a deep reading or an AI consultation message.</string>
     <string name="credits_catalogue_unavailable">Credit packs could not be loaded. Try again.</string>
-    <string name="credits_purchase_success">%1$d credits added to your balance.</string>
-    <string name="credits_pack_amount">%1$d credits</string>
+    <plurals name="credits_purchase_success">
+        <item quantity="one">%1$d credit added to your balance.</item>
+        <item quantity="other">%1$d credits added to your balance.</item>
+    </plurals>
+    <plurals name="credits_pack_amount">
+        <item quantity="one">%1$d credit</item>
+        <item quantity="other">%1$d credits</item>
+    </plurals>
     <string name="ai_features_title">AI Astrologer</string>
     <string name="ai_features_body">Get a deep reading of your chart or ask your personal AI astrologer a question.</string>
     <string name="reading_title">Deep Reading</string>
@@ -232,10 +241,13 @@
     <string name="home_subscription_fix_action">Fix billing</string>
     <string name="home_moon_phase_title">Moon Phase</string>
     <string name="home_streak_milestone_title">Milestone unlocked</string>
-    <string name="home_streak_reward_credits">+%1$d credits added to your balance.</string>
+    <plurals name="home_streak_reward_credits">
+        <item quantity="one">+%1$d credit added to your balance.</item>
+        <item quantity="other">+%1$d credits added to your balance.</item>
+    </plurals>
     <string name="home_mood_title">How are you feeling today?</string>
     <string name="home_mood_logged">Logged: %1$s Thanks for checking in.</string>
-    <string name="home_mood_insight">In %1$d of your last %2$d low-mood check-ins about %3$s, your chart showed a matching transit.</string>
+    <string name="home_mood_insight" tools:ignore="PluralsCandidate">In %1$d of your last %2$d low-mood check-ins about %3$s, your chart showed a matching transit.</string>
     <string name="streak_milestone_3">3 days in a row. Your ritual has started.</string>
     <string name="streak_milestone_7">7 days. The stars are starting to expect you.</string>
     <string name="streak_milestone_14">14 days strong. The cosmos is noticing your consistency.</string>

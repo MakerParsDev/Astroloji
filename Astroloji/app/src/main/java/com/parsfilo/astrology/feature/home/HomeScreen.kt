@@ -308,7 +308,12 @@ private fun MilestoneCelebrationCard(
         )
         if (creditsGranted != null && creditsGranted > 0) {
             Text(
-                text = stringResource(R.string.home_streak_reward_credits, creditsGranted),
+                text =
+                    pluralStringResource(
+                        R.plurals.home_streak_reward_credits,
+                        creditsGranted,
+                        creditsGranted,
+                    ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
