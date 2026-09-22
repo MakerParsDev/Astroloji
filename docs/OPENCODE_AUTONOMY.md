@@ -81,6 +81,7 @@ Mergify identifies autonomous pull requests from the head branch itself: only `h
 - `opencode-pr-policy.yml`: deterministic autonomous PR risk classification.
 - Mergify Merge Protections: the sole autonomous merge/queue controller for low-risk PRs.
 - `opencode-ci-repair.yml`: at most two repairs on eligible `opencode/*` low-risk PRs; eligibility requires exact-head `autonomous-risk-low=success`; policy-control changes hard-stop repair; final full-diff risk is evaluated with policy files extracted from the trusted base SHA; it never merges.
+- Bootstrap boundary: keep `opencode-ci-repair` disabled at repository level until this hardening change is merged and `main` contains the base-pinned policy/module files; only then re-enable it.
 - `opencode-model-canary.yml`: daily free-model/configuration/inference health check.
 
 Autonomous auto-merge requires the exact current head SHA to pass:
