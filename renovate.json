@@ -1,1 +1,44 @@
-{}
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Europe/Istanbul",
+  "dependencyDashboard": true,
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 4,
+  "branchConcurrentLimit": 4,
+  "rangeStrategy": "pin",
+  "schedule": ["before 5am on Thursday"],
+  "packageRules": [
+    {
+      "description": "Delay npm releases to avoid very fresh/unpublished packages",
+      "matchDatasources": ["npm"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Keep Android platform/toolchain upgrades explicit and review-heavy",
+      "matchManagers": ["gradle", "gradle-wrapper"],
+      "matchPackageNames": [
+        "com.android.application",
+        "com.android.library",
+        "org.jetbrains.kotlin.plugin.compose",
+        "org.jetbrains.kotlin.plugin.serialization",
+        "com.google.devtools.ksp",
+        "gradle"
+      ],
+      "groupName": "android platform toolchain",
+      "labels": ["dependencies", "high-risk"],
+      "automerge": false
+    },
+    {
+      "description": "Group compatible backend non-major updates",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "backend non-major dependencies"
+    },
+    {
+      "description": "Never let Renovate merge without repository AI/CI review",
+      "matchUpdateTypes": ["major", "minor", "patch", "pin", "digest"],
+      "automerge": false
+    }
+  ]
+}
