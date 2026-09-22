@@ -3,7 +3,6 @@ description: Verification specialist that selects and runs the smallest sufficie
 mode: subagent
 permission:
   edit: allow
-  bash: allow
   lsp: allow
   skill: allow
 ---

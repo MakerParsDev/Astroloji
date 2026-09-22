@@ -3,7 +3,6 @@ description: TypeScript/Hono/Cloudflare Workers specialist for backend changes.
 mode: subagent
 permission:
   edit: allow
-  bash: allow
   lsp: allow
   skill: allow
 ---

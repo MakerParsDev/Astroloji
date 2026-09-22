@@ -1,14 +1,32 @@
 merge_protections_settings:
   auto_merge_conditions:
+    - head ~= ^opencode/
     - label = risk:low
+    - check-success = autonomous-risk-low
     - label != risk:high
     - label != needs-human
 
 merge_protections:
-  - name: Block autonomous high-risk merges
-    description: High-risk or human-gated pull requests must never be merged automatically by Mergify.
+  - name: Guard autonomous and human-gated merges
+    description: Every merge requires exact CI/review gates; opencode branches additionally require exact-head risk proof or explicit human approval.
     if:
       - base = main
     success_conditions:
-      - label != risk:high
-      - label != needs-human
+      - or:
+          - -head ~= ^opencode/
+          - and:
+              - head ~= ^opencode/
+              - check-success = autonomous-risk-low
+              - label != risk:high
+              - label != needs-human
+          - and:
+              - head ~= ^opencode/
+              - label = human-approved
+      - check-success = secret-scan
+      - check-success = backend-verify
+      - check-success = android-verify
+      - check-success = review
+      - check-success = CodeRabbit
+      - check-success = GitGuardian Security Checks
+      - check-success = SonarCloud Code Analysis
+      - check-success = semgrep-cloud-platform/scan

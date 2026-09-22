@@ -1,1 +1,20 @@
 backend/worker-configuration.d.ts -whitespace
+.gitattributes text eol=lf
+.mergify.yml text eol=lf
+
+# Keep autonomous-engineering assets byte-stable across Windows/Linux.
+AGENTS.md text eol=lf
+opencode.jsonc text eol=lf
+renovate.json text eol=lf
+docs/OPENCODE_AUTONOMY.md text eol=lf
+config/autonomous-policy.json text eol=lf
+.github/workflows/opencode-*.yml text eol=lf
+.opencode/** text eol=lf
+scripts/autonomous-policy*.mjs text eol=lf
+scripts/check-autonomous-diff*.mjs text eol=lf
+scripts/install-opencode-ci.sh text eol=lf
+scripts/run-opencode-github-ci.sh text eol=lf
+scripts/run-opencode-github-ci.test.mjs text eol=lf
+scripts/opencode-workflow-contract.test.mjs text eol=lf
+scripts/sanitize-ci-log*.mjs text eol=lf
+scripts/select-opencode-free-model*.mjs text eol=lf

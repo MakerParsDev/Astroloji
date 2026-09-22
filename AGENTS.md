@@ -44,5 +44,7 @@ Note: npm audit and package manifests were reviewed on 2026-08-05. Existing pins
 - For every behavior change, use the sequence: RED regression test -> minimum fix -> focused verification -> broader verification.
 - OpenCode must not directly deploy production, publish or promote Google Play releases, mutate remote D1, change Doppler or GitHub secrets/variables, rotate credentials, or force-push. Prepare and use the existing guarded workflow instead.
 - Review and merge evidence is valid only for the exact current head SHA. Any new commit invalidates earlier CI and review evidence.
-- Use only explicitly approved free OpenCode model IDs. If no approved free model is available, stop the automation.
+- Use only explicitly approved free coding-capable OpenCode model IDs. If no approved free coding model is available, stop the automation.
+- Treat `config/autonomous-policy.json` plus `scripts/autonomous-policy.mjs` as the single autonomous risk policy; do not duplicate path-risk rules elsewhere.
+- Never send personal, confidential, credential, purchase-identifier, or raw production telemetry data to free model endpoints.
 - During long tasks, preserve root cause, rejected hypotheses, changed files, executed verification, unresolved findings, and remaining risks across context compaction.

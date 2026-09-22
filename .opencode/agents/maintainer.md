@@ -3,7 +3,6 @@ description: Autonomous senior maintainer for Astroloji. Owns issue-to-PR work, 
 mode: primary
 permission:
   edit: allow
-  bash: allow
   task: allow
   lsp: allow
   skill: allow
