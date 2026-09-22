@@ -5,6 +5,9 @@ import { boundedSanitizedTail, sanitizeCiLog } from './sanitize-ci-log.mjs'
 test('redacts common CI credential formats and identifiers', () => {
   const input = [
     'Authorization: Bearer super-secret',
+    'Authorization: Basic dXNlcjpwYXNz',
+    'authToken=camel-auth-secret',
+    '{"auth-token":"quoted-auth-secret"}',
     'GITHUB_TOKEN=ghs_1234567890abcdefghijklmnop',
     'OPENCODE_API_KEY: secret-value',
     'doppler=dp.st.abcdefghijklmnopqrstuvwxyz',
@@ -20,6 +23,9 @@ test('redacts common CI credential formats and identifiers', () => {
   const output = sanitizeCiLog(input)
   for (const secret of [
     'super-secret',
+    'dXNlcjpwYXNz',
+    'camel-auth-secret',
+    'quoted-auth-secret',
     'ghs_1234567890abcdefghijklmnop',
     'secret-value',
     'dp.st.abcdefghijklmnopqrstuvwxyz',

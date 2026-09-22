@@ -63,6 +63,7 @@ It defines:
 - maximum changed-line count.
 
 The PR policy, CI repair guard, and local `repo-risk` tool all consume the same policy. Mergify is the repository's only autonomous merge engine.
+Pull-request classification includes both `filename` and `previous_filename` for renamed files. CI-repair full-diff checks use `git diff --no-renames`, so a sensitive source path cannot disappear behind Git rename notation.
 Documentation filenames containing words such as "release" do not become high risk merely because of a substring match.
 
 The PR policy runs on `pull_request_target` from the trusted base branch, checks out only `pull_request.base.sha`, and never imports or executes policy code from the PR head. It computes the proposed change from the GitHub pull-request files API, then writes an exact-head `autonomous-risk-low` commit status before normalizing labels. It re-runs on opened, synchronized, reopened, labeled, and unlabeled pull-request events. Low-risk heads receive status success plus `risk:low`; high-risk heads receive status failure plus `risk:high` and `needs-human`. Policy/configuration, OpenCode permission/safety, installer/model-selection, and CI-repair control files are themselves high-risk. Label edits performed by the policy use the repository `GITHUB_TOKEN`, so GitHub's recursion suppression prevents those policy-authored label changes from spawning another label workflow run.
@@ -102,7 +103,7 @@ External review/security checks are intentionally fail-closed. If a provider ski
 
 `opencode.jsonc` is deny-by-default for shell execution.
 Allowed shell commands are limited to read-only Git inspection and deterministic build/test/lint/typecheck operations.
-Git mutations, GitHub mutations, arbitrary command wrappers, deployment CLIs, secret tools, and publishing tasks are denied.
+Git mutations, GitHub mutations, arbitrary command wrappers, deployment CLIs, secret tools, and publishing tasks are denied. Read-only Git diff access is narrowly scoped; `git difftool`, `--extcmd`, `--ext-diff`, and `--textconv` execution paths are denied.
 The safety plugin applies a second runtime guard.
 
 Cloudflare Docs MCP is enabled.
@@ -114,14 +115,14 @@ LSP is enabled for semantic code navigation.
 Every external GitHub Action in every repository workflow is pinned to a full commit SHA. Existing major-version behavior is preserved; Renovate is the controlled update path for later digest or version changes.
 Model-running workflows do not use the OpenCode composite GitHub Action because that wrapper dynamically discovers and installs the latest CLI.
 Instead, CI downloads the OpenCode 1.18.32 Linux release asset from `anomalyco/opencode`, the GitHub repository linked by opencode.ai as the project's official source repository, verifies its pinned SHA-256 digest before extraction, and runs the pinned `opencode github run` command directly.
-A small runner injects only the requested `default_agent` as a final inline config merge, keeps sharing disabled, uses the caller-provided GitHub token, and exposes Git write credentials only as process-local `GIT_CONFIG_*` values for workflows that are allowed to create commits or pull requests. The pinned OpenCode v1.18.32 `githubRun` implementation reads `MODEL` and `PROMPT` directly from the inherited process environment; repository behavior tests verify that both values reach the child `opencode github run` process. The bounded CI-repair push uses the same process-local Git authentication pattern and does not call `gh auth setup-git` or persist credentials in repository Git config.
+A small runner injects only the requested `default_agent` as a final inline config merge, explicitly exports the selected `MODEL` and workflow `PROMPT`, keeps sharing disabled, uses the caller-provided GitHub token, and exposes Git write credentials only as process-local `GIT_CONFIG_*` values for workflows that are allowed to create commits or pull requests. The pinned OpenCode v1.18.32 `githubRun` implementation reads `MODEL` and `PROMPT` directly from the inherited process environment; repository behavior tests verify that both values reach the child `opencode github run` process. The bounded CI-repair push uses the same process-local Git authentication pattern and does not call `gh auth setup-git` or persist credentials in repository Git config.
 The v1.18.32 Linux x64 release asset digest was independently recomputed out of band and matched the pinned SHA-256 before this policy was introduced. Renovate tracks repository Action digests and the OpenCode CLI release pin, but never auto-merges dependency updates. A CLI version bump deliberately does not rewrite the digest automatically: the checksum mismatch makes the installer fail closed until a human verifies the new official release asset and updates the reviewed digest.
 
 ## Privacy boundary
 
 Free model endpoints can have data-collection terms.
 Do not provide personal, confidential, production-customer, credential, purchase-identifier, or raw telemetry data to the agents.
-CI repair logs pass through `scripts/sanitize-ci-log.mjs` before model exposure.
+CI repair logs pass through `scripts/sanitize-ci-log.mjs` before model exposure. The sanitizer covers Bearer and Basic authorization headers, common provider-token formats, `authToken` / `auth-token` key variants, credential-bearing query parameters, private keys, JWTs, and email-like identifiers.
 Production observability remains disabled by default.
 
 ## Local use

@@ -18,6 +18,7 @@ case "${OPENCODE_GIT_WRITE:-false}" in
     ;;
 esac
 
+export MODEL PROMPT
 export SHARE="false"
 export USE_GITHUB_TOKEN="true"
 export OPENCODE_EXPERIMENTAL_LSP_TOOL="true"

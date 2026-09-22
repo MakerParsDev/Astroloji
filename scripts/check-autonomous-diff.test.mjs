@@ -31,3 +31,11 @@ test('numstat parser carries changed-line size into the shared policy', () => {
   assert.equal(change.totalChanges, 1001)
   assert.equal(classifyAutonomousChange(change).risk, 'high')
 })
+
+test('no-renames numstat preserves the sensitive source path of a rename', () => {
+  const change = parseNumstat(
+    '0\t20\tbackend/src/middleware/auth.ts\n20\t0\tdocs/auth-wrapper.ts\n',
+  )
+  assert.equal(change.paths.includes('backend/src/middleware/auth.ts'), true)
+  assert.equal(classifyAutonomousChange(change).risk, 'high')
+})

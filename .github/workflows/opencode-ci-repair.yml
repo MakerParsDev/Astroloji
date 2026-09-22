@@ -117,7 +117,7 @@ jobs:
         run: |
           git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null || git fetch --no-tags origin "$BASE_SHA"
           policy_changes="$(
-            git diff --name-only "$BASE_SHA" --               config/autonomous-policy.json               scripts/autonomous-policy.mjs               scripts/autonomous-policy.test.mjs               scripts/check-autonomous-diff.mjs               scripts/check-autonomous-diff.test.mjs
+            git diff --no-renames --name-only "$BASE_SHA" --               config/autonomous-policy.json               scripts/autonomous-policy.mjs               scripts/autonomous-policy.test.mjs               scripts/check-autonomous-diff.mjs               scripts/check-autonomous-diff.test.mjs
           )"
           if [ -n "$policy_changes" ]; then
             echo "Autonomous policy controls changed; CI repair is not allowed."
@@ -180,7 +180,7 @@ jobs:
           git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null || git fetch --no-tags origin "$BASE_SHA"
 
           policy_changes="$(
-            git diff --name-only "$BASE_SHA" --               config/autonomous-policy.json               scripts/autonomous-policy.mjs               scripts/autonomous-policy.test.mjs               scripts/check-autonomous-diff.mjs               scripts/check-autonomous-diff.test.mjs
+            git diff --no-renames --name-only "$BASE_SHA" --               config/autonomous-policy.json               scripts/autonomous-policy.mjs               scripts/autonomous-policy.test.mjs               scripts/check-autonomous-diff.mjs               scripts/check-autonomous-diff.test.mjs
           )"
           if [ -n "$policy_changes" ]; then
             echo "Autonomous policy controls changed during repair; stopping."
@@ -196,7 +196,7 @@ jobs:
           git show "$BASE_SHA:config/autonomous-policy.json" > "$policy_root/config/autonomous-policy.json"
 
           git add -N .
-          git diff --numstat "$BASE_SHA" --             | node "$policy_root/scripts/check-autonomous-diff.mjs" --numstat
+          git diff --no-renames --numstat "$BASE_SHA" --             | node "$policy_root/scripts/check-autonomous-diff.mjs" --numstat
           node scripts/scan-secrets.mjs
           node --test scripts/*.test.mjs
           git diff --check

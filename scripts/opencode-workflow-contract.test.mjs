@@ -78,6 +78,7 @@ test('GitHub-agent runner overlays the requested agent and keeps Git credentials
   assert.match(body, /OPENCODE_CONFIG_CONTENT/)
   assert.match(body, /default_agent/)
   assert.match(body, /\$\{MODEL:\?MODEL is required\}/)
+  assert.match(body, /export MODEL PROMPT/)
   assert.doesNotMatch(body, /unset\s+(?:MODEL|PROMPT)/)
   assert.match(body, /USE_GITHUB_TOKEN/)
   assert.match(body, /SHARE/)
@@ -136,6 +137,9 @@ test('project config exposes only approved free coding models', async () => {
   assert.match(body, /"snapshot":\s*false/)
   assert.match(body, /"external_directory":\s*"deny"/)
   assert.match(body, /"bash":\s*\{[\s\S]*?"\*":\s*"deny"/)
+  assert.doesNotMatch(body, /"git diff\*":\s*"allow"/)
+  assert.match(body, /"git diff":\s*"allow"/)
+  assert.match(body, /"git diff \*":\s*"allow"/)
 })
 
 test('custom agents cannot override shell policy with blanket allow', async () => {
@@ -228,6 +232,7 @@ test('PR policy is base-pinned, reasserts labels, and writes an exact-head low-r
   assert.match(body, /sha:\s*context\.payload\.pull_request\.head\.sha/)
   assert.match(body, /context:\s*'autonomous-risk-low'/)
   assert.match(body, /state:\s*highRisk \? 'failure' : 'success'/)
+  assert.match(body, /previous_filename/)
   assert.ok(body.indexOf('createCommitStatus') < body.indexOf('addLabels'))
 })
 
@@ -265,7 +270,7 @@ test('CI self-healing is opt-in, same-repo, PR-scoped, full-diff-gated, and boun
   assert.match(body, /git show "\$BASE_SHA:scripts\/check-autonomous-diff\.mjs"/)
   assert.match(body, /git show "\$BASE_SHA:scripts\/autonomous-policy\.mjs"/)
   assert.match(body, /git show "\$BASE_SHA:config\/autonomous-policy\.json"/)
-  assert.match(body, /git diff --numstat "\$BASE_SHA"/)
+  assert.match(body, /git diff --no-renames --numstat "\$BASE_SHA"/)
   assert.match(body, /node "\$policy_root\/scripts\/check-autonomous-diff\.mjs" --numstat/)
   assert.match(body, /bash scripts\/install-opencode-ci\.sh/)
   assert.doesNotMatch(body, /npm install --global opencode-ai/)
@@ -287,11 +292,15 @@ test('model canary uses the same checksum-pinned installer', async () => {
   assert.doesNotMatch(body, /npm install --global opencode-ai/)
 })
 
-test('runtime safety guard covers secondary Git mutation primitives', async () => {
+test('runtime safety guard covers secondary Git mutation and diff execution primitives', async () => {
   const body = await text('.opencode/plugins/safety-guard.ts')
   assert.ok(body.includes('stash|restore|apply'))
   assert.ok(body.includes('git\\s+branch'))
   assert.match(body, /--show-current/)
+  assert.match(body, /difftool/)
+  assert.match(body, /extcmd/)
+  assert.match(body, /--ext-diff/)
+  assert.match(body, /--textconv/)
 })
 
 test('OpenCode automation never embeds direct production mutation commands', async () => {

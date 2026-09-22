@@ -22,6 +22,9 @@ const sensitivePath = (raw: unknown) => {
 
 const blockedCommands: RegExp[] = [
   /\bgit\s+(?:push|commit|add|checkout|switch|reset|clean|merge|rebase|cherry-pick|tag|stash|restore|apply)\b/i,
+  /\bgit\s+difftool\b/i,
+  /\bgit\s+(?:diff|show|log)\b.*(?:--ext-diff|--textconv)\b/i,
+  /\b--extcmd(?:=|\s)/i,
   /\bgit\s+branch\b(?!\s+--show-current\b)/i,
   /\bgh\s+(?:secret|variable|workflow\s+run|release)\b/i,
   /\bgh\s+pr\s+(?:create|edit|merge|close|reopen)\b/i,

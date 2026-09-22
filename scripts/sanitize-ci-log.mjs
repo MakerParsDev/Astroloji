@@ -68,7 +68,7 @@ export function sanitizeCiLog(value) {
   const sanitized = String(value)
     .replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '')
     .replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g, '[REDACTED_PRIVATE_KEY]')
-    .replace(/(authorization:\s*bearer\s+)[^\s]+/gi, '$1[REDACTED]')
+    .replace(/(authorization:\s*(?:bearer|basic)\s+)[^\s]+/gi, '$1[REDACTED]')
     .replace(/\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_\-]{16,}\b/g, '[REDACTED_GITHUB_TOKEN]')
     .replace(/\bgithub_pat_[A-Za-z0-9_\-]{16,}\b/g, '[REDACTED_GITHUB_TOKEN]')
     .replace(/\bsk-[A-Za-z0-9_\-]{16,}\b/g, '[REDACTED_API_KEY]')
@@ -82,15 +82,15 @@ export function sanitizeCiLog(value) {
       '$1=[REDACTED]',
     )
     .replace(
-      /\b(token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)\s*[:=]\s*[^\s,;]+/gi,
+      /\b(token|auth[_-]?token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)\s*[:=]\s*[^\s,;]+/gi,
       '$1=[REDACTED]',
     )
     .replace(
-      /([?&](?:token|key|secret|signature|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)=)[^&\s]+/gi,
+      /([?&](?:token|auth[_-]?token|key|secret|signature|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)=)[^&\s]+/gi,
       '$1[REDACTED]',
     )
     .replace(
-      /(["'](?:token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)["']\s*:\s*["'])[^"']+(["'])/gi,
+      /(["'](?:token|auth[_-]?token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)["']\s*:\s*["'])[^"']+(["'])/gi,
       '$1[REDACTED]$2',
     )
 
