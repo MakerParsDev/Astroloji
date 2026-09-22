@@ -21,14 +21,17 @@
     <string name="home_streak_title">Sua sequência</string>
     <plurals name="home_streak_message">
         <item quantity="one">Você registrou presença por %1$d dia seguido.</item>
+        <item quantity="many">Você registrou presença por %1$d dias seguidos.</item>
         <item quantity="other">Você registrou presença por %1$d dias seguidos.</item>
     </plurals>
     <plurals name="home_streak_week_message">
         <item quantity="one">🔥 %1$d dia forte. As estrelas já estão se acostumando com você.</item>
+        <item quantity="many">🔥 %1$d dias fortes. As estrelas já estão se acostumando com você.</item>
         <item quantity="other">🔥 %1$d dias fortes. As estrelas já estão se acostumando com você.</item>
     </plurals>
     <plurals name="home_streak_month_message">
         <item quantity="one">⭐ %1$d dia. Isso já é um verdadeiro ritual cósmico.</item>
+        <item quantity="many">⭐ %1$d dias. Isso já é um verdadeiro ritual cósmico.</item>
         <item quantity="other">⭐ %1$d dias. Isso já é um verdadeiro ritual cósmico.</item>
     </plurals>
     <string name="home_weekly_summary">Resumo Semanal</string>
@@ -73,6 +76,7 @@
     <string name="onboarding_reveal_continue">Continuar</string>
     <plurals name="streak_badge_format">
         <item quantity="one">%1$d dia de sequência</item>
+        <item quantity="many">%1$d dias de sequência</item>
         <item quantity="other">%1$d dias de sequência</item>
     </plurals>
     <string name="premium_title">Astrologia Ilimitada</string>
@@ -142,6 +146,8 @@
     <string name="language_name_english">English</string>
     <string name="language_name_spanish">Espanhol</string>
     <string name="language_name_portuguese">Português</string>
+    <string name="language_name_german">Alemão</string>
+    <string name="language_name_french">Francês</string>
     <string name="settings_favorites_title">Favoritos</string>
     <string name="settings_no_favorites">Você ainda não adicionou signos favoritos.</string>
     <string name="settings_about_title">Sobre</string>
@@ -172,11 +178,23 @@
     <string name="friends_list_empty">Você ainda não tem amigos. Compartilhe seu código para começar.</string>
     <string name="friends_remove_cta">Remover</string>
     <string name="credits_title">Créditos</string>
-    <string name="credits_balance_label">Saldo: %1$d créditos</string>
+    <plurals name="credits_balance_label">
+        <item quantity="one">Saldo: %1$d crédito</item>
+        <item quantity="many">Saldo: %1$d créditos</item>
+        <item quantity="other">Saldo: %1$d créditos</item>
+    </plurals>
     <string name="credits_body">Use créditos para uma leitura profunda ou uma mensagem de consulta com IA.</string>
     <string name="credits_catalogue_unavailable">Não foi possível carregar os pacotes de créditos. Tente novamente.</string>
-    <string name="credits_purchase_success">%1$d créditos adicionados ao seu saldo.</string>
-    <string name="credits_pack_amount">%1$d créditos</string>
+    <plurals name="credits_purchase_success">
+        <item quantity="one">%1$d crédito adicionado ao seu saldo.</item>
+        <item quantity="many">%1$d créditos adicionados ao seu saldo.</item>
+        <item quantity="other">%1$d créditos adicionados ao seu saldo.</item>
+    </plurals>
+    <plurals name="credits_pack_amount">
+        <item quantity="one">%1$d crédito</item>
+        <item quantity="many">%1$d créditos</item>
+        <item quantity="other">%1$d créditos</item>
+    </plurals>
     <string name="ai_features_title">Astrólogo IA</string>
     <string name="ai_features_body">Obtenha uma leitura profunda da sua carta ou faça uma pergunta ao seu astrólogo pessoal de IA.</string>
     <string name="reading_title">Leitura Profunda</string>
@@ -230,7 +248,11 @@
     <string name="home_subscription_fix_action">Corrigir cobrança</string>
     <string name="home_moon_phase_title">Fase da Lua</string>
     <string name="home_streak_milestone_title">Marco desbloqueado</string>
-    <string name="home_streak_reward_credits">+%1$d créditos adicionados ao seu saldo.</string>
+    <plurals name="home_streak_reward_credits">
+        <item quantity="one">+%1$d crédito adicionado ao seu saldo.</item>
+        <item quantity="many">+%1$d créditos adicionados ao seu saldo.</item>
+        <item quantity="other">+%1$d créditos adicionados ao seu saldo.</item>
+    </plurals>
     <string name="home_mood_title">Como você está se sentindo hoje?</string>
     <string name="home_mood_logged">Registrado: %1$s Obrigado por nos contar como você está.</string>
     <string name="home_mood_insight">Em %1$d dos seus últimos %2$d registros de humor baixo sobre %3$s, sua carta mostrou um trânsito correspondente.</string>

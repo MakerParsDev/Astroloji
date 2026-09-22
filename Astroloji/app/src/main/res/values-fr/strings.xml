@@ -21,14 +21,17 @@
     <string name="home_streak_title">Votre série</string>
     <plurals name="home_streak_message">
         <item quantity="one">Vous vous êtes connecté %1$d jour de suite.</item>
+        <item quantity="many">Vous vous êtes connecté %1$d jours de suite.</item>
         <item quantity="other">Vous vous êtes connecté %1$d jours de suite.</item>
     </plurals>
     <plurals name="home_streak_week_message">
         <item quantity="one">🔥 %1$d jour d\'affilée. Les étoiles s\'habituent clairement à vous.</item>
+        <item quantity="many">🔥 %1$d jours d\'affilée. Les étoiles s\'habituent clairement à vous.</item>
         <item quantity="other">🔥 %1$d jours d\'affilée. Les étoiles s\'habituent clairement à vous.</item>
     </plurals>
     <plurals name="home_streak_month_message">
         <item quantity="one">⭐ %1$d jour. C\'est déjà un véritable rituel cosmique.</item>
+        <item quantity="many">⭐ %1$d jours. C\'est déjà un véritable rituel cosmique.</item>
         <item quantity="other">⭐ %1$d jours. C\'est déjà un véritable rituel cosmique.</item>
     </plurals>
     <string name="home_weekly_summary">Résumé de la semaine</string>
@@ -73,6 +76,7 @@
     <string name="onboarding_reveal_continue">Continuer</string>
     <plurals name="streak_badge_format">
         <item quantity="one">%1$d jour de série</item>
+        <item quantity="many">%1$d jours de série</item>
         <item quantity="other">%1$d jours de série</item>
     </plurals>
     <string name="premium_title">Astrologie illimitée</string>
@@ -174,11 +178,23 @@
     <string name="friends_list_empty">Pas encore d\'amis. Partagez votre code pour commencer.</string>
     <string name="friends_remove_cta">Retirer</string>
     <string name="credits_title">Crédits</string>
-    <string name="credits_balance_label">Solde : %1$d crédits</string>
+    <plurals name="credits_balance_label">
+        <item quantity="one">Solde : %1$d crédit</item>
+        <item quantity="many">Solde : %1$d crédits</item>
+        <item quantity="other">Solde : %1$d crédits</item>
+    </plurals>
     <string name="credits_body">Utilisez des crédits pour une lecture approfondie ou un message de consultation IA.</string>
     <string name="credits_catalogue_unavailable">Les packs de crédits n\'ont pas pu être chargés. Réessayez.</string>
-    <string name="credits_purchase_success">%1$d crédits ont été ajoutés à votre solde.</string>
-    <string name="credits_pack_amount">%1$d crédits</string>
+    <plurals name="credits_purchase_success">
+        <item quantity="one">%1$d crédit a été ajouté à votre solde.</item>
+        <item quantity="many">%1$d crédits ont été ajoutés à votre solde.</item>
+        <item quantity="other">%1$d crédits ont été ajoutés à votre solde.</item>
+    </plurals>
+    <plurals name="credits_pack_amount">
+        <item quantity="one">%1$d crédit</item>
+        <item quantity="many">%1$d crédits</item>
+        <item quantity="other">%1$d crédits</item>
+    </plurals>
     <string name="ai_features_title">Astrologue IA</string>
     <string name="ai_features_body">Obtenez une lecture approfondie de votre thème ou posez une question à votre astrologue IA personnel.</string>
     <string name="reading_title">Lecture approfondie</string>
@@ -232,7 +248,11 @@
     <string name="home_subscription_fix_action">Corriger la facturation</string>
     <string name="home_moon_phase_title">Phase lunaire</string>
     <string name="home_streak_milestone_title">Palier débloqué</string>
-    <string name="home_streak_reward_credits">+%1$d crédits ont été ajoutés à votre solde.</string>
+    <plurals name="home_streak_reward_credits">
+        <item quantity="one">+%1$d crédit a été ajouté à votre solde.</item>
+        <item quantity="many">+%1$d crédits ont été ajoutés à votre solde.</item>
+        <item quantity="other">+%1$d crédits ont été ajoutés à votre solde.</item>
+    </plurals>
     <string name="home_mood_title">Comment vous sentez-vous aujourd\'hui ?</string>
     <string name="home_mood_logged">Enregistré : %1$s Merci de nous avoir tenus informés.</string>
     <string name="home_mood_insight">Dans %1$d de vos %2$d derniers enregistrements d\'humeur basse concernant %3$s, votre thème montrait un transit correspondant.</string>

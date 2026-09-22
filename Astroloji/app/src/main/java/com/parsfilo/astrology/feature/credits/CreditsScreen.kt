@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -56,7 +57,7 @@ fun CreditsScreen(
             Text(text = stringResource(R.string.credits_title), style = MaterialTheme.typography.displaySmall)
             uiState.balance?.let { balance ->
                 Text(
-                    text = stringResource(R.string.credits_balance_label, balance),
+                    text = pluralStringResource(R.plurals.credits_balance_label, balance, balance),
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
@@ -95,7 +96,7 @@ private fun CreditsCatalogueSection(
     uiState.purchaseSuccessCredits?.let { credits ->
         AstrologyCard {
             Text(
-                text = stringResource(R.string.credits_purchase_success, credits),
+                text = pluralStringResource(R.plurals.credits_purchase_success, credits, credits),
                 style = MaterialTheme.typography.titleMedium,
             )
         }
@@ -124,7 +125,7 @@ private fun CreditPackCard(
             Column {
                 Text(text = pack.title, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    text = stringResource(R.string.credits_pack_amount, pack.credits),
+                    text = pluralStringResource(R.plurals.credits_pack_amount, pack.credits, pack.credits),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -18,9 +18,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -38,19 +40,20 @@ fun FriendsScreen(
 ) {
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val shareChooserTitle = stringResource(R.string.friends_share_cta)
+    val currentResources by rememberUpdatedState(LocalResources.current)
+    val currentShareChooserTitle by rememberUpdatedState(stringResource(R.string.friends_share_cta))
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
                 is FriendsUiEffect.ShareInvite -> {
-                    val message = context.getString(R.string.friends_share_message, effect.code)
+                    val message = currentResources.getString(R.string.friends_share_message, effect.code)
                     val intent =
                         Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, message)
                         }
-                    context.startActivity(Intent.createChooser(intent, shareChooserTitle))
+                    context.startActivity(Intent.createChooser(intent, currentShareChooserTitle))
                 }
             }
         }

@@ -143,6 +143,7 @@
     <string name="language_name_spanish">Spanisch</string>
     <string name="language_name_portuguese">Portugiesisch</string>
     <string name="language_name_german">Deutsch</string>
+    <string name="language_name_french">Französisch</string>
     <string name="settings_favorites_title">Favoriten</string>
     <string name="settings_no_favorites">Sie haben noch keine Lieblingssternzeichen hinzugefügt.</string>
     <string name="settings_about_title">Über die App</string>
@@ -173,11 +174,20 @@
     <string name="friends_list_empty">Noch keine Freunde. Teilen Sie Ihren Code, um loszulegen.</string>
     <string name="friends_remove_cta">Entfernen</string>
     <string name="credits_title">Guthaben</string>
-    <string name="credits_balance_label">Guthaben: %1$d Credits</string>
+    <plurals name="credits_balance_label">
+        <item quantity="one">Guthaben: %1$d Credit</item>
+        <item quantity="other">Guthaben: %1$d Credits</item>
+    </plurals>
     <string name="credits_body">Verwenden Sie Credits für eine ausführliche Deutung oder eine KI-Beratungsnachricht.</string>
     <string name="credits_catalogue_unavailable">Credit-Pakete konnten nicht geladen werden. Versuchen Sie es erneut.</string>
-    <string name="credits_purchase_success">%1$d Credits wurden Ihrem Guthaben hinzugefügt.</string>
-    <string name="credits_pack_amount">%1$d Credits</string>
+    <plurals name="credits_purchase_success">
+        <item quantity="one">%1$d Credit wurde Ihrem Guthaben hinzugefügt.</item>
+        <item quantity="other">%1$d Credits wurden Ihrem Guthaben hinzugefügt.</item>
+    </plurals>
+    <plurals name="credits_pack_amount">
+        <item quantity="one">%1$d Credit</item>
+        <item quantity="other">%1$d Credits</item>
+    </plurals>
     <string name="ai_features_title">KI-Astrologe</string>
     <string name="ai_features_body">Erhalten Sie eine ausführliche Deutung Ihres Horoskops oder stellen Sie Ihrem persönlichen KI-Astrologen eine Frage.</string>
     <string name="reading_title">Ausführliche Deutung</string>
@@ -231,11 +241,14 @@
     <string name="home_subscription_fix_action">Zahlung korrigieren</string>
     <string name="home_moon_phase_title">Mondphase</string>
     <string name="home_streak_milestone_title">Meilenstein freigeschaltet</string>
-    <string name="home_streak_reward_credits">+%1$d Credits wurden Ihrem Guthaben hinzugefügt.</string>
+    <plurals name="home_streak_reward_credits">
+        <item quantity="one">+%1$d Credit wurde Ihrem Guthaben hinzugefügt.</item>
+        <item quantity="other">+%1$d Credits wurden Ihrem Guthaben hinzugefügt.</item>
+    </plurals>
     <string name="home_mood_title">Wie fühlen Sie sich heute?</string>
     <string name="home_mood_logged">Erfasst: %1$s Danke, dass Sie uns mitgeteilt haben, wie es Ihnen geht.</string>
     <string name="home_mood_insight">In %1$d Ihrer letzten %2$d Einträge mit gedrückter Stimmung zu %3$s zeigte Ihr Horoskop einen passenden Transit.</string>
-    <string name="streak_milestone_3">3 Tage in Folge. Ihr Ritual hat begonnen.</string>
+    <string name="streak_milestone_3">3 Tage hintereinander. Ihr Ritual hat begonnen.</string>
     <string name="streak_milestone_7">7 Tage. Die Sterne beginnen, Sie zu erwarten.</string>
     <string name="streak_milestone_14">14 Tage stark. Der Kosmos bemerkt Ihre Beständigkeit.</string>
     <string name="streak_milestone_30">30 Tage. Dieser Rhythmus fühlt sich inzwischen wie ein echtes Ritual an.</string>
