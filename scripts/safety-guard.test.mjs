@@ -36,6 +36,12 @@ test('direct reads and grep targets cannot access secret-bearing paths', async (
       { args: { filePath: 'Astroloji/app/google-services.example.json' } },
     ),
   )
+  await assert.doesNotReject(
+    before(
+      { tool: 'read', sessionID: 's', callID: 'c' },
+      { args: { filePath: 'scripts/retire-google-service-account-key.mjs' } },
+    ),
+  )
 })
 
 test('grep results are redacted before a sensitive path reaches the model', async () => {

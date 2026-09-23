@@ -68,7 +68,7 @@ Documentation filenames containing words such as "release" do not become high ri
 
 The PR policy runs on `pull_request_target` from the trusted base branch, checks out only `pull_request.base.sha`, and never imports or executes policy code from the PR head. It computes the proposed change from the GitHub pull-request files API, then writes an exact-head `autonomous-risk-low` commit status before normalizing labels. It re-runs on opened, synchronized, reopened, labeled, and unlabeled pull-request events. Low-risk heads receive status success plus `risk:low`; high-risk heads receive status failure plus `risk:high` and `needs-human`. Policy/configuration, OpenCode permission/safety, installer/model-selection, and CI-repair control files are themselves high-risk. Label edits performed by the policy use the repository `GITHUB_TOKEN`, so GitHub's recursion suppression prevents those policy-authored label changes from spawning another label workflow run.
 
-Mergify identifies autonomous pull requests from the head branch itself: only `head ~= ^opencode/` is eligible for autonomous auto-merge. Such branches require both `risk:low` and exact-head `autonomous-risk-low=success`, so editing or removing labels cannot change whether a PR is treated as autonomous. Merge protection requires the repository CI, pinned OpenCode review, GitGuardian, SonarCloud, and Semgrep checks for every pull request targeting `main`. Pull requests whose head branch does not start with `opencode/` do not require the autonomous risk status. `opencode/*` pull requests additionally require either exact-head `autonomous-risk-low=success` with no high-risk labels, or explicit `human-approved`; high-risk autonomous pull requests are never auto-merged. The policy removes `human-approved` on every `synchronize` event, so a new head SHA always requires a fresh human approval after the new diff and exact-head checks are available. The GitHub `main` branch is configured to require `Mergify Merge Protections`, so direct/API merges cannot bypass that boundary.
+Mergify identifies autonomous pull requests from trusted same-repository head branches: auto-merge requires `-from-fork` and `head ~= ^opencode/`. Such branches require both `risk:low` and exact-head `autonomous-risk-low=success`, so editing or removing labels cannot change whether a PR is treated as autonomous. Merge protection requires the repository CI, GitGuardian, SonarCloud, and Semgrep checks for every pull request targeting `main`. Same-repository PRs additionally require the pinned OpenCode `review` check. Fork PRs never enter autonomous auto-merge and instead require at least one GitHub approval, avoiding both untrusted fork execution and a skipped-review deadlock. Same-repository `opencode/*` pull requests additionally require either exact-head `autonomous-risk-low=success` with no high-risk labels, or explicit `human-approved`; high-risk autonomous pull requests are never auto-merged. The policy removes `human-approved` on every `synchronize` event, so a new head SHA always requires a fresh human approval after the new diff and exact-head checks are available. The GitHub `main` branch is configured to require `Mergify Merge Protections`, so direct/API merges cannot bypass that boundary.
 
 ## GitHub workflows
 
@@ -85,16 +85,18 @@ Mergify identifies autonomous pull requests from the head branch itself: only `h
 - Bootstrap boundary: keep `opencode-ci-repair` disabled at repository level until this hardening change is merged and `main` contains the base-pinned policy/module files; only then re-enable it.
 - `opencode-model-canary.yml`: daily checksum-pinned CLI, GitHub `MODEL`/`PROMPT` env-contract, free-model catalog, configuration, and inference health check.
 
-Autonomous auto-merge requires the exact current head SHA to pass:
+Same-repository autonomous auto-merge requires the exact current head SHA to pass:
 - `autonomous-risk-low`;
 - `secret-scan`;
 - `backend-verify`;
 - `android-verify`;
-- OpenCode `review`;
+- pinned OpenCode `review`;
 - GitGuardian Security Checks;
 - SonarCloud Code Analysis;
 - Semgrep;
 - zero unresolved review threads.
+
+Fork pull requests are never autonomous-auto-merge candidates. They keep the common CI/security gates and require at least one GitHub approval instead of the same-repository OpenCode review job.
 
 Required review/security checks are intentionally fail-closed. If a required provider skips its check, fails to produce success, or renames its check, Mergify keeps the merge blocked until the integration and configured check name are explicitly verified and updated. CodeRabbit remains advisory only because its GitHub check can report success when review capacity is exhausted; it must not be treated as proof that a substantive review ran.
 
@@ -103,7 +105,7 @@ Required review/security checks are intentionally fail-closed. If a required pro
 `opencode.jsonc` is deny-by-default for shell execution.
 Allowed shell commands are limited to read-only Git inspection and deterministic build/test/lint/typecheck operations.
 Git mutations, GitHub mutations, arbitrary command wrappers, deployment CLIs, secret tools, and publishing tasks are denied. Read-only Git diff access is narrowly scoped; `git difftool`, `--extcmd`, `--ext-diff`, and `--textconv` execution paths are denied. `git grep` remains available for tracked code, while `--no-index`, `--untracked`, and `--no-exclude-standard` modes are denied.
-The safety plugin applies a second runtime guard. Direct reads and grep targets cannot point at secret-bearing paths, and broad grep results are intercepted after execution and replaced before model delivery if a sensitive file path appears.
+Secret reads have two layers. The top-level OpenCode `read` permission allows normal repository files but denies environment files, Firebase/auth configuration, service-account credentials, keystores, and other known secret-bearing paths; only explicitly named sanitized example files are allowed back. The safety plugin independently enforces the same trust boundary at runtime. Direct reads and grep targets cannot point at secret-bearing paths, and broad grep results are intercepted after execution and replaced before model delivery if a sensitive file path appears.
 
 Cloudflare Docs MCP is enabled.
 Cloudflare Observability MCP is configured but disabled because production telemetry may contain sensitive data.

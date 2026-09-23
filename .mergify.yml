@@ -1,5 +1,6 @@
 merge_protections_settings:
   auto_merge_conditions:
+    - -from-fork
     - head ~= ^opencode/
     - label = risk:low
     - check-success = autonomous-risk-low
@@ -8,24 +9,35 @@ merge_protections_settings:
 
 merge_protections:
   - name: Guard autonomous and human-gated merges
-    description: Every merge requires exact CI/review gates; opencode branches additionally require exact-head risk proof or explicit human approval.
+    description: Every merge requires exact CI/security gates; same-repository PRs use pinned OpenCode review while forks require a human approval.
     if:
       - base = main
     success_conditions:
       - or:
-          - -head ~= ^opencode/
+          - from-fork
           - and:
+              - -from-fork
+              - -head ~= ^opencode/
+          - and:
+              - -from-fork
               - head ~= ^opencode/
               - check-success = autonomous-risk-low
               - label != risk:high
               - label != needs-human
           - and:
+              - -from-fork
               - head ~= ^opencode/
               - label = human-approved
       - check-success = secret-scan
       - check-success = backend-verify
       - check-success = android-verify
-      - check-success = review
+      - or:
+          - and:
+              - -from-fork
+              - check-success = review
+          - and:
+              - from-fork
+              - "#approved-reviews-by >= 1"
       - check-success = GitGuardian Security Checks
       - check-success = SonarCloud Code Analysis
       - check-success = semgrep-cloud-platform/scan

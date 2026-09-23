@@ -5,8 +5,7 @@ const normalizedPath = (raw: unknown) =>
 
 const safeTemplatePath = (value: string) =>
   /(^|\/)(?:google-services|firebase-auth-config)\.example\.json$/.test(value) ||
-  /(^|\/)(?:\.env|\.dev\.vars)\.example$/.test(value) ||
-  value.endsWith(".template")
+  /(^|\/)(?:\.env|\.dev\.vars)\.example$/.test(value)
 
 const sensitivePath = (raw: unknown) => {
   const value = normalizedPath(raw)
@@ -19,13 +18,30 @@ const sensitivePath = (raw: unknown) => {
     /(^|\/)google-services\.json$/,
     /(^|\/)firebase-auth-config(?:-backup)?\.json$/,
     /(^|\/)(?:auth|mcp-auth)\.json$/,
-    /service-account/,
-    /play-service-account/,
+    /(^|\/)[^/]*service-account[^/]*\.(?:json|pem|key)$/,
     /upload-keystore/,
     /\.jks$/,
     /\.keystore$/,
     /doppler-secrets/,
   ].some((rule) => rule.test(value))
+}
+
+const sensitiveGrepInclude = (raw: unknown) => {
+  const value = normalizedPath(raw)
+  if (!value) return false
+  return [
+    ".env",
+    ".dev.vars",
+    "google-services",
+    "firebase-auth-config",
+    "service-account",
+    "upload-keystore",
+    ".jks",
+    ".keystore",
+    "auth.json",
+    "mcp-auth",
+    "doppler-secrets",
+  ].some((part) => value.includes(part))
 }
 
 const blockedCommands: RegExp[] = [
@@ -68,7 +84,10 @@ export const AstrolojiSafetyGuard: Plugin = async ({ client }) => ({
       throw new Error("Blocked: secret-bearing file is outside the AI trust boundary.")
     }
 
-    if (tool === "grep" && [args.path, args.include].some(sensitivePath)) {
+    if (
+      tool === "grep" &&
+      (sensitivePath(args.path) || sensitiveGrepInclude(args.include))
+    ) {
       throw new Error("Blocked: grep may not target a secret-bearing path or include pattern.")
     }
 

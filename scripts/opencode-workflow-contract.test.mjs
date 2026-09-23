@@ -136,6 +136,33 @@ test('project config exposes only approved free coding models', async () => {
   assert.match(body, /"share":\s*"disabled"/)
   assert.match(body, /"snapshot":\s*false/)
   assert.match(body, /"external_directory":\s*"deny"/)
+  assert.match(body, /"read":\s*\{[\s\S]*?"\*":\s*"allow"/)
+  for (const deny of [
+    '*.env',
+    '*.env.*',
+    '*.dev.vars',
+    '*.dev.vars.*',
+    '*google-services.json',
+    '*firebase-auth-config.json',
+    '*firebase-auth-config-backup.json',
+    '*service-account*.json',
+    '*upload-keystore*',
+    '*.jks',
+    '*.keystore',
+    '*auth.json',
+    '*mcp-auth.json',
+    '*doppler-secrets*',
+  ]) {
+    assert.ok(body.includes(JSON.stringify(deny) + ': "deny"'), deny)
+  }
+  for (const allow of [
+    '*.env.example',
+    '*.dev.vars.example',
+    '*google-services.example.json',
+    '*firebase-auth-config.example.json',
+  ]) {
+    assert.ok(body.includes(JSON.stringify(allow) + ': "allow"'), allow)
+  }
   assert.match(body, /"bash":\s*\{[\s\S]*?"\*":\s*"deny"/)
   assert.doesNotMatch(body, /"git diff\*":\s*"allow"/)
   assert.match(body, /"git diff":\s*"allow"/)
@@ -168,14 +195,18 @@ test('automatic PR review is limited to same-repository PRs', async () => {
 
 test('Mergify auto-merge is low-risk-only and every merge keeps external gates', async () => {
   const body = await text('.mergify.yml')
+  assert.match(body, /auto_merge_conditions:[\s\S]*-from-fork/)
   assert.match(body, /auto_merge_conditions:[\s\S]*head ~= \^opencode\//)
   assert.match(body, /auto_merge_conditions:[\s\S]*label = risk:low/)
   assert.match(body, /auto_merge_conditions:[\s\S]*check-success = autonomous-risk-low/)
   assert.match(body, /auto_merge_conditions:[\s\S]*label != risk:high/)
   assert.match(body, /auto_merge_conditions:[\s\S]*label != needs-human/)
-  assert.match(body, /success_conditions:[\s\S]*-head ~= \^opencode\//)
-  assert.match(body, /success_conditions:[\s\S]*head ~= \^opencode\/[\s\S]*check-success = autonomous-risk-low/)
-  assert.match(body, /success_conditions:[\s\S]*head ~= \^opencode\/[\s\S]*label = human-approved/)
+  assert.match(body, /success_conditions:[\s\S]*from-fork/)
+  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*-head ~= \^opencode\//)
+  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*head ~= \^opencode\/[\s\S]*check-success = autonomous-risk-low/)
+  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*head ~= \^opencode\/[\s\S]*label = human-approved/)
+  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*check-success = review/)
+  assert.match(body, /success_conditions:[\s\S]*from-fork[\s\S]*#approved-reviews-by >= 1/)
   assert.match(body, /label != risk:high/)
   assert.match(body, /label != needs-human/)
   for (const check of [
