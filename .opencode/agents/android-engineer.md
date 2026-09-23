@@ -2,7 +2,6 @@
 description: Kotlin/Jetpack Compose specialist for the Android app.
 mode: subagent
 permission:
-  edit: allow
   lsp: allow
   skill: allow
 ---

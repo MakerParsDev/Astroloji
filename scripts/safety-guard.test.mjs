@@ -20,6 +20,9 @@ test('direct reads and grep targets cannot access secret-bearing paths', async (
   for (const [tool, args] of [
     ['read', { filePath: '.env' }],
     ['read', { filePath: 'auth.json' }],
+    ['edit', { filePath: '.env' }],
+    ['write', { filePath: 'backend/.dev.vars' }],
+    ['apply_patch', { path: 'Astroloji/app/google-services.json' }],
     ['grep', { pattern: 'secret', path: '.env' }],
     ['grep', { pattern: 'secret', include: '*service-account*' }],
   ]) {

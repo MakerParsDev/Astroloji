@@ -28,6 +28,7 @@ merge_protections:
               - -from-fork
               - head ~= ^opencode/
               - label = human-approved
+              - "#approved-reviews-by >= 1"
       - check-success = secret-scan
       - check-success = backend-verify
       - check-success = android-verify

@@ -163,6 +163,26 @@ test('project config exposes only approved free coding models', async () => {
   ]) {
     assert.ok(body.includes(JSON.stringify(allow) + ': "allow"'), allow)
   }
+  assert.match(body, /"edit":\s*\{[\s\S]*?"\*":\s*"allow"/)
+  for (const deny of [
+    '*.env',
+    '*.env.*',
+    '*.dev.vars',
+    '*.dev.vars.*',
+    '*google-services.json',
+    '*firebase-auth-config.json',
+    '*firebase-auth-config-backup.json',
+    '*service-account*.json',
+    '*upload-keystore*',
+    '*.jks',
+    '*.keystore',
+    '*auth.json',
+    '*mcp-auth.json',
+    '*doppler-secrets*',
+  ]) {
+    const occurrence = JSON.stringify(deny) + ': "deny"'
+    assert.ok(body.indexOf(occurrence, body.indexOf('"edit"')) > body.indexOf('"edit"'), 'edit ' + deny)
+  }
   assert.match(body, /"bash":\s*\{[\s\S]*?"\*":\s*"deny"/)
   assert.doesNotMatch(body, /"git diff\*":\s*"allow"/)
   assert.match(body, /"git diff":\s*"allow"/)
@@ -172,11 +192,12 @@ test('project config exposes only approved free coding models', async () => {
   assert.match(body, /"git grep \*--no-exclude-standard\*":\s*"deny"/)
 })
 
-test('custom agents cannot override shell policy with blanket allow', async () => {
+test('custom agents cannot override global shell or secret-edit policy with blanket allow', async () => {
   const agents = await readdir(path.join(root, '.opencode', 'agents'))
   for (const name of agents) {
     const body = await text(path.join('.opencode', 'agents', name))
     assert.doesNotMatch(body, /^\s*bash:\s*allow\s*$/m, name)
+    assert.doesNotMatch(body, /^\s*edit:\s*allow\s*$/m, name)
   }
 })
 
@@ -204,7 +225,7 @@ test('Mergify auto-merge is low-risk-only and every merge keeps external gates',
   assert.match(body, /success_conditions:[\s\S]*from-fork/)
   assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*-head ~= \^opencode\//)
   assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*head ~= \^opencode\/[\s\S]*check-success = autonomous-risk-low/)
-  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*head ~= \^opencode\/[\s\S]*label = human-approved/)
+  assert.match(body, /label = human-approved\r?\n\s+- "#approved-reviews-by >= 1"/)
   assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*check-success = review/)
   assert.match(body, /success_conditions:[\s\S]*from-fork[\s\S]*#approved-reviews-by >= 1/)
   assert.match(body, /label != risk:high/)

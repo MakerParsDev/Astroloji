@@ -2,7 +2,6 @@
 description: Autonomous senior maintainer for Astroloji. Owns issue-to-PR work, maintenance, diagnosis and safe implementation.
 mode: primary
 permission:
-  edit: allow
   task: allow
   lsp: allow
   skill: allow
