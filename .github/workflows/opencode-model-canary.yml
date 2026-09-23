@@ -29,6 +29,9 @@ jobs:
         shell: bash
         run: bash scripts/install-opencode-ci.sh
 
+      - name: Verify pinned GitHub runner env contract
+        run: node scripts/probe-opencode-github-env.mjs
+
       - name: Select a currently free coding model
         id: free_model
         run: node scripts/select-opencode-free-model.mjs

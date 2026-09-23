@@ -28,6 +28,8 @@ test('autonomous control-plane files are always high risk', () => {
     '.opencode/skills/release-safety/SKILL.md',
     'scripts/autonomous-policy.mjs',
     'scripts/check-autonomous-diff.mjs',
+    'scripts/probe-opencode-github-env.mjs',
+    'scripts/safety-guard.test.mjs',
     'scripts/select-opencode-free-model.mjs',
     'scripts/sanitize-ci-log.mjs',
     'scripts/install-opencode-ci.sh',

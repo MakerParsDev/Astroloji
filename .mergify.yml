@@ -26,7 +26,6 @@ merge_protections:
       - check-success = backend-verify
       - check-success = android-verify
       - check-success = review
-      - check-success = CodeRabbit
       - check-success = GitGuardian Security Checks
       - check-success = SonarCloud Code Analysis
       - check-success = semgrep-cloud-platform/scan

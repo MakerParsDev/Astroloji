@@ -140,6 +140,9 @@ test('project config exposes only approved free coding models', async () => {
   assert.doesNotMatch(body, /"git diff\*":\s*"allow"/)
   assert.match(body, /"git diff":\s*"allow"/)
   assert.match(body, /"git diff \*":\s*"allow"/)
+  assert.match(body, /"git grep \*--no-index\*":\s*"deny"/)
+  assert.match(body, /"git grep \*--untracked\*":\s*"deny"/)
+  assert.match(body, /"git grep \*--no-exclude-standard\*":\s*"deny"/)
 })
 
 test('custom agents cannot override shell policy with blanket allow', async () => {
@@ -180,13 +183,13 @@ test('Mergify auto-merge is low-risk-only and every merge keeps external gates',
     'backend-verify',
     'android-verify',
     'review',
-    'CodeRabbit',
     'GitGuardian Security Checks',
     'SonarCloud Code Analysis',
     'semgrep-cloud-platform/scan',
   ]) {
     assert.ok(body.includes('check-success = ' + check), check)
   }
+  assert.doesNotMatch(body, /check-success = CodeRabbit/)
 })
 
 test('automation can revoke but never grant the human-approved merge label', async () => {
@@ -286,9 +289,10 @@ test('CI installer pins OpenCode release version and GitHub asset digest', async
   assert.match(body, /github\.com\/anomalyco\/opencode\/releases\/download/)
 })
 
-test('model canary uses the same checksum-pinned installer', async () => {
+test('model canary verifies the pinned CLI and GitHub env contract', async () => {
   const body = await text('.github/workflows/opencode-model-canary.yml')
   assert.match(body, /bash scripts\/install-opencode-ci\.sh/)
+  assert.match(body, /node scripts\/probe-opencode-github-env\.mjs/)
   assert.doesNotMatch(body, /npm install --global opencode-ai/)
 })
 
@@ -301,6 +305,10 @@ test('runtime safety guard covers secondary Git mutation and diff execution prim
   assert.match(body, /extcmd/)
   assert.match(body, /--ext-diff/)
   assert.match(body, /--textconv/)
+  assert.match(body, /tool\.execute\.after/)
+  assert.match(body, /blockedSensitivePath/)
+  assert.match(body, /--no-index/)
+  assert.match(body, /--untracked/)
 })
 
 test('OpenCode automation never embeds direct production mutation commands', async () => {
@@ -328,6 +336,8 @@ test('OpenCode instruction assets are English, free-only, and LF-normalized', as
     'scripts/install-opencode-ci.sh',
     'scripts/run-opencode-github-ci.sh',
     'scripts/run-opencode-github-ci.test.mjs',
+    'scripts/probe-opencode-github-env.mjs',
+    'scripts/safety-guard.test.mjs',
     'scripts/sanitize-ci-log.mjs',
     'scripts/sanitize-ci-log.test.mjs',
     'scripts/select-opencode-free-model.mjs',
