@@ -29,6 +29,8 @@ test('autonomous control-plane files are always high risk', () => {
     'scripts/autonomous-policy.mjs',
     'scripts/check-autonomous-diff.mjs',
     'scripts/probe-opencode-github-env.mjs',
+    'scripts/parse-opencode-review.mjs',
+    'scripts/parse-opencode-review.test.mjs',
     'scripts/safety-guard.test.mjs',
     'scripts/select-opencode-free-model.mjs',
     'scripts/sanitize-ci-log.mjs',
@@ -53,7 +55,7 @@ test('security, deployment, and store mutation paths are high risk', () => {
     'backend/wrangler.toml',
     'Astroloji/play/store-config.json',
   ]) {
-    assert.equal(classifyAutonomousChange({ paths: [file] }).risk, 'high', file)
+    assert.equal(classifyAutonomousChange({ paths: [file], totalChanges: 1 }).risk, 'high', file)
   }
 })
 

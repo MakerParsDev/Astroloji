@@ -64,6 +64,8 @@ function verifyHandlerSource(source) {
   for (const contract of [
     'const value = process.env["MODEL"]',
     'const customPrompt = process.env["PROMPT"]',
+    'process.env["MENTIONS"] || "/opencode,/oc"',
+    '.comment.body.trim()',
     'const { providerID, modelID } = normalizeModel()',
     'const { userPrompt, promptFiles } = await getUserPrompt()',
   ]) {

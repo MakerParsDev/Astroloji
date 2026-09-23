@@ -14,6 +14,7 @@ const modelWorkflows = [
   'opencode-dependencies.yml',
   'opencode-dispatch.yml',
 ]
+const githubAgentWorkflows = modelWorkflows.filter((name) => name !== 'opencode-review.yml')
 const allWorkflows = [
   ...modelWorkflows,
   'opencode-pr-policy.yml',
@@ -31,20 +32,22 @@ test('model workflows use only the checksum-pinned CLI and free selector', async
     const body = await text(path.join('.github', 'workflows', name))
     assert.match(body, /select-opencode-free-model\.mjs/, name)
     assert.match(body, /bash scripts\/install-opencode-ci\.sh/, name)
-    assert.match(body, /bash scripts\/run-opencode-github-ci\.sh/, name)
-    assert.match(body, /GITHUB_TOKEN:\s*\$\{\{ secrets\.GITHUB_TOKEN \}\}/, name)
+    assert.match(body, /GITHUB_TOKEN|GH_TOKEN/, name)
     assert.match(body, /MODEL:\s*\$\{\{ steps\.free_model\.outputs\.model \}\}/, name)
     assert.doesNotMatch(body, /anomalyco\/opencode\/github@/, name)
     assert.doesNotMatch(body, /releases\/latest|opencode\.ai\/install/, name)
     assert.doesNotMatch(body, /OPENCODE_API_KEY/, name)
     assert.doesNotMatch(body, /id-token:\s*write/, name)
   }
+  for (const name of githubAgentWorkflows) {
+    const body = await text(path.join('.github', 'workflows', name))
+    assert.match(body, /bash scripts\/run-opencode-github-ci\.sh/, name)
+  }
 })
 
 test('workflow roles are explicit runtime default-agent overlays', async () => {
   const expected = new Map([
     ['opencode-command.yml', 'maintainer'],
-    ['opencode-review.yml', 'reviewer'],
     ['opencode-triage.yml', 'triage'],
     ['opencode-maintenance.yml', 'maintainer'],
     ['opencode-security-audit.yml', 'reviewer'],
@@ -55,6 +58,8 @@ test('workflow roles are explicit runtime default-agent overlays', async () => {
     const body = await text(path.join('.github', 'workflows', name))
     assert.ok(body.includes('OPENCODE_DEFAULT_AGENT: ' + agent), name)
   }
+  const review = await text('.github/workflows/opencode-review.yml')
+  assert.match(review, /opencode run --auto --agent reviewer/)
 })
 
 test('write-capable GitHub-agent workflows opt into ephemeral Git authentication', async () => {
@@ -214,6 +219,26 @@ test('automatic PR review is limited to same-repository PRs', async () => {
   assert.match(body, /head\.repo\.full_name == github\.repository/)
 })
 
+test('review is exact-head, machine-gated, and repair-dispatchable', async () => {
+  const body = await text('.github/workflows/opencode-review.yml')
+  assert.match(body, /workflow_dispatch:/)
+  assert.match(body, /pr_number:/)
+  assert.match(body, /ref:\s*\$\{\{ steps\.target\.outputs\.head_sha \}\}/)
+  assert.match(body, /opencode run --auto --agent reviewer --model "\$MODEL" --format json/)
+  assert.match(body, /node scripts\/parse-opencode-review\.mjs/)
+  assert.match(body, /REVIEW_RESULT: PASS/)
+  assert.match(body, /REVIEW_RESULT: BLOCK/)
+  assert.match(body, /gh pr comment/)
+  assert.doesNotMatch(body, /run-opencode-github-ci\.sh/)
+})
+
+test('interactive command intentionally inherits the comment body as prompt', async () => {
+  const body = await text('.github/workflows/opencode-command.yml')
+  assert.match(body, /issue_comment:/)
+  assert.match(body, /pull_request_review_comment:/)
+  assert.doesNotMatch(body, /^\s*PROMPT:/m)
+})
+
 test('Mergify auto-merge is low-risk-only and every merge keeps external gates', async () => {
   const body = await text('.mergify.yml')
   assert.match(body, /auto_merge_conditions:[\s\S]*-from-fork/)
@@ -252,7 +277,7 @@ test('automation can revoke but never grant the human-approved merge label', asy
       /addLabels[\s\S]{0,600}human-approved|labels:\s*\[[^\]]*human-approved/,
       name,
     )
-    if (name !== 'opencode-pr-policy.yml') {
+    if (!['opencode-pr-policy.yml', 'opencode-ci-repair.yml'].includes(name)) {
       assert.doesNotMatch(body, /human-approved/, name)
     }
   }
@@ -310,6 +335,10 @@ test('CI self-healing is opt-in, same-repo, PR-scoped, full-diff-gated, and boun
   assert.match(body, /labels\.has\('risk:low'\)/)
   assert.match(body, /!labels\.has\('risk:high'\)/)
   assert.match(body, /!labels\.has\('needs-human'\)/)
+  assert.match(body, /!labels\.has\('human-approved'\)/)
+  assert.match(body, /contains\(fromJSON\('\["pull_request","workflow_dispatch"\]'\), github\.event\.workflow_run\.event\)/)
+  assert.match(body, /actions:\s*write/)
+  assert.match(body, /statuses:\s*write/)
   assert.match(body, /autonomous-risk-low/)
   assert.match(body, /riskStatus.*state === 'success'/s)
   assert.match(body, /base_sha/)
@@ -328,6 +357,11 @@ test('CI self-healing is opt-in, same-repo, PR-scoped, full-diff-gated, and boun
   assert.match(body, /git diff --no-renames --numstat "\$BASE_SHA"/)
   assert.match(body, /node "\$policy_root\/scripts\/check-autonomous-diff\.mjs" --numstat/)
   assert.match(body, /bash scripts\/install-opencode-ci\.sh/)
+  assert.match(body, /statuses\/\$new_sha/)
+  assert.match(body, /-f context=autonomous-risk-low/)
+  assert.match(body, /gh workflow run ci\.yml/)
+  assert.match(body, /gh workflow run opencode-review\.yml/)
+  assert.match(body, /--remove-label "\$label"/)
   assert.doesNotMatch(body, /npm install --global opencode-ai/)
   assert.doesNotMatch(body, /OPENCODE_API_KEY/)
 })
@@ -339,6 +373,11 @@ test('CI installer pins OpenCode release version and GitHub asset digest', async
   assert.match(body, /OPENCODE_SHA256="3046e0404fdc60fb80307e7a47824ba07477364178a4d09baa8548496dd6d43b"/)
   assert.match(body, /sha256sum --check --strict/)
   assert.match(body, /github\.com\/anomalyco\/opencode\/releases\/download/)
+})
+
+test('CI can be explicitly re-dispatched after a GITHUB_TOKEN repair push', async () => {
+  const body = await text('.github/workflows/ci.yml')
+  assert.match(body, /workflow_dispatch:/)
 })
 
 test('model canary verifies the pinned CLI and GitHub env contract', async () => {
@@ -389,6 +428,8 @@ test('OpenCode instruction assets are English, free-only, and LF-normalized', as
     'scripts/run-opencode-github-ci.sh',
     'scripts/run-opencode-github-ci.test.mjs',
     'scripts/probe-opencode-github-env.mjs',
+    'scripts/parse-opencode-review.mjs',
+    'scripts/parse-opencode-review.test.mjs',
     'scripts/safety-guard.test.mjs',
     'scripts/sanitize-ci-log.mjs',
     'scripts/sanitize-ci-log.test.mjs',

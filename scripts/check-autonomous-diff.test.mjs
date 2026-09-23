@@ -22,7 +22,7 @@ test('blocks production and security-sensitive paths', () => {
     'Astroloji/app/src/main/AndroidManifest.xml',
     'Astroloji/play/listings/en-US/title.txt',
   ]) {
-    assert.equal(classifyAutonomousChange({ paths: [file] }).risk, 'high', file)
+    assert.equal(classifyAutonomousChange({ paths: [file], totalChanges: 1 }).risk, 'high', file)
   }
 })
 
