@@ -29,7 +29,7 @@ WORKING PRINCIPLES
 | Coil / Lottie / Timber | 3.5.0 / 6.7.1 / 5.0.1 | Existing UI media and logging pins are retained; no new library was added. |
 | Detekt / ktlint Gradle / Play Publisher | 1.23.8 / 14.2.0 / 4.0.0 | Official plugin pages were reviewed for static analysis and release automation; tasks are defined locally. |
 | JUnit / MockK / Turbine / Truth / Robolectric | 4.13.2 / 1.14.11 / 1.2.1 / 1.4.5 / 4.16.1 | The Android unit-test chain passes with this combination. |
-| Hono / jose / zod | 4.13.0 / 6.1.0 / 4.1.5 | Backend runtime libraries are exact-pinned; Hono 4.13.0 includes the CORS ReDoS security fix and is verified against current Worker behavior. |
+| Hono / jose / zod | 4.13.9 / 6.1.0 / 4.1.5 | Backend runtime libraries are exact-pinned; Hono 4.13.9 includes the 4.13.5 and 4.13.7 security fixes and is verified against current Worker behavior. |
 | TypeScript / tsx / Vitest | 5.9.2 / 4.20.5 / 3.2.7 | Backend build, Node test lane, and Workers runtime smoke lane pass with this combination. |
 | Wrangler / generated runtime types | 4.118.0 / worker-configuration.d.ts | Wrangler is exact-pinned; generated binding types, compatibility date, dry-run, and runtime smoke tests are verified. |
 | picomatch (override) | 4.0.4 | A transitive override pins the security-fixed version for GitHub Dependabot advisory GHSA-3v7f-55p6-f55p. |
