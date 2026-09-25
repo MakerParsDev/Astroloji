@@ -1,18 +1,68 @@
 name: opencode-pr-policy
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+  workflow_run:
+    workflows: [ci]
+    types: [requested, completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to classify at its exact current head.
+        required: true
+        type: string
 
 concurrency:
-  group: opencode-pr-policy-${{ github.event.pull_request.number }}
+  group: opencode-pr-policy-${{ github.event.workflow_run.head_sha || inputs.pr_number || github.run_id }}-${{ github.event.action || github.event_name }}
   cancel-in-progress: true
 
 jobs:
+  revoke-human-approval:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.action == 'requested' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    steps:
+      - name: Remove stale human approval on a newly requested PR CI run
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const sha = context.payload.workflow_run.head_sha
+            const prs = await github.paginate(
+              github.rest.repos.listPullRequestsAssociatedWithCommit,
+              { owner, repo, commit_sha: sha, per_page: 100 },
+            )
+            const candidate = prs.find((item) =>
+              item.state === 'open' &&
+              item.head.sha === sha &&
+              item.head.repo?.full_name === `${owner}/${repo}` &&
+              item.base.ref === 'main' &&
+              item.head.ref.startsWith('opencode/'),
+            )
+            if (!candidate) return
+            try {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: candidate.number,
+                name: 'human-approved',
+              })
+            } catch (error) {
+              if (error.status !== 404) throw error
+            }
+
   classify:
     if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      startsWith(github.event.pull_request.head.ref, 'opencode/')
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.action == 'completed' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       contains(fromJSON('["pull_request","workflow_dispatch"]'), github.event.workflow_run.event))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -21,32 +71,77 @@ jobs:
       statuses: write
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Resolve exact policy target
+        id: target
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          script: |
+            const { owner, repo } = context.repo
+            let pr
+            if (context.eventName === 'workflow_dispatch') {
+              const pull_number = Number(context.payload.inputs?.pr_number)
+              if (!Number.isInteger(pull_number) || pull_number < 1) {
+                core.setFailed('A valid pull request number is required.')
+                return
+              }
+              pr = (await github.rest.pulls.get({ owner, repo, pull_number })).data
+            } else {
+              const sha = context.payload.workflow_run.head_sha
+              const prs = await github.paginate(
+                github.rest.repos.listPullRequestsAssociatedWithCommit,
+                { owner, repo, commit_sha: sha, per_page: 100 },
+              )
+              const candidate = prs.find((item) =>
+                item.state === 'open' &&
+                item.head.sha === sha &&
+                item.head.repo?.full_name === `${owner}/${repo}` &&
+                item.base.ref === 'main' &&
+                item.head.ref.startsWith('opencode/'),
+              )
+              if (!candidate) {
+                core.setOutput('eligible', 'false')
+                return
+              }
+              pr = (await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: candidate.number,
+              })).data
+            }
+
+            if (
+              pr.state !== 'open' ||
+              pr.base.ref !== 'main' ||
+              pr.head.repo?.full_name !== `${owner}/${repo}` ||
+              !pr.head.ref.startsWith('opencode/')
+            ) {
+              core.setOutput('eligible', 'false')
+              return
+            }
+            core.setOutput('eligible', 'true')
+            core.setOutput('number', String(pr.number))
+            core.setOutput('head_sha', pr.head.sha)
+            core.setOutput('base_sha', pr.base.sha)
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: steps.target.outputs.eligible == 'true'
+        with:
+          ref: ${{ steps.target.outputs.base_sha }}
           persist-credentials: false
 
-      - name: Classify autonomous PR risk
+      - name: Classify exact-head autonomous merge tier from trusted base policy
+        if: steps.target.outputs.eligible == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          PR_NUMBER: ${{ steps.target.outputs.number }}
+          HEAD_SHA: ${{ steps.target.outputs.head_sha }}
         with:
           script: |
             const path = require('path')
             const { pathToFileURL } = require('url')
             const { owner, repo } = context.repo
-            const pull_number = context.payload.pull_request.number
-
-            if (context.payload.action === 'synchronize') {
-              try {
-                await github.rest.issues.removeLabel({
-                  owner,
-                  repo,
-                  issue_number: pull_number,
-                  name: 'human-approved',
-                })
-              } catch (error) {
-                if (error.status !== 404) throw error
-              }
-            }
+            const pull_number = Number(process.env.PR_NUMBER)
+            const headSha = process.env.HEAD_SHA
 
             const policyModule = pathToFileURL(
               path.join(process.env.GITHUB_WORKSPACE, 'scripts/autonomous-policy.mjs'),
@@ -65,25 +160,31 @@ jobs:
               ),
               totalChanges,
             })
-            const highRisk = result.risk === 'high'
+            const blocked = result.tier === 'blocked'
 
             await github.rest.repos.createCommitStatus({
               owner,
               repo,
-              sha: context.payload.pull_request.head.sha,
-              state: highRisk ? 'failure' : 'success',
-              context: 'autonomous-risk-low',
-              description: highRisk
+              sha: headSha,
+              state: blocked ? 'failure' : 'success',
+              context: 'autonomous-merge-eligible',
+              description: blocked
                 ? 'Autonomous policy requires explicit human control.'
-                : 'Autonomous policy allows low-risk automation.',
+                : result.tier === 'elevated'
+                  ? 'Elevated autonomous change is eligible after all gates.'
+                  : 'Low-risk autonomous change is eligible after all gates.',
             })
 
-            const add = highRisk
-              ? ['opencode-autonomous', 'risk:high', 'needs-human']
-              : ['opencode-autonomous', 'risk:low']
-            const remove = highRisk
-              ? ['risk:low']
-              : ['risk:high', 'needs-human']
+            const add = result.tier === 'blocked'
+              ? ['opencode-autonomous', 'risk:blocked', 'needs-human']
+              : result.tier === 'elevated'
+                ? ['opencode-autonomous', 'risk:elevated']
+                : ['opencode-autonomous', 'risk:low']
+            const remove = result.tier === 'blocked'
+              ? ['risk:low', 'risk:elevated', 'risk:high']
+              : result.tier === 'elevated'
+                ? ['risk:low', 'risk:blocked', 'risk:high', 'needs-human']
+                : ['risk:elevated', 'risk:blocked', 'risk:high', 'needs-human']
 
             for (const name of remove) {
               try {
@@ -100,11 +201,11 @@ jobs:
 
             core.summary
               .addHeading('OpenCode autonomous PR policy')
-              .addRaw(`Risk: ${result.risk}\n\n`)
+              .addRaw(`Risk: ${result.risk} (${result.tier})\n\n`)
               .addRaw(`Files: ${result.files} / ${AUTONOMOUS_POLICY.maxFiles}\n\n`)
               .addRaw(`Changed lines: ${result.changedLines} / ${AUTONOMOUS_POLICY.maxChangedLines}\n\n`)
             if (result.reasons.length) {
-              core.summary.addHeading('Human-control reasons', 3)
+              core.summary.addHeading(blocked ? 'Human-control reasons' : 'Elevated-risk reasons', 3)
               core.summary.addList(result.reasons)
             }
             await core.summary.write()

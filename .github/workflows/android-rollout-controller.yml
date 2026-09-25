@@ -1,0 +1,160 @@
+name: android-rollout-controller
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: android-rollout-controller
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  reconcile-production-rollout:
+    if: >-
+      github.repository == 'MakerParsDev/Astroloji' &&
+      vars.ENABLE_PRODUCTION_RELEASE == 'true' &&
+      vars.ENABLE_AUTONOMOUS_PRODUCTION == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      PLAY_PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
+      DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
+      DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+
+      - name: Resolve machine-owned autonomous release provenance
+        id: provenance
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const title = 'Autonomous production state'
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'all', per_page: 100,
+            })
+            const matches = issues.filter((issue) =>
+              !issue.pull_request &&
+              issue.title === title &&
+              issue.user?.login === 'github-actions[bot]'
+            )
+            if (matches.length > 1) {
+              core.setFailed('Multiple autonomous production state issues exist; refusing rollout mutation.')
+              return
+            }
+            const body = String(matches[0]?.body || '')
+            const androidReleaseSha = body.match(/^android_release_sha=([0-9a-f]{40})$/mi)?.[1] || ''
+            const releaseName = body.match(/^android_release_name=([0-9A-Za-z._-]*)$/mi)?.[1] || ''
+            if (releaseName) {
+              const releaseMatch = /^auto-v1-\d+-\d+-([0-9a-f]{7})$/i.exec(releaseName)
+              if (!releaseMatch || !androidReleaseSha || releaseMatch[1].toLowerCase() !== androidReleaseSha.slice(0, 7).toLowerCase()) {
+                core.setFailed('Machine-owned Android release provenance is invalid.')
+                return
+              }
+            }
+            core.setOutput('release_name', releaseName)
+
+      - name: Install pinned Doppler CLI
+        env:
+          DOPPLER_VERSION: 3.76.1
+          DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2
+        run: |
+          set -euo pipefail
+          archive="doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/${archive}"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --proto-redir '=https' \
+            "$url" --output "$RUNNER_TEMP/$archive"
+          echo "$DOPPLER_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/doppler-bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/doppler-bin" doppler
+          chmod 0755 "$RUNNER_TEMP/doppler-bin/doppler"
+          echo "$RUNNER_TEMP/doppler-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/doppler-bin/doppler" --version
+
+      - name: Resolve Play service account
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -n "$DOPPLER_TOKEN" ]; then
+            doppler secrets download               --project "${DOPPLER_PROJECT:-mobil-apps}"               --config "${DOPPLER_CONFIG:-astrology}"               --format json               --no-file > "$RUNNER_TEMP/doppler-secrets.json"
+            chmod 600 "$RUNNER_TEMP/doppler-secrets.json"
+          fi
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const dopplerPath = process.env.RUNNER_TEMP + '/doppler-secrets.json';
+          const doppler = fs.existsSync(dopplerPath)
+            ? JSON.parse(fs.readFileSync(dopplerPath, 'utf8'))
+            : {};
+          const pick = (name) => {
+            const value = doppler[name];
+            return typeof value === 'string' ? value : value?.computed || '';
+          };
+          const json = process.env.PLAY_SERVICE_ACCOUNT_JSON
+            || process.env.GOOGLE_SERVICE_ACCOUNT_JSON
+            || pick('PLAY_SERVICE_ACCOUNT_JSON')
+            || pick('GOOGLE_SERVICE_ACCOUNT_JSON');
+          if (!json) throw new Error('Missing Play service account JSON.');
+          const parsed = JSON.parse(json);
+          if (parsed.type !== 'service_account' || !parsed.client_email || !parsed.private_key) {
+            throw new Error('Play service account JSON is invalid.');
+          }
+          fs.writeFileSync(
+            process.env.RUNNER_TEMP + '/play-service-account.json',
+            json,
+            { mode: 0o600 },
+          );
+          NODE
+
+      - name: Reconcile staged production rollout
+        id: rollout
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+          EXPECTED_AUTONOMOUS_RELEASE_NAME: ${{ steps.provenance.outputs.release_name }}
+        run: node scripts/reconcile-play-rollout.mjs
+
+      - name: Open or update incident when rollout is halted or telemetry is unavailable
+        if: steps.rollout.outputs.action == 'halt' || steps.rollout.outputs.vitals_state == 'unavailable'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION_CODE: ${{ steps.rollout.outputs.version_code }}
+          ACTION: ${{ steps.rollout.outputs.action }}
+          VITALS_STATE: ${{ steps.rollout.outputs.vitals_state }}
+        run: |
+          title="Autonomous Play rollout requires attention"
+          body="Production rollout controller action=${ACTION}, version=${VERSION_CODE}, vitals=${VITALS_STATE}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
+
+      - name: Open incident on controller failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="Autonomous Play rollout controller failed"
+          body="The rollout controller failed closed. No automatic promotion should be assumed. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body" || true
+
+      - name: Remove Play credential files
+        if: always()
+        run: rm -f "$RUNNER_TEMP/doppler-secrets.json" "$RUNNER_TEMP/play-service-account.json"

@@ -54,7 +54,7 @@ jobs:
               { owner, repo, ref: pr.head.sha, per_page: 100 },
             )
             const riskStatus = statuses.find(
-              (status) => status.context === 'autonomous-risk-low',
+              (status) => status.context === 'autonomous-merge-eligible',
             )
             const eligible =
               pr.draft === false &&
@@ -62,6 +62,8 @@ jobs:
               pr.head.ref.startsWith('opencode/') &&
               labels.has('opencode-autonomous') &&
               labels.has('risk:low') &&
+              !labels.has('risk:elevated') &&
+              !labels.has('risk:blocked') &&
               !labels.has('risk:high') &&
               !labels.has('needs-human') &&
               !labels.has('human-approved') &&
@@ -232,14 +234,14 @@ jobs:
           git push origin "HEAD:$BRANCH"
 
           labels="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')"
-          for label in human-approved risk:high needs-human; do
+          for label in human-approved risk:elevated risk:blocked risk:high needs-human; do
             if printf '%s\n' "$labels" | grep -Fxq "$label"; then
               gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --remove-label "$label"
             fi
           done
           gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY"             --add-label opencode-autonomous             --add-label risk:low
 
-          gh api --method POST             "repos/$GITHUB_REPOSITORY/statuses/$new_sha"             -f state=success             -f context=autonomous-risk-low             -f description='Base-pinned CI repair policy allows low-risk automation.'
+          gh api --method POST             "repos/$GITHUB_REPOSITORY/statuses/$new_sha"             -f state=success             -f context=autonomous-merge-eligible             -f description='Base-pinned CI repair policy allows low-risk autonomous merge.'
 
           gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
           gh workflow run opencode-review.yml --repo "$GITHUB_REPOSITORY"             --ref main             -f pr_number="$PR_NUMBER"

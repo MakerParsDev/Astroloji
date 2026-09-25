@@ -1,11 +1,29 @@
 name: backend-production-deploy
 
 on:
+  workflow_call:
+    inputs:
+      autonomous:
+        required: false
+        default: false
+        type: boolean
+      release_sha:
+        required: true
+        type: string
+      migration_base_sha:
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
     inputs:
       confirm:
         description: "Type DEPLOY to publish the current main commit to Cloudflare production."
         required: true
+        type: string
+      release_sha:
+        description: "Optional exact main SHA. Defaults to the dispatched main commit."
+        required: false
+        default: ""
         type: string
 
 permissions:
@@ -17,7 +35,10 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.repository == 'MakerParsDev/Astroloji' && github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY'
+    if: >-
+      github.repository == 'MakerParsDev/Astroloji' &&
+      (inputs.autonomous == true ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY'))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -35,8 +56,19 @@ jobs:
       ADMIN_PANEL_ACCESS_TEAM_DOMAIN: ${{ vars.ADMIN_PANEL_ACCESS_TEAM_DOMAIN }}
       ADMIN_PANEL_ACCESS_AUD: ${{ vars.ADMIN_PANEL_ACCESS_AUD }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
+      RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify immutable main release SHA
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git fetch --no-tags --no-recurse-submodules origin main
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
@@ -72,8 +104,23 @@ jobs:
       - name: Runtime smoke tests
         run: npm run test:runtime
 
-      - name: Install Doppler CLI
-        run: curl -Ls https://cli.doppler.com/install.sh | sudo sh
+      - name: Install pinned Doppler CLI
+        env:
+          DOPPLER_VERSION: 3.76.1
+          DOPPLER_SHA256: e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2
+        run: |
+          set -euo pipefail
+          archive="doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz"
+          url="https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/${archive}"
+          curl --fail --silent --show-error --location \
+            --proto '=https' --proto-redir '=https' \
+            "$url" --output "$RUNNER_TEMP/$archive"
+          echo "$DOPPLER_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/doppler-bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/doppler-bin" doppler
+          chmod 0755 "$RUNNER_TEMP/doppler-bin/doppler"
+          echo "$RUNNER_TEMP/doppler-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/doppler-bin/doppler" --version
 
       - name: Load and validate deployment secrets from Doppler
         run: |
@@ -109,18 +156,60 @@ jobs:
           NODE
 
 
+      - name: Validate autonomous migration catch-up range
+        if: ${{ inputs.autonomous == true && inputs.migration_base_sha != '' }}
+        env:
+          MIGRATION_BASE: ${{ inputs.migration_base_sha }}
+          MIGRATION_HEAD: ${{ env.RELEASE_SHA }}
+        run: node ../scripts/validate-autonomous-migrations.mjs
+
+      - name: Read remote D1 migration state
+        id: migration_state
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/wrangler d1 execute astrology-db --remote \
+            --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'd1_migrations';" \
+            --json > "$RUNNER_TEMP/d1-migration-table.json"
+          tracking_table_present="$(node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/d1-migration-table.json', 'utf8'));
+          const rows = payload.flatMap((entry) => entry.results ?? []);
+          process.stdout.write(rows.some((row) => row.name === 'd1_migrations') ? 'true' : 'false');
+          NODE
+          )"
+          echo "tracking_table_present=$tracking_table_present" >> "$GITHUB_OUTPUT"
+          if [ "$tracking_table_present" = 'true' ]; then
+            ./node_modules/.bin/wrangler d1 execute astrology-db --remote \
+              --command "SELECT name FROM d1_migrations ORDER BY id;" \
+              --json > "$RUNNER_TEMP/d1-applied-migrations.json"
+          else
+            printf '[]\n' > "$RUNNER_TEMP/d1-applied-migrations.json"
+          fi
+
+      - name: Validate remote pending D1 migrations
+        env:
+          MIGRATION_APPLIED_LIST_PATH: ${{ runner.temp }}/d1-applied-migrations.json
+          MIGRATION_TRACKING_TABLE_PRESENT: ${{ steps.migration_state.outputs.tracking_table_present }}
+        run: node ../scripts/validate-autonomous-migrations.mjs
+
+
+      - name: Reverify current main immediately before production mutation
+        run: |
+          git fetch --no-tags --no-recurse-submodules origin main
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
+
       - name: Apply rewarded SSV D1 migration
-        run: npx wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql
+        run: ./node_modules/.bin/wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql
 
       - name: Reconcile notification target D1 schema
         run: node scripts/reconcile-notification-targets.mjs
 
       - name: Apply tracked D1 migrations
-        run: npx wrangler d1 migrations apply astrology-db --remote
+        run: ./node_modules/.bin/wrangler d1 migrations apply astrology-db --remote
 
       - name: Verify Play RTDN D1 schema
         run: |
-          npx wrangler d1 execute astrology-db --remote \
+          ./node_modules/.bin/wrangler d1 execute astrology-db --remote \
             --command "PRAGMA table_info(play_rtdn_messages); PRAGMA index_list(play_rtdn_messages); PRAGMA index_info(idx_play_rtdn_messages_received_at); SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'play_rtdn_messages';" --json \
             > "$RUNNER_TEMP/play-rtdn-schema.json"
           node - <<'NODE'
@@ -166,6 +255,7 @@ jobs:
           NODE
 
       - name: Sync Worker secrets and deploy
+        id: deploy
         run: npm run deploy:doppler
 
 
@@ -215,13 +305,22 @@ jobs:
           done
           exit 1
 
+      - name: Roll back Worker on failed post-deploy verification
+        if: failure() && steps.deploy.outcome == 'success'
+        run: ./node_modules/.bin/wrangler rollback --message "Autonomous rollback after failed verification for $RELEASE_SHA"
+
+      - name: Verify rollback health
+        if: failure() && steps.deploy.outcome == 'success'
+        run: curl --fail-with-body --silent --show-error "$BACKEND_BASE_URL/api/v1/health" >/dev/null
+
       - name: Publish deployment summary
+        if: always()
         run: |
           {
             echo '## Backend production deployment'
             echo
             echo "- Worker: astrology-backend"
-            echo "- Git SHA: $GITHUB_SHA"
+            echo "- Git SHA: $RELEASE_SHA"
             echo "- Health: ${BACKEND_BASE_URL%/}/api/v1/health"
             echo "- Privacy: ${BACKEND_BASE_URL%/}/privacy"
             echo "- Terms: ${BACKEND_BASE_URL%/}/terms"

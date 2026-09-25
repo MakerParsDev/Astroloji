@@ -159,6 +159,8 @@ jobs:
           Do not checkout, switch, reset, or execute code from the pull request head.
           Do not run scripts, tests, package installs, hooks, configuration, or binaries from the pull request head.
           Use trusted base code, the exact Git diff, and existing CI evidence as review evidence.
+          Apply the trusted base autonomous risk policy separately from defect review. Do not BLOCK solely because a change is elevated or security-sensitive when the trusted base autonomous policy permits the elevated tier; risk labels and merge policy enforce that classification independently.
+          A blocked/needs-human policy classification is not by itself an actionable review defect. BLOCK only for an actionable correctness, security, data-safety, or policy violation supported by evidence.
           Report only actionable, evidence-backed findings with file/line evidence. Do not edit files.
           Your final non-empty line MUST be exactly one of:
           REVIEW_RESULT: PASS

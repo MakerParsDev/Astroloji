@@ -91,3 +91,59 @@ test('unknown changed-line count fails closed', () => {
   assert.equal(result.changedLines, null)
   assert.match(result.reasons.join('\n'), /changed line count is unknown/)
 })
+
+test('sensitive product/runtime changes use the elevated autonomous tier', () => {
+  for (const file of [
+    'backend/src/middleware/auth.ts',
+    'backend/migrations/0007.sql',
+    'backend/wrangler.toml',
+    'Astroloji/app/src/main/AndroidManifest.xml',
+    'Astroloji/play/store-config.json',
+  ]) {
+    const result = classifyAutonomousChange({ paths: [file], totalChanges: 10 })
+    assert.equal(result.risk, 'high', file)
+    assert.equal(result.tier, 'elevated', file)
+  }
+})
+
+test('automation control and credential paths are blocked from self-merge', () => {
+  for (const file of [
+    '.github/workflows/ci.yml',
+    '.mergify.yml',
+    'config/autonomous-policy.json',
+    'scripts/autonomous-policy.mjs',
+    'Astroloji/app/google-services.example.json',
+  ]) {
+    const result = classifyAutonomousChange({ paths: [file], totalChanges: 10 })
+    assert.equal(result.risk, 'high', file)
+    assert.equal(result.tier, 'blocked', file)
+  }
+})
+
+test('oversized and unknown-size changes stay blocked rather than elevated', () => {
+  assert.equal(classifyAutonomousChange({
+    paths: ['backend/src/middleware/auth.ts'],
+    totalChanges: 1001,
+  }).tier, 'blocked')
+  assert.equal(classifyAutonomousChange({
+    paths: ['backend/src/middleware/auth.ts'],
+  }).tier, 'blocked')
+})
+
+
+test('production safety implementation cannot self-modify while canonical store content stays elevated', () => {
+  for (const file of [
+    'scripts/reconcile-play-rollout.mjs',
+    'scripts/reconcile-play-metadata.mjs',
+    'scripts/autonomous-release-plan.mjs',
+    'scripts/check-play-release-access.mjs',
+    'scripts/validate-autonomous-migrations.mjs',
+    'scripts/autonomous-operations-workflow.test.mjs',
+  ]) {
+    assert.equal(classifyAutonomousChange({ paths: [file], totalChanges: 10 }).tier, 'blocked', file)
+  }
+  assert.equal(
+    classifyAutonomousChange({ paths: ['Astroloji/play/listings/en-US/title.txt'], totalChanges: 1 }).tier,
+    'elevated',
+  )
+})

@@ -2,9 +2,8 @@ merge_protections_settings:
   auto_merge_conditions:
     - -from-fork
     - head ~= ^opencode/
-    - label = risk:low
-    - check-success = autonomous-risk-low
-    - label != risk:high
+    - check-success = autonomous-merge-eligible
+    - label != risk:blocked
     - label != needs-human
 
 merge_protections:
@@ -21,12 +20,14 @@ merge_protections:
           - and:
               - -from-fork
               - head ~= ^opencode/
-              - check-success = autonomous-risk-low
-              - label != risk:high
+              - check-success = autonomous-merge-eligible
+              - label != risk:blocked
               - label != needs-human
           - and:
               - -from-fork
               - head ~= ^opencode/
+              - label = risk:blocked
+              - label = needs-human
               - label = human-approved
               - "#approved-reviews-by >= 1"
       - check-success = secret-scan
@@ -36,6 +37,13 @@ merge_protections:
           - and:
               - -from-fork
               - check-success = review
+          - and:
+              - -from-fork
+              - head ~= ^opencode/
+              - label = risk:blocked
+              - label = needs-human
+              - label = human-approved
+              - "#approved-reviews-by >= 1"
           - and:
               - from-fork
               - "#approved-reviews-by >= 1"

@@ -36,11 +36,25 @@ jobs:
         working-directory: backend
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package-lock.json
+      - name: Verify autonomous migration safety
+        env:
+          MIGRATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          MIGRATION_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -n "$MIGRATION_BASE" ] && [[ ! "$MIGRATION_BASE" =~ ^0+$ ]]; then
+            MIGRATION_BASE="$(git merge-base "$MIGRATION_BASE" "$MIGRATION_HEAD")"
+            export MIGRATION_BASE
+          fi
+          node ../scripts/validate-autonomous-migrations.mjs
+
       - name: Install dependencies
         run: npm ci
       - name: Build

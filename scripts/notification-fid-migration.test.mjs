@@ -77,7 +77,7 @@ test('tracked migration baseline is exactly one no-op statement', () => {
 
 test('production applies the notification target migration before deployment', () => {
   assert.match(wrangler, /migrations_dir = \"migrations\"/);
-  const migrationStep = workflow.indexOf('npx wrangler d1 migrations apply astrology-db --remote');
+  const migrationStep = workflow.indexOf('./node_modules/.bin/wrangler d1 migrations apply astrology-db --remote');
   const deployStep = workflow.indexOf('npm run deploy:doppler');
   assert.notEqual(migrationStep, -1);
   assert.notEqual(deployStep, -1);

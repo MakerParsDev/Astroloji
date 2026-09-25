@@ -255,6 +255,14 @@ test('review inspects the exact head as data without exposing its model process 
   assert.doesNotMatch(body, /run-opencode-github-ci\.sh/)
 })
 
+
+test('review gate follows trusted tier policy instead of blocking elevated changes by category alone', async () => {
+  const body = await text('.github/workflows/opencode-review.yml')
+  assert.match(body, /Do not BLOCK solely because a change is elevated or security-sensitive/);
+  assert.match(body, /trusted base autonomous policy permits the elevated tier/);
+  assert.match(body, /actionable correctness, security, data-safety, or policy violation/);
+});
+
 test('interactive command intentionally inherits the comment body as prompt', async () => {
   const body = await text('.github/workflows/opencode-command.yml')
   assert.match(body, /issue_comment:/)
@@ -262,21 +270,21 @@ test('interactive command intentionally inherits the comment body as prompt', as
   assert.doesNotMatch(body, /^\s*PROMPT:/m)
 })
 
-test('Mergify auto-merge is low-risk-only and every merge keeps external gates', async () => {
+test('Mergify auto-merge accepts eligible low/elevated PRs and every merge keeps external gates', async () => {
   const body = await text('.mergify.yml')
   assert.match(body, /auto_merge_conditions:[\s\S]*-from-fork/)
   assert.match(body, /auto_merge_conditions:[\s\S]*head ~= \^opencode\//)
-  assert.match(body, /auto_merge_conditions:[\s\S]*label = risk:low/)
-  assert.match(body, /auto_merge_conditions:[\s\S]*check-success = autonomous-risk-low/)
-  assert.match(body, /auto_merge_conditions:[\s\S]*label != risk:high/)
+  assert.match(body, /auto_merge_conditions:[\s\S]*check-success = autonomous-merge-eligible/)
+  assert.match(body, /auto_merge_conditions:[\s\S]*label != risk:blocked/)
   assert.match(body, /auto_merge_conditions:[\s\S]*label != needs-human/)
   assert.match(body, /success_conditions:[\s\S]*from-fork/)
   assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*-head ~= \^opencode\//)
-  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*head ~= \^opencode\/[\s\S]*check-success = autonomous-risk-low/)
+  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*head ~= \^opencode\/[\s\S]*check-success = autonomous-merge-eligible/)
   assert.match(body, /label = human-approved\r?\n\s+- "#approved-reviews-by >= 1"/)
+  assert.match(body, /label = risk:blocked[\s\S]{0,180}label = needs-human[\s\S]{0,180}label = human-approved[\s\S]{0,180}#approved-reviews-by >= 1/)
   assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*check-success = review/)
   assert.match(body, /success_conditions:[\s\S]*from-fork[\s\S]*#approved-reviews-by >= 1/)
-  assert.match(body, /label != risk:high/)
+  assert.match(body, /label != risk:blocked/)
   assert.match(body, /label != needs-human/)
   for (const check of [
     'secret-scan',
@@ -305,8 +313,13 @@ test('automation can revoke but never grant the human-approved merge label', asy
     }
   }
   const policy = await text('.github/workflows/opencode-pr-policy.yml')
-  assert.match(policy, /context\.payload\.action === 'synchronize'/)
-  assert.match(policy, /removeLabel[\s\S]{0,300}name:\s*'human-approved'/)
+  assert.match(policy, /types:\s*\[requested, completed\]/)
+  assert.match(policy, /github\.event\.action == 'requested'/)
+  assert.match(policy, /github\.event\.workflow_run\.event == 'pull_request'/)
+  assert.match(policy, /Remove stale human approval on a newly requested PR CI run/)
+  assert.match(policy, /removeLabel[\s\S]{0,500}name:\s*'human-approved'/)
+  assert.doesNotMatch(policy, /listCommitStatusesForRef/)
+  assert.doesNotMatch(policy, /alreadyClassified/)
 
   for (const directory of ['agents', 'plugins', 'tools']) {
     for (const name of await readdir(path.join(root, '.opencode', directory))) {
@@ -323,19 +336,26 @@ test('PR policy imports the centralized classifier', async () => {
   assert.doesNotMatch(body, /const sensitive = \[/)
 })
 
-test('PR policy is base-pinned, reasserts labels, and writes an exact-head low-risk status', async () => {
+test('PR policy is base-trusted, workflow-run chained, and writes exact-head merge eligibility', async () => {
   const body = await text('.github/workflows/opencode-pr-policy.yml')
-  assert.match(body, /pull_request_target:/)
-  assert.doesNotMatch(body, /^\s*pull_request:\s*$/m)
-  assert.match(body, /types:\s*\[opened, synchronize, reopened, labeled, unlabeled\]/)
-  assert.match(body, /ref:\s*\$\{\{ github\.event\.pull_request\.base\.sha \}\}/)
-  assert.doesNotMatch(body, /ref:\s*\$\{\{ github\.event\.pull_request\.head\.sha \}\}/)
+  assert.match(body, /workflow_run:/)
+  assert.match(body, /workflows:\s*\[ci\]/)
+  assert.doesNotMatch(body, /pull_request_target:/)
+  assert.match(body, /listPullRequestsAssociatedWithCommit/)
+  assert.match(body, /context\.payload\.workflow_run\.head_sha/)
+  assert.match(body, /item\.head\.sha === sha/)
+  assert.match(body, /item\.head\.repo\?\.full_name/)
+  assert.match(body, /item\.base\.ref === 'main'/)
+  assert.match(body, /ref:\s*\$\{\{ steps\.target\.outputs\.base_sha \}\}/)
+  assert.doesNotMatch(body, /ref:\s*\$\{\{ steps\.target\.outputs\.head_sha \}\}/)
   assert.match(body, /statuses:\s*write/)
   assert.match(body, /createCommitStatus/)
-  assert.match(body, /sha:\s*context\.payload\.pull_request\.head\.sha/)
-  assert.match(body, /context:\s*'autonomous-risk-low'/)
-  assert.match(body, /state:\s*highRisk \? 'failure' : 'success'/)
+  assert.match(body, /sha:\s*headSha/)
+  assert.match(body, /context:\s*'autonomous-merge-eligible'/)
+  assert.match(body, /state:\s*blocked \? 'failure' : 'success'/)
   assert.match(body, /previous_filename/)
+  assert.match(body, /risk:blocked/)
+  assert.match(body, /risk:elevated/)
   assert.ok(body.indexOf('createCommitStatus') < body.indexOf('addLabels'))
 })
 
@@ -356,13 +376,15 @@ test('CI self-healing is opt-in, same-repo, PR-scoped, full-diff-gated, and boun
   assert.match(body, /startsWith\('opencode\/'\)/)
   assert.match(body, /labels\.has\('opencode-autonomous'\)/)
   assert.match(body, /labels\.has\('risk:low'\)/)
+  assert.match(body, /!labels\.has\('risk:elevated'\)/)
+  assert.match(body, /!labels\.has\('risk:blocked'\)/)
   assert.match(body, /!labels\.has\('risk:high'\)/)
   assert.match(body, /!labels\.has\('needs-human'\)/)
   assert.match(body, /!labels\.has\('human-approved'\)/)
   assert.match(body, /contains\(fromJSON\('\["pull_request","workflow_dispatch"\]'\), github\.event\.workflow_run\.event\)/)
   assert.match(body, /actions:\s*write/)
   assert.match(body, /statuses:\s*write/)
-  assert.match(body, /autonomous-risk-low/)
+  assert.match(body, /autonomous-merge-eligible/)
   assert.match(body, /riskStatus.*state === 'success'/s)
   assert.match(body, /base_sha/)
   assert.match(body, /pulls\/\$PR_NUMBER\/commits/)
@@ -382,7 +404,7 @@ test('CI self-healing is opt-in, same-repo, PR-scoped, full-diff-gated, and boun
   assert.match(body, /node "\$policy_root\/scripts\/check-autonomous-diff\.mjs" --numstat/)
   assert.match(body, /bash scripts\/install-opencode-ci\.sh/)
   assert.match(body, /statuses\/\$new_sha/)
-  assert.match(body, /-f context=autonomous-risk-low/)
+  assert.match(body, /-f context=autonomous-merge-eligible/)
   assert.match(body, /gh workflow run ci\.yml/)
   assert.match(body, /gh workflow run opencode-review\.yml[\s\S]{0,160}--ref main/)
   assert.match(body, /--remove-label "\$label"/)

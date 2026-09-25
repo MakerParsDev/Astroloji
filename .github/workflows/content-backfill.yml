@@ -26,12 +26,16 @@ concurrency:
 
 jobs:
   backfill:
-    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_CONTENT_BACKFILL == 'true'
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (vars.ENABLE_AUTONOMOUS_PRODUCTION == 'true' &&
+       vars.ENABLE_CONTENT_BACKFILL == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-admin-content
     permissions:
       contents: read
+      issues: write
     env:
       ADMIN_CONTENT_SECRET: ${{ secrets.ADMIN_CONTENT_SECRET }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
@@ -42,6 +46,9 @@ jobs:
       SEED_APPROVAL_REFERENCE: github-run:${{ github.run_id }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          persist-credentials: false
 
       - name: Validate content admin secret
         run: |
@@ -63,3 +70,18 @@ jobs:
             --header "content-type: application/json" \
             --header "x-admin-secret: $ADMIN_CONTENT_SECRET" \
             --data "$payload"
+
+
+      - name: Open or update incident on content backfill failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="Autonomous horoscope content backfill failed"
+          body="Scheduled content generation/backfill failed closed. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi

@@ -1,8 +1,9 @@
 import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const DATABASE_NAME = 'astrology-db';
-const TARGET_INDEX = 'idx_fcm_tokens_user_platform_target';
+const TARGET_INDEX = 'idx_fcm_tokens_user_platform_target_v2';
 const SCHEMA_QUERY = `
 SELECT sql AS table_sql
 FROM sqlite_master
@@ -25,6 +26,9 @@ export async function reconcileNotificationTargetSchema({
 
   if (before.hasTargetType && !before.isTargetTypeCanonical) {
     throw new Error('target_type definition is not canonical; manual migration is required.');
+  }
+  if (before.hasTargetIndex && !before.isTargetIndexCanonical) {
+    throw new Error('canonical v2 notification index name exists with a non-canonical definition; manual migration is required.');
   }
   if (before.isTargetTypeCanonical && before.isTargetIndexCanonical) {
     return 'present';
@@ -103,8 +107,14 @@ export function parseNotificationTargetState(stdout) {
 }
 
 function runWrangler(args, { capture = false } = {}) {
-  const executable = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-  const result = spawnSync(executable, ['wrangler', ...args], {
+  const executable = path.join(
+    process.cwd(),
+    'node_modules',
+    'wrangler',
+    'bin',
+    'wrangler.js',
+  );
+  const result = spawnSync(process.execPath, [executable, ...args], {
     cwd: process.cwd(),
     encoding: 'utf8',
     env: process.env,
@@ -141,7 +151,7 @@ async function createMissingIndex() {
     'execute',
     DATABASE_NAME,
     '--remote',
-    `--command=DROP INDEX IF EXISTS ${TARGET_INDEX}; CREATE INDEX ${TARGET_INDEX} ON fcm_tokens(user_id, platform, target_type, updated_at);`,
+    `--command=CREATE INDEX IF NOT EXISTS ${TARGET_INDEX} ON fcm_tokens(user_id, platform, target_type, updated_at);`,
   ]);
 }
 

@@ -1,6 +1,6 @@
 # Release Runbook
 
-Bu dokuman `v1.0.0` ve sonraki release'ler icin operasyon ekibinin takip edecegi tek sayfalik uygulama notudur.
+Bu dokuman `v1.0.0` ve sonraki release'ler icin production operasyon runbook'udur. Varsayilan yol otonom controller'lardir; manuel workflow'lar break-glass/diagnostik yol olarak korunur.
 
 ## Kapsam
 
@@ -8,6 +8,21 @@ Bu dokuman `v1.0.0` ve sonraki release'ler icin operasyon ekibinin takip edecegi
 - Cloudflare Worker backend deploy adimlari
 - Deploy sonrasi smoke check
 - Rollback proseduru
+
+## Varsayilan Otonom Release Yolu
+
+`main` uzerindeki exact commit CI'dan basariyla gectiginde `autonomous-production` release planini cikarir. Ayrica 6 saatte bir catch-up reconcile calisir. Plan, son basarili backend/Android/Play-metadata baseline'larindan current `main`'e kadar olan araligi hesaplar; ara run iptali veya kismi failure degisiklik kaybettirmez:
+
+1. Backend degisti ise `backend-production-deploy` exact `main` SHA'yi deploy eder. Mutation'dan once full catch-up migration araligi ile remote `d1_migrations` tablosundan SELECT-only okunan gercek pending set expand-only policy'den gecmek zorundadir; sonra canli dogrulama yapilir ve post-deploy verification fail olursa Worker rollback uygulanir.
+2. Android runtime degisti ise ayni SHA once internal track'e yayinlanir; Play'in onerilen bir sonraki `versionCode` degeri otomatik kullanilir.
+3. Internal yayin basariliysa ayni artifact production'a `%10` staged rollout olarak promote edilir.
+4. Basarili production publish'in exact `auto-v1-*` release adi ve publication SHA'si machine-owned production state'e kaydedilir. `android-rollout-controller` yalnizca bu exact release'i periyodik olarak `%10 -> %25 -> %50 -> %100` ilerletir. Provenance yoksa veya release Play'de birebir bulunamazsa mutation yapmaz; backend health veya Play crash/ANR threshold ihlalinde rollout halt edilir, Play Developer Reporting erisilemezse promotion freeze edilir.
+5. `Astroloji/play/**` degisti ise canonical Play metadata exact `main` SHA'dan reconcile edilir; fresh backup, drift kontrolu, independent readback ve failure durumunda restore uygulanir.
+6. `content-backfill` her gun gelecek horoscope/content penceresini scoped `content-ops` credential'i ile yeniler ve failure durumunda GitHub incident acar.
+
+Otonom production mutation ancak gerekli repo variable'lari aciksa baslar: master `ENABLE_AUTONOMOUS_PRODUCTION`, Android icin `ENABLE_PRODUCTION_RELEASE`, metadata icin `ENABLE_METADATA_PUBLISH`, ve content icin `ENABLE_CONTENT_BACKFILL`.
+
+Controller/control-plane degisiklikleri kendi kendini merge edemez; `.github/**`, `.mergify.yml`, OpenCode policy/safety ve credential siniri `risk:blocked` olarak insan kontrolludur. Ayrintili topoloji icin `docs/AUTONOMOUS_OPERATIONS.md` dosyasina bak.
 
 ## Preflight Checklist
 
@@ -61,10 +76,10 @@ cd Astroloji
 
 Not: Debug/unit verify gorevleri gerekiyorsa `app/google-services.example.json` dosyasini otomatik olarak `google-services.json` konumuna hazirlar. Release publish icin gercek secret akisi korunur.
 
-3. Internal publish hazirsa `ENABLE_INTERNAL_RELEASE=true` repo variable'ini dogrula; `main` branch'e merge sonrasi `android-internal-release` workflow'unun yesil tamamlandigini kontrol et.
-4. Internal QA tamamlandiginda `android-production-release` workflow'unu manuel tetikle.
-5. Varsayilan staged rollout `%10`'dur; gerekli ise workflow input'u ile override et.
-6. Metadata degisiklikleri icin `android-metadata` workflow'unu ayri calistir.
+3. Varsayilan otonom yolda `ENABLE_AUTONOMOUS_PRODUCTION=true` ve `ENABLE_PRODUCTION_RELEASE=true` ise current-main CI sonrasi `android-internal-release` otomatik calisir; basarili exact version daha sonra `android-production-release` ile `%10` production staged rollout'a promote edilir.
+4. Scheduled rollout controller sadece machine-owned state'te kayitli exact autonomous release'i ilerletir. Manuel `android-production-release` dispatch'i break-glass/diagnostik yoludur; o release controller tarafindan otomatik sahiplenilmez.
+5. Varsayilan staged rollout `%10`'dur; break-glass dispatch'te gerekli ise workflow input'u ile override edilebilir.
+6. Metadata varsayilan otonom controller tarafindan reconcile edilir; manuel metadata workflow'u break-glass yoludur.
 7. Release artifact'i repoya commit etme; GitHub artifact olarak saklanir.
 8. Doppler modeli kullaniliyorsa `internal` ve `production` environment icin ayri read-only token tercih et.
 
@@ -120,7 +135,7 @@ npm test
 npm run test:runtime
 ```
 
-3. Tercih edilen production deploy yolu GitHub Actions'taki `backend-production-deploy` workflow'udur. Workflow'u `main` branch uzerinde manuel calistir ve onay alanina `DEPLOY` yaz.
+3. Tercih edilen production deploy yolu `autonomous-production` -> reusable `backend-production-deploy` zinciridir. Manuel `DEPLOY` dispatch'i break-glass yoludur.
 4. Workflow; build, unit test, runtime smoke test, Doppler secret dogrulamasi, Worker secret senkronizasyonu, deploy ve canli endpoint kontrollerini sirayla calistirir.
 5. Acil lokal deploy gerekirse:
 
