@@ -234,3 +234,17 @@ test('Android catch-up baseline does not rewrite release provenance without a pu
   assert.match(workflow, /ANDROID_PLANNED === 'true'[\s\S]*ANDROID_RESULT === 'success'[\s\S]*androidReleaseSha = releaseSha/);
   assert.match(workflow, /android_release_sha=\$\{androidReleaseSha\}/);
 });
+
+
+test('scheduled catch-up requires exact successful main CI before release planning', () => {
+  const workflow = read('.github/workflows/autonomous-production.yml');
+  assert.match(workflow, /actions:\s*read/);
+  assert.match(workflow, /Require successful exact-main CI for catch-up release/);
+  assert.match(workflow, /listWorkflowRuns/);
+  assert.match(workflow, /workflow_id:\s*'ci\.yml'/);
+  assert.match(workflow, /head_sha:\s*releaseSha/);
+  assert.match(workflow, /run\.head_sha === releaseSha/);
+  assert.match(workflow, /run\.head_branch === 'main'/);
+  assert.match(workflow, /run\.event === 'push'/);
+  assert.match(workflow, /run\.conclusion === 'success'/);
+});

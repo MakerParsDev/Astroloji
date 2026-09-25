@@ -110,10 +110,11 @@ function runWrangler(args, { capture = false } = {}) {
   const executable = path.join(
     process.cwd(),
     'node_modules',
-    '.bin',
-    process.platform === 'win32' ? 'wrangler.cmd' : 'wrangler',
+    'wrangler',
+    'bin',
+    'wrangler.js',
   );
-  const result = spawnSync(executable, args, {
+  const result = spawnSync(process.execPath, [executable, ...args], {
     cwd: process.cwd(),
     encoding: 'utf8',
     env: process.env,

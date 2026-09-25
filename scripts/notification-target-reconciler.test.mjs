@@ -201,7 +201,16 @@ test('notification target repair is additive and never drops a remote index', as
 test('notification reconciler executes only the lockfile-installed Wrangler binary', () => {
   const body = readFileSync(moduleUrl, 'utf8');
   assert.match(body, /node_modules/);
-  assert.match(body, /'\.bin'/);
   assert.match(body, /'wrangler'/);
+  assert.match(body, /'bin'/);
+  assert.match(body, /'wrangler\.js'/);
   assert.doesNotMatch(body, /npx(?:\.cmd)?/);
+});
+
+
+test('notification reconciler invokes lockfile Wrangler through Node on every platform', () => {
+  const body = readFileSync(moduleUrl, 'utf8');
+  assert.match(body, /process\.execPath/);
+  assert.match(body, /node_modules.*wrangler.*bin.*wrangler\.js/s);
+  assert.doesNotMatch(body, /wrangler\.cmd|process\.platform === 'win32'/);
 });
