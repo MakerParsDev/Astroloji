@@ -85,6 +85,7 @@ jobs:
       (needs.backend.result == 'success' || needs.backend.result == 'skipped')
     permissions:
       contents: read
+      issues: write
     uses: ./.github/workflows/android-metadata-autonomous.yml
     with:
       release_sha: ${{ needs.plan.outputs.release_sha }}
@@ -123,3 +124,30 @@ jobs:
       rollout_fraction: '0.1'
       promote_from_track: internal
     secrets: inherit
+
+
+  incident:
+    needs: [plan, backend, play-metadata, android-internal, android-production]
+    if: >-
+      always() &&
+      (needs.plan.result == 'failure' ||
+       needs.backend.result == 'failure' ||
+       needs.play-metadata.result == 'failure' ||
+       needs.android-internal.result == 'failure' ||
+       needs.android-production.result == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update autonomous production incident
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="Autonomous production pipeline failed"
+          body="At least one autonomous production stage failed closed. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi

@@ -259,7 +259,7 @@ jobs:
             echo '## Backend production deployment'
             echo
             echo "- Worker: astrology-backend"
-            echo "- Git SHA: $GITHUB_SHA"
+            echo "- Git SHA: $RELEASE_SHA"
             echo "- Health: ${BACKEND_BASE_URL%/}/api/v1/health"
             echo "- Privacy: ${BACKEND_BASE_URL%/}/privacy"
             echo "- Terms: ${BACKEND_BASE_URL%/}/terms"

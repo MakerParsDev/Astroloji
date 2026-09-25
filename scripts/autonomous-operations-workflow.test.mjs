@@ -15,6 +15,8 @@ test('production orchestrator chains from successful main CI and uses exact rele
   assert.match(workflow, /android-internal-release\.yml/);
   assert.match(workflow, /android-production-release\.yml/);
   assert.match(workflow, /android-metadata-autonomous\.yml/);
+  assert.match(workflow, /Autonomous production pipeline failed/);
+  assert.match(workflow, /play-metadata:[\s\S]*issues:\s*write/);
 });
 
 test('backend production workflow supports trusted reusable automation and rollback', () => {
@@ -65,4 +67,12 @@ test('PR policy no longer relies on pull_request_target and exposes low/elevated
   assert.match(workflow, /autonomous-merge-eligible/);
   assert.match(workflow, /risk:elevated/);
   assert.match(workflow, /risk:blocked/);
+});
+
+
+test('CI blocks destructive autonomous migrations before backend verification', () => {
+  const ci = read('.github/workflows/ci.yml');
+  assert.match(ci, /Verify autonomous migration safety/);
+  assert.match(ci, /validate-autonomous-migrations\.mjs/);
+  assert.match(ci, /backend-verify:[\s\S]*fetch-depth:\s*2/);
 });

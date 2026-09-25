@@ -46,7 +46,7 @@ Production workflows use an exact 40-character `main` SHA and fail closed if `ma
 
 Android production starts staged. A halted rollout is never automatically resumed. Missing reporting permissions or unavailable Play Vitals freeze promotion instead of treating missing evidence as healthy.
 
-Backend deployment verifies build/tests before mutation and live health/legal/auth boundaries afterward. If the Worker was deployed successfully but post-deploy verification fails, the workflow invokes Wrangler rollback and verifies health again. Database migrations are not automatically reversed, so autonomous migrations must remain backward-compatible with the previous Worker version.
+Backend deployment verifies build/tests before mutation and live health/legal/auth boundaries afterward. If the Worker was deployed successfully but post-deploy verification fails, the workflow invokes Wrangler rollback and verifies health again. Database migrations are not automatically reversed. CI therefore permits autonomous migrations only as new expand-only SQL files: editing/deleting an applied migration or using destructive/non-reversible statements is blocked; new schema must remain backward-compatible with the previous Worker version.
 
 Play metadata reconciliation uses the repository as canonical state but refuses unexpected locale deletion or rollout/subscription drift. Every mutation begins with a fresh backup and uses independent read-back; failed publication attempts restore from that backup if live state changed.
 
