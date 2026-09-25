@@ -129,3 +129,21 @@ test('oversized and unknown-size changes stay blocked rather than elevated', () 
     paths: ['backend/src/middleware/auth.ts'],
   }).tier, 'blocked')
 })
+
+
+test('production safety implementation cannot self-modify while canonical store content stays elevated', () => {
+  for (const file of [
+    'scripts/reconcile-play-rollout.mjs',
+    'scripts/reconcile-play-metadata.mjs',
+    'scripts/autonomous-release-plan.mjs',
+    'scripts/check-play-release-access.mjs',
+    'scripts/validate-autonomous-migrations.mjs',
+    'scripts/autonomous-operations-workflow.test.mjs',
+  ]) {
+    assert.equal(classifyAutonomousChange({ paths: [file], totalChanges: 10 }).tier, 'blocked', file)
+  }
+  assert.equal(
+    classifyAutonomousChange({ paths: ['Astroloji/play/listings/en-US/title.txt'], totalChanges: 1 }).tier,
+    'elevated',
+  )
+})

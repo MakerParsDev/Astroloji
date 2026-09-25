@@ -83,6 +83,14 @@
     {
       "name": "credential configuration",
       "pattern": "(^|/)(?:google-services(?:\\.example)?\\.json|firebase-auth-config(?:\\.example)?\\.json|[^/]*service-account[^/]*|[^/]*keystore[^/]*)$"
+    },
+    {
+      "name": "Production publication control scripts",
+      "pattern": "^scripts/.*(?:play|release).*\\.(?:mjs|js|ts)$"
+    },
+    {
+      "name": "Autonomous production safety scripts",
+      "pattern": "^scripts/(?:validate-autonomous-migrations(?:\\.test)?|autonomous-operations-workflow\\.test)\\.mjs$"
     }
   ]
 }
