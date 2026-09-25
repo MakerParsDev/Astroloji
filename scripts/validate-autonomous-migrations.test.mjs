@@ -49,3 +49,11 @@ test('never edits or deletes an already-applied migration', () => {
     ['existing migration deleted'],
   );
 });
+
+
+test('uses a fixed Git executable path for CI diff inspection', async () => {
+  const fs = await import('node:fs/promises');
+  const body = await fs.readFile(new URL('./validate-autonomous-migrations.mjs', import.meta.url), 'utf8');
+  assert.match(body, /execFileSync\(\s*['"]\/usr\/bin\/git['"]/);
+  assert.doesNotMatch(body, /execFileSync\(\s*['"]git['"]/);
+});

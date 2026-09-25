@@ -104,7 +104,7 @@ export function validateChangedMigrations({
   head = 'HEAD',
 } = {}) {
   const output = execFileSync(
-    'git',
+    '/usr/bin/git',
     ['diff', '--name-status', '--no-renames', base, head, '--', 'backend/migrations'],
     { cwd: repositoryRoot, encoding: 'utf8' },
   ).trim();
