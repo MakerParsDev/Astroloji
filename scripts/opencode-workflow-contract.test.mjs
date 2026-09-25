@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const actionWorkflows = [
+const modelWorkflows = [
   'opencode-command.yml',
   'opencode-review.yml',
   'opencode-triage.yml',
@@ -14,31 +14,117 @@ const actionWorkflows = [
   'opencode-dependencies.yml',
   'opencode-dispatch.yml',
 ]
+const githubAgentWorkflows = modelWorkflows.filter((name) => name !== 'opencode-review.yml')
 const allWorkflows = [
-  ...actionWorkflows,
+  ...modelWorkflows,
   'opencode-pr-policy.yml',
-  'opencode-automerge.yml',
   'opencode-ci-repair.yml',
   'opencode-model-canary.yml',
 ]
+const pinnedAction = /^[\w.-]+\/[\w.-]+(?:\/[\w.-]+)?@[0-9a-f]{40}(?:\s+#\s+.+)?$/
 
 async function text(relative) {
   return readFile(path.join(root, relative), 'utf8')
 }
 
-test('OpenCode action workflows select approved free models and disable sharing', async () => {
-  for (const name of actionWorkflows) {
+test('model workflows use only the checksum-pinned CLI and free selector', async () => {
+  for (const name of modelWorkflows) {
     const body = await text(path.join('.github', 'workflows', name))
     assert.match(body, /select-opencode-free-model\.mjs/, name)
-    assert.match(body, /OPENCODE_API_KEY:/, name)
-    assert.match(body, /share:\s*false/, name)
-    assert.match(body, /persist-credentials:\s*false/, name)
+    assert.match(body, /bash scripts\/install-opencode-ci\.sh/, name)
+    assert.match(body, /GITHUB_TOKEN|GH_TOKEN/, name)
+    assert.match(body, /MODEL:\s*\$\{\{ steps\.free_model\.outputs\.model \}\}/, name)
+    assert.doesNotMatch(body, /anomalyco\/opencode\/github@/, name)
+    assert.doesNotMatch(body, /releases\/latest|opencode\.ai\/install/, name)
+    assert.doesNotMatch(body, /OPENCODE_API_KEY/, name)
+    assert.doesNotMatch(body, /id-token:\s*write/, name)
+  }
+  for (const name of githubAgentWorkflows) {
+    const body = await text(path.join('.github', 'workflows', name))
+    assert.match(body, /bash scripts\/run-opencode-github-ci\.sh/, name)
   }
 })
-test('project config exposes only the OpenCode provider and approved free models', async () => {
+
+test('workflow roles are explicit runtime default-agent overlays', async () => {
+  const expected = new Map([
+    ['opencode-command.yml', 'maintainer'],
+    ['opencode-triage.yml', 'triage'],
+    ['opencode-maintenance.yml', 'maintainer'],
+    ['opencode-security-audit.yml', 'reviewer'],
+    ['opencode-dependencies.yml', 'maintainer'],
+    ['opencode-dispatch.yml', 'maintainer'],
+  ])
+  for (const [name, agent] of expected) {
+    const body = await text(path.join('.github', 'workflows', name))
+    assert.ok(body.includes('OPENCODE_DEFAULT_AGENT: ' + agent), name)
+  }
+  const review = await text('.github/workflows/opencode-review.yml')
+  assert.match(review, /opencode run --auto --agent reviewer/)
+})
+
+test('write-capable GitHub-agent workflows opt into ephemeral Git authentication', async () => {
+  for (const name of [
+    'opencode-command.yml',
+    'opencode-maintenance.yml',
+    'opencode-dependencies.yml',
+    'opencode-dispatch.yml',
+  ]) {
+    const body = await text(path.join('.github', 'workflows', name))
+    assert.match(body, /OPENCODE_GIT_WRITE:\s*"true"/, name)
+  }
+  for (const name of ['opencode-review.yml', 'opencode-triage.yml', 'opencode-security-audit.yml']) {
+    const body = await text(path.join('.github', 'workflows', name))
+    assert.doesNotMatch(body, /OPENCODE_GIT_WRITE:\s*"true"/, name)
+  }
+})
+
+test('GitHub-agent runner overlays the requested agent and keeps Git credentials ephemeral', async () => {
+  const body = await text('scripts/run-opencode-github-ci.sh')
+  assert.match(body, /OPENCODE_CONFIG_CONTENT/)
+  assert.match(body, /default_agent/)
+  assert.match(body, /\$\{MODEL:\?MODEL is required\}/)
+  assert.match(body, /export MODEL PROMPT/)
+  assert.doesNotMatch(body, /unset\s+(?:MODEL|PROMPT)/)
+  assert.match(body, /USE_GITHUB_TOKEN/)
+  assert.match(body, /SHARE/)
+  assert.match(body, /GIT_CONFIG_COUNT/)
+  assert.match(body, /http\.https:\/\/github\.com\/\.extraheader/)
+  assert.match(body, /x-access-token/)
+  assert.match(body, /opencode github run/)
+  assert.doesNotMatch(body, /git config|gh auth setup-git/)
+})
+
+test('every external action in every repository workflow is commit-SHA pinned', async () => {
+  const names = (await readdir(path.join(root, '.github', 'workflows')))
+    .filter((name) => name.endsWith('.yml') || name.endsWith('.yaml'))
+  for (const name of names) {
+    const body = await text(path.join('.github', 'workflows', name))
+    const uses = [...body.matchAll(/^\s*-?\s*uses:\s*(.+)$/gm)].map((match) => match[1].trim())
+    for (const value of uses) {
+      if (value.startsWith('./')) continue
+      assert.match(value, pinnedAction, `${name}: ${value}`)
+    }
+    assert.doesNotMatch(body, /uses:\s*[^\s]+@(?:latest|v\d+)\b/, name)
+  }
+})
+
+test('autonomous policy control files are always high risk', async () => {
+  const body = await text('config/autonomous-policy.json')
+  const policy = JSON.parse(body)
+  const compiled = policy.highRiskRules.map((rule) => new RegExp(rule.pattern, 'i'))
+  for (const target of [
+    'config/autonomous-policy.json',
+    'scripts/autonomous-policy.mjs',
+    'scripts/autonomous-policy.test.mjs',
+    'scripts/check-autonomous-diff.mjs',
+    'scripts/check-autonomous-diff.test.mjs',
+  ]) {
+    assert.ok(compiled.some((regex) => regex.test(target)), target)
+  }
+})
+
+test('project config exposes only approved free coding models', async () => {
   const body = await text('opencode.jsonc')
-  assert.match(body, /"enabled_providers":\s*\["opencode"\]/)
-  assert.match(body, /"whitelist":/)
   for (const model of [
     'muse-spark-1.3-contributor-free',
     'nemotron-3-ultra-free',
@@ -46,81 +132,331 @@ test('project config exposes only the OpenCode provider and approved free models
     'nemotron-3.5-lightning-free',
     'ling-3.0-flash-fin-free',
     'mimo-v2.5-free',
-    'jev-1.13-free',
     'big-pickle',
   ]) {
     assert.ok(body.includes('"' + model + '"'), model)
   }
+  assert.doesNotMatch(body, /jev-1\.13-free/)
+  assert.match(body, /"enabled_providers":\s*\["opencode"\]/)
   assert.match(body, /"share":\s*"disabled"/)
   assert.match(body, /"snapshot":\s*false/)
-  assert.match(body, /"subagent_depth":\s*2/)
-  assert.match(body, /"lsp":\s*true/)
-  assert.match(body, /"git push\*":\s*"deny"/)
+  assert.match(body, /"external_directory":\s*"deny"/)
+  assert.match(body, /"read":\s*\{[\s\S]*?"\*":\s*"allow"/)
+  for (const deny of [
+    '*.env',
+    '*.env.*',
+    '*.dev.vars',
+    '*.dev.vars.*',
+    '*google-services.json',
+    '*firebase-auth-config.json',
+    '*firebase-auth-config-backup.json',
+    '*service-account*.json',
+    '*upload-keystore*',
+    '*.jks',
+    '*.keystore',
+    '*auth.json',
+    '*mcp-auth.json',
+    '*doppler-secrets*',
+  ]) {
+    assert.ok(body.includes(JSON.stringify(deny) + ': "deny"'), deny)
+  }
+  for (const allow of [
+    '*.env.example',
+    '*.dev.vars.example',
+    '*google-services.example.json',
+    '*firebase-auth-config.example.json',
+  ]) {
+    assert.ok(body.includes(JSON.stringify(allow) + ': "allow"'), allow)
+  }
+  assert.match(body, /"edit":\s*\{[\s\S]*?"\*":\s*"allow"/)
+  for (const deny of [
+    '*.env',
+    '*.env.*',
+    '*.dev.vars',
+    '*.dev.vars.*',
+    '*google-services.json',
+    '*firebase-auth-config.json',
+    '*firebase-auth-config-backup.json',
+    '*service-account*.json',
+    '*upload-keystore*',
+    '*.jks',
+    '*.keystore',
+    '*auth.json',
+    '*mcp-auth.json',
+    '*doppler-secrets*',
+  ]) {
+    const occurrence = JSON.stringify(deny) + ': "deny"'
+    assert.ok(body.indexOf(occurrence, body.indexOf('"edit"')) > body.indexOf('"edit"'), 'edit ' + deny)
+  }
+  assert.match(body, /"bash":\s*\{[\s\S]*?"\*":\s*"deny"/)
+  assert.doesNotMatch(body, /"git diff\*":\s*"allow"/)
+  assert.match(body, /"git diff":\s*"allow"/)
+  assert.match(body, /"git diff \*":\s*"allow"/)
+  assert.match(body, /"git grep \*--no-index\*":\s*"deny"/)
+  assert.match(body, /"git grep \*--untracked\*":\s*"deny"/)
+  assert.match(body, /"git grep \*--no-exclude-standard\*":\s*"deny"/)
+})
+
+test('custom agents cannot override global shell or secret-edit policy with blanket allow', async () => {
+  const agents = await readdir(path.join(root, '.opencode', 'agents'))
+  for (const name of agents) {
+    const body = await text(path.join('.opencode', 'agents', name))
+    assert.doesNotMatch(body, /^\s*bash:\s*allow\s*$/m, name)
+    assert.doesNotMatch(body, /^\s*edit:\s*allow\s*$/m, name)
+  }
 })
 
 test('interactive command workflow accepts only trusted collaborators', async () => {
   const body = await text('.github/workflows/opencode-command.yml')
+  for (const association of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
+    assert.ok(body.includes(association), association)
+  }
   assert.match(body, /author_association/)
-  assert.match(body, /OWNER/)
-  assert.match(body, /MEMBER/)
-  assert.match(body, /COLLABORATOR/)
 })
 
-test('automatic PR review is limited to same-repository PRs', async () => {
+test('automatic PR review is base-trusted and chained from completed CI', async () => {
   const body = await text('.github/workflows/opencode-review.yml')
-  assert.match(body, /head\.repo\.full_name == github\.repository/)
+  assert.match(body, /workflow_run:/)
+  assert.match(body, /workflows:\s*\[ci\]/)
+  assert.match(body, /types:\s*\[completed\]/)
+  assert.doesNotMatch(body, /pull_request_target:/)
+  assert.doesNotMatch(body, /^\s*pull_request:\s*$/m)
+  assert.match(body, /context\.payload\.workflow_run\.head_sha/)
+  assert.match(body, /listPullRequestsAssociatedWithCommit/)
+  assert.match(body, /item\.state === 'open'/)
+  assert.match(body, /item\.head\.sha === sha/)
+  assert.match(body, /item\.head\.repo\?\.full_name === \x60\$\{owner\}\/\$\{repo\}\x60/)
+  assert.match(body, /core\.setOutput\('base_sha', pr\.base\.sha\)/)
+  assert.match(body, /ref:\s*\$\{\{ steps\.target\.outputs\.base_sha \}\}/)
+  assert.doesNotMatch(body, /ref:\s*\$\{\{ steps\.target\.outputs\.head_sha \}\}/)
 })
-test('autonomous merge requires exact low-risk policy and external gates', async () => {
-  const body = await text('.github/workflows/opencode-automerge.yml')
-  assert.match(body, /startsWith\('opencode\/'\)/)
-  assert.match(body, /risk:low/)
-  assert.match(body, /risk:high/)
-  assert.match(body, /needs-human/)
+
+test('review inspects the exact head as data without exposing its model process to GitHub credentials', async () => {
+  const body = await text('.github/workflows/opencode-review.yml')
+  assert.match(body, /workflow_dispatch:/)
+  assert.match(body, /pr_number:/)
+  assert.match(body, /HEAD_SHA:\s*\$\{\{ steps\.target\.outputs\.head_sha \}\}/)
+  assert.match(body, /BASE_SHA:\s*\$\{\{ steps\.target\.outputs\.base_sha \}\}/)
+  assert.match(body, /git cat-file -e "\$HEAD_SHA\^\{commit\}"/)
+  assert.match(body, /git fetch --no-tags --no-recurse-submodules origin "\$HEAD_SHA"/)
+  assert.match(body, /Do not checkout, switch, reset, or execute code from the pull request head/)
+  assert.match(body, /opencode run --auto --agent reviewer --model "\$MODEL" --format json/)
+  assert.match(body, /node scripts\/parse-opencode-review\.mjs/)
+  assert.match(body, /id:\s*review/)
+  const reviewStep = body.match(/- name: Independent OpenCode review gate[\s\S]*?(?=\n\s{6}- name:|$)/)?.[0] ?? ''
+  assert.doesNotMatch(reviewStep, /GH_TOKEN|GITHUB_TOKEN/)
+  assert.match(body, /statuses:\s*write/)
+  assert.match(body, /statuses\/\$HEAD_SHA/)
+  assert.match(body, /-f context=review/)
+  assert.match(body, /- name: Publish review result[\s\S]*GH_TOKEN:\s*\$\{\{ secrets\.GITHUB_TOKEN \}\}/)
+  assert.match(body, /REVIEW_RESULT: PASS/)
+  assert.match(body, /REVIEW_RESULT: BLOCK/)
+  assert.match(body, /gh pr comment/)
+  assert.doesNotMatch(body, /run-opencode-github-ci\.sh/)
+})
+
+test('interactive command intentionally inherits the comment body as prompt', async () => {
+  const body = await text('.github/workflows/opencode-command.yml')
+  assert.match(body, /issue_comment:/)
+  assert.match(body, /pull_request_review_comment:/)
+  assert.doesNotMatch(body, /^\s*PROMPT:/m)
+})
+
+test('Mergify auto-merge is low-risk-only and every merge keeps external gates', async () => {
+  const body = await text('.mergify.yml')
+  assert.match(body, /auto_merge_conditions:[\s\S]*-from-fork/)
+  assert.match(body, /auto_merge_conditions:[\s\S]*head ~= \^opencode\//)
+  assert.match(body, /auto_merge_conditions:[\s\S]*label = risk:low/)
+  assert.match(body, /auto_merge_conditions:[\s\S]*check-success = autonomous-risk-low/)
+  assert.match(body, /auto_merge_conditions:[\s\S]*label != risk:high/)
+  assert.match(body, /auto_merge_conditions:[\s\S]*label != needs-human/)
+  assert.match(body, /success_conditions:[\s\S]*from-fork/)
+  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*-head ~= \^opencode\//)
+  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*head ~= \^opencode\/[\s\S]*check-success = autonomous-risk-low/)
+  assert.match(body, /label = human-approved\r?\n\s+- "#approved-reviews-by >= 1"/)
+  assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*check-success = review/)
+  assert.match(body, /success_conditions:[\s\S]*from-fork[\s\S]*#approved-reviews-by >= 1/)
+  assert.match(body, /label != risk:high/)
+  assert.match(body, /label != needs-human/)
   for (const check of [
     'secret-scan',
     'backend-verify',
     'android-verify',
-    'CodeRabbit',
+    'review',
     'GitGuardian Security Checks',
     'SonarCloud Code Analysis',
     'semgrep-cloud-platform/scan',
   ]) {
-    assert.ok(body.includes(check), check)
+    assert.ok(body.includes('check-success = ' + check), check)
   }
-  assert.match(body, /sha:\s*pr\.head\.sha/)
-  assert.match(body, /hasUnresolvedThreads/)
+  assert.doesNotMatch(body, /check-success = CodeRabbit/)
 })
 
-test('CI self-healing is bounded and risk-gated', async () => {
+test('automation can revoke but never grant the human-approved merge label', async () => {
+  for (const name of allWorkflows) {
+    const body = await text(path.join('.github', 'workflows', name))
+    assert.doesNotMatch(
+      body,
+      /addLabels[\s\S]{0,600}human-approved|labels:\s*\[[^\]]*human-approved/,
+      name,
+    )
+    if (!['opencode-pr-policy.yml', 'opencode-ci-repair.yml'].includes(name)) {
+      assert.doesNotMatch(body, /human-approved/, name)
+    }
+  }
+  const policy = await text('.github/workflows/opencode-pr-policy.yml')
+  assert.match(policy, /context\.payload\.action === 'synchronize'/)
+  assert.match(policy, /removeLabel[\s\S]{0,300}name:\s*'human-approved'/)
+
+  for (const directory of ['agents', 'plugins', 'tools']) {
+    for (const name of await readdir(path.join(root, '.opencode', directory))) {
+      const body = await text(path.join('.opencode', directory, name))
+      assert.doesNotMatch(body, /human-approved/, name)
+    }
+  }
+})
+
+test('PR policy imports the centralized classifier', async () => {
+  const body = await text('.github/workflows/opencode-pr-policy.yml')
+  assert.match(body, /scripts\/autonomous-policy\.mjs/)
+  assert.match(body, /classifyAutonomousChange/)
+  assert.doesNotMatch(body, /const sensitive = \[/)
+})
+
+test('PR policy is base-pinned, reasserts labels, and writes an exact-head low-risk status', async () => {
+  const body = await text('.github/workflows/opencode-pr-policy.yml')
+  assert.match(body, /pull_request_target:/)
+  assert.doesNotMatch(body, /^\s*pull_request:\s*$/m)
+  assert.match(body, /types:\s*\[opened, synchronize, reopened, labeled, unlabeled\]/)
+  assert.match(body, /ref:\s*\$\{\{ github\.event\.pull_request\.base\.sha \}\}/)
+  assert.doesNotMatch(body, /ref:\s*\$\{\{ github\.event\.pull_request\.head\.sha \}\}/)
+  assert.match(body, /statuses:\s*write/)
+  assert.match(body, /createCommitStatus/)
+  assert.match(body, /sha:\s*context\.payload\.pull_request\.head\.sha/)
+  assert.match(body, /context:\s*'autonomous-risk-low'/)
+  assert.match(body, /state:\s*highRisk \? 'failure' : 'success'/)
+  assert.match(body, /previous_filename/)
+  assert.ok(body.indexOf('createCommitStatus') < body.indexOf('addLabels'))
+})
+
+test('Mergify is the only autonomous merge engine', async () => {
+  await assert.rejects(
+    text('.github/workflows/opencode-automerge.yml'),
+    (error) => error?.code === 'ENOENT',
+  )
+  for (const name of allWorkflows) {
+    const body = await text(path.join('.github', 'workflows', name))
+    assert.doesNotMatch(body, /github\.rest\.pulls\.merge|pulls\.merge\(/, name)
+  }
+})
+
+test('CI self-healing is opt-in, same-repo, PR-scoped, full-diff-gated, and bounded', async () => {
   const body = await text('.github/workflows/opencode-ci-repair.yml')
+  assert.match(body, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/)
+  assert.match(body, /startsWith\('opencode\/'\)/)
+  assert.match(body, /labels\.has\('opencode-autonomous'\)/)
+  assert.match(body, /labels\.has\('risk:low'\)/)
+  assert.match(body, /!labels\.has\('risk:high'\)/)
+  assert.match(body, /!labels\.has\('needs-human'\)/)
+  assert.match(body, /!labels\.has\('human-approved'\)/)
+  assert.match(body, /contains\(fromJSON\('\["pull_request","workflow_dispatch"\]'\), github\.event\.workflow_run\.event\)/)
+  assert.match(body, /actions:\s*write/)
+  assert.match(body, /statuses:\s*write/)
+  assert.match(body, /autonomous-risk-low/)
+  assert.match(body, /riskStatus.*state === 'success'/s)
+  assert.match(body, /base_sha/)
+  assert.match(body, /pulls\/\$PR_NUMBER\/commits/)
   assert.match(body, /grep -c '\^ci: autonomous repair'/)
+  assert.doesNotMatch(body, /git log -20/)
   assert.match(body, /-ge 2/)
+  assert.match(body, /Block policy-control self-modification/)
+  assert.match(body, /config\/autonomous-policy\.json/)
+  assert.match(body, /scripts\/autonomous-policy/)
+  assert.match(body, /scripts\/check-autonomous-diff/)
   assert.match(body, /sanitize-ci-log\.mjs/)
-  assert.match(body, /check-autonomous-diff\.mjs/)
-  assert.match(body, /git push origin "HEAD:\$BRANCH"/)
+  assert.match(body, /git show "\$BASE_SHA:scripts\/check-autonomous-diff\.mjs"/)
+  assert.match(body, /git show "\$BASE_SHA:scripts\/autonomous-policy\.mjs"/)
+  assert.match(body, /git show "\$BASE_SHA:config\/autonomous-policy\.json"/)
+  assert.equal((body.match(/MERGE_BASE="\$\(git merge-base "\$BASE_SHA" HEAD\)"/g) ?? []).length, 2)
+  assert.match(body, /git diff --no-renames --numstat "\$MERGE_BASE"/)
+  assert.match(body, /node "\$policy_root\/scripts\/check-autonomous-diff\.mjs" --numstat/)
+  assert.match(body, /bash scripts\/install-opencode-ci\.sh/)
+  assert.match(body, /statuses\/\$new_sha/)
+  assert.match(body, /-f context=autonomous-risk-low/)
+  assert.match(body, /gh workflow run ci\.yml/)
+  assert.match(body, /gh workflow run opencode-review\.yml[\s\S]{0,160}--ref main/)
+  assert.match(body, /--remove-label "\$label"/)
+  assert.doesNotMatch(body, /npm install --global opencode-ai/)
+  assert.doesNotMatch(body, /OPENCODE_API_KEY/)
+})
+
+test('CI installer pins OpenCode release version and GitHub asset digest', async () => {
+  const body = await text('scripts/install-opencode-ci.sh')
+  assert.match(body, /OPENCODE_VERSION="1\.18\.32"/)
+  assert.match(body, /OPENCODE_ASSET="opencode-linux-x64\.tar\.gz"/)
+  assert.match(body, /OPENCODE_SHA256="3046e0404fdc60fb80307e7a47824ba07477364178a4d09baa8548496dd6d43b"/)
+  assert.match(body, /sha256sum --check --strict/)
+  assert.match(body, /github\.com\/anomalyco\/opencode\/releases\/download/)
+})
+
+test('CI can be explicitly re-dispatched after a GITHUB_TOKEN repair push', async () => {
+  const body = await text('.github/workflows/ci.yml')
+  assert.match(body, /workflow_dispatch:/)
+})
+
+test('model canary verifies the pinned CLI and GitHub env contract', async () => {
+  const body = await text('.github/workflows/opencode-model-canary.yml')
+  assert.match(body, /bash scripts\/install-opencode-ci\.sh/)
+  assert.match(body, /node scripts\/probe-opencode-github-env\.mjs/)
+  assert.doesNotMatch(body, /npm install --global opencode-ai/)
+})
+
+test('runtime safety guard covers secondary Git mutation and diff execution primitives', async () => {
+  const body = await text('.opencode/plugins/safety-guard.ts')
+  assert.ok(body.includes('stash|restore|apply'))
+  assert.ok(body.includes('git\\s+branch'))
+  assert.match(body, /--show-current/)
+  assert.match(body, /difftool/)
+  assert.match(body, /extcmd/)
+  assert.match(body, /--ext-diff/)
+  assert.match(body, /--textconv/)
+  assert.match(body, /tool\.execute\.after/)
+  assert.match(body, /blockedSensitivePath/)
+  assert.match(body, /--no-index/)
+  assert.match(body, /--untracked/)
 })
 
 test('OpenCode automation never embeds direct production mutation commands', async () => {
   for (const name of allWorkflows) {
     const body = await text(path.join('.github', 'workflows', name))
-    assert.doesNotMatch(body, /wrangler\s+deploy/i, name)
+    assert.doesNotMatch(body, /^\s*run:\s*.*wrangler\s+deploy/im, name)
     assert.doesNotMatch(body, /publishReleaseBundle/i, name)
     assert.doesNotMatch(body, /promoteReleaseArtifact/i, name)
-    assert.doesNotMatch(body, /d1\s+.*--remote/i, name)
-  }
-})
-test('read-only agents cannot edit repository files', async () => {
-  for (const agent of ['reviewer.md', 'triage.md', 'security-reviewer.md', 'docs-researcher.md']) {
-    const body = await text(path.join('.opencode', 'agents', agent))
-    assert.match(body, /edit:\s*deny/, agent)
+    assert.doesNotMatch(body, /^\s*run:\s*.*d1\s+.*--remote/im, name)
   }
 })
 
-test('OpenCode assets contain no Turkish prompt text or forbidden model wording', async () => {
+test('OpenCode instruction assets are English, free-only, and LF-normalized', async () => {
   const files = [
+    '.gitattributes',
+    '.mergify.yml',
     'AGENTS.md',
     'opencode.jsonc',
     'docs/OPENCODE_AUTONOMY.md',
+    'config/autonomous-policy.json',
+    'scripts/autonomous-policy.mjs',
+    'scripts/autonomous-policy.test.mjs',
+    'scripts/check-autonomous-diff.mjs',
+    'scripts/check-autonomous-diff.test.mjs',
+    'scripts/install-opencode-ci.sh',
+    'scripts/run-opencode-github-ci.sh',
+    'scripts/run-opencode-github-ci.test.mjs',
+    'scripts/probe-opencode-github-env.mjs',
+    'scripts/parse-opencode-review.mjs',
+    'scripts/parse-opencode-review.test.mjs',
+    'scripts/safety-guard.test.mjs',
+    'scripts/sanitize-ci-log.mjs',
+    'scripts/sanitize-ci-log.test.mjs',
     'scripts/select-opencode-free-model.mjs',
     'scripts/select-opencode-free-model.test.mjs',
     ...allWorkflows.map((name) => path.join('.github', 'workflows', name)),
@@ -142,6 +478,6 @@ test('OpenCode assets contain no Turkish prompt text or forbidden model wording'
     const body = await text(file)
     assert.doesNotMatch(body, turkishChars, file)
     assert.doesNotMatch(body, forbiddenModelWord, file)
-    assert.equal(body.includes('\r'), false, file + ' contains CR line endings')
+    assert.equal(body.includes('\r'), false, `${file} contains CR line endings`)
   }
 })

@@ -70,10 +70,16 @@ test('mutating modes require main, production environment, and exact expiring co
 });
 
 test('workflow backs up and downloads private operation artifacts with bounded retention', () => {
-  assert.match(workflow, /actions\/upload-artifact@v4/);
+  assert.match(
+    workflow,
+    /actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4/,
+  );
   assert.match(workflow, /play-metadata-backup-\$\{\{ github\.run_id \}\}/);
   assert.match(workflow, /retention-days:\s*3/);
-  assert.match(workflow, /actions\/download-artifact@v4/);
+  assert.match(
+    workflow,
+    /actions\/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4/,
+  );
   assert.match(workflow, /run-id:\s*\$\{\{ inputs\.backup_run_id \}\}/);
   assert.match(workflow, /backup_sha256/);
   assert.match(workflow, /sha256sum/);

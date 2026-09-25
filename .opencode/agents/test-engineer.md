@@ -2,8 +2,6 @@
 description: Verification specialist that selects and runs the smallest sufficient deterministic gate.
 mode: subagent
 permission:
-  edit: allow
-  bash: allow
   lsp: allow
   skill: allow
 ---
