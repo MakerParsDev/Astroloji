@@ -6,6 +6,7 @@
     {"name":"Mergify policy","pattern":"^\\.mergify\\.yml$"},
     {"name":"OpenCode control plane","pattern":"^(?:AGENTS\\.md|opencode\\.jsonc|renovate\\.json|config/autonomous-policy\\.json|\\.opencode/)"},
     {"name":"OpenCode policy scripts","pattern":"^scripts/(?:autonomous-policy|check-autonomous-diff|install-opencode-ci|run-opencode-github-ci|probe-opencode-github-env|parse-opencode-review|safety-guard|select-opencode-free-model|sanitize-ci-log|scan-secrets)(?:\\.test)?\\.(?:mjs|sh)$"},
+    {"name":"Root CI script tests","pattern":"^scripts/.*\\.test\\.mjs$"},
     {"name":"production release runbook","pattern":"^RELEASE_RUNBOOK\\.md$"},
     {"name":"backend migrations","pattern":"^backend/migrations/"},
     {"name":"Cloudflare deployment config","pattern":"^backend/wrangler(?:\\.[^/]+)?\\.toml$"},

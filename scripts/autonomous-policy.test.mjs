@@ -46,6 +46,18 @@ test('autonomous control-plane files are always high risk', () => {
   }
 })
 
+test('root CI script tests are always high risk', () => {
+  for (const file of [
+    'scripts/opencode-workflow-contract.test.mjs',
+    'scripts/ci-workflow-contract.test.mjs',
+    'scripts/backend-admin-capability-workflow.test.mjs',
+    'scripts/android-quality-gates.test.mjs',
+    'scripts/sanitize-ci-log.test.mjs',
+  ]) {
+    assert.equal(classifyAutonomousChange({ paths: [file], totalChanges: 1 }).risk, 'high', file)
+  }
+})
+
 test('security, deployment, and store mutation paths are high risk', () => {
   for (const file of [
     '.github/workflows/ci.yml',
