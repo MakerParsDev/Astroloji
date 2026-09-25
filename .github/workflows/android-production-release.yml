@@ -200,6 +200,11 @@ jobs:
         if: ${{ inputs.promote_from_track == '' }}
         run: ./gradlew :app:bundleRelease
 
+      - name: Reverify current main immediately before production mutation
+        run: |
+          git fetch --no-tags --no-recurse-submodules origin main
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
+
       - name: Publish new production rollout
         if: ${{ inputs.promote_from_track == '' }}
         run: ./gradlew :app:publishReleaseBundle

@@ -119,3 +119,23 @@ test('production backend mutations use only the lockfile-installed Wrangler bina
   assert.match(workflow, /\.\/node_modules\/\.bin\/wrangler rollback --message/);
   assert.doesNotMatch(workflow, /\bnpx wrangler\b/);
 });
+
+
+test('autonomous release workflows recheck current main immediately before every remote mutation', () => {
+  const cases = [
+    ['backend-production-deploy.yml', 'Apply rewarded SSV D1 migration'],
+    ['android-internal-release.yml', 'Publish to Play internal track'],
+    ['android-production-release.yml', 'Publish new production rollout'],
+    ['android-metadata-autonomous.yml', 'Reconcile canonical metadata with live Play state'],
+  ];
+  for (const [name, mutation] of cases) {
+    const workflow = read(`.github/workflows/${name}`);
+    const recheck = workflow.lastIndexOf('Reverify current main immediately before production mutation');
+    const mutationIndex = workflow.indexOf(mutation);
+    assert.ok(recheck >= 0 && mutationIndex > recheck, `${name} must recheck main immediately before ${mutation}`);
+    const between = workflow.slice(recheck, mutationIndex);
+    assert.match(between, /git fetch --no-tags --no-recurse-submodules origin main/);
+    assert.match(between, /git rev-parse origin\/main/);
+    assert.match(between, /RELEASE_SHA/);
+  }
+});

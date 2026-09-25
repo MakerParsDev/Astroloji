@@ -108,6 +108,11 @@ jobs:
           );
           NODE
 
+      - name: Reverify current main immediately before production mutation
+        run: |
+          git fetch --no-tags --no-recurse-submodules origin main
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
+
       - name: Reconcile canonical metadata with live Play state
         env:
           PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json

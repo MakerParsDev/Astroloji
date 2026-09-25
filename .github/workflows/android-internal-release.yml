@@ -200,6 +200,11 @@ jobs:
       - name: Build signed release bundle
         run: ./gradlew :app:bundleRelease
 
+      - name: Reverify current main immediately before production mutation
+        run: |
+          git fetch --no-tags --no-recurse-submodules origin main
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
+
       - name: Publish to Play internal track
         run: ./gradlew :app:publishReleaseBundle
 

@@ -152,6 +152,11 @@ jobs:
           NODE
 
 
+      - name: Reverify current main immediately before production mutation
+        run: |
+          git fetch --no-tags --no-recurse-submodules origin main
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
+
       - name: Apply rewarded SSV D1 migration
         run: ./node_modules/.bin/wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql
 
