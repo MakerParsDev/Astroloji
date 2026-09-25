@@ -1,0 +1,80 @@
+name: autonomous-production-health
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: autonomous-production-health
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  smoke:
+    if: >-
+      github.repository == 'MakerParsDev/Astroloji' &&
+      vars.ENABLE_AUTONOMOUS_PRODUCTION == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BACKEND_BASE_URL: https://astrology.parsfilo.com
+    steps:
+      - name: Verify public production boundaries
+        id: smoke
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${BACKEND_BASE_URL%/}"
+          check_status() {
+            expected="$1"
+            method="$2"
+            url="$3"
+            actual="$(curl --proto '=https' --fail-with-body --silent --show-error               --output /dev/null --write-out '%{http_code}'               --request "$method" "$url" || true)"
+            if [ "$actual" != "$expected" ]; then
+              echo "Unexpected status for $method $url: expected=$expected actual=$actual" >&2
+              return 1
+            fi
+          }
+
+          check_status 200 GET "$base/api/v1/health"
+          check_status 200 GET "$base/privacy"
+          check_status 200 GET "$base/terms"
+          check_status 200 GET "$base/delete-account"
+          check_status 401 DELETE "$base/api/v1/users/me"
+          check_status 403 POST "$base/api/v1/admin/content/backfill"
+          check_status 403 POST "$base/api/v1/webhooks/play-rtdn"
+
+      - name: Open or update production health incident
+        if: steps.smoke.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="Autonomous production health check failed"
+          body="Public production boundary verification failed. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
+
+      - name: Close recovered production health incident
+        if: steps.smoke.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="Autonomous production health check failed"
+          existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "Production boundary verification recovered. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            gh issue close "$existing" --repo "$GITHUB_REPOSITORY" --reason completed
+          fi
+
+      - name: Enforce production health result
+        if: steps.smoke.outcome == 'failure'
+        run: exit 1

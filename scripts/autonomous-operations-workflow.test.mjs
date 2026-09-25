@@ -95,3 +95,18 @@ test('backend rollback executes the lockfile-installed Wrangler binary', () => {
   assert.match(workflow, /\.\/node_modules\/\.bin\/wrangler rollback --message/);
   assert.doesNotMatch(workflow, /npx wrangler rollback/);
 });
+
+
+test('production health watchdog is hourly, credential-free, and incident-backed', () => {
+  const workflow = read('.github/workflows/autonomous-production-health.yml');
+  assert.match(workflow, /cron:\s*['"]23 \* \* \* \*['"]/);
+  assert.match(workflow, /ENABLE_AUTONOMOUS_PRODUCTION/);
+  assert.match(workflow, /api\/v1\/health/);
+  assert.match(workflow, /api\/v1\/users\/me/);
+  assert.match(workflow, /api\/v1\/admin\/content\/backfill/);
+  assert.match(workflow, /api\/v1\/webhooks\/play-rtdn/);
+  assert.match(workflow, /issues:\s*write/);
+  assert.match(workflow, /Autonomous production health check failed/);
+  assert.match(workflow, /gh issue close/);
+  assert.doesNotMatch(workflow, /DOPPLER_TOKEN|PLAY_SERVICE_ACCOUNT|CLOUDFLARE_API_TOKEN/);
+});

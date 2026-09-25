@@ -19,7 +19,8 @@ The control loop is:
 9. The rollout controller periodically reconciles Play state. It advances 10% -> 25% -> 50% -> 100% only after soak windows and Play Vitals checks. It halts on backend-health or crash/ANR threshold failures and freezes promotion if Play Developer Reporting is unavailable.
 10. Play listing/image metadata is reconciled from the canonical repository state using a fresh live backup, drift checks, post-commit read-back, and restore-on-failure.
 11. Daily horoscope content backfill generates and quality-checks upcoming content through the backend content pipeline.
-12. Failures create durable GitHub incidents that later maintenance runs can consume.
+12. An hourly credential-free production watchdog continuously verifies health, legal pages, and unauthenticated auth/admin boundaries; it opens a durable incident on failure and closes it after recovery.
+13. Failures create durable GitHub incidents that later maintenance runs can consume.
 
 ## Risk tiers
 
