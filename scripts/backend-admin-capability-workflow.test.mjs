@@ -74,6 +74,13 @@ test('mistyped confirmation fails before protected capability jobs can run', () 
 
 test('production capability checkout steps never persist GitHub credentials', () => {
   const workflow = source();
-  assert.equal((workflow.match(/uses: actions\/checkout@v6/g) ?? []).length, capabilities.length);
+  assert.equal(
+    (
+      workflow.match(
+        /uses: actions\/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6/g,
+      ) ?? []
+    ).length,
+    capabilities.length,
+  );
   assert.equal((workflow.match(/persist-credentials:\s*false/g) ?? []).length, capabilities.length);
 });

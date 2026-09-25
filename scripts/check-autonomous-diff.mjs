@@ -1,54 +1,37 @@
 import process from 'node:process'
+import { classifyAutonomousChange } from './autonomous-policy.mjs'
 
-export const SENSITIVE_MARKERS = [
-  '.github/',
-  'release_runbook.md',
-  'backend/migrations/',
-  'backend/wrangler',
-  'androidmanifest.xml',
-  'gradle.properties',
-  'google-services',
-  'service-account',
-  'keystore',
-  'auth',
-  'admin',
-  'subscription',
-  'billing',
-  'rtdn',
-  'ssv',
-  'rate-limit',
-  'secret',
-  'deploy',
-  'release',
-  '/play/',
-]
-
-export function classifyAutonomousDiff(paths) {
-  const normalized = paths
-    .map((value) => value.trim().replaceAll('\\', '/').toLowerCase())
-    .filter(Boolean)
-  const reasons = []
-  for (const file of normalized) {
-    const marker = SENSITIVE_MARKERS.find((value) => file.includes(value))
-    if (marker) reasons.push(`${file} matched ${marker}`)
+export function parseNumstat(input) {
+  const paths = []
+  let totalChanges = 0
+  for (const line of String(input).split(/\r?\n/)) {
+    if (!line.trim()) continue
+    const [added, deleted, ...pathParts] = line.split('\t')
+    const file = pathParts.join('\t')
+    if (!file) continue
+    paths.push(file)
+    if (added !== '-') totalChanges += Number.parseInt(added, 10) || 0
+    if (deleted !== '-') totalChanges += Number.parseInt(deleted, 10) || 0
   }
-  if (normalized.length > 20) reasons.push(`changed file count ${normalized.length} exceeds 20`)
-  return {
-    risk: reasons.length ? 'high' : 'low',
-    files: normalized.length,
-    reasons,
-  }
+  return { paths, totalChanges }
 }
 
-async function main() {
-  const input = await new Promise((resolve, reject) => {
+async function readStdin() {
+  return new Promise((resolve, reject) => {
     let value = ''
     process.stdin.setEncoding('utf8')
     process.stdin.on('data', (chunk) => { value += chunk })
     process.stdin.on('end', () => resolve(value))
     process.stdin.on('error', reject)
   })
-  const result = classifyAutonomousDiff(String(input).split(/\r?\n/))
+}
+
+export async function main() {
+  const input = String(await readStdin())
+  const change = process.argv.includes('--numstat')
+    ? parseNumstat(input)
+    : { paths: input.split(/\r?\n/) }
+  const result = classifyAutonomousChange(change)
   console.log(JSON.stringify(result))
   if (result.risk !== 'low') process.exitCode = 2
 }

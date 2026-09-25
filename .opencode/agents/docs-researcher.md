@@ -3,7 +3,6 @@ description: Read-only documentation researcher for current platform and depende
 mode: subagent
 permission:
   edit: deny
-  bash: allow
   lsp: allow
   skill: allow
   webfetch: allow

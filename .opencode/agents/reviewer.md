@@ -3,7 +3,6 @@ description: Independent read-only pull request reviewer. Reconstructs the probl
 mode: primary
 permission:
   edit: deny
-  bash: allow
   lsp: allow
   skill: allow
   task:

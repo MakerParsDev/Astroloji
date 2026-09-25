@@ -8,6 +8,16 @@
   "branchConcurrentLimit": 4,
   "rangeStrategy": "pin",
   "schedule": ["before 5am on Thursday"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^scripts\\/install-opencode-ci\\.sh$/"],
+      "matchStrings": ["OPENCODE_VERSION=\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""],
+      "depNameTemplate": "anomalyco/opencode",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver"
+    }
+  ],
   "packageRules": [
     {
       "description": "Delay npm releases to avoid very fresh/unpublished packages",
