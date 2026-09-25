@@ -11,7 +11,7 @@ Bu dokuman `v1.0.0` ve sonraki release'ler icin production operasyon runbook'udu
 
 ## Varsayilan Otonom Release Yolu
 
-`main` uzerindeki exact commit CI'dan basariyla gectiginde `autonomous-production` release planini cikarir. Sadece degisen yuzeyler calisir:
+`main` uzerindeki exact commit CI'dan basariyla gectiginde `autonomous-production` release planini cikarir. Ayrica 6 saatte bir catch-up reconcile calisir. Plan, son basarili backend/Android/Play-metadata baseline'larindan current `main`'e kadar olan araligi hesaplar; ara run iptali veya kismi failure degisiklik kaybettirmez:
 
 1. Backend degisti ise `backend-production-deploy` exact `main` SHA'yi deploy eder, canli dogrulama yapar ve post-deploy verification fail olursa Worker rollback uygular.
 2. Android runtime degisti ise ayni SHA once internal track'e yayinlanir; Play'in onerilen bir sonraki `versionCode` degeri otomatik kullanilir.

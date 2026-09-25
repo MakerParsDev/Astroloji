@@ -18,12 +18,15 @@ test('blocks destructive or non-reversible migration statements', () => {
   for (const sql of [
     'DROP TABLE users;',
     'DROP INDEX idx_users_id;',
+    'DROP TRIGGER trg_users;',
+    'DROP/**/TABLE users;',
     'TRUNCATE TABLE users;',
     'DELETE FROM users;',
     'UPDATE users SET name = "x";',
     'ALTER TABLE users DROP COLUMN name;',
     'ALTER TABLE users RENAME TO old_users;',
     'REPLACE INTO settings(key, value) VALUES ("v", "2");',
+    'PRAGMA foreign_keys=OFF;',
   ]) {
     assert.ok(classifyMigrationSql(sql).violations.length > 0, sql);
   }
@@ -56,4 +59,13 @@ test('uses a fixed Git executable path for CI diff inspection', async () => {
   const body = await fs.readFile(new URL('./validate-autonomous-migrations.mjs', import.meta.url), 'utf8');
   assert.match(body, /execFileSync\(\s*['"]\/usr\/bin\/git['"]/);
   assert.doesNotMatch(body, /execFileSync\(\s*['"]git['"]/);
+});
+
+
+test('ignores destructive keywords inside quoted literals', () => {
+  const sql = `
+    INSERT INTO audit_log(message) VALUES ('DROP TABLE users');
+    INSERT INTO audit_log(message) VALUES ("DELETE FROM users");
+  `;
+  assert.deepEqual(classifyMigrationSql(sql).violations, []);
 });

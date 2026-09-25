@@ -13,14 +13,15 @@ The control loop is:
 3. CI, secret scanning, static analysis, and an independent exact-head review run.
 4. The base-trusted PR policy classifies each exact head as `low`, `elevated`, or `blocked`.
 5. Mergify is the only autonomous merge engine. It can merge only same-repository `opencode/*` heads whose exact head is merge-eligible and whose configured CI/security/review gates pass.
-6. A successful CI run on an exact current `main` commit creates an immutable production release plan.
+6. A successful CI run on an exact current `main` commit creates an immutable production release plan. A scheduled six-hour reconciliation also catches up when no new commit arrives.
 7. Backend changes deploy through the production workflow, run live verification, and roll back the Worker if post-deploy verification fails.
 8. Android changes publish first to the Play internal track, then promote the exact version to a 10% production staged rollout.
 9. The rollout controller periodically reconciles Play state. It advances 10% -> 25% -> 50% -> 100% only after soak windows and Play Vitals checks. It halts on backend-health or crash/ANR threshold failures and freezes promotion if Play Developer Reporting is unavailable.
 10. Play listing/image metadata is reconciled from the canonical repository state using a fresh live backup, drift checks, post-commit read-back, and restore-on-failure.
 11. Daily horoscope content backfill generates and quality-checks upcoming content through the backend content pipeline.
 12. An hourly credential-free production watchdog continuously verifies health, legal pages, and unauthenticated auth/admin boundaries; it opens a durable incident on failure and closes it after recovery.
-13. Failures create durable GitHub incidents that later maintenance runs can consume.
+13. The controller stores separate backend, Android, and Play-metadata baselines in a machine-owned `Autonomous production state` issue. A surface advances only after its work succeeds (or when no change exists for that surface), so disabled switches, cancelled intermediate runs, stale SHAs, and partial failures cannot silently lose pending production work.
+14. Failures create durable GitHub incidents that later maintenance runs can consume.
 
 ## Risk tiers
 
@@ -32,7 +33,7 @@ This boundary is deliberate: routine product, dependency, security, backend, And
 
 ## Kill switches
 
-Production mutation remains disabled unless explicitly enabled in repository variables.
+Production mutation remains disabled unless explicitly enabled in repository variables. Disabled Android or metadata switches do not discard their pending baseline; later scheduled reconciliation catches up after the switch is enabled.
 
 - `ENABLE_AUTONOMOUS_PRODUCTION=true`: master switch for automatic production orchestration.
 - `ENABLE_PRODUCTION_RELEASE=true`: permits Android production publication and staged-rollout reconciliation.

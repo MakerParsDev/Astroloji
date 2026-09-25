@@ -33,7 +33,7 @@ jobs:
   deploy:
     if: >-
       github.repository == 'MakerParsDev/Astroloji' &&
-      ((github.event_name == 'workflow_call' && inputs.autonomous) ||
+      (inputs.autonomous == true ||
        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY'))
     runs-on: ubuntu-latest
     timeout-minutes: 20

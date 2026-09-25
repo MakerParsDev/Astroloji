@@ -56,7 +56,9 @@ jobs:
             elevated product/runtime changes are allowed to proceed through the repository's exact-head
             gates; constitutional automation-control, credential, branch-policy, or oversized changes
             must remain human-controlled. Implement test-first and open a focused ready-for-review PR.
-            If no justified change exists, leave the repository unchanged. Never deploy, publish,
-            mutate remote D1, modify secrets/variables, or touch customer data from the model process.
+            Ignore the machine-owned GitHub issue titled `Autonomous production state`; it is release
+            controller state, not maintenance work. If no justified change exists, leave the repository
+            unchanged. Never deploy, publish, mutate remote D1, modify secrets/variables, or touch
+            customer data from the model process.
         shell: bash
         run: bash scripts/run-opencode-github-ci.sh

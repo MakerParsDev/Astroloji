@@ -305,6 +305,9 @@ test('automation can revoke but never grant the human-approved merge label', asy
   }
   const policy = await text('.github/workflows/opencode-pr-policy.yml')
   assert.match(policy, /removeLabel[\s\S]{0,300}name:\s*'human-approved'/)
+  assert.match(policy, /listCommitStatusesForRef/)
+  assert.match(policy, /alreadyClassified/)
+  assert.match(policy, /if \(!alreadyClassified\)/)
 
   for (const directory of ['agents', 'plugins', 'tools']) {
     for (const name of await readdir(path.join(root, '.opencode', directory))) {

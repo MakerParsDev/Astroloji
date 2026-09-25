@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { classifyMetadataReconciliation } from './reconcile-play-metadata.mjs';
+import { classifyMetadataReconciliation, rethrowWithRecovery } from './reconcile-play-metadata.mjs';
 
 function baseDiff() {
   return {
@@ -35,4 +35,19 @@ test('fails closed on rollout/subscription blockers or unexpected locale deletio
   assert.equal(classifyMetadataReconciliation(blocked).action, 'hold');
   const cleanup = baseDiff(); cleanup.extraLiveLocales = ['it-IT'];
   assert.equal(classifyMetadataReconciliation(cleanup).action, 'hold');
+});
+
+
+test('preserves the publication error when recovery also fails', async () => {
+  const publicationError = new Error('publish failed');
+  await assert.rejects(
+    rethrowWithRecovery(publicationError, async () => { throw new Error('restore failed'); }),
+    (error) => {
+      assert.match(error.message, /publish failed/);
+      assert.match(error.message, /restore failed/);
+      assert.match(error.message, /Manual restore required/);
+      assert.equal(error.cause, publicationError);
+      return true;
+    },
+  );
 });

@@ -101,15 +101,24 @@ jobs:
             const pull_number = Number(process.env.PR_NUMBER)
             const headSha = process.env.HEAD_SHA
 
-            try {
-              await github.rest.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: pull_number,
-                name: 'human-approved',
-              })
-            } catch (error) {
-              if (error.status !== 404) throw error
+            const headStatuses = await github.paginate(
+              github.rest.repos.listCommitStatusesForRef,
+              { owner, repo, ref: headSha, per_page: 100 },
+            )
+            const alreadyClassified = headStatuses.some(
+              (status) => status.context === 'autonomous-merge-eligible',
+            )
+            if (!alreadyClassified) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number: pull_number,
+                  name: 'human-approved',
+                })
+              } catch (error) {
+                if (error.status !== 404) throw error
+              }
             }
 
             const policyModule = pathToFileURL(

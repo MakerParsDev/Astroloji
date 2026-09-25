@@ -8,7 +8,7 @@ const DEFAULT_REPOSITORY_ROOT = path.resolve(
   '..',
 );
 
-function stripSqlComments(sql) {
+function normalizeSqlForPolicy(sql) {
   let output = '';
   let mode = 'code';
   for (let index = 0; index < sql.length; index += 1) {
@@ -24,44 +24,61 @@ function stripSqlComments(sql) {
     }
     if (mode === 'block-comment') {
       if (char === '*' && next === '/') {
+        output += ' ';
         index += 1;
         mode = 'code';
       }
       continue;
     }
-    if (mode === 'single-quote') {
-      output += char;
-      if (char === "'" && next === "'") {
-        output += next;
+    if (mode === 'single-quote' || mode === 'double-quote' || mode === 'backtick') {
+      const quote = mode === 'single-quote' ? "'" : mode === 'double-quote' ? '"' : '`';
+      output += char === '\n' ? '\n' : ' ';
+      if (char === quote && next === quote) {
+        output += ' ';
         index += 1;
-      } else if (char === "'") {
+      } else if (char === quote) {
         mode = 'code';
       }
       continue;
     }
-    if (mode === 'double-quote') {
-      output += char;
-      if (char === '"' && next === '"') {
-        output += next;
-        index += 1;
-      } else if (char === '"') {
-        mode = 'code';
-      }
+    if (mode === 'bracket') {
+      output += char === '\n' ? '\n' : ' ';
+      if (char === ']') mode = 'code';
       continue;
     }
 
     if (char === '-' && next === '-') {
+      output += ' ';
       index += 1;
       mode = 'line-comment';
       continue;
     }
     if (char === '/' && next === '*') {
+      output += ' ';
       index += 1;
       mode = 'block-comment';
       continue;
     }
-    if (char === "'") mode = 'single-quote';
-    if (char === '"') mode = 'double-quote';
+    if (char === "'") {
+      output += ' ';
+      mode = 'single-quote';
+      continue;
+    }
+    if (char === '"') {
+      output += ' ';
+      mode = 'double-quote';
+      continue;
+    }
+    if (char === '`') {
+      output += ' ';
+      mode = 'backtick';
+      continue;
+    }
+    if (char === '[') {
+      output += ' ';
+      mode = 'bracket';
+      continue;
+    }
     output += char;
   }
   return output;
@@ -71,17 +88,18 @@ const FORBIDDEN = [
   ['DROP TABLE', /\bDROP\s+TABLE\b/i],
   ['DROP INDEX', /\bDROP\s+INDEX\b/i],
   ['DROP VIEW', /\bDROP\s+VIEW\b/i],
+  ['DROP TRIGGER', /\bDROP\s+TRIGGER\b/i],
   ['TRUNCATE', /\bTRUNCATE\b/i],
   ['DELETE', /\bDELETE\s+FROM\b/i],
-  ['UPDATE', /\bUPDATE\s+(?:OR\s+\w+\s+)?[\w"'`\[]/i],
+  ['UPDATE', /\bUPDATE\b/i],
   ['REPLACE', /\b(?:INSERT\s+OR\s+)?REPLACE\s+INTO\b/i],
   ['ALTER TABLE DROP', /\bALTER\s+TABLE\b[\s\S]*?\bDROP\b/i],
   ['ALTER TABLE RENAME', /\bALTER\s+TABLE\b[\s\S]*?\bRENAME\b/i],
-  ['writable_schema', /\bPRAGMA\s+writable_schema\b/i],
+  ['PRAGMA', /\bPRAGMA\b/i],
 ];
 
 export function classifyMigrationSql(sql) {
-  const normalized = stripSqlComments(String(sql));
+  const normalized = normalizeSqlForPolicy(String(sql));
   const violations = FORBIDDEN
     .filter(([, pattern]) => pattern.test(normalized))
     .map(([name]) => name);

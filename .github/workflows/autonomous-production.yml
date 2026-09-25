@@ -4,6 +4,8 @@ on:
   workflow_run:
     workflows: [ci]
     types: [completed]
+  schedule:
+    - cron: '7 */6 * * *'
   workflow_dispatch:
     inputs:
       release_sha:
@@ -26,23 +28,70 @@ jobs:
         github.event.workflow_run.event == 'push' &&
         github.event.workflow_run.head_branch == 'main' &&
         github.event.workflow_run.head_repository.full_name == github.repository) ||
+       github.event_name == 'schedule' ||
        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read
     outputs:
       release_sha: ${{ steps.release_plan.outputs.release_sha }}
       backend: ${{ steps.release_plan.outputs.backend }}
       android: ${{ steps.release_plan.outputs.android }}
       play_metadata: ${{ steps.release_plan.outputs.play_metadata }}
+      backend_base_sha: ${{ steps.state.outputs.backend_sha }}
+      android_base_sha: ${{ steps.state.outputs.android_sha }}
+      play_metadata_base_sha: ${{ steps.state.outputs.play_metadata_sha }}
     env:
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.release_sha || github.sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ env.RELEASE_SHA }}
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Load durable autonomous production state
+        id: state
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const title = 'Autonomous production state'
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'all',
+              per_page: 100,
+            })
+            const matches = issues.filter((issue) => !issue.pull_request && issue.title === title)
+            if (matches.length > 1) {
+              core.setFailed('Multiple autonomous production state issues exist; refusing ambiguous release state.')
+              return
+            }
+            const issue = matches[0]
+            const readSha = (key) => {
+              if (!issue) return ''
+              const match = String(issue.body || '').match(
+                new RegExp(`^${key}=([0-9a-f]{40})?$`, 'mi'),
+              )
+              if (!match) {
+                throw new Error(`Autonomous production state is missing a valid ${key} entry.`)
+              }
+              return match[1] || ''
+            }
+            core.setOutput('backend_sha', readSha('backend_sha'))
+            core.setOutput('android_sha', readSha('android_sha'))
+            core.setOutput('play_metadata_sha', readSha('play_metadata_sha'))
+
+      - name: Build autonomous production release plan
+        id: release_plan
+        env:
+          AUTONOMOUS_RELEASE_TRACKED_STATE: 'true'
+          BACKEND_BASE_SHA: ${{ steps.state.outputs.backend_sha }}
+          ANDROID_BASE_SHA: ${{ steps.state.outputs.android_sha }}
+          PLAY_METADATA_BASE_SHA: ${{ steps.state.outputs.play_metadata_sha }}
+        run: node scripts/autonomous-release-plan.mjs "$RELEASE_SHA"
 
       - name: Verify exact current main commit
         run: |
@@ -50,16 +99,15 @@ jobs:
           git fetch --no-tags --no-recurse-submodules origin main
           test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
 
-      - name: Build autonomous production release plan
-        id: release_plan
-        run: node scripts/autonomous-release-plan.mjs "$RELEASE_SHA"
-
       - name: Publish plan summary
         run: |
           {
             echo '## Autonomous production plan'
             echo
             echo "- SHA: ${{ steps.release_plan.outputs.release_sha }}"
+            echo "- Backend baseline: ${{ steps.state.outputs.backend_sha || 'bootstrap' }}"
+            echo "- Android baseline: ${{ steps.state.outputs.android_sha || 'bootstrap' }}"
+            echo "- Play metadata baseline: ${{ steps.state.outputs.play_metadata_sha || 'bootstrap' }}"
             echo "- Backend deploy: ${{ steps.release_plan.outputs.backend }}"
             echo "- Android binary release: ${{ steps.release_plan.outputs.android }}"
             echo "- Play metadata changed: ${{ steps.release_plan.outputs.play_metadata }}"
@@ -82,6 +130,7 @@ jobs:
       always() &&
       needs.plan.result == 'success' &&
       needs.plan.outputs.play_metadata == 'true' &&
+      vars.ENABLE_METADATA_PUBLISH == 'true' &&
       (needs.backend.result == 'success' || needs.backend.result == 'skipped')
     permissions:
       contents: read
@@ -97,6 +146,7 @@ jobs:
       always() &&
       needs.plan.result == 'success' &&
       needs.plan.outputs.android == 'true' &&
+      vars.ENABLE_PRODUCTION_RELEASE == 'true' &&
       (needs.backend.result == 'success' || needs.backend.result == 'skipped')
     permissions:
       contents: read
@@ -111,6 +161,8 @@ jobs:
     if: >-
       always() &&
       needs.plan.result == 'success' &&
+      needs.plan.outputs.android == 'true' &&
+      vars.ENABLE_PRODUCTION_RELEASE == 'true' &&
       needs.android-internal.result == 'success' &&
       (needs.backend.result == 'success' || needs.backend.result == 'skipped')
     permissions:
@@ -125,16 +177,129 @@ jobs:
       promote_from_track: internal
     secrets: inherit
 
+  state:
+    needs: [plan, backend, play-metadata, android-internal, android-production]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      RELEASE_SHA: ${{ needs.plan.outputs.release_sha }}
+      BACKEND_BASE_SHA: ${{ needs.plan.outputs.backend_base_sha }}
+      ANDROID_BASE_SHA: ${{ needs.plan.outputs.android_base_sha }}
+      PLAY_METADATA_BASE_SHA: ${{ needs.plan.outputs.play_metadata_base_sha }}
+      BACKEND_PLANNED: ${{ needs.plan.outputs.backend }}
+      ANDROID_PLANNED: ${{ needs.plan.outputs.android }}
+      PLAY_METADATA_PLANNED: ${{ needs.plan.outputs.play_metadata }}
+      BACKEND_RESULT: ${{ needs.backend.result }}
+      ANDROID_RESULT: ${{ needs.android-production.result }}
+      PLAY_METADATA_RESULT: ${{ needs.play-metadata.result }}
+    steps:
+      - name: Update autonomous production state
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const releaseSha = process.env.RELEASE_SHA
+            if (!/^[0-9a-f]{40}$/i.test(releaseSha || '')) {
+              core.setFailed('Release SHA is invalid; refusing to update production state.')
+              return
+            }
+            const advance = (planned, result, previous) => {
+              if (planned !== 'true') return releaseSha
+              return result === 'success' ? releaseSha : previous
+            }
+            const next = {
+              backend_sha: advance(
+                process.env.BACKEND_PLANNED,
+                process.env.BACKEND_RESULT,
+                process.env.BACKEND_BASE_SHA || '',
+              ),
+              android_sha: advance(
+                process.env.ANDROID_PLANNED,
+                process.env.ANDROID_RESULT,
+                process.env.ANDROID_BASE_SHA || '',
+              ),
+              play_metadata_sha: advance(
+                process.env.PLAY_METADATA_PLANNED,
+                process.env.PLAY_METADATA_RESULT,
+                process.env.PLAY_METADATA_BASE_SHA || '',
+              ),
+            }
+            const title = 'Autonomous production state'
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'all',
+              per_page: 100,
+            })
+            const matches = issues.filter((issue) => !issue.pull_request && issue.title === title)
+            if (matches.length > 1) {
+              core.setFailed('Multiple autonomous production state issues exist; refusing ambiguous update.')
+              return
+            }
+            const body = [
+              'Machine-owned release baselines for fail-closed autonomous catch-up.',
+              'Do not edit this issue manually; invalid state stops production automation.',
+              '',
+              '<!-- autonomous-production-state',
+              `backend_sha=${next.backend_sha}`,
+              `android_sha=${next.android_sha}`,
+              `play_metadata_sha=${next.play_metadata_sha}`,
+              '-->',
+              '',
+              `Last evaluated SHA: ${releaseSha}`,
+              `Run: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+            ].join('\n')
+            if (matches[0]) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: matches[0].number,
+                state: 'open',
+                title,
+                body,
+              })
+            } else {
+              await github.rest.issues.create({ owner, repo, title, body })
+            }
+
+            const complete = Object.values(next).every((sha) => sha === releaseSha)
+            if (complete) {
+              const incidentTitle = 'Autonomous production pipeline failed'
+              const incident = issues.find(
+                (issue) =>
+                  !issue.pull_request &&
+                  issue.state === 'open' &&
+                  issue.title === incidentTitle,
+              )
+              if (incident) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: incident.number,
+                  body: `Production catch-up recovered at ${releaseSha}.`,
+                })
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: incident.number,
+                  state: 'closed',
+                  state_reason: 'completed',
+                })
+              }
+            }
 
   incident:
-    needs: [plan, backend, play-metadata, android-internal, android-production]
+    needs: [plan, backend, play-metadata, android-internal, android-production, state]
     if: >-
       always() &&
       (needs.plan.result == 'failure' ||
        needs.backend.result == 'failure' ||
        needs.play-metadata.result == 'failure' ||
        needs.android-internal.result == 'failure' ||
-       needs.android-production.result == 'failure')
+       needs.android-production.result == 'failure' ||
+       needs.state.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -144,7 +309,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           title="Autonomous production pipeline failed"
-          body="At least one autonomous production stage failed closed. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          body="At least one autonomous production stage failed closed. Durable per-surface state was not advanced for incomplete work, so a later current-main run can catch up. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$body"

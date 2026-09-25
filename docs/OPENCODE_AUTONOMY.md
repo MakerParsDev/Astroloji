@@ -82,7 +82,7 @@ GitHub branch protection deliberately does not require the Mergify check itself.
 - `opencode-dispatch.yml`: manual maintainer task.
 - `opencode-pr-policy.yml`: base-trusted exact-head tier classification and `autonomous-merge-eligible` status.
 - `opencode-ci-repair.yml`: at most two repairs on eligible `risk:low` `opencode/*` PRs. Elevated/blocked PRs are intentionally not self-repaired. It never merges.
-- `autonomous-production.yml`: after successful CI on an exact current `main` commit, classifies changed surfaces and invokes only the required reusable production workflows.
+- `autonomous-production.yml`: after successful CI on an exact current `main` commit (plus a six-hour catch-up schedule), computes changes from durable per-surface production baselines and invokes only required reusable production workflows. Successful/no-change surfaces advance independently; failed or disabled surfaces remain pending.
 - `autonomous-production-health.yml`: hourly credential-free live boundary smoke that opens an incident on failure and closes it on recovery.
 - `backend-production-deploy.yml`: reusable exact-SHA backend release with deterministic preflight, live verification, and Worker rollback after a failed post-deploy verification.
 - `android-internal-release.yml`: reusable exact-SHA internal Play publication that derives the next valid version code when autonomous.

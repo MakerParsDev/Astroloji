@@ -58,6 +58,20 @@ async function restoreIfLiveChanged({ client, backup, digest }) {
   return { restored: true, reason: 'Live Play state was restored from the pre-publication backup.' };
 }
 
+export async function rethrowWithRecovery(publicationError, recover) {
+  const publicationMessage = publicationError instanceof Error
+    ? publicationError.message
+    : String(publicationError);
+  let recoveryMessage;
+  try {
+    recoveryMessage = (await recover()).reason;
+  } catch (recoveryError) {
+    const detail = recoveryError instanceof Error ? recoveryError.message : String(recoveryError);
+    recoveryMessage = `FAILED: ${detail}. Manual restore required.`;
+  }
+  throw new Error(`${publicationMessage} Recovery: ${recoveryMessage}`, { cause: publicationError });
+}
+
 export async function reconcilePlayMetadata({
   packageName = process.env.PLAY_PACKAGE_NAME,
   credentialsPath = process.env.PLAY_SERVICE_ACCOUNT_JSON_PATH,
@@ -92,9 +106,10 @@ export async function reconcilePlayMetadata({
     });
     return { action: 'published', reason: decision.reason, diff, editId: result.editId };
   } catch (error) {
-    const restore = await restoreIfLiveChanged({ client, backup, digest });
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`${message} Recovery: ${restore.reason}`);
+    await rethrowWithRecovery(
+      error,
+      () => restoreIfLiveChanged({ client, backup, digest }),
+    );
   }
 }
 

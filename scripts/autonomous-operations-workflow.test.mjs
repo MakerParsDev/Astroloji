@@ -139,3 +139,38 @@ test('autonomous release workflows recheck current main immediately before every
     assert.match(between, /RELEASE_SHA/);
   }
 });
+
+
+test('reusable autonomous release gates use explicit inputs instead of caller event names', () => {
+  for (const name of ['backend-production-deploy.yml', 'android-internal-release.yml', 'android-production-release.yml']) {
+    const workflow = read(`.github/workflows/${name}`);
+    assert.match(workflow, /inputs\.autonomous\s*==\s*true/);
+    assert.doesNotMatch(workflow, /github\.event_name\s*==\s*'workflow_call'/);
+  }
+});
+
+test('production orchestrator keeps durable per-surface release baselines for catch-up', () => {
+  const workflow = read('.github/workflows/autonomous-production.yml');
+  assert.match(workflow, /Autonomous production state/);
+  assert.match(workflow, /backend_sha/);
+  assert.match(workflow, /android_sha/);
+  assert.match(workflow, /play_metadata_sha/);
+  assert.match(workflow, /schedule:/);
+  assert.match(workflow, /Update autonomous production state/);
+});
+
+
+test('maintenance ignores machine-owned production state issue', () => {
+  const workflow = read('.github/workflows/opencode-maintenance.yml');
+  assert.match(workflow, /Autonomous production state/);
+  assert.match(workflow, /controller state, not maintenance work/);
+});
+
+
+test('disabled release switches retain their surface baselines for later catch-up', () => {
+  const workflow = read('.github/workflows/autonomous-production.yml');
+  assert.match(workflow, /play-metadata:[\s\S]*ENABLE_METADATA_PUBLISH == 'true'/);
+  assert.match(workflow, /android-internal:[\s\S]*ENABLE_PRODUCTION_RELEASE == 'true'/);
+  assert.match(workflow, /return result === 'success' \? releaseSha : previous/);
+  assert.match(workflow, /github\.event_name == 'schedule'/);
+});

@@ -70,7 +70,7 @@ jobs:
     if: >-
       github.repository == 'MakerParsDev/Astroloji' &&
       vars.ENABLE_PRODUCTION_RELEASE == 'true' &&
-      ((github.event_name == 'workflow_call' && inputs.autonomous) ||
+      (inputs.autonomous == true ||
        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
