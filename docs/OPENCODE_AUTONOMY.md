@@ -73,7 +73,7 @@ Mergify identifies autonomous pull requests from trusted same-repository head br
 ## GitHub workflows
 
 - `opencode-command.yml`: trusted collaborator `/oc` commands. It intentionally leaves `PROMPT` unset so pinned OpenCode v1.18.32 extracts the actual comment body and mention context.
-- `opencode-review.yml`: independent same-repository exact-head PR review. Automatic runs use `pull_request_target`, check out only the trusted base SHA, fetch the exact PR head only as untrusted Git data, and forbid checking out or executing PR-head code. The model process receives no GitHub credential. Trusted post-processing comments the parsed assistant result and writes an exact-head `review` commit status; actionable findings or malformed verdicts fail closed.
+- `opencode-review.yml`: independent same-repository exact-head PR review. Automatic runs chain from completed `ci` runs via trusted default-branch `workflow_run`; manual repair re-dispatches the same trusted workflow from `main`. The workflow checks out only the trusted base SHA, fetches the exact PR head only as untrusted Git data, and forbids checking out or executing PR-head code. The model process receives no GitHub credential. Trusted post-processing comments the parsed assistant result and writes an exact-head `review` commit status; actionable findings or malformed verdicts fail closed.
 - `opencode-triage.yml`: issue triage.
 - `opencode-maintenance.yml`: daily bounded maintenance.
 - `opencode-security-audit.yml`: weekly read-only security audit.

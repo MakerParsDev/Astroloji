@@ -1,8 +1,8 @@
 name: opencode-review
 on:
-  pull_request_target:
-    branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -11,15 +11,15 @@ on:
         type: string
 
 concurrency:
-  group: opencode-review-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
+  group: opencode-review-${{ github.event.workflow_run.head_sha || inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   review:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.draft == false &&
-       github.event.pull_request.head.repo.full_name == github.repository)
+      (github.event.workflow_run.head_repository.full_name == github.repository &&
+       contains(fromJSON('["pull_request","workflow_dispatch"]'), github.event.workflow_run.event))
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
@@ -34,47 +34,67 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
-            const raw = context.eventName === 'workflow_dispatch'
-              ? context.payload.inputs?.pr_number
-              : context.payload.pull_request?.number
-            const pull_number = Number(raw)
-            if (!Number.isInteger(pull_number) || pull_number < 1) {
-              core.setFailed('A valid pull request number is required.')
-              return
-            }
-
             const { owner, repo } = context.repo
-            const { data: pr } = await github.rest.pulls.get({
-              owner,
-              repo,
-              pull_number,
-            })
+            let pr
 
-            if (pr.draft) {
-              core.setFailed('Draft pull requests are not review targets.')
-              return
+            if (context.eventName === 'workflow_dispatch') {
+              const pull_number = Number(context.payload.inputs?.pr_number)
+              if (!Number.isInteger(pull_number) || pull_number < 1) {
+                core.setFailed('A valid pull request number is required.')
+                return
+              }
+              pr = (await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number,
+              })).data
+            } else {
+              const sha = context.payload.workflow_run.head_sha
+              const prs = await github.paginate(
+                github.rest.repos.listPullRequestsAssociatedWithCommit,
+                { owner, repo, commit_sha: sha, per_page: 100 },
+              )
+              const candidate = prs.find((item) =>
+                item.state === 'open' &&
+                item.head.sha === sha &&
+                item.head.repo?.full_name === `${owner}/${repo}` &&
+                item.base.ref === 'main',
+              )
+              if (!candidate) {
+                core.setOutput('eligible', 'false')
+                return
+              }
+              pr = (await github.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: candidate.number,
+              })).data
             }
-            if (pr.base.ref !== 'main') {
-              core.setFailed('Only pull requests targeting main are review targets.')
+
+            if (pr.draft || pr.base.ref !== 'main') {
+              core.setOutput('eligible', 'false')
               return
             }
             if (pr.head.repo?.full_name !== `${owner}/${repo}`) {
-              core.setFailed('Fork pull requests require human review and are not sent to the model.')
+              core.setOutput('eligible', 'false')
               return
             }
 
+            core.setOutput('eligible', 'true')
             core.setOutput('number', String(pr.number))
             core.setOutput('head_sha', pr.head.sha)
             core.setOutput('base_ref', pr.base.ref)
             core.setOutput('base_sha', pr.base.sha)
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: steps.target.outputs.eligible == 'true'
         with:
           ref: ${{ steps.target.outputs.base_sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Fetch exact PR head as untrusted data
+        if: steps.target.outputs.eligible == 'true'
         env:
           HEAD_SHA: ${{ steps.target.outputs.head_sha }}
           BASE_SHA: ${{ steps.target.outputs.base_sha }}
@@ -85,31 +105,37 @@ jobs:
           git cat-file -e "$HEAD_SHA^{commit}"
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        if: steps.target.outputs.eligible == 'true'
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        if: steps.target.outputs.eligible == 'true'
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Prepare trusted review environment
+        if: steps.target.outputs.eligible == 'true'
         shell: bash
         run: |
           npm ci --prefix backend --ignore-scripts
           cp Astroloji/app/google-services.example.json Astroloji/app/google-services.json
 
       - name: Select a currently free OpenCode model
+        if: steps.target.outputs.eligible == 'true'
         id: free_model
         run: node scripts/select-opencode-free-model.mjs
 
       - name: Install checksum-pinned OpenCode CLI
+        if: steps.target.outputs.eligible == 'true'
         shell: bash
         run: bash scripts/install-opencode-ci.sh
 
       - name: Independent OpenCode review gate
+        if: steps.target.outputs.eligible == 'true'
         id: review
         env:
           MODEL: ${{ steps.free_model.outputs.model }}
@@ -152,7 +178,7 @@ jobs:
           printf 'review_file=%s\n' "$review" >> "$GITHUB_OUTPUT"
 
       - name: Publish review result
-        if: always() && steps.review.outputs.review_file != ''
+        if: always() && steps.target.outputs.eligible == 'true' && steps.review.outputs.review_file != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.target.outputs.number }}
@@ -161,7 +187,7 @@ jobs:
         run: gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$REVIEW_FILE"
 
       - name: Publish exact-head review status
-        if: always()
+        if: always() && steps.target.outputs.eligible == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HEAD_SHA: ${{ steps.target.outputs.head_sha }}
@@ -182,10 +208,13 @@ jobs:
               description='Exact-head OpenCode review did not produce a valid verdict.'
               ;;
           esac
-          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA"             -f state="$state"             -f context=review             -f description="$description"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+            -f state="$state" \
+            -f context=review \
+            -f description="$description"
 
       - name: Enforce review result
-        if: always()
+        if: always() && steps.target.outputs.eligible == 'true'
         env:
           REVIEW_VERDICT: ${{ steps.review.outputs.verdict }}
         shell: bash
