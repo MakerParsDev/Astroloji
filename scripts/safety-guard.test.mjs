@@ -154,3 +154,16 @@ test('agent shell environment strips GitHub and process-local Git credentials', 
   assert.equal(output.env.GIT_CONFIG_VALUE_0, '')
   assert.equal(output.env.SAFE_VALUE, 'kept')
 })
+
+test('shell git diff cannot escape into arbitrary filesystem comparisons', async () => {
+  const guard = await hooks()
+  const before = guard['tool.execute.before']
+
+  await assert.rejects(
+    before(
+      { tool: 'bash', sessionID: 's', callID: 'c' },
+      { args: { command: 'git diff --no-index .env /tmp/example' } },
+    ),
+    /reserved for guarded workflows/i,
+  )
+})

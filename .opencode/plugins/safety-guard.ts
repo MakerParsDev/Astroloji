@@ -47,7 +47,7 @@ const sensitiveGrepInclude = (raw: unknown) => {
 const blockedCommands: RegExp[] = [
   /\bgit\s+(?:push|commit|add|checkout|switch|reset|clean|merge|rebase|cherry-pick|tag|stash|restore|apply)\b/i,
   /\bgit\s+difftool\b/i,
-  /\bgit\s+(?:diff|show|log)\b.*(?:--ext-diff|--textconv)\b/i,
+  /\bgit\s+(?:diff|show|log)\b.*(?:--ext-diff|--textconv|--no-index)\b/i,
   /\bgit\s+grep\b.*(?:--no-index|--untracked|--no-exclude-standard)\b/i,
   /\b--extcmd(?:=|\s)/i,
   /\bgit\s+branch\b(?!\s+--show-current\b)/i,

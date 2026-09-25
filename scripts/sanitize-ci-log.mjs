@@ -93,7 +93,7 @@ export function sanitizeCiLog(value) {
       '$1=[REDACTED]',
     )
     .replace(
-      /\b(token|auth[_-]?token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password)\s*[:=]\s*[^\s,;]+/gi,
+      /\b((?:[A-Za-z0-9]+[_-])*(?:token|auth[_-]?token|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password))\b\s*[:=]\s*[^\s,;]+/gi,
       '$1=[REDACTED]',
     )
     .replace(
