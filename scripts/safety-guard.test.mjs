@@ -128,3 +128,29 @@ test('shell git grep cannot escape the tracked-file boundary', async () => {
     ),
   )
 })
+
+test('agent shell environment strips GitHub and process-local Git credentials', async () => {
+  const guard = await hooks()
+  const shellEnv = guard['shell.env']
+  assert.equal(typeof shellEnv, 'function')
+
+  const output = {
+    env: {
+      GITHUB_TOKEN: 'secret-token',
+      GH_TOKEN: 'secret-gh-token',
+      GIT_CONFIG_COUNT: '3',
+      GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+      GIT_CONFIG_VALUE_0: 'AUTHORIZATION: basic secret',
+      SAFE_VALUE: 'kept',
+    },
+  }
+
+  await shellEnv({ cwd: '/repo' }, output)
+
+  assert.equal(output.env.GITHUB_TOKEN, '')
+  assert.equal(output.env.GH_TOKEN, '')
+  assert.equal(output.env.GIT_CONFIG_COUNT, '0')
+  assert.equal(output.env.GIT_CONFIG_KEY_0, '')
+  assert.equal(output.env.GIT_CONFIG_VALUE_0, '')
+  assert.equal(output.env.SAFE_VALUE, 'kept')
+})

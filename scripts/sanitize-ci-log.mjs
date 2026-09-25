@@ -14,8 +14,12 @@ function isEmailLocalChar(char) {
   return isAsciiLetter(char) || isAsciiDigit(char) || '._%+-'.includes(char)
 }
 
+function isUnicodeLetter(char) {
+  return /^\p{L}$/u.test(char)
+}
+
 function isEmailDomainChar(char) {
-  return isAsciiLetter(char) || isAsciiDigit(char) || '.-'.includes(char)
+  return isUnicodeLetter(char) || isAsciiDigit(char) || '.-'.includes(char)
 }
 
 export function redactEmailLikeIdentifiers(value) {
@@ -29,7 +33,13 @@ export function redactEmailLikeIdentifiers(value) {
     while (start > 0 && at - start < 64 && isEmailLocalChar(text[start - 1])) start--
 
     let end = at + 1
-    while (end < text.length && end - at <= 255 && isEmailDomainChar(text[end])) end++
+    let domainLength = 0
+    while (end < text.length && domainLength < 255) {
+      const char = String.fromCodePoint(text.codePointAt(end))
+      if (!isEmailDomainChar(char)) break
+      end += char.length
+      domainLength++
+    }
     while (end > at + 1 && '.-'.includes(text[end - 1])) end--
 
     if (start === at || end === at + 1) continue
@@ -39,10 +49,11 @@ export function redactEmailLikeIdentifiers(value) {
     if (lastDot <= 0) continue
 
     const suffix = domain.slice(lastDot + 1)
+    const suffixLength = [...suffix].length
     if (
-      suffix.length < 2 ||
-      suffix.length > 63 ||
-      [...suffix].some((char) => !isAsciiLetter(char))
+      suffixLength < 2 ||
+      suffixLength > 63 ||
+      [...suffix].some((char) => !isUnicodeLetter(char))
     ) {
       continue
     }

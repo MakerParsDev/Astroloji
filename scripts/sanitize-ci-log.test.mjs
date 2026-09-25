@@ -17,6 +17,8 @@ test('redacts common CI credential formats and identifiers', () => {
     '{"client_secret":"hidden","password":"also-hidden"}',
     'owner@example.com',
     'wrapped=(second.user+ci@example.co.uk),',
+    'unicode=owner@例子.公司',
+    'supplementary=owner@𐐷𐐯𐑅𐐻.𐐿𐐬𐑋',
     'not-an-email=@localhost',
     'compile error at backend/src/index.ts:42',
   ].join('\n')
@@ -37,6 +39,8 @@ test('redacts common CI credential formats and identifiers', () => {
     'also-hidden',
     'owner@example.com',
     'second.user+ci@example.co.uk',
+    'owner@例子.公司',
+    'owner@𐐷𐐯𐑅𐐻.𐐿𐐬𐑋',
   ]) {
     assert.equal(output.includes(secret), false, secret)
   }

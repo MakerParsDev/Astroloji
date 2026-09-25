@@ -76,6 +76,16 @@ const grepOutputContainsSensitivePath = (raw: unknown) => {
 }
 
 export const AstrolojiSafetyGuard: Plugin = async ({ client }) => ({
+  "shell.env": async (_input, output) => {
+    output.env.GITHUB_TOKEN = ""
+    output.env.GH_TOKEN = ""
+    output.env.GIT_CONFIG_COUNT = "0"
+    for (const key of Object.keys(output.env)) {
+      if (/^GIT_CONFIG_(?:KEY|VALUE)_\d+$/.test(key)) {
+        output.env[key] = ""
+      }
+    }
+  },
   "tool.execute.before": async (input, output) => {
     const args = (output as any).args ?? {}
     const tool = String((input as any).tool ?? "")
