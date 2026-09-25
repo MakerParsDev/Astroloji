@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "astronomy-engine": "2.1.19",
-    "hono": "4.13.0",
+    "hono": "4.13.9",
     "jose": "6.1.0",
     "zod": "4.1.5"
   },
