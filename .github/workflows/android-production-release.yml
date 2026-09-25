@@ -28,6 +28,10 @@ on:
         required: false
         default: 'internal'
         type: string
+    outputs:
+      release_name:
+        description: Exact Play release name published by the reusable workflow.
+        value: ${{ jobs.publish-production.outputs.release_name }}
   workflow_dispatch:
     inputs:
       version_name:
@@ -75,6 +79,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
+    outputs:
+      release_name: ${{ steps.release_identity.outputs.release_name }}
     defaults:
       run:
         working-directory: Astroloji

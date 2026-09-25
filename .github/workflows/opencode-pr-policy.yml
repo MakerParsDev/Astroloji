@@ -3,7 +3,7 @@ name: opencode-pr-policy
 on:
   workflow_run:
     workflows: [ci]
-    types: [completed]
+    types: [requested, completed]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -12,14 +12,56 @@ on:
         type: string
 
 concurrency:
-  group: opencode-pr-policy-${{ github.event.workflow_run.head_sha || inputs.pr_number || github.run_id }}
+  group: opencode-pr-policy-${{ github.event.workflow_run.head_sha || inputs.pr_number || github.run_id }}-${{ github.event.action || github.event_name }}
   cancel-in-progress: true
 
 jobs:
+  revoke-human-approval:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.action == 'requested' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    steps:
+      - name: Remove stale human approval on a newly requested PR CI run
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const sha = context.payload.workflow_run.head_sha
+            const prs = await github.paginate(
+              github.rest.repos.listPullRequestsAssociatedWithCommit,
+              { owner, repo, commit_sha: sha, per_page: 100 },
+            )
+            const candidate = prs.find((item) =>
+              item.state === 'open' &&
+              item.head.sha === sha &&
+              item.head.repo?.full_name === `${owner}/${repo}` &&
+              item.base.ref === 'main' &&
+              item.head.ref.startsWith('opencode/'),
+            )
+            if (!candidate) return
+            try {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: candidate.number,
+                name: 'human-approved',
+              })
+            } catch (error) {
+              if (error.status !== 404) throw error
+            }
+
   classify:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.head_repository.full_name == github.repository &&
+      (github.event.action == 'completed' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
        contains(fromJSON('["pull_request","workflow_dispatch"]'), github.event.workflow_run.event))
     runs-on: ubuntu-latest
     permissions:
@@ -100,26 +142,6 @@ jobs:
             const { owner, repo } = context.repo
             const pull_number = Number(process.env.PR_NUMBER)
             const headSha = process.env.HEAD_SHA
-
-            const headStatuses = await github.paginate(
-              github.rest.repos.listCommitStatusesForRef,
-              { owner, repo, ref: headSha, per_page: 100 },
-            )
-            const alreadyClassified = headStatuses.some(
-              (status) => status.context === 'autonomous-merge-eligible',
-            )
-            if (!alreadyClassified) {
-              try {
-                await github.rest.issues.removeLabel({
-                  owner,
-                  repo,
-                  issue_number: pull_number,
-                  name: 'human-approved',
-                })
-              } catch (error) {
-                if (error.status !== 404) throw error
-              }
-            }
 
             const policyModule = pathToFileURL(
               path.join(process.env.GITHUB_WORKSPACE, 'scripts/autonomous-policy.mjs'),

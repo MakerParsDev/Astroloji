@@ -18,4 +18,5 @@ During implementation:
 Before completion:
 - invoke security-reviewer independently;
 - run secret scan and relevant deterministic security checks;
-- do not auto-merge or perform production mutations.
+- never merge directly or perform production mutations from the model process;
+- follow the trusted centralized autonomous risk tier: `elevated` changes may be merged only by the guarded merge engine after every configured gate passes, while `blocked`/constitutional changes require explicit human control.

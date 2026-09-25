@@ -261,7 +261,7 @@ export async function readPlayVitals({
   }
 }
 
-function parseAutonomousReleaseName(name) {
+export function parseAutonomousReleaseName(name) {
   const match = /^auto-v1-(\d+)-(\d+)-([0-9a-f]{7})$/i.exec(String(name ?? ''));
   if (!match) return null;
   return {
@@ -271,10 +271,14 @@ function parseAutonomousReleaseName(name) {
   };
 }
 
-function selectAutonomousRelease(track) {
-  return (track.releases ?? [])
+function selectAutonomousRelease(track, expectedReleaseName = '') {
+  const candidates = (track.releases ?? [])
     .map((release) => ({ release, parsed: parseAutonomousReleaseName(release.name) }))
-    .filter((entry) => entry.parsed)
+    .filter((entry) => entry.parsed);
+  if (expectedReleaseName) {
+    return candidates.find((entry) => entry.release.name === expectedReleaseName) ?? null;
+  }
+  return candidates
     .sort((a, b) => b.parsed.epochSeconds - a.parsed.epochSeconds)[0] ?? null;
 }
 
@@ -316,7 +320,10 @@ async function mutateRelease(client, releaseName, action, targetFraction) {
     if (!committed) await client.deleteEdit(edit.id);
   }
 
-  const verified = selectAutonomousRelease(await readProductionTrack(client));
+  const verified = selectAutonomousRelease(
+    await readProductionTrack(client),
+    releaseName,
+  );
   if (!verified || verified.release.name !== releaseName) {
     throw new Error('Autonomous release was not found during independent rollout readback.');
   }
@@ -350,6 +357,7 @@ export async function reconcilePlayRollout({
   packageName = process.env.PLAY_PACKAGE_NAME,
   credentialsPath = process.env.PLAY_SERVICE_ACCOUNT_JSON_PATH,
   backendBaseUrl = process.env.BACKEND_BASE_URL ?? 'https://astrology.parsfilo.com',
+  expectedReleaseName = process.env.EXPECTED_AUTONOMOUS_RELEASE_NAME ?? '',
   fetchImpl = fetch,
   client: injectedClient,
   now = Date.now,
@@ -360,9 +368,24 @@ export async function reconcilePlayRollout({
   }
   const client =
     injectedClient ?? createPlayClient({ packageName, credentialsPath, fetchImpl });
-  const selected = selectAutonomousRelease(await readProductionTrack(client));
+  if (!expectedReleaseName) {
+    return {
+      action: 'hold',
+      reason: 'No machine-recorded autonomous production release provenance is available.',
+    };
+  }
+  if (!parseAutonomousReleaseName(expectedReleaseName)) {
+    throw new Error('Machine-recorded autonomous release name is invalid.');
+  }
+  const selected = selectAutonomousRelease(
+    await readProductionTrack(client),
+    expectedReleaseName,
+  );
   if (!selected) {
-    return { action: 'hold', reason: 'No autonomous production release is present.' };
+    return {
+      action: 'hold',
+      reason: 'The machine-recorded autonomous production release is not present on Play.',
+    };
   }
 
   const { release, parsed } = selected;

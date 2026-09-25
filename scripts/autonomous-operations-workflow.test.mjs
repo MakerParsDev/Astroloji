@@ -74,7 +74,7 @@ test('CI blocks destructive autonomous migrations before backend verification', 
   const ci = read('.github/workflows/ci.yml');
   assert.match(ci, /Verify autonomous migration safety/);
   assert.match(ci, /validate-autonomous-migrations\.mjs/);
-  assert.match(ci, /backend-verify:[\s\S]*fetch-depth:\s*2/);
+  assert.match(ci, /backend-verify:[\s\S]*fetch-depth:\s*0/);
 });
 
 
@@ -180,4 +180,57 @@ test('autonomous production state issue rejects user-created lookalikes', () => 
   const workflow = read('.github/workflows/autonomous-production.yml');
   assert.equal((workflow.match(/github-actions\[bot\]/g) ?? []).length >= 2, true);
   assert.match(workflow, /issue\.title === title[\s\S]{0,120}issue\.user\?\.login === 'github-actions\[bot\]'/);
+});
+
+
+test('CI validates the full PR or push migration range, not only HEAD parent', () => {
+  const ci = read('.github/workflows/ci.yml');
+  assert.match(ci, /backend-verify:[\s\S]*fetch-depth:\s*0/);
+  assert.match(ci, /MIGRATION_BASE:\s*\$\{\{ github\.event\.pull_request\.base\.sha \|\| github\.event\.before \|\| '' \}\}/);
+  assert.match(ci, /MIGRATION_HEAD:\s*\$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
+  assert.match(ci, /git merge-base "\$MIGRATION_BASE" "\$MIGRATION_HEAD"/);
+});
+
+test('backend deploy validates catch-up range and remote pending migrations before D1 mutation', () => {
+  const workflow = read('.github/workflows/backend-production-deploy.yml');
+  const range = workflow.indexOf('Validate autonomous migration catch-up range');
+  const pending = workflow.indexOf('Validate remote pending D1 migrations');
+  const firstMutation = workflow.indexOf('Apply rewarded SSV D1 migration');
+  assert.match(workflow, /migration_base_sha:/);
+  assert.match(workflow, /SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'd1_migrations'/);
+  assert.match(workflow, /MIGRATION_APPLIED_LIST_PATH/);
+  assert.match(workflow, /MIGRATION_TRACKING_TABLE_PRESENT/);
+  assert.match(workflow, /SELECT name FROM d1_migrations ORDER BY id/);
+  assert.ok(range >= 0 && pending > range && firstMutation > pending);
+});
+
+
+test('Play rollout mutations require machine-owned exact release provenance', () => {
+  const production = read('.github/workflows/android-production-release.yml');
+  const orchestrator = read('.github/workflows/autonomous-production.yml');
+  const controller = read('.github/workflows/android-rollout-controller.yml');
+  assert.match(production, /outputs:[\s\S]*release_name:[\s\S]*jobs\.publish-production\.outputs\.release_name/);
+  assert.match(production, /publish-production:[\s\S]*outputs:[\s\S]*steps\.release_identity\.outputs\.release_name/);
+  assert.match(orchestrator, /android_release_sha/);
+  assert.match(orchestrator, /android_release_name/);
+  assert.match(orchestrator, /ANDROID_RELEASE_NAME_PUBLISHED/);
+  assert.match(orchestrator, /releaseSha\.slice\(0, 7\)/);
+  assert.match(orchestrator, /Successful autonomous Android production release has invalid provenance/);
+  assert.match(controller, /Autonomous production state/);
+  assert.match(controller, /android_release_sha/);
+  assert.match(controller, /androidReleaseSha\.slice\(0, 7\)/);
+  assert.match(controller, /github-actions\[bot\]/);
+  assert.match(controller, /EXPECTED_AUTONOMOUS_RELEASE_NAME/);
+});
+
+
+test('Android catch-up baseline does not rewrite release provenance without a publish', () => {
+  const workflow = read('.github/workflows/autonomous-production.yml');
+  assert.match(workflow, /ANDROID_RELEASE_SHA_PREVIOUS/);
+  assert.match(workflow, /readOptionalSha\('android_release_sha'\)/);
+  assert.match(workflow, /let androidReleaseSha = process\.env\.ANDROID_RELEASE_SHA_PREVIOUS/);
+  assert.match(workflow, /Stored Android release provenance is incomplete/);
+  assert.match(workflow, /Stored Android release provenance is inconsistent/);
+  assert.match(workflow, /ANDROID_PLANNED === 'true'[\s\S]*ANDROID_RESULT === 'success'[\s\S]*androidReleaseSha = releaseSha/);
+  assert.match(workflow, /android_release_sha=\$\{androidReleaseSha\}/);
 });

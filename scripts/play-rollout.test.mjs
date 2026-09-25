@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { decideRolloutAction, evaluateVitals } from './reconcile-play-rollout.mjs';
+import { decideRolloutAction, evaluateVitals, parseAutonomousReleaseName, reconcilePlayRollout } from './reconcile-play-rollout.mjs';
 
 test('halts when crash or ANR thresholds are exceeded', () => {
   assert.equal(evaluateVitals({ crashRate: 0.03, anrRate: 0.001, distinctUsers: 200 }).state, 'unhealthy');
@@ -31,4 +31,54 @@ test('uses longer soak windows when vitals are insufficient', () => {
 test('never resumes a halted release and halts an unhealthy staged release', () => {
   assert.deepEqual(decideRolloutAction({ status: 'halted', fraction: 0.25, ageHours: 999, vitalsState: 'healthy' }), { action: 'hold', targetFraction: 0.25 });
   assert.deepEqual(decideRolloutAction({ status: 'inProgress', fraction: 0.25, ageHours: 60, vitalsState: 'unhealthy' }), { action: 'halt', targetFraction: 0.25 });
+});
+
+
+test('release provenance requires the exact machine-recorded release name', async () => {
+  assert.deepEqual(parseAutonomousReleaseName('auto-v1-42-1700000000-abcdef1'), {
+    versionCode: '42',
+    epochSeconds: 1700000000,
+    sha7: 'abcdef1',
+  });
+  const fs = await import('node:fs/promises');
+  const workflow = await fs.readFile(new URL('../.github/workflows/android-rollout-controller.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /Autonomous production state/);
+  assert.match(workflow, /android_release_name/);
+  assert.match(workflow, /EXPECTED_AUTONOMOUS_RELEASE_NAME/);
+});
+
+
+test('rollout reconciliation does not adopt a newer lookalike autonomous release', async () => {
+  const expected = 'auto-v1-42-1700000000-abcdef1';
+  const newer = 'auto-v1-43-1800000000-deadbee';
+  const client = {
+    createEdit: async () => ({ id: 'edit-1' }),
+    getTrack: async () => ({
+      track: 'production',
+      releases: [
+        { name: newer, status: 'completed', versionCodes: ['43'] },
+        { name: expected, status: 'completed', versionCodes: ['42'] },
+      ],
+    }),
+    deleteEdit: async () => {},
+  };
+  const result = await reconcilePlayRollout({
+    packageName: 'com.example.app',
+    expectedReleaseName: expected,
+    client,
+    fetchImpl: async () => ({ ok: true }),
+  });
+  assert.equal(result.releaseName, expected);
+  assert.equal(result.versionCode, '42');
+  assert.equal(result.action, 'hold');
+});
+
+test('rollout reconciliation holds when machine-owned release provenance is absent', async () => {
+  const result = await reconcilePlayRollout({
+    packageName: 'com.example.app',
+    expectedReleaseName: '',
+    client: {},
+  });
+  assert.equal(result.action, 'hold');
+  assert.match(result.reason, /provenance/i);
 });

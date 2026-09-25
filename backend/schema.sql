@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS fcm_tokens (
   updated_at TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user_platform_target
+CREATE INDEX IF NOT EXISTS idx_fcm_tokens_user_platform_target_v2
   ON fcm_tokens(user_id, platform, target_type, updated_at);
 
 CREATE TABLE IF NOT EXISTS subscriptions (

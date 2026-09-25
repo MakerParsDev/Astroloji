@@ -53,22 +53,19 @@ test('partial notification schema creates only the missing index', async () => {
   assert.deepEqual(calls, ['index']);
 });
 
-test('malformed named index is rebuilt with the canonical key order', async () => {
+test('malformed canonical v2 index fails closed without destructive repair', async () => {
   assert.equal(typeof reconciler.reconcileNotificationTargetSchema, 'function');
-  const states = [
-    state({ targetType: true, index: true, indexCanonical: false }),
-    state({ targetType: true, index: true }),
-  ];
   const calls = [];
 
-  const result = await reconciler.reconcileNotificationTargetSchema({
-    readState: async () => states.shift(),
-    applyMigration: async () => calls.push('migration'),
-    createIndex: async () => calls.push('index'),
-  });
-
-  assert.equal(result, 'index_repaired');
-  assert.deepEqual(calls, ['index']);
+  await assert.rejects(
+    () => reconciler.reconcileNotificationTargetSchema({
+      readState: async () => state({ targetType: true, index: true, indexCanonical: false }),
+      applyMigration: async () => calls.push('migration'),
+      createIndex: async () => calls.push('index'),
+    }),
+    /canonical v2 notification index name exists with a non-canonical definition/,
+  );
+  assert.deepEqual(calls, []);
 });
 
 test('malformed target_type definition fails without mutating production', async () => {
@@ -148,7 +145,7 @@ test('wrangler metadata parser validates canonical column constraints and index 
         },
         { cid: 0, name: 'id', type: 'TEXT', notnull: 0, dflt_value: null, pk: 1 },
         { cid: 3, name: 'target_type', type: 'TEXT', notnull: 1, dflt_value: "'token'", pk: 0 },
-        { seq: 0, name: 'idx_fcm_tokens_user_platform_target', unique: 0, origin: 'c', partial: 0 },
+        { seq: 0, name: 'idx_fcm_tokens_user_platform_target_v2', unique: 0, origin: 'c', partial: 0 },
         { seqno: 0, cid: 1, name: 'user_id' },
         { seqno: 1, cid: 4, name: 'platform' },
         { seqno: 2, cid: 3, name: 'target_type' },
@@ -190,4 +187,21 @@ test('production workflow reconciles notification targets before tracked migrati
   assert.notEqual(deploy, -1);
   assert.ok(reconcile < tracked);
   assert.ok(tracked < deploy);
+});
+
+
+test('notification target repair is additive and never drops a remote index', async () => {
+  const body = readFileSync(moduleUrl, 'utf8');
+  assert.match(body, /idx_fcm_tokens_user_platform_target_v2/);
+  assert.match(body, /CREATE INDEX IF NOT EXISTS/);
+  assert.doesNotMatch(body, /DROP INDEX/);
+});
+
+
+test('notification reconciler executes only the lockfile-installed Wrangler binary', () => {
+  const body = readFileSync(moduleUrl, 'utf8');
+  assert.match(body, /node_modules/);
+  assert.match(body, /'\.bin'/);
+  assert.match(body, /'wrangler'/);
+  assert.doesNotMatch(body, /npx(?:\.cmd)?/);
 });

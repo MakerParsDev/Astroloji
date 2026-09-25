@@ -37,6 +37,37 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve machine-owned autonomous release provenance
+        id: provenance
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const { owner, repo } = context.repo
+            const title = 'Autonomous production state'
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'all', per_page: 100,
+            })
+            const matches = issues.filter((issue) =>
+              !issue.pull_request &&
+              issue.title === title &&
+              issue.user?.login === 'github-actions[bot]'
+            )
+            if (matches.length > 1) {
+              core.setFailed('Multiple autonomous production state issues exist; refusing rollout mutation.')
+              return
+            }
+            const body = String(matches[0]?.body || '')
+            const androidReleaseSha = body.match(/^android_release_sha=([0-9a-f]{40})$/mi)?.[1] || ''
+            const releaseName = body.match(/^android_release_name=([0-9A-Za-z._-]*)$/mi)?.[1] || ''
+            if (releaseName) {
+              const releaseMatch = /^auto-v1-\d+-\d+-([0-9a-f]{7})$/i.exec(releaseName)
+              if (!releaseMatch || !androidReleaseSha || releaseMatch[1].toLowerCase() !== androidReleaseSha.slice(0, 7).toLowerCase()) {
+                core.setFailed('Machine-owned Android release provenance is invalid.')
+                return
+              }
+            }
+            core.setOutput('release_name', releaseName)
+
       - name: Install pinned Doppler CLI
         env:
           DOPPLER_VERSION: 3.76.1
@@ -95,6 +126,7 @@ jobs:
         id: rollout
         env:
           PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+          EXPECTED_AUTONOMOUS_RELEASE_NAME: ${{ steps.provenance.outputs.release_name }}
         run: node scripts/reconcile-play-rollout.mjs
 
       - name: Open or update incident when rollout is halted or telemetry is unavailable

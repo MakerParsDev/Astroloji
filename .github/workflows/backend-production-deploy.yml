@@ -10,6 +10,10 @@ on:
       release_sha:
         required: true
         type: string
+      migration_base_sha:
+        required: false
+        default: ''
+        type: string
   workflow_dispatch:
     inputs:
       confirm:
@@ -150,6 +154,43 @@ jobs:
           }
           console.log(`Validated ${required.length} required Doppler secrets.`);
           NODE
+
+
+      - name: Validate autonomous migration catch-up range
+        if: ${{ inputs.autonomous == true && inputs.migration_base_sha != '' }}
+        env:
+          MIGRATION_BASE: ${{ inputs.migration_base_sha }}
+          MIGRATION_HEAD: ${{ env.RELEASE_SHA }}
+        run: node ../scripts/validate-autonomous-migrations.mjs
+
+      - name: Read remote D1 migration state
+        id: migration_state
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/wrangler d1 execute astrology-db --remote \
+            --command "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'd1_migrations';" \
+            --json > "$RUNNER_TEMP/d1-migration-table.json"
+          tracking_table_present="$(node - <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/d1-migration-table.json', 'utf8'));
+          const rows = payload.flatMap((entry) => entry.results ?? []);
+          process.stdout.write(rows.some((row) => row.name === 'd1_migrations') ? 'true' : 'false');
+          NODE
+          )"
+          echo "tracking_table_present=$tracking_table_present" >> "$GITHUB_OUTPUT"
+          if [ "$tracking_table_present" = 'true' ]; then
+            ./node_modules/.bin/wrangler d1 execute astrology-db --remote \
+              --command "SELECT name FROM d1_migrations ORDER BY id;" \
+              --json > "$RUNNER_TEMP/d1-applied-migrations.json"
+          else
+            printf '[]\n' > "$RUNNER_TEMP/d1-applied-migrations.json"
+          fi
+
+      - name: Validate remote pending D1 migrations
+        env:
+          MIGRATION_APPLIED_LIST_PATH: ${{ runner.temp }}/d1-applied-migrations.json
+          MIGRATION_TRACKING_TABLE_PRESENT: ${{ steps.migration_state.outputs.tracking_table_present }}
+        run: node ../scripts/validate-autonomous-migrations.mjs
 
 
       - name: Reverify current main immediately before production mutation

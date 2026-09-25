@@ -255,6 +255,14 @@ test('review inspects the exact head as data without exposing its model process 
   assert.doesNotMatch(body, /run-opencode-github-ci\.sh/)
 })
 
+
+test('review gate follows trusted tier policy instead of blocking elevated changes by category alone', async () => {
+  const body = await text('.github/workflows/opencode-review.yml')
+  assert.match(body, /Do not BLOCK solely because a change is elevated or security-sensitive/);
+  assert.match(body, /trusted base autonomous policy permits the elevated tier/);
+  assert.match(body, /actionable correctness, security, data-safety, or policy violation/);
+});
+
 test('interactive command intentionally inherits the comment body as prompt', async () => {
   const body = await text('.github/workflows/opencode-command.yml')
   assert.match(body, /issue_comment:/)
@@ -273,6 +281,7 @@ test('Mergify auto-merge accepts eligible low/elevated PRs and every merge keeps
   assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*-head ~= \^opencode\//)
   assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*head ~= \^opencode\/[\s\S]*check-success = autonomous-merge-eligible/)
   assert.match(body, /label = human-approved\r?\n\s+- "#approved-reviews-by >= 1"/)
+  assert.match(body, /label = risk:blocked[\s\S]{0,180}label = needs-human[\s\S]{0,180}label = human-approved[\s\S]{0,180}#approved-reviews-by >= 1/)
   assert.match(body, /success_conditions:[\s\S]*-from-fork[\s\S]*check-success = review/)
   assert.match(body, /success_conditions:[\s\S]*from-fork[\s\S]*#approved-reviews-by >= 1/)
   assert.match(body, /label != risk:blocked/)
@@ -304,10 +313,13 @@ test('automation can revoke but never grant the human-approved merge label', asy
     }
   }
   const policy = await text('.github/workflows/opencode-pr-policy.yml')
-  assert.match(policy, /removeLabel[\s\S]{0,300}name:\s*'human-approved'/)
-  assert.match(policy, /listCommitStatusesForRef/)
-  assert.match(policy, /alreadyClassified/)
-  assert.match(policy, /if \(!alreadyClassified\)/)
+  assert.match(policy, /types:\s*\[requested, completed\]/)
+  assert.match(policy, /github\.event\.action == 'requested'/)
+  assert.match(policy, /github\.event\.workflow_run\.event == 'pull_request'/)
+  assert.match(policy, /Remove stale human approval on a newly requested PR CI run/)
+  assert.match(policy, /removeLabel[\s\S]{0,500}name:\s*'human-approved'/)
+  assert.doesNotMatch(policy, /listCommitStatusesForRef/)
+  assert.doesNotMatch(policy, /alreadyClassified/)
 
   for (const directory of ['agents', 'plugins', 'tools']) {
     for (const name of await readdir(path.join(root, '.opencode', directory))) {

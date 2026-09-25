@@ -41,6 +41,8 @@ jobs:
       play_metadata: ${{ steps.release_plan.outputs.play_metadata }}
       backend_base_sha: ${{ steps.state.outputs.backend_sha }}
       android_base_sha: ${{ steps.state.outputs.android_sha }}
+      android_release_sha: ${{ steps.state.outputs.android_release_sha }}
+      android_release_name: ${{ steps.state.outputs.android_release_name }}
       play_metadata_base_sha: ${{ steps.state.outputs.play_metadata_sha }}
     env:
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.release_sha || github.sha }}
@@ -84,8 +86,24 @@ jobs:
               }
               return match[1] || ''
             }
+            const readOptionalSha = (key) => {
+              if (!issue) return ''
+              const match = String(issue.body || '').match(
+                new RegExp(`^${key}=([0-9a-f]{40})$`, 'mi'),
+              )
+              return match?.[1] || ''
+            }
+            const readReleaseName = () => {
+              if (!issue) return ''
+              const match = String(issue.body || '').match(
+                /^android_release_name=([0-9A-Za-z._-]*)$/mi,
+              )
+              return match?.[1] || ''
+            }
             core.setOutput('backend_sha', readSha('backend_sha'))
             core.setOutput('android_sha', readSha('android_sha'))
+            core.setOutput('android_release_sha', readOptionalSha('android_release_sha'))
+            core.setOutput('android_release_name', readReleaseName())
             core.setOutput('play_metadata_sha', readSha('play_metadata_sha'))
 
       - name: Resolve trusted per-surface release deltas
@@ -165,6 +183,7 @@ jobs:
     with:
       autonomous: true
       release_sha: ${{ needs.plan.outputs.release_sha }}
+      migration_base_sha: ${{ needs.plan.outputs.backend_base_sha }}
     secrets: inherit
 
   play-metadata:
@@ -230,6 +249,9 @@ jobs:
       RELEASE_SHA: ${{ needs.plan.outputs.release_sha }}
       BACKEND_BASE_SHA: ${{ needs.plan.outputs.backend_base_sha }}
       ANDROID_BASE_SHA: ${{ needs.plan.outputs.android_base_sha }}
+      ANDROID_RELEASE_SHA_PREVIOUS: ${{ needs.plan.outputs.android_release_sha }}
+      ANDROID_RELEASE_NAME_PREVIOUS: ${{ needs.plan.outputs.android_release_name }}
+      ANDROID_RELEASE_NAME_PUBLISHED: ${{ needs.android-production.outputs.release_name }}
       PLAY_METADATA_BASE_SHA: ${{ needs.plan.outputs.play_metadata_base_sha }}
       BACKEND_PLANNED: ${{ needs.plan.outputs.backend }}
       ANDROID_PLANNED: ${{ needs.plan.outputs.android }}
@@ -251,6 +273,29 @@ jobs:
             const advance = (planned, result, previous) => {
               if (planned !== 'true') return releaseSha
               return result === 'success' ? releaseSha : previous
+            }
+            let androidReleaseSha = process.env.ANDROID_RELEASE_SHA_PREVIOUS || ''
+            let androidReleaseName = process.env.ANDROID_RELEASE_NAME_PREVIOUS || ''
+            if (Boolean(androidReleaseSha) !== Boolean(androidReleaseName)) {
+              core.setFailed('Stored Android release provenance is incomplete.')
+              return
+            }
+            if (androidReleaseName) {
+              const previousMatch = /^auto-v1-\d+-\d+-([0-9a-f]{7})$/i.exec(androidReleaseName)
+              if (!previousMatch || previousMatch[1].toLowerCase() !== androidReleaseSha.slice(0, 7).toLowerCase()) {
+                core.setFailed('Stored Android release provenance is inconsistent.')
+                return
+              }
+            }
+            if (process.env.ANDROID_PLANNED === 'true' && process.env.ANDROID_RESULT === 'success') {
+              const published = process.env.ANDROID_RELEASE_NAME_PUBLISHED || ''
+              const match = /^auto-v1-\d+-\d+-([0-9a-f]{7})$/i.exec(published)
+              if (!match || match[1].toLowerCase() !== releaseSha.slice(0, 7).toLowerCase()) {
+                core.setFailed('Successful autonomous Android production release has invalid provenance.')
+                return
+              }
+              androidReleaseSha = releaseSha
+              androidReleaseName = published
             }
             const next = {
               backend_sha: advance(
@@ -292,6 +337,8 @@ jobs:
               '<!-- autonomous-production-state',
               `backend_sha=${next.backend_sha}`,
               `android_sha=${next.android_sha}`,
+              `android_release_sha=${androidReleaseSha}`,
+              `android_release_name=${androidReleaseName}`,
               `play_metadata_sha=${next.play_metadata_sha}`,
               '-->',
               '',
@@ -311,7 +358,8 @@ jobs:
               await github.rest.issues.create({ owner, repo, title, body })
             }
 
-            const complete = Object.values(next).every((sha) => sha === releaseSha)
+            const complete = [next.backend_sha, next.android_sha, next.play_metadata_sha]
+              .every((sha) => sha === releaseSha)
             if (complete) {
               const incidentTitle = 'Autonomous production pipeline failed'
               const incident = issues.find(
