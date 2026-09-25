@@ -64,7 +64,11 @@ jobs:
               state: 'all',
               per_page: 100,
             })
-            const matches = issues.filter((issue) => !issue.pull_request && issue.title === title)
+            const matches = issues.filter((issue) =>
+              !issue.pull_request &&
+              issue.title === title &&
+              issue.user?.login === 'github-actions[bot]'
+            )
             if (matches.length > 1) {
               core.setFailed('Multiple autonomous production state issues exist; refusing ambiguous release state.')
               return
@@ -84,13 +88,52 @@ jobs:
             core.setOutput('android_sha', readSha('android_sha'))
             core.setOutput('play_metadata_sha', readSha('play_metadata_sha'))
 
-      - name: Build autonomous production release plan
-        id: release_plan
+      - name: Resolve trusted per-surface release deltas
+        id: delta
         env:
-          AUTONOMOUS_RELEASE_TRACKED_STATE: 'true'
           BACKEND_BASE_SHA: ${{ steps.state.outputs.backend_sha }}
           ANDROID_BASE_SHA: ${{ steps.state.outputs.android_sha }}
           PLAY_METADATA_BASE_SHA: ${{ steps.state.outputs.play_metadata_sha }}
+        run: |
+          set -euo pipefail
+          validate_sha() {
+            local name="$1"
+            local value="$2"
+            if [[ ! "$value" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "$name is not a full Git commit SHA." >&2
+              exit 1
+            fi
+            git cat-file -e "${value}^{commit}"
+          }
+          collect_paths() {
+            local key="$1"
+            local base="$2"
+            local output="$3"
+            : > "$output"
+            if [ -z "$base" ]; then
+              echo "${key}_bootstrap=true" >> "$GITHUB_OUTPUT"
+              return
+            fi
+            validate_sha "$key baseline" "$base"
+            git merge-base --is-ancestor "$base" "$RELEASE_SHA"
+            git diff --name-only --no-renames "$base" "$RELEASE_SHA" -- > "$output"
+            echo "${key}_bootstrap=false" >> "$GITHUB_OUTPUT"
+          }
+
+          validate_sha 'release SHA' "$RELEASE_SHA"
+          collect_paths backend "$BACKEND_BASE_SHA" "$RUNNER_TEMP/backend-release-paths.txt"
+          collect_paths android "$ANDROID_BASE_SHA" "$RUNNER_TEMP/android-release-paths.txt"
+          collect_paths play_metadata "$PLAY_METADATA_BASE_SHA" "$RUNNER_TEMP/play-metadata-release-paths.txt"
+
+      - name: Build autonomous production release plan
+        id: release_plan
+        env:
+          BACKEND_BOOTSTRAP: ${{ steps.delta.outputs.backend_bootstrap }}
+          ANDROID_BOOTSTRAP: ${{ steps.delta.outputs.android_bootstrap }}
+          PLAY_METADATA_BOOTSTRAP: ${{ steps.delta.outputs.play_metadata_bootstrap }}
+          BACKEND_PATHS_FILE: ${{ runner.temp }}/backend-release-paths.txt
+          ANDROID_PATHS_FILE: ${{ runner.temp }}/android-release-paths.txt
+          PLAY_METADATA_PATHS_FILE: ${{ runner.temp }}/play-metadata-release-paths.txt
         run: node scripts/autonomous-release-plan.mjs "$RELEASE_SHA"
 
       - name: Verify exact current main commit
@@ -233,7 +276,11 @@ jobs:
               state: 'all',
               per_page: 100,
             })
-            const matches = issues.filter((issue) => !issue.pull_request && issue.title === title)
+            const matches = issues.filter((issue) =>
+              !issue.pull_request &&
+              issue.title === title &&
+              issue.user?.login === 'github-actions[bot]'
+            )
             if (matches.length > 1) {
               core.setFailed('Multiple autonomous production state issues exist; refusing ambiguous update.')
               return
@@ -271,7 +318,8 @@ jobs:
                 (issue) =>
                   !issue.pull_request &&
                   issue.state === 'open' &&
-                  issue.title === incidentTitle,
+                  issue.title === incidentTitle &&
+                  issue.user?.login === 'github-actions[bot]',
               )
               if (incident) {
                 await github.rest.issues.createComment({

@@ -174,3 +174,10 @@ test('disabled release switches retain their surface baselines for later catch-u
   assert.match(workflow, /return result === 'success' \? releaseSha : previous/);
   assert.match(workflow, /github\.event_name == 'schedule'/);
 });
+
+
+test('autonomous production state issue rejects user-created lookalikes', () => {
+  const workflow = read('.github/workflows/autonomous-production.yml');
+  assert.equal((workflow.match(/github-actions\[bot\]/g) ?? []).length >= 2, true);
+  assert.match(workflow, /issue\.title === title[\s\S]{0,120}issue\.user\?\.login === 'github-actions\[bot\]'/);
+});

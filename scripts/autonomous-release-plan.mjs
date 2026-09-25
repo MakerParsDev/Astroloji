@@ -1,4 +1,3 @@
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -13,84 +12,56 @@ export function classifyReleasePaths(paths) {
   };
 }
 
-function git(...args) {
-  return execFileSync('/usr/bin/git', args, { encoding: 'utf8' }).trim();
-}
-
-function assertCommitSha(name, sha) {
-  if (!SHA_PATTERN.test(sha ?? '')) {
-    throw new Error(`${name} must be a full 40-character Git commit SHA.`);
-  }
-  git('cat-file', '-e', `${sha}^{commit}`);
-}
-
-function diffPaths(baseSha, releaseSha) {
-  return git('diff', '--name-only', '--no-renames', baseSha, releaseSha)
-    .split(/\r?\n/)
-    .filter(Boolean);
-}
-
-function assertAncestor(name, baseSha, releaseSha) {
-  try {
-    git('merge-base', '--is-ancestor', baseSha, releaseSha);
-  } catch {
-    throw new Error(`${name} ${baseSha} is not an ancestor of release SHA ${releaseSha}.`);
+function assertReleaseSha(releaseSha) {
+  if (!SHA_PATTERN.test(releaseSha ?? '')) {
+    throw new Error('release SHA must be a full 40-character Git commit SHA.');
   }
 }
 
-export function buildReleasePlan(releaseSha) {
-  assertCommitSha('release SHA', releaseSha);
-  const parents = git('show', '-s', '--format=%P', releaseSha).split(/\s+/).filter(Boolean);
-  if (parents.length < 1) {
-    throw new Error('Autonomous production requires a non-root main commit.');
-  }
-  const parentSha = parents[0];
-  const paths = diffPaths(parentSha, releaseSha);
-  return {
-    releaseSha,
-    parentSha,
-    paths,
-    ...classifyReleasePaths(paths),
-  };
+function normalizePaths(paths) {
+  if (paths === null) return null;
+  return [...new Set((paths ?? []).map((value) => String(value).replaceAll('\\', '/')))]
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right));
 }
 
 export function buildTrackedReleasePlan(
   releaseSha,
   {
-    backendBaseSha = '',
-    androidBaseSha = '',
-    playMetadataBaseSha = '',
+    backendPaths = null,
+    androidPaths = null,
+    playMetadataPaths = null,
   } = {},
 ) {
-  assertCommitSha('release SHA', releaseSha);
-
-  const pathsSince = (name, baseSha) => {
-    if (!baseSha) return null;
-    assertCommitSha(name, baseSha);
-    assertAncestor(name, baseSha, releaseSha);
-    return diffPaths(baseSha, releaseSha);
-  };
-
-  const backendPaths = pathsSince('backend baseline SHA', backendBaseSha);
-  const androidPaths = pathsSince('Android baseline SHA', androidBaseSha);
-  const playMetadataPaths = pathsSince('Play metadata baseline SHA', playMetadataBaseSha);
+  assertReleaseSha(releaseSha);
+  const backend = normalizePaths(backendPaths);
+  const android = normalizePaths(androidPaths);
+  const playMetadata = normalizePaths(playMetadataPaths);
   const allPaths = [...new Set([
-    ...(backendPaths ?? []),
-    ...(androidPaths ?? []),
-    ...(playMetadataPaths ?? []),
-  ])].sort();
+    ...(backend ?? []),
+    ...(android ?? []),
+    ...(playMetadata ?? []),
+  ])].sort((left, right) => left.localeCompare(right));
 
   return {
     releaseSha,
-    backendBaseSha,
-    androidBaseSha,
-    playMetadataBaseSha,
     paths: allPaths,
-    backend: backendPaths === null || classifyReleasePaths(backendPaths).backend,
-    android: androidPaths === null || classifyReleasePaths(androidPaths).android,
+    backend: backend === null || classifyReleasePaths(backend).backend,
+    android: android === null || classifyReleasePaths(android).android,
     playMetadata:
-      playMetadataPaths === null || classifyReleasePaths(playMetadataPaths).playMetadata,
+      playMetadata === null || classifyReleasePaths(playMetadata).playMetadata,
   };
+}
+
+function readPathInput(name) {
+  const bootstrap = process.env[`${name}_BOOTSTRAP`] === 'true';
+  if (bootstrap) return null;
+
+  const filePath = process.env[`${name}_PATHS_FILE`];
+  if (!filePath) {
+    throw new Error(`${name}_PATHS_FILE is required when ${name}_BOOTSTRAP is false.`);
+  }
+  return fs.readFileSync(filePath, 'utf8').split(/\r?\n/).filter(Boolean);
 }
 
 function writeGithubOutput(plan) {
@@ -99,10 +70,6 @@ function writeGithubOutput(plan) {
     process.env.GITHUB_OUTPUT,
     [
       `release_sha=${plan.releaseSha}`,
-      `parent_sha=${plan.parentSha ?? ''}`,
-      `backend_base_sha=${plan.backendBaseSha ?? ''}`,
-      `android_base_sha=${plan.androidBaseSha ?? ''}`,
-      `play_metadata_base_sha=${plan.playMetadataBaseSha ?? ''}`,
       `backend=${String(plan.backend)}`,
       `android=${String(plan.android)}`,
       `play_metadata=${String(plan.playMetadata)}`,
@@ -114,13 +81,11 @@ function writeGithubOutput(plan) {
 
 function main() {
   const releaseSha = process.argv[2] ?? process.env.RELEASE_SHA ?? '';
-  const plan = process.env.AUTONOMOUS_RELEASE_TRACKED_STATE === 'true'
-    ? buildTrackedReleasePlan(releaseSha, {
-        backendBaseSha: process.env.BACKEND_BASE_SHA ?? '',
-        androidBaseSha: process.env.ANDROID_BASE_SHA ?? '',
-        playMetadataBaseSha: process.env.PLAY_METADATA_BASE_SHA ?? '',
-      })
-    : buildReleasePlan(releaseSha);
+  const plan = buildTrackedReleasePlan(releaseSha, {
+    backendPaths: readPathInput('BACKEND'),
+    androidPaths: readPathInput('ANDROID'),
+    playMetadataPaths: readPathInput('PLAY_METADATA'),
+  });
   writeGithubOutput(plan);
   console.log(JSON.stringify(plan, null, 2));
 }
