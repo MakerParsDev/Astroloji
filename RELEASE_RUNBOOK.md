@@ -1,6 +1,6 @@
 # Release Runbook
 
-Bu dokuman `v1.0.0` ve sonraki release'ler icin operasyon ekibinin takip edecegi tek sayfalik uygulama notudur.
+Bu dokuman `v1.0.0` ve sonraki release'ler icin production operasyon runbook'udur. Varsayilan yol otonom controller'lardir; manuel workflow'lar break-glass/diagnostik yol olarak korunur.
 
 ## Kapsam
 
@@ -8,6 +8,21 @@ Bu dokuman `v1.0.0` ve sonraki release'ler icin operasyon ekibinin takip edecegi
 - Cloudflare Worker backend deploy adimlari
 - Deploy sonrasi smoke check
 - Rollback proseduru
+
+## Varsayilan Otonom Release Yolu
+
+`main` uzerindeki exact commit CI'dan basariyla gectiginde `autonomous-production` release planini cikarir. Sadece degisen yuzeyler calisir:
+
+1. Backend degisti ise `backend-production-deploy` exact `main` SHA'yi deploy eder, canli dogrulama yapar ve post-deploy verification fail olursa Worker rollback uygular.
+2. Android runtime degisti ise ayni SHA once internal track'e yayinlanir; Play'in onerilen bir sonraki `versionCode` degeri otomatik kullanilir.
+3. Internal yayin basariliysa ayni artifact production'a `%10` staged rollout olarak promote edilir.
+4. `android-rollout-controller` rollout'u periyodik olarak `%10 -> %25 -> %50 -> %100` ilerletir. Backend health veya Play crash/ANR threshold ihlalinde rollout halt edilir; Play Developer Reporting erisilemezse promotion freeze edilir.
+5. `Astroloji/play/**` degisti ise canonical Play metadata exact `main` SHA'dan reconcile edilir; fresh backup, drift kontrolu, independent readback ve failure durumunda restore uygulanir.
+6. `content-backfill` her gun gelecek horoscope/content penceresini scoped `content-ops` credential'i ile yeniler ve failure durumunda GitHub incident acar.
+
+Otonom production mutation ancak gerekli repo variable'lari aciksa baslar: master `ENABLE_AUTONOMOUS_PRODUCTION`, Android icin `ENABLE_PRODUCTION_RELEASE`, metadata icin `ENABLE_METADATA_PUBLISH`, ve content icin `ENABLE_CONTENT_BACKFILL`.
+
+Controller/control-plane degisiklikleri kendi kendini merge edemez; `.github/**`, `.mergify.yml`, OpenCode policy/safety ve credential siniri `risk:blocked` olarak insan kontrolludur. Ayrintili topoloji icin `docs/AUTONOMOUS_OPERATIONS.md` dosyasina bak.
 
 ## Preflight Checklist
 
@@ -120,7 +135,7 @@ npm test
 npm run test:runtime
 ```
 
-3. Tercih edilen production deploy yolu GitHub Actions'taki `backend-production-deploy` workflow'udur. Workflow'u `main` branch uzerinde manuel calistir ve onay alanina `DEPLOY` yaz.
+3. Tercih edilen production deploy yolu `autonomous-production` -> reusable `backend-production-deploy` zinciridir. Manuel `DEPLOY` dispatch'i break-glass yoludur.
 4. Workflow; build, unit test, runtime smoke test, Doppler secret dogrulamasi, Worker secret senkronizasyonu, deploy ve canli endpoint kontrollerini sirayla calistirir.
 5. Acil lokal deploy gerekirse:
 
