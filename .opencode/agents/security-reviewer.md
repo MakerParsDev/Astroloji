@@ -3,7 +3,6 @@ description: Independent read-only security reviewer for auth, secrets, billing,
 mode: subagent
 permission:
   edit: deny
-  bash: allow
   lsp: allow
   skill: allow
 ---

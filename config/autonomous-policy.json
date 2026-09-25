@@ -1,0 +1,21 @@
+{
+  "maxFiles": 20,
+  "maxChangedLines": 1000,
+  "highRiskRules": [
+    {"name":"GitHub automation","pattern":"^\\.github/"},
+    {"name":"Mergify policy","pattern":"^\\.mergify\\.yml$"},
+    {"name":"OpenCode control plane","pattern":"^(?:AGENTS\\.md|opencode\\.jsonc|renovate\\.json|config/autonomous-policy\\.json|\\.opencode/)"},
+    {"name":"OpenCode policy scripts","pattern":"^scripts/(?:autonomous-policy|check-autonomous-diff|install-opencode-ci|run-opencode-github-ci|probe-opencode-github-env|parse-opencode-review|safety-guard|select-opencode-free-model|sanitize-ci-log|scan-secrets)(?:\\.test)?\\.(?:mjs|sh)$"},
+    {"name":"Root CI script tests","pattern":"^scripts/.*\\.test\\.mjs$"},
+    {"name":"production release runbook","pattern":"^RELEASE_RUNBOOK\\.md$"},
+    {"name":"backend migrations","pattern":"^backend/migrations/"},
+    {"name":"Cloudflare deployment config","pattern":"^backend/wrangler(?:\\.[^/]+)?\\.toml$"},
+    {"name":"production backend scripts","pattern":"^backend/scripts/(?:migrate-.*\\.sql|verify-rate-limit-production\\.ts|inspect-admob-ssv-results\\.ts)$"},
+    {"name":"Android manifest","pattern":"^Astroloji/app/src/main/AndroidManifest\\.xml$"},
+    {"name":"Gradle properties","pattern":"^Astroloji/gradle\\.properties$"},
+    {"name":"credential configuration","pattern":"(^|/)(?:google-services(?:\\.example)?\\.json|firebase-auth-config(?:\\.example)?\\.json|[^/]*service-account[^/]*|[^/]*keystore[^/]*)$"},
+    {"name":"backend auth billing security runtime","pattern":"^backend/src/(?:middleware/auth\\.ts|workers/(?:subscription|adminPanel)\\.ts|services/(?:rateLimit|playRtdnDelivery|playRtdnAuth|playBilling|firebaseAuth|admobSsv|adminAudit)\\.ts|durable/RateLimitBucket\\.ts)$"},
+    {"name":"Android auth billing runtime","pattern":"^Astroloji/app/src/main/.*/(?:AuthInterceptor|AuthenticatedRequestExecutor|BillingManager|PremiumBillingCadence|LegacyCredentialMigration|AppCheckInstaller|RewardedAdSsv)\\.kt$"},
+    {"name":"Play publication state","pattern":"^(?:Astroloji/play/.*|scripts/(?:.*play.*|.*release.*|.*ssv.*|.*rtdn.*)\\.(?:mjs|js|ts))$"}
+  ]
+}

@@ -17,31 +17,34 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
 
-      - name: Install current OpenCode CLI
-        run: npm install --global opencode-ai@latest
+      - name: Install checksum-pinned OpenCode CLI
+        shell: bash
+        run: bash scripts/install-opencode-ci.sh
 
-      - name: Select a currently free OpenCode model
+      - name: Verify pinned GitHub runner env contract
+        run: node scripts/probe-opencode-github-env.mjs
+
+      - name: Select a currently free coding model
         id: free_model
         run: node scripts/select-opencode-free-model.mjs
 
       - name: Validate project configuration
-        env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: opencode debug config > /dev/null
 
-      - name: Verify free model inference
+      - name: Verify anonymous free-model inference
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           MODEL: ${{ steps.free_model.outputs.model }}
         shell: bash
         run: |
-          output="$(timeout 120s opencode run --pure --auto --model "$MODEL"             "Reply exactly FREE_MODEL_CANARY_OK. Do not call tools.")"
+          output="$(
+            timeout 120s opencode run --pure --auto --model "$MODEL"               "Reply exactly FREE_MODEL_CANARY_OK. Do not call tools."
+          )"
           printf '%s' "$output" | grep -F "FREE_MODEL_CANARY_OK"

@@ -3,7 +3,6 @@ description: Read-only issue triage engineer that turns reports into actionable 
 mode: primary
 permission:
   edit: deny
-  bash: allow
   lsp: allow
   skill: allow
   task: deny
