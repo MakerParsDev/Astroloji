@@ -242,7 +242,7 @@ jobs:
           gh api --method POST             "repos/$GITHUB_REPOSITORY/statuses/$new_sha"             -f state=success             -f context=autonomous-risk-low             -f description='Base-pinned CI repair policy allows low-risk automation.'
 
           gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
-          gh workflow run opencode-review.yml --repo "$GITHUB_REPOSITORY"             --ref "$BRANCH"             -f pr_number="$PR_NUMBER"
+          gh workflow run opencode-review.yml --repo "$GITHUB_REPOSITORY"             --ref main             -f pr_number="$PR_NUMBER"
 
       - name: Record exhausted or blocked repair
         if: failure() && steps.pr.outputs.eligible == 'true'

@@ -73,7 +73,7 @@ Mergify identifies autonomous pull requests from trusted same-repository head br
 ## GitHub workflows
 
 - `opencode-command.yml`: trusted collaborator `/oc` commands. It intentionally leaves `PROMPT` unset so pinned OpenCode v1.18.32 extracts the actual comment body and mention context.
-- `opencode-review.yml`: independent same-repository exact-head PR review. It checks out the resolved PR head SHA, runs the read-only `reviewer` agent in JSON mode, parses only assistant text events, comments the review, and fails the `review` check whenever any actionable finding remains or the final verdict marker is malformed.
+- `opencode-review.yml`: independent same-repository exact-head PR review. Automatic runs use `pull_request_target`, check out only the trusted base SHA, fetch the exact PR head only as untrusted Git data, and forbid checking out or executing PR-head code. The model process receives no GitHub credential. Trusted post-processing comments the parsed assistant result and writes an exact-head `review` commit status; actionable findings or malformed verdicts fail closed.
 - `opencode-triage.yml`: issue triage.
 - `opencode-maintenance.yml`: daily bounded maintenance.
 - `opencode-security-audit.yml`: weekly read-only security audit.
@@ -81,7 +81,7 @@ Mergify identifies autonomous pull requests from trusted same-repository head br
 - `opencode-dispatch.yml`: manual maintainer task.
 - `opencode-pr-policy.yml`: deterministic autonomous PR risk classification.
 - Mergify Merge Protections: the sole autonomous merge/queue controller for low-risk PRs.
-- `opencode-ci-repair.yml`: at most two repairs on eligible `opencode/*` low-risk PRs; eligibility requires exact-head `autonomous-risk-low=success` and rejects any existing `human-approved` boundary; policy-control changes hard-stop repair; final full-diff risk is evaluated with policy files extracted from the trusted base SHA. After a proven low-risk repair, it writes `autonomous-risk-low=success` on the new SHA, normalizes stale risk/human labels, and explicitly dispatches `ci.yml` plus `opencode-review.yml` on the repaired branch. A failed dispatched CI run can enter the second bounded repair attempt. It never merges.
+- `opencode-ci-repair.yml`: at most two repairs on eligible `opencode/*` low-risk PRs; eligibility requires exact-head `autonomous-risk-low=success` and rejects any existing `human-approved` boundary; policy-control changes hard-stop repair; final full-diff risk is evaluated with policy files extracted from the trusted base SHA. After a proven low-risk repair, it writes `autonomous-risk-low=success` on the new SHA, normalizes stale risk/human labels, dispatches `ci.yml` on the repaired branch, and dispatches `opencode-review.yml` from trusted `main` with the PR number so the review workflow can inspect the new head only as data. A failed dispatched CI run can enter the second bounded repair attempt. It never merges.
 - Bootstrap boundary: keep `opencode-ci-repair` disabled at repository level until this hardening change is merged and `main` contains the base-pinned policy/module files; only then re-enable it.
 - `opencode-model-canary.yml`: daily checksum-pinned CLI, GitHub `MODEL`/`PROMPT` env-contract, free-model catalog, configuration, and inference health check.
 
