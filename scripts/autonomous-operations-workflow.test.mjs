@@ -78,8 +78,8 @@ test('CI blocks destructive autonomous migrations before backend verification', 
 });
 
 
-test('new production controllers install only checksum-pinned Doppler', () => {
-  for (const name of ['android-metadata-autonomous.yml', 'android-rollout-controller.yml']) {
+test('autonomous production workflows install only checksum-pinned Doppler', () => {
+  for (const name of ['backend-production-deploy.yml', 'android-internal-release.yml', 'android-production-release.yml', 'android-metadata-autonomous.yml', 'android-rollout-controller.yml']) {
     const workflow = read(`.github/workflows/${name}`);
     assert.match(workflow, /Install pinned Doppler CLI/);
     assert.match(workflow, /DOPPLER_VERSION:\s*3\.76\.1/);
@@ -109,4 +109,13 @@ test('production health watchdog is hourly, credential-free, and incident-backed
   assert.match(workflow, /Autonomous production health check failed/);
   assert.match(workflow, /gh issue close/);
   assert.doesNotMatch(workflow, /DOPPLER_TOKEN|PLAY_SERVICE_ACCOUNT|CLOUDFLARE_API_TOKEN/);
+});
+
+
+test('production backend mutations use only the lockfile-installed Wrangler binary', () => {
+  const workflow = read('.github/workflows/backend-production-deploy.yml');
+  assert.match(workflow, /\.\/node_modules\/\.bin\/wrangler d1 execute astrology-db --remote/);
+  assert.match(workflow, /\.\/node_modules\/\.bin\/wrangler d1 migrations apply astrology-db --remote/);
+  assert.match(workflow, /\.\/node_modules\/\.bin\/wrangler rollback --message/);
+  assert.doesNotMatch(workflow, /\bnpx wrangler\b/);
 });

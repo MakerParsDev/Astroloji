@@ -22,7 +22,7 @@ test('Phase A production deploy wires and masks RTDN runtime configuration', () 
   assert.ok(maskAudience < workerDeploy && maskCaller < workerDeploy);
 });
 test('Phase A production deploy reads back RTDN schema before Worker deploy', () => {
-  const trackedMigrations = deploy.indexOf('npx wrangler d1 migrations apply astrology-db --remote');
+  const trackedMigrations = deploy.indexOf('./node_modules/.bin/wrangler d1 migrations apply astrology-db --remote');
   const schemaReadback = deploy.indexOf('PRAGMA table_info(play_rtdn_messages)');
   const workerDeploy = deploy.indexOf('npm run deploy:doppler');
 

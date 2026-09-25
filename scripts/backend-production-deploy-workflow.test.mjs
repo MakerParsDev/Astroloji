@@ -16,9 +16,9 @@ test('backend production deploy loads operational secrets from Doppler', () => {
 
 test('backend production deploy applies, deploys, and verifies rewarded SSV in order', () => {
   const rewardMigration = workflow.indexOf(
-    'npx wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql',
+    './node_modules/.bin/wrangler d1 execute astrology-db --remote --file=scripts/migrate-reward-ssv.sql',
   );
-  const trackedMigrations = workflow.indexOf('npx wrangler d1 migrations apply astrology-db --remote');
+  const trackedMigrations = workflow.indexOf('./node_modules/.bin/wrangler d1 migrations apply astrology-db --remote');
   const deploy = workflow.indexOf('npm run deploy:doppler');
   const verification = workflow.indexOf('node ../scripts/check-backend-reward-ssv.mjs');
 

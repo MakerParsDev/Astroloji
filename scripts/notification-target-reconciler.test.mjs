@@ -182,7 +182,7 @@ test('production workflow reconciles notification targets before tracked migrati
     'utf8',
   );
   const reconcile = workflow.indexOf('node scripts/reconcile-notification-targets.mjs');
-  const tracked = workflow.indexOf('npx wrangler d1 migrations apply astrology-db --remote');
+  const tracked = workflow.indexOf('./node_modules/.bin/wrangler d1 migrations apply astrology-db --remote');
   const deploy = workflow.indexOf('npm run deploy:doppler');
 
   assert.notEqual(reconcile, -1);
