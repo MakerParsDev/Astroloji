@@ -76,3 +76,22 @@ test('CI blocks destructive autonomous migrations before backend verification', 
   assert.match(ci, /validate-autonomous-migrations\.mjs/);
   assert.match(ci, /backend-verify:[\s\S]*fetch-depth:\s*2/);
 });
+
+
+test('new production controllers install only checksum-pinned Doppler', () => {
+  for (const name of ['android-metadata-autonomous.yml', 'android-rollout-controller.yml']) {
+    const workflow = read(`.github/workflows/${name}`);
+    assert.match(workflow, /Install pinned Doppler CLI/);
+    assert.match(workflow, /DOPPLER_VERSION:\s*3\.76\.1/);
+    assert.match(workflow, /DOPPLER_SHA256:\s*e35230bd21fdbd7e41ddcb24672ec61cecefdb22de244d0216ea6b59853f63f2/);
+    assert.match(workflow, /sha256sum --check/);
+    assert.match(workflow, /--proto '=https'/);
+    assert.doesNotMatch(workflow, /cli\.doppler\.com\/install\.sh/);
+  }
+});
+
+test('backend rollback executes the lockfile-installed Wrangler binary', () => {
+  const workflow = read('.github/workflows/backend-production-deploy.yml');
+  assert.match(workflow, /\.\/node_modules\/\.bin\/wrangler rollback --message/);
+  assert.doesNotMatch(workflow, /npx wrangler rollback/);
+});

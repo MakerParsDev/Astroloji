@@ -12,7 +12,7 @@ export function classifyReleasePaths(paths) {
 }
 
 function git(...args) {
-  return execFileSync('git', args, { encoding: 'utf8' }).trim();
+  return execFileSync('/usr/bin/git', args, { encoding: 'utf8' }).trim();
 }
 
 export function buildReleasePlan(releaseSha) {

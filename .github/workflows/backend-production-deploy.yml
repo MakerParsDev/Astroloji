@@ -246,7 +246,7 @@ jobs:
 
       - name: Roll back Worker on failed post-deploy verification
         if: failure() && steps.deploy.outcome == 'success'
-        run: npx wrangler rollback --message "Autonomous rollback after failed verification for $RELEASE_SHA"
+        run: ./node_modules/.bin/wrangler rollback --message "Autonomous rollback after failed verification for $RELEASE_SHA"
 
       - name: Verify rollback health
         if: failure() && steps.deploy.outcome == 'success'
