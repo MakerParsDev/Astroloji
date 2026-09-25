@@ -73,7 +73,7 @@
     <string name="onboarding_reveal_continue">Continue</string>
     <plurals name="streak_badge_format">
         <item quantity="one">%1$d day streak</item>
-        <item quantity="other">%1$d day streak</item>
+        <item quantity="other">%1$d days streak</item>
     </plurals>
     <string name="premium_title">Unlimited Astrology</string>
     <string name="premium_subtitle">Unlock deeper guidance, richer compatibility readings, and an ad-free cosmic ritual.</string>

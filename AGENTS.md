@@ -23,7 +23,7 @@ WORKING PRINCIPLES
 | DataStore | 1.2.1 | AndroidX DataStore stable releases were referenced; the preferences-based session flow works with this version. |
 | Hilt / AndroidX Hilt | 2.60.1 / 1.4.0 | Dagger Hilt and AndroidX Hilt integration have been verified with the current DI and WorkManager flow. |
 | WorkManager / Glance | 2.11.2 / 1.1.1 | Background work and widget layers use official stable families and pass local builds. |
-| Firebase Android BoM + plugins | 34.16.0 / 4.5.0 / 3.0.7 | Firebase release notes and plugin channels were reviewed; Auth, Messaging, Crashlytics, and Remote Config work together with these pins. |
+| Firebase Android BoM + plugins | 34.17.0 / 4.5.0 / 3.0.7 | Firebase release notes and plugin channels were reviewed; Auth, Messaging, Crashlytics, and Remote Config work together with these pins. |
 | Google Mobile Ads / App Set / UMP / Play Billing | 25.4.0 / 16.1.0 / 4.0.0 / 9.1.0 | Official Google release pages were reviewed; ads and subscription flows align with these pins, including the Play Billing 9.x major API changes. |
 | OkHttp / Retrofit / kotlinx.serialization / Coroutines | 5.4.0 / 3.0.0 / 1.11.0 / 1.11.0 | Network and coroutine-based repository flows have been verified locally. |
 | Coil / Lottie / Timber | 3.5.0 / 6.7.1 / 5.0.1 | Existing UI media and logging pins are retained; no new library was added. |
