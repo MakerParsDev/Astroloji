@@ -1,6 +1,33 @@
 name: android-production-release
 
 on:
+  workflow_call:
+    inputs:
+      autonomous:
+        required: false
+        default: false
+        type: boolean
+      release_sha:
+        required: true
+        type: string
+      version_name:
+        required: true
+        type: string
+      version_code:
+        required: true
+        type: string
+      release_name:
+        required: false
+        default: ''
+        type: string
+      rollout_fraction:
+        required: false
+        default: '0.1'
+        type: string
+      promote_from_track:
+        required: false
+        default: 'internal'
+        type: string
   workflow_dispatch:
     inputs:
       version_name:
@@ -25,6 +52,11 @@ on:
         required: false
         default: ''
         type: string
+      release_sha:
+        description: Optional exact main SHA. Defaults to the dispatched main commit.
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -35,7 +67,11 @@ concurrency:
 
 jobs:
   publish-production:
-    if: github.repository == 'MakerParsDev/Astroloji' && vars.ENABLE_PRODUCTION_RELEASE == 'true'
+    if: >-
+      github.repository == 'MakerParsDev/Astroloji' &&
+      vars.ENABLE_PRODUCTION_RELEASE == 'true' &&
+      ((github.event_name == 'workflow_call' && inputs.autonomous) ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
@@ -50,8 +86,19 @@ jobs:
       DOPPLER_PROJECT: ${{ vars.DOPPLER_PROJECT }}
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
+      RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify immutable main release SHA
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git fetch --no-tags --no-recurse-submodules origin main
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
 
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
@@ -65,6 +112,30 @@ jobs:
 
       - name: Verify live rewarded SSV backend
         run: node ../scripts/check-backend-reward-ssv.mjs
+
+      - name: Resolve production release name
+        id: release_identity
+        env:
+          REQUESTED_RELEASE_NAME: ${{ inputs.release_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          AUTONOMOUS: ${{ inputs.autonomous }}
+        run: |
+          if [ -n "$REQUESTED_RELEASE_NAME" ]; then
+            release_name="$REQUESTED_RELEASE_NAME"
+          elif [ "$AUTONOMOUS" = "true" ]; then
+            epoch="$(date +%s)"
+            release_name="auto-v1-${VERSION_CODE}-${epoch}-${RELEASE_SHA:0:7}"
+          else
+            echo "release_name is required for a manual production release." >&2
+            exit 1
+          fi
+          case "$release_name" in
+            *[!0-9A-Za-z._-]*|'')
+              echo "Release name contains unsupported characters." >&2
+              exit 1
+              ;;
+          esac
+          printf 'release_name=%s\n' "$release_name" >> "$GITHUB_OUTPUT"
 
       - name: Install Doppler CLI
         env:
@@ -82,6 +153,7 @@ jobs:
               --format json \
               --no-file \
               > "$RUNNER_TEMP/doppler-secrets.json"
+            chmod 600 "$RUNNER_TEMP/doppler-secrets.json"
           else
             echo "DOPPLER_TOKEN is not set; relying on GitHub environment secrets."
           fi
@@ -98,7 +170,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           PLAY_TRACK: ${{ vars.PLAY_TRACK_PRODUCTION }}
           PLAY_RELEASE_STATUS: IN_PROGRESS
-          PLAY_RELEASE_NAME: ${{ inputs.release_name }}
+          PLAY_RELEASE_NAME: ${{ steps.release_identity.outputs.release_name }}
           PLAY_USER_FRACTION: ${{ inputs.rollout_fraction }}
           VERSION_CODE: ${{ inputs.version_code }}
           VERSION_NAME: ${{ inputs.version_name }}
@@ -125,7 +197,7 @@ jobs:
           ./gradlew :app:promoteReleaseArtifact
           --from-track="${{ inputs.promote_from_track }}"
           --promote-track="${PLAY_TRACK_PRODUCTION:-production}"
-          --release-name="${{ inputs.release_name }}"
+          --release-name="${{ steps.release_identity.outputs.release_name }}"
           --release-status="inProgress"
           --user-fraction="${{ inputs.rollout_fraction }}"
           --version-code="${{ inputs.version_code }}"
@@ -147,8 +219,8 @@ jobs:
             echo
             echo "- Version name: ${{ inputs.version_name }}"
             echo "- Version code: ${{ inputs.version_code }}"
-            echo "- Release name: ${{ inputs.release_name }}"
-            echo "- Git SHA: ${{ github.sha }}"
+            echo "- Release name: ${{ steps.release_identity.outputs.release_name }}"
+            echo "- Git SHA: $RELEASE_SHA"
             echo "- Promote from track: ${{ inputs.promote_from_track || 'n/a' }}"
             echo "- Play track: ${PLAY_TRACK_PRODUCTION:-production}"
             echo "- Release status: inProgress"
@@ -157,3 +229,14 @@ jobs:
               echo "- Artifact: android-production-release-${{ inputs.version_code }}"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+
+      - name: Remove sensitive release files
+        if: always()
+        run: |
+          rm -f \
+            app/google-services.json \
+            gradle.properties \
+            "$RUNNER_TEMP/doppler-secrets.json" \
+            "$RUNNER_TEMP/play-service-account.json" \
+            "$RUNNER_TEMP/upload-keystore.jks"

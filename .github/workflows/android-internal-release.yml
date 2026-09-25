@@ -1,11 +1,38 @@
 name: android-internal-release
 
 on:
+  workflow_call:
+    inputs:
+      autonomous:
+        required: false
+        default: false
+        type: boolean
+      release_sha:
+        required: true
+        type: string
+      version_code:
+        required: false
+        default: ''
+        type: string
+      version_name:
+        required: false
+        default: ''
+        type: string
+    outputs:
+      version_code:
+        value: ${{ jobs.publish-internal.outputs.version_code }}
+      version_name:
+        value: ${{ jobs.publish-internal.outputs.version_name }}
   workflow_dispatch:
     inputs:
       confirm:
         description: "Type RELEASE_INTERNAL to publish a signed bundle to the Google Play internal track."
         required: true
+        type: string
+      release_sha:
+        description: "Optional exact main SHA. Defaults to the dispatched main commit."
+        required: false
+        default: ''
         type: string
       version_code:
         description: "Monotonic Google Play version code."
@@ -20,15 +47,21 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-internal-release-${{ github.ref }}
+  group: android-internal-release-${{ inputs.release_sha || github.ref }}
   cancel-in-progress: false
 
 jobs:
   publish-internal:
-    if: github.repository == 'MakerParsDev/Astroloji' && inputs.confirm == 'RELEASE_INTERNAL'
+    if: >-
+      github.repository == 'MakerParsDev/Astroloji' &&
+      ((github.event_name == 'workflow_call' && inputs.autonomous) ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'RELEASE_INTERNAL'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: internal
+    outputs:
+      version_code: ${{ steps.release_identity.outputs.version_code }}
+      version_name: ${{ steps.release_identity.outputs.version_name }}
     defaults:
       run:
         working-directory: Astroloji
@@ -41,8 +74,19 @@ jobs:
       DOPPLER_CONFIG: ${{ vars.DOPPLER_CONFIG }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
       MINIMUM_INTERNAL_VERSION_CODE: "1101"
+      RELEASE_SHA: ${{ inputs.release_sha || github.sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify immutable main release SHA
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git fetch --no-tags --no-recurse-submodules origin main
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
 
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
@@ -78,7 +122,7 @@ jobs:
             echo "DOPPLER_TOKEN is not set; relying on GitHub environment secrets."
           fi
 
-      - name: Prepare release assets
+      - name: Prepare release credentials and signing assets
         env:
           DOPPLER_SECRETS_JSON_PATH: ${{ runner.temp }}/doppler-secrets.json
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
@@ -90,8 +134,6 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           PLAY_TRACK: ${{ vars.PLAY_TRACK_INTERNAL }}
           PLAY_RELEASE_STATUS: COMPLETED
-          VERSION_CODE: ${{ inputs.version_code }}
-          VERSION_NAME: ${{ inputs.version_name }}
           CRASHLYTICS_MAPPING_UPLOAD_ENABLED: true
           REQUIRE_ANDROID_SIGNING: true
           REQUIRE_GOOGLE_SERVICES_JSON: true
@@ -106,19 +148,38 @@ jobs:
           PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
         run: node ../scripts/check-play-release-access.mjs
 
-      - name: Validate requested version code
+      - name: Resolve and validate release identity
+        id: release_identity
         env:
           REQUESTED_VERSION_CODE: ${{ inputs.version_code }}
+          REQUESTED_VERSION_NAME: ${{ inputs.version_name }}
           REQUIRED_VERSION_CODE: ${{ steps.play_access.outputs.recommended_version_code }}
         run: |
           node --input-type=module <<'NODE'
+          import fs from 'node:fs';
           import { assertRequestedVersionCode } from '../scripts/check-play-release-access.mjs';
-          const requested = assertRequestedVersionCode(
-            process.env.REQUESTED_VERSION_CODE,
+          const requested = process.env.REQUESTED_VERSION_CODE?.trim()
+            || process.env.REQUIRED_VERSION_CODE;
+          const versionCode = assertRequestedVersionCode(
+            requested,
             process.env.REQUIRED_VERSION_CODE,
           );
-          console.log(`Requested version code ${requested} satisfies the Play requirement.`);
+          const versionName = process.env.REQUESTED_VERSION_NAME?.trim() || `1.0.${versionCode}`;
+          if (!/^[0-9A-Za-z._-]{1,50}$/.test(versionName)) {
+            throw new Error('Resolved Android version name contains unsupported characters.');
+          }
+          fs.appendFileSync(
+            process.env.GITHUB_OUTPUT,
+            `version_code=${versionCode}\nversion_name=${versionName}\n`,
+          );
           NODE
+
+      - name: Apply release identity to Gradle
+        run: |
+          sed -i '/^VERSION_CODE=/d;/^VERSION_NAME=/d' gradle.properties
+          printf 'VERSION_CODE=%s\nVERSION_NAME=%s\n' \
+            "${{ steps.release_identity.outputs.version_code }}" \
+            "${{ steps.release_identity.outputs.version_name }}" >> gradle.properties
 
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
@@ -132,7 +193,7 @@ jobs:
       - name: Upload Android release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: android-internal-release-${{ inputs.version_code }}
+          name: android-internal-release-${{ steps.release_identity.outputs.version_code }}
           path: |
             Astroloji/app/build/outputs/bundle/release/*.aab
             Astroloji/app/build/outputs/mapping/release/mapping.txt
@@ -143,12 +204,12 @@ jobs:
           {
             echo '## Android internal release'
             echo
-            echo "- Version name: ${{ inputs.version_name }}"
-            echo "- Version code: ${{ inputs.version_code }}"
-            echo "- Git SHA: ${{ github.sha }}"
+            echo "- Version name: ${{ steps.release_identity.outputs.version_name }}"
+            echo "- Version code: ${{ steps.release_identity.outputs.version_code }}"
+            echo "- Git SHA: $RELEASE_SHA"
             echo "- Play track: ${PLAY_TRACK_INTERNAL:-internal}"
             echo "- Release status: completed"
-            echo "- Artifact: android-internal-release-${{ inputs.version_code }}"
+            echo "- Artifact: android-internal-release-${{ steps.release_identity.outputs.version_code }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove sensitive release files

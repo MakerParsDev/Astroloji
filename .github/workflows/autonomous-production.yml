@@ -1,0 +1,125 @@
+name: autonomous-production
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Optional exact current main SHA to replay.
+        required: false
+        default: ''
+        type: string
+
+concurrency:
+  group: autonomous-production
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: >-
+      github.repository == 'MakerParsDev/Astroloji' &&
+      vars.ENABLE_AUTONOMOUS_PRODUCTION == 'true' &&
+      ((github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository) ||
+       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      release_sha: ${{ steps.release_plan.outputs.release_sha }}
+      backend: ${{ steps.release_plan.outputs.backend }}
+      android: ${{ steps.release_plan.outputs.android }}
+      play_metadata: ${{ steps.release_plan.outputs.play_metadata }}
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.release_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify exact current main commit
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git fetch --no-tags --no-recurse-submodules origin main
+          test "$(git rev-parse origin/main)" = "$RELEASE_SHA"
+
+      - name: Build autonomous production release plan
+        id: release_plan
+        run: node scripts/autonomous-release-plan.mjs "$RELEASE_SHA"
+
+      - name: Publish plan summary
+        run: |
+          {
+            echo '## Autonomous production plan'
+            echo
+            echo "- SHA: ${{ steps.release_plan.outputs.release_sha }}"
+            echo "- Backend deploy: ${{ steps.release_plan.outputs.backend }}"
+            echo "- Android binary release: ${{ steps.release_plan.outputs.android }}"
+            echo "- Play metadata changed: ${{ steps.release_plan.outputs.play_metadata }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  backend:
+    needs: plan
+    if: needs.plan.outputs.backend == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/backend-production-deploy.yml
+    with:
+      autonomous: true
+      release_sha: ${{ needs.plan.outputs.release_sha }}
+    secrets: inherit
+
+  play-metadata:
+    needs: [plan, backend]
+    if: >-
+      always() &&
+      needs.plan.result == 'success' &&
+      needs.plan.outputs.play_metadata == 'true' &&
+      (needs.backend.result == 'success' || needs.backend.result == 'skipped')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/android-metadata-autonomous.yml
+    with:
+      release_sha: ${{ needs.plan.outputs.release_sha }}
+    secrets: inherit
+
+  android-internal:
+    needs: [plan, backend]
+    if: >-
+      always() &&
+      needs.plan.result == 'success' &&
+      needs.plan.outputs.android == 'true' &&
+      (needs.backend.result == 'success' || needs.backend.result == 'skipped')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/android-internal-release.yml
+    with:
+      autonomous: true
+      release_sha: ${{ needs.plan.outputs.release_sha }}
+    secrets: inherit
+
+  android-production:
+    needs: [plan, backend, android-internal]
+    if: >-
+      always() &&
+      needs.plan.result == 'success' &&
+      needs.android-internal.result == 'success' &&
+      (needs.backend.result == 'success' || needs.backend.result == 'skipped')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/android-production-release.yml
+    with:
+      autonomous: true
+      release_sha: ${{ needs.plan.outputs.release_sha }}
+      version_code: ${{ needs.android-internal.outputs.version_code }}
+      version_name: ${{ needs.android-internal.outputs.version_name }}
+      rollout_fraction: '0.1'
+      promote_from_track: internal
+    secrets: inherit

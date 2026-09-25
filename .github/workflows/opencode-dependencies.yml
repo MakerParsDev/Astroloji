@@ -49,9 +49,11 @@ jobs:
             Audit dependency pins against current authoritative release notes and security advisories.
             Follow the dependency-upgrade skill.
             Make at most ONE coherent upgrade PR per run, only when compatibility can be demonstrated
-            by the repository's deterministic gates. Prefer security fixes and low-risk patch/minor
-            updates. Never silently combine unrelated major platform upgrades. Major AGP/Kotlin/KSP,
-            Play Billing, Firebase, Hono/Wrangler runtime, auth or release-tool changes must remain
-            explicitly high-risk and must not be auto-merged.
+            by the repository's deterministic gates. Prefer security fixes and patch/minor updates, then
+            justified major upgrades with migration evidence. Never silently combine unrelated major
+            platform upgrades. Sensitive AGP/Kotlin/KSP, Play Billing, Firebase, Hono/Wrangler runtime,
+            auth, migration, or release-tool changes use the elevated autonomous tier and may merge only
+            after every exact-head gate passes. Constitutional automation-control, credential, or branch-
+            policy changes must remain human-controlled.
         shell: bash
         run: bash scripts/run-opencode-github-ci.sh
