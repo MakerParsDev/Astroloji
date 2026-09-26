@@ -100,9 +100,11 @@ Repoda gercek secret tutulmaz. Asagidaki dosyalar lokal/CI secret store uzerinde
 - `JWT_SECRET`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
-- `PLAY_WEBHOOK_SECRET`
 - `ADMOB_REWARDED_ID`
+- `BIRTH_DATA_ENCRYPTION_KEY`
 - Scoped admin credentials are isolated by capability: `ADMIN_CONTENT_SECRET`, `ADMIN_NOTIFICATION_SECRET`, `ADMIN_PLAY_READ_SECRET`, `ADMIN_PLAY_WRITE_SECRET`. They are not owned by the generic backend deploy flow.
+
+Play RTDN push is OIDC secret-free; `PLAY_WEBHOOK_SECRET` was retired in Phase B (2026-08-08) and must not be reintroduced.
 
 ## Deploy Akisi
 
@@ -244,7 +246,6 @@ Not: Zamanlanmis `content-backfill` workflow'u Cloudflare API token kullanmaz; d
 - Firebase service account rotate et.
 - Google Play service account rotate et.
 - `JWT_SECRET` rotate et.
-- `PLAY_WEBHOOK_SECRET` rotate et.
 - Admin credential rotasyonunu capability bazinda yap: `content-ops`, `notification-ops`, `play-read` veya `play-write`. Ilgili `production-admin-*` environment secret'ini guncelle ve `backend-admin-capability-sync` workflow'unu yalniz o capability icin calistir.
 - Scoped admin credential emergency revocation/rotation'i diger capability'leri degistirmemelidir; generic backend deploy bu credential'lari yonetmez.
 - Core secret rotate sonrasi Doppler ve Cloudflare secret store senkronunu tekrarla.

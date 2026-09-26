@@ -55,10 +55,12 @@ Release almadan once su maddeler `PASS` olmali:
 - `JWT_SECRET`
 - `GOOGLE_SERVICE_ACCOUNT_JSON`
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
-- `PLAY_WEBHOOK_SECRET`
 - `ADMOB_REWARDED_ID`
+- `BIRTH_DATA_ENCRYPTION_KEY`
 - `CLOUDFLARE_API_TOKEN`
 - Scoped admin credentials generic backend secret setine dahil degildir. `ADMIN_CONTENT_SECRET`, `ADMIN_NOTIFICATION_SECRET`, `ADMIN_PLAY_READ_SECRET`, `ADMIN_PLAY_WRITE_SECRET` ayri `production-admin-*` environment'larinda tutulur.
+
+Play RTDN push Phase B (2026-08-08) sonrasi OIDC secret-free calisir; emekli `PLAY_WEBHOOK_SECRET` adi Worker, Doppler ve dokumanda yer almamalidir.
 
 ## Android Release Adimlari
 
