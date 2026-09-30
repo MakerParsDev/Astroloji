@@ -111,8 +111,46 @@ export const trackEventSchema = z.object({
   meta: z.record(z.string(), z.unknown()).optional().default({})
 });
 
-const dailyRewardIdentifierSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const weeklyRewardIdentifierSchema = z.string().regex(/^\d{4}-W\d{2}$/);
+const DAILY_REWARD_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const WEEKLY_REWARD_PATTERN = /^(\d{4})-W(\d{2})$/;
+
+function isRealDailyRewardIdentifier(value: string): boolean {
+  const match = DAILY_REWARD_PATTERN.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isSafeInteger(year) || !Number.isSafeInteger(month) || !Number.isSafeInteger(day)) {
+    return false;
+  }
+
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  return (
+    utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day
+  );
+}
+
+function isRealWeeklyRewardIdentifier(value: string): boolean {
+  const match = WEEKLY_REWARD_PATTERN.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const week = Number(match[2]);
+  return Number.isSafeInteger(week) && week >= 1 && week <= 53;
+}
+
+const dailyRewardIdentifierSchema = z
+  .string()
+  .regex(DAILY_REWARD_PATTERN)
+  .refine(isRealDailyRewardIdentifier, 'daily identifier must be a real calendar date.');
+const weeklyRewardIdentifierSchema = z
+  .string()
+  .regex(WEEKLY_REWARD_PATTERN)
+  .refine(isRealWeeklyRewardIdentifier, 'weekly identifier must use week 01-53.');
 
 export function isValidRewardIdentifier(rewardType: RewardType, identifier: string): boolean {
   const schema = rewardType === 'daily' ? dailyRewardIdentifierSchema : weeklyRewardIdentifierSchema;

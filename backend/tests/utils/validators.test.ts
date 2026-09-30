@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isValidRewardIdentifier,
   normalizeCompatibilityPair,
   sanitizeNotificationData,
   validateContentBackfillBody,
   validateCreditsSpendBody,
   validateCreditsVerifyBody,
   validateRegisterBody,
+  validateRewardPrepareBody,
   validateSubscriptionBody,
   validateUpdateUserBody,
   validateLanguage,
@@ -227,4 +229,33 @@ describe('validators', () => {
       }).platform
     ).toBe('ios');
   });
+
+  it('accepts real daily and weekly reward identifiers', () => {
+    expect(isValidRewardIdentifier('daily', '2026-07-26')).toBe(true);
+    expect(isValidRewardIdentifier('weekly', '2026-W30')).toBe(true);
+    expect(isValidRewardIdentifier('daily', '2024-02-29')).toBe(true);
+    expect(
+      validateRewardPrepareBody({ reward_type: 'daily', identifier: '2026-07-26' })
+    ).toEqual({ reward_type: 'daily', identifier: '2026-07-26' });
+  });
+
+  it.each(['2026-02-30', '2026-02-31', '2026-13-01', '2026-00-10', '2023-02-29'])(
+    'rejects impossible daily reward identifier %s',
+    (identifier) => {
+      expect(isValidRewardIdentifier('daily', identifier)).toBe(false);
+      expect(() =>
+        validateRewardPrepareBody({ reward_type: 'daily', identifier })
+      ).toThrow();
+    }
+  );
+
+  it.each(['2026-W00', '2026-W54', '2026-W99', '2026-07-26'])(
+    'rejects invalid weekly reward identifier %s',
+    (identifier) => {
+      expect(isValidRewardIdentifier('weekly', identifier)).toBe(false);
+      expect(() =>
+        validateRewardPrepareBody({ reward_type: 'weekly', identifier })
+      ).toThrow();
+    }
+  );
 });
