@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
@@ -70,6 +70,15 @@ function createStreakDb(user: UserRow) {
 }
 
 describe('streak worker', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-11T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('starts a first-time streak with no reward', async () => {
     const { db } = createStreakDb({
       streak_count: 0,
@@ -89,7 +98,7 @@ describe('streak worker', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       streak_count: 1,
-      last_streak_date: expect.any(String),
+      last_streak_date: '2026-08-11',
       milestone_achieved: null,
       credits_granted: 0,
       balance: 0
@@ -97,7 +106,9 @@ describe('streak worker', () => {
   });
 
   it('is idempotent when checking in twice on the same local day', async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    // Deterministic: matches the frozen service clock in beforeEach so the
+    // test never depends on the real wall-clock or a midnight-UTC rollover.
+    const today = '2026-08-11';
     const { db } = createStreakDb({
       streak_count: 5,
       last_streak_date: today,
