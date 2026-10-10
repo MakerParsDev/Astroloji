@@ -25,7 +25,9 @@ repository security settings; the YAML alone does not switch them on.
 Mergify automatically merges only eligible `dependabot[bot]` PRs after
 **all** exact-head backend and Android CI, secret scan, SonarCloud,
 GitGuardian, Semgrep Cloud and independent review checks succeed, with no
-unresolved review threads. Major upgrades, workflow/control-plane changes,
+unresolved review threads. Mergify uses a strictly serial, single-PR in-place
+merge queue (`max_parallel_checks: 1`, `batch_size: 1`, no two-step checks)
+compatible with GitHub's required up-to-date branch protection. Major upgrades, workflow/control-plane changes,
 Android toolchain/build files, backend runtime code and D1 migrations are
 **not** auto-merged. Failed/incomplete checks leave the PR open for owner
 maintenance. Security fixes requiring a major upgrade remain reviewable;
