@@ -73,6 +73,9 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
         },
         async delete(key: string) {
           store.delete(key);
+        },
+        async list() {
+          return { keys: [], list_complete: true, cacheStatus: null };
         }
       };
     })() as unknown as KVNamespace,

@@ -42,7 +42,8 @@ function protectedApp(
 }
 
 function adminEvents(spy: ReturnType<typeof vi.spyOn>) {
-  return spy.mock.calls
+  const calls = spy.mock.calls as unknown[][];
+  return calls
     .map(([entry]) => entry)
     .filter((entry): entry is Record<string, unknown> =>
       typeof entry === 'object' &&

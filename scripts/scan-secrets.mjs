@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
-const ignoredFragments = [
+// Match path segments, not substrings; `.git` must not hide `.github`.
+const ignoredDirectoryNames = new Set([
   '.git',
   'node_modules',
   '.gradle',
@@ -10,8 +11,8 @@ const ignoredFragments = [
   'dist',
   'coverage',
   '.wrangler',
-  'backend/SECRETS',
-];
+]);
+const ignoredSubtrees = ['backend/SECRETS'];
 const suspiciousPatterns = [
   { name: 'private key', regex: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
   { name: 'google api key', regex: /AIza[0-9A-Za-z\\-_]{20,}/ },
@@ -37,7 +38,10 @@ const textExtensions = new Set([
 ]);
 
 function shouldIgnore(relativePath) {
-  return ignoredFragments.some((fragment) => relativePath.includes(fragment));
+  const segments = relativePath.replaceAll('\\', '/').split('/');
+  const normalized = segments.join('/');
+  return segments.some((segment) => ignoredDirectoryNames.has(segment)) ||
+    ignoredSubtrees.some((subtree) => normalized === subtree || normalized.startsWith(`${subtree}/`));
 }
 
 function scanFile(relativePath, results) {

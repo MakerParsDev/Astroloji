@@ -389,7 +389,8 @@ describe('user routes', () => {
       'DELETE FROM friendships WHERE user_a = ? OR user_b = ?',
       'DELETE FROM invite_codes WHERE owner_user_id = ?',
       'UPDATE invite_codes SET redeemed_by = NULL, redeemed_at = NULL WHERE redeemed_by = ?',
-      'DELETE FROM users WHERE id = ?'
+      'DELETE FROM users WHERE id = ?',
+      'DELETE FROM account_deletion_jobs WHERE user_id = ?'
     ]);
     expect(batched.every((statement) => statement.bindings[0] === 'user-1')).toBe(true);
     expect(list).toHaveBeenCalledWith({ prefix: 'reward:user-1:' });
@@ -455,7 +456,7 @@ describe('user routes', () => {
     expect(deletedR2Keys).toEqual(['deep-reading/user-1/abc123']);
   });
 
-  it('completes critical deletion when deep reading cleanup fails', async () => {
+  it('preserves account identity when deep reading cleanup fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { db } = createDeletionDb();
     const content = {
@@ -505,12 +506,12 @@ describe('user routes', () => {
       env
     );
 
-    expect(response.status).toBe(200);
-    expect(deleteFirebaseUserMock).toHaveBeenCalledWith(env, 'firebase-1');
+    expect(response.status).toBe(503);
+    expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalledOnce();
   });
 
-  it('completes critical deletion when reward cache cleanup fails', async () => {
+  it('preserves account identity when reward cache cleanup fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { db } = createDeletionDb();
     const cache = {
@@ -543,13 +544,9 @@ describe('user routes', () => {
       env
     );
 
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      ok: true,
-      user_id: 'user-1',
-      firebase_account_deleted: true
-    });
-    expect(deleteFirebaseUserMock).toHaveBeenCalledWith(env, 'firebase-1');
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'ACCOUNT_CLEANUP_FAILED' } });
+    expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalledOnce();
   });
 
@@ -581,8 +578,35 @@ describe('user routes', () => {
     expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
   });
 
+  it('never deletes Firebase identity if the durable intent cannot be persisted', async () => {
+    const { db, batched } = createDeletionDb();
+    const guardedDb = {
+      ...db,
+      prepare(sql: string) {
+        if (sql.includes('INSERT OR IGNORE INTO account_deletion_jobs')) {
+          return {
+            bind() {
+              return { async run() { throw new Error('D1 unavailable'); } };
+            }
+          };
+        }
+        return db.prepare(sql);
+      }
+    } as unknown as D1Database;
+    const env = createTestEnv({ DB: guardedDb });
+    const token = await signAppJwt(env, {
+      userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
+    });
+    const response = await createApp().request('/api/v1/users/me', {
+      method: 'DELETE', headers: { authorization: `Bearer ${token}` }
+    }, env);
+    expect(response.status).toBe(500);
+    expect(batched).toEqual([]);
+    expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
+  });
+
   it('returns a safe 502 response when Firebase account deletion fails', async () => {
-    const { db } = createDeletionDb();
+    const { db, batched } = createDeletionDb();
     const cache = {
       async get() {
         return null;
@@ -615,6 +639,7 @@ describe('user routes', () => {
     );
 
     expect(response.status).toBe(502);
+    expect(batched).toEqual([]);
     await expect(response.json()).resolves.toEqual({
       error: {
         code: 'FIREBASE_DELETION_FAILED',
@@ -656,7 +681,79 @@ describe('user routes', () => {
       }
     });
     expect(JSON.stringify(body)).not.toContain('sensitive database details');
-    expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
+    // On database failure the user row remains for a JWT-based retry;
+    // Firebase USER_NOT_FOUND is explicitly treated as idempotent.
+    expect(deleteFirebaseUserMock).toHaveBeenCalledWith(env, 'firebase-1');
+  });
+
+
+  it.each(['KV', 'R2'] as const)(
+    'does not delete identity when %s pagination cannot be completed',
+    async (storage) => {
+      const { db, batched } = createDeletionDb();
+      const storageOverride = storage === 'KV'
+        ? {
+            CACHE: {
+              async list() {
+                return { keys: [], list_complete: false, cursor: undefined };
+              }
+            } as unknown as KVNamespace
+          }
+        : {
+            CONTENT: {
+              async list() {
+                return { objects: [], truncated: true, cursor: undefined };
+              }
+            } as unknown as R2Bucket
+          };
+      const env = createTestEnv({ DB: db, ...storageOverride });
+      const token = await signAppJwt(env, {
+        userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
+      });
+      const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const response = await createApp().request('/api/v1/users/me', {
+        method: 'DELETE', headers: { authorization: `Bearer ${token}` }
+      }, env);
+      expect(response.status).toBe(503);
+      expect(batched).toEqual([]);
+      expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
+      expect(log).toHaveBeenCalledOnce();
+    }
+  );
+
+  it('executes Firebase deletion before the final database transaction', async () => {
+    const { db } = createDeletionDb();
+    const order: string[] = [];
+    const originalBatch = db.batch.bind(db);
+    const originalPrepare = db.prepare.bind(db);
+    const orderedDb = {
+      ...db,
+      prepare(sql: string) {
+        if (sql.includes('INSERT OR IGNORE INTO account_deletion_jobs')) {
+          return {
+            bind() {
+              return { async run() { order.push('intent'); } };
+            }
+          };
+        }
+        return originalPrepare(sql);
+      },
+      async batch(statements: D1PreparedStatement[]) {
+        order.push('database');
+        return originalBatch(statements);
+      }
+    } as unknown as D1Database;
+    deleteFirebaseUserMock.mockImplementation(async () => { order.push('firebase'); });
+    const env = createTestEnv({ DB: orderedDb });
+    const jwt = await signAppJwt(env, {
+      userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
+    });
+
+    const response = await createApp().request('/api/v1/users/me', {
+      method: 'DELETE', headers: { authorization: `Bearer ${jwt}` }
+    }, env);
+    expect(response.status).toBe(200);
+    expect(order).toEqual(['intent', 'firebase', 'database']);
   });
 
   it('requires authentication for account deletion', async () => {

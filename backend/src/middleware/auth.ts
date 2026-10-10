@@ -39,21 +39,25 @@ export const jwtAuthMiddleware: AppMiddleware = async (c, next: Next) => {
     return jsonError(c, 401, 'UNAUTHORIZED', 'Missing authorization header.');
   }
 
+  let claims: Awaited<ReturnType<typeof verifyAppJwt>>;
   try {
-    const claims = await verifyAppJwt(c.env, token);
-    if (!(await userExists(c.env.DB, claims.user_id))) {
-      return jsonError(c, 401, 'INVALID_TOKEN', 'Authorization token is invalid or expired.');
-    }
-    c.set('auth', {
-      userId: claims.user_id,
-      isPremium: claims.is_premium,
-      firebaseUid: claims.firebase_uid,
-      exp: claims.exp
-    });
-    await next();
+    claims = await verifyAppJwt(c.env, token);
   } catch {
     return jsonError(c, 401, 'INVALID_TOKEN', 'Authorization token is invalid or expired.');
   }
+
+  // Database and downstream handler failures must reach Hono's 500 error handler,
+  // not be misclassified as expired or invalid credentials.
+  if (!(await userExists(c.env.DB, claims.user_id))) {
+    return jsonError(c, 401, 'INVALID_TOKEN', 'Authorization token is invalid or expired.');
+  }
+  c.set('auth', {
+    userId: claims.user_id,
+    isPremium: claims.is_premium,
+    firebaseUid: claims.firebase_uid,
+    exp: claims.exp
+  });
+  await next();
 };
 
 const ADMIN_CAPABILITY_SECRET_BINDINGS = {

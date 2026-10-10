@@ -12,6 +12,7 @@ import type {
 import { getCurrentUtcHour, getDateIdentifier, shouldSendNotificationAtUtcHour } from '@/utils/date';
 import { getDecryptedBirthData } from '@/workers/birthData';
 import { cleanupRewardChallenges } from '@/workers/reward';
+import { reconcileAccountDeletions } from '@/workers/user';
 
 /**
  * Minimum personal-guidance signal priority (0-100 scale, see personalGuidance.ts)
@@ -335,6 +336,12 @@ export async function handleCron(
   _ctx: ExecutionContext
 ) {
   void controller;
+  try {
+    await reconcileAccountDeletions(env);
+  } catch {
+    // Migration or transient D1 outage should not block notification delivery.
+    console.error('Account deletion reconciliation query failed; retry scheduled.');
+  }
   await expireAndRefreshSubscriptions(env);
   await dispatchScheduledNotifications(env, getCurrentUtcHour());
   try {

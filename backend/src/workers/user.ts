@@ -128,6 +128,9 @@ async function deleteKvKeysByPrefix(cache: KVNamespace, prefix: string): Promise
     if (page.list_complete) {
       return;
     }
+    if (!page.cursor) {
+      throw new Error('Incomplete KV listing has no continuation cursor.');
+    }
     cursor = page.cursor;
   } while (cursor);
 }
@@ -144,6 +147,9 @@ async function deleteR2KeysByPrefix(bucket: R2Bucket, prefix: string): Promise<v
 
     if (!page.truncated) {
       return;
+    }
+    if (!page.cursor) {
+      throw new Error('Incomplete R2 listing has no continuation cursor.');
     }
     cursor = page.cursor;
   } while (cursor);
@@ -164,8 +170,55 @@ async function deleteUserData(env: AppBindings['Bindings'], userId: string): Pro
     env.DB
       .prepare('UPDATE invite_codes SET redeemed_by = NULL, redeemed_at = NULL WHERE redeemed_by = ?')
       .bind(userId),
-    env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId)
+    env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId),
+    env.DB.prepare('DELETE FROM account_deletion_jobs WHERE user_id = ?').bind(userId)
   ]);
+}
+
+/**
+ * Persists consent to deletion before Firebase is irreversibly removed. The
+ * hourly Worker Cron replays this intent if the request terminates or the
+ * app JWT expires before the final D1 transaction can finish.
+ */
+async function persistDeletionIntent(db: D1Database, userId: string, firebaseUid: string) {
+  const now = new Date().toISOString();
+  await db.prepare(
+    `INSERT OR IGNORE INTO account_deletion_jobs (user_id, firebase_uid, created_at, next_attempt_at)
+     VALUES (?, ?, ?, ?)`
+  ).bind(userId, firebaseUid, now, now).run();
+}
+
+/** A bounded, idempotent reconciliation of durable deletion intents. */
+export async function reconcileAccountDeletions(env: AppBindings['Bindings']): Promise<void> {
+  const pending = await env.DB.prepare(
+    `SELECT user_id, firebase_uid, attempts FROM account_deletion_jobs
+     WHERE next_attempt_at <= ? ORDER BY next_attempt_at, created_at LIMIT ?`
+  ).bind(new Date().toISOString(), 25)
+    .all<{ user_id: string; firebase_uid: string; attempts: number }>();
+
+  for (const job of pending.results ?? []) {
+    try {
+      await deleteKvKeysByPrefix(env.CACHE, `reward:${job.user_id}:`);
+      await deleteR2KeysByPrefix(env.CONTENT, `deep-reading/${job.user_id}/`);
+      await deleteFirebaseUser(env, job.firebase_uid);
+      // The final batch atomically removes user data and the pending intent.
+      await deleteUserData(env, job.user_id);
+    } catch {
+      // Defer repeated failures so one permanently failing batch of jobs cannot
+      // starve newer deletion requests. The existing Cron runs hourly.
+      const hours = Math.min(2 ** Math.min(job.attempts, 4), 12);
+      const nextAttemptAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+      try {
+        await env.DB.prepare(
+          'UPDATE account_deletion_jobs SET attempts = attempts + 1, next_attempt_at = ? WHERE user_id = ?'
+        ).bind(nextAttemptAt, job.user_id).run();
+      } catch {
+        console.error('Account deletion retry scheduling unavailable.');
+      }
+      // Never log user identifiers or Firebase credentials.
+      console.error('Account deletion reconciliation failed; intent retained for retry.');
+    }
+  }
 }
 
 function toUserProfile(user: UserRow, token: FcmTokenRow | null): UserProfileResponse {
@@ -360,34 +413,37 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
       );
     }
 
+    // Keep the D1 user record (and thus the retryable app JWT) until all
+    // external account resources have been deleted successfully. Repeated KV/R2
+    // deletes are safe; Firebase treats USER_NOT_FOUND as already deleted.
     try {
-      await deleteUserData(c.env, auth.userId);
+      await deleteKvKeysByPrefix(c.env.CACHE, `reward:${auth.userId}:`);
+      await deleteR2KeysByPrefix(c.env.CONTENT, `deep-reading/${auth.userId}/`);
+    } catch {
+      console.error('Account storage cleanup failed; retaining identity for retry.');
+      return jsonError(503, 'ACCOUNT_CLEANUP_FAILED', 'Account cleanup is unavailable. Retry the request.');
+    }
+
+    try {
+      await persistDeletionIntent(c.env.DB, auth.userId, auth.firebaseUid);
+    } catch {
+      return jsonError(500, 'ACCOUNT_DELETION_FAILED', 'Account data could not be deleted. Retry the request.');
+    }
+
+    try {
       await deleteFirebaseUser(c.env, auth.firebaseUid);
     } catch (error) {
       if (isFirebaseAccountDeletionError(error)) {
-        return jsonError(
-          502,
-          'FIREBASE_DELETION_FAILED',
-          'Firebase account deletion failed. Retry the request.'
-        );
+        return jsonError(502, 'FIREBASE_DELETION_FAILED', 'Firebase account deletion failed. Retry the request.');
       }
-      return jsonError(
-        500,
-        'ACCOUNT_DELETION_FAILED',
-        'Account data could not be deleted. Retry the request.'
-      );
+      return jsonError(500, 'ACCOUNT_DELETION_FAILED', 'Account data could not be deleted. Retry the request.');
     }
 
     try {
-      await deleteKvKeysByPrefix(c.env.CACHE, `reward:${auth.userId}:`);
-    } catch (error) {
-      console.error('Reward cache cleanup failed during account deletion.', error);
-    }
-
-    try {
-      await deleteR2KeysByPrefix(c.env.CONTENT, `deep-reading/${auth.userId}/`);
-    } catch (error) {
-      console.error('Deep reading cleanup failed during account deletion.', error);
+      await deleteUserData(c.env, auth.userId);
+    } catch {
+      // The durable D1 intent also allows Cron to retry after the app JWT expires.
+      return jsonError(500, 'ACCOUNT_DELETION_FAILED', 'Account data could not be deleted. Retry the request.');
     }
 
     return c.json({
