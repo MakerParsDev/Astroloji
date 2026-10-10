@@ -128,6 +128,9 @@ async function deleteKvKeysByPrefix(cache: KVNamespace, prefix: string): Promise
     if (page.list_complete) {
       return;
     }
+    if (!page.cursor) {
+      throw new Error('Incomplete KV listing has no continuation cursor.');
+    }
     cursor = page.cursor;
   } while (cursor);
 }
@@ -144,6 +147,9 @@ async function deleteR2KeysByPrefix(bucket: R2Bucket, prefix: string): Promise<v
 
     if (!page.truncated) {
       return;
+    }
+    if (!page.cursor) {
+      throw new Error('Incomplete R2 listing has no continuation cursor.');
     }
     cursor = page.cursor;
   } while (cursor);
@@ -360,34 +366,31 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
       );
     }
 
+    // Keep the D1 user record (and thus the retryable app JWT) until all
+    // external account resources have been deleted successfully. Repeated KV/R2
+    // deletes are safe; Firebase treats USER_NOT_FOUND as already deleted.
     try {
-      await deleteUserData(c.env, auth.userId);
+      await deleteKvKeysByPrefix(c.env.CACHE, `reward:${auth.userId}:`);
+      await deleteR2KeysByPrefix(c.env.CONTENT, `deep-reading/${auth.userId}/`);
+    } catch {
+      console.error('Account storage cleanup failed; retaining identity for retry.');
+      return jsonError(503, 'ACCOUNT_CLEANUP_FAILED', 'Account cleanup is unavailable. Retry the request.');
+    }
+
+    try {
       await deleteFirebaseUser(c.env, auth.firebaseUid);
     } catch (error) {
       if (isFirebaseAccountDeletionError(error)) {
-        return jsonError(
-          502,
-          'FIREBASE_DELETION_FAILED',
-          'Firebase account deletion failed. Retry the request.'
-        );
+        return jsonError(502, 'FIREBASE_DELETION_FAILED', 'Firebase account deletion failed. Retry the request.');
       }
-      return jsonError(
-        500,
-        'ACCOUNT_DELETION_FAILED',
-        'Account data could not be deleted. Retry the request.'
-      );
+      return jsonError(500, 'ACCOUNT_DELETION_FAILED', 'Account data could not be deleted. Retry the request.');
     }
 
     try {
-      await deleteKvKeysByPrefix(c.env.CACHE, `reward:${auth.userId}:`);
-    } catch (error) {
-      console.error('Reward cache cleanup failed during account deletion.', error);
-    }
-
-    try {
-      await deleteR2KeysByPrefix(c.env.CONTENT, `deep-reading/${auth.userId}/`);
-    } catch (error) {
-      console.error('Deep reading cleanup failed during account deletion.', error);
+      await deleteUserData(c.env, auth.userId);
+    } catch {
+      // Firebase deletion is idempotent; a still-valid app JWT can retry D1 deletion.
+      return jsonError(500, 'ACCOUNT_DELETION_FAILED', 'Account data could not be deleted. Retry the request.');
     }
 
     return c.json({
