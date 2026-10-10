@@ -181,17 +181,20 @@ async function deleteUserData(env: AppBindings['Bindings'], userId: string): Pro
  * app JWT expires before the final D1 transaction can finish.
  */
 async function persistDeletionIntent(db: D1Database, userId: string, firebaseUid: string) {
+  const now = new Date().toISOString();
   await db.prepare(
-    `INSERT OR IGNORE INTO account_deletion_jobs (user_id, firebase_uid, created_at)
-     VALUES (?, ?, ?)`
-  ).bind(userId, firebaseUid, new Date().toISOString()).run();
+    `INSERT OR IGNORE INTO account_deletion_jobs (user_id, firebase_uid, created_at, next_attempt_at)
+     VALUES (?, ?, ?, ?)`
+  ).bind(userId, firebaseUid, now, now).run();
 }
 
 /** A bounded, idempotent reconciliation of durable deletion intents. */
 export async function reconcileAccountDeletions(env: AppBindings['Bindings']): Promise<void> {
   const pending = await env.DB.prepare(
-    'SELECT user_id, firebase_uid FROM account_deletion_jobs ORDER BY created_at LIMIT ?'
-  ).bind(25).all<{ user_id: string; firebase_uid: string }>();
+    `SELECT user_id, firebase_uid, attempts FROM account_deletion_jobs
+     WHERE next_attempt_at <= ? ORDER BY next_attempt_at, created_at LIMIT ?`
+  ).bind(new Date().toISOString(), 25)
+    .all<{ user_id: string; firebase_uid: string; attempts: number }>();
 
   for (const job of pending.results ?? []) {
     try {
@@ -201,8 +204,19 @@ export async function reconcileAccountDeletions(env: AppBindings['Bindings']): P
       // The final batch atomically removes user data and the pending intent.
       await deleteUserData(env, job.user_id);
     } catch {
-      // Never log user identifiers; leave the intent intact for the next Cron.
-      console.error('Account deletion reconciliation failed; retry scheduled.');
+      // Defer repeated failures so one permanently failing batch of jobs cannot
+      // starve newer deletion requests. The existing Cron runs hourly.
+      const hours = Math.min(2 ** Math.min(job.attempts, 4), 12);
+      const nextAttemptAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+      try {
+        await env.DB.prepare(
+          'UPDATE account_deletion_jobs SET attempts = attempts + 1, next_attempt_at = ? WHERE user_id = ?'
+        ).bind(nextAttemptAt, job.user_id).run();
+      } catch {
+        console.error('Account deletion retry scheduling unavailable.');
+      }
+      // Never log user identifiers or Firebase credentials.
+      console.error('Account deletion reconciliation failed; intent retained for retry.');
     }
   }
 }
