@@ -22,7 +22,7 @@ test('autonomous control-plane files are always high risk', () => {
   for (const file of [
     'AGENTS.md',
     'opencode.jsonc',
-    'renovate.json',
+    '.github/dependabot.yml',
     'config/autonomous-policy.json',
     '.opencode/agents/maintainer.md',
     '.opencode/skills/release-safety/SKILL.md',

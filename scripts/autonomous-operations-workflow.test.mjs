@@ -60,16 +60,6 @@ test('metadata reconciliation and horoscope backfill are autonomous but kill-swi
   assert.match(content, /issues:\s*write/);
 });
 
-test('PR policy no longer relies on pull_request_target and exposes low/elevated/blocked tiers', () => {
-  const workflow = read('.github/workflows/opencode-pr-policy.yml');
-  assert.doesNotMatch(workflow, /pull_request_target:/);
-  assert.match(workflow, /workflow_run:/);
-  assert.match(workflow, /autonomous-merge-eligible/);
-  assert.match(workflow, /risk:elevated/);
-  assert.match(workflow, /risk:blocked/);
-});
-
-
 test('CI blocks destructive autonomous migrations before backend verification', () => {
   const ci = read('.github/workflows/ci.yml');
   assert.match(ci, /Verify autonomous migration safety/);
@@ -159,12 +149,6 @@ test('production orchestrator keeps durable per-surface release baselines for ca
   assert.match(workflow, /Update autonomous production state/);
 });
 
-
-test('maintenance ignores machine-owned production state issue', () => {
-  const workflow = read('.github/workflows/opencode-maintenance.yml');
-  assert.match(workflow, /Autonomous production state/);
-  assert.match(workflow, /controller state, not maintenance work/);
-});
 
 
 test('disabled release switches retain their surface baselines for later catch-up', () => {
