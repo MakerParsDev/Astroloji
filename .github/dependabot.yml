@@ -1,0 +1,66 @@
+# Dependabot is the sole automatic dependency updater for this repository.
+# Each ecosystem opens at most one version-update PR; security updates are
+# grouped separately and are not disabled by the version-update constraints.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: thursday
+      time: "04:00"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 1
+    labels: [dependencies, area:dependencies]
+    groups:
+      backend-nonmajor:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      backend-security:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: gradle
+    directory: /Astroloji
+    schedule:
+      interval: weekly
+      day: thursday
+      time: "04:20"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 1
+    labels: [dependencies, area:dependencies, area:android]
+    groups:
+      android-nonmajor:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      android-security:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: thursday
+      time: "04:40"
+      timezone: Europe/Istanbul
+    open-pull-requests-limit: 1
+    labels: [dependencies, area:dependencies, area:ci-cd]
+    groups:
+      actions-nonmajor:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]

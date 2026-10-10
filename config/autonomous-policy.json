@@ -12,7 +12,7 @@
     },
     {
       "name": "OpenCode control plane",
-      "pattern": "^(?:AGENTS\\.md|opencode\\.jsonc|renovate\\.json|config/autonomous-policy\\.json|\\.opencode/)"
+      "pattern": "^(?:AGENTS\\.md|opencode\\.jsonc|config/autonomous-policy\\.json|\\.opencode/)"
     },
     {
       "name": "OpenCode policy scripts",
@@ -74,7 +74,7 @@
     },
     {
       "name": "OpenCode control plane",
-      "pattern": "^(?:AGENTS\\.md|opencode\\.jsonc|renovate\\.json|config/autonomous-policy\\.json|\\.opencode/)"
+      "pattern": "^(?:AGENTS\\.md|opencode\\.jsonc|config/autonomous-policy\\.json|\\.opencode/)"
     },
     {
       "name": "OpenCode policy scripts",

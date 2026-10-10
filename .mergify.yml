@@ -1,35 +1,28 @@
+# Human-maintained PRs stay manual. Only GitHub's built-in Dependabot can
+# auto-merge eligible dependency/security PRs after every exact-head gate.
 merge_protections_settings:
   auto_merge_conditions:
-    - -from-fork
-    - head ~= ^opencode/
-    - check-success = autonomous-merge-eligible
-    - label != risk:blocked
-    - label != needs-human
+    - base = main
+    - author = dependabot[bot]
+    - -draft
+    - -label = major
+    - -label = needs-human
+    - -label = risk:blocked
+    - -label = high-risk
+    # Never silently auto-merge automation or Android toolchain changes.
+    - -files ~= ^\.github/
+    - -files ~= ^Astroloji/gradle/
+    - -files ~= ^Astroloji/(?:build|settings)\.gradle\.kts$
+    - -files ~= ^Astroloji/app/build\.gradle\.kts$
+    - -files ~= ^backend/migrations/
+    - -files ~= ^backend/src/
 
 merge_protections:
-  - name: Guard autonomous and human-gated merges
-    description: Every merge requires exact CI/security gates; same-repository PRs use pinned OpenCode review while forks require a human approval.
+  - name: Require independent review and exact-head security gates
+    description: Bot updates and human PRs cannot bypass CI, security scanning, or independent review.
     if:
       - base = main
     success_conditions:
-      - or:
-          - from-fork
-          - and:
-              - -from-fork
-              - -head ~= ^opencode/
-          - and:
-              - -from-fork
-              - head ~= ^opencode/
-              - check-success = autonomous-merge-eligible
-              - label != risk:blocked
-              - label != needs-human
-          - and:
-              - -from-fork
-              - head ~= ^opencode/
-              - label = risk:blocked
-              - label = needs-human
-              - label = human-approved
-              - "#approved-reviews-by >= 1"
       - check-success = secret-scan
       - check-success = backend-verify
       - check-success = android-verify
@@ -38,15 +31,9 @@ merge_protections:
               - -from-fork
               - check-success = review
           - and:
-              - -from-fork
-              - head ~= ^opencode/
-              - label = risk:blocked
-              - label = needs-human
-              - label = human-approved
-              - "#approved-reviews-by >= 1"
-          - and:
               - from-fork
               - "#approved-reviews-by >= 1"
       - check-success = GitGuardian Security Checks
       - check-success = SonarCloud Code Analysis
       - check-success = semgrep-cloud-platform/scan
+      - "#review-threads-unresolved = 0"
