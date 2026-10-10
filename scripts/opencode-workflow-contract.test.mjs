@@ -85,6 +85,16 @@ test('Mergify auto-merges only safe Dependabot PRs and requires every quality ch
   assert.doesNotMatch(settings, /author = renovate|head ~= \^opencode\//);
   assert.match(protections, /base = main/);
   assert.match(protections, /#review-threads-unresolved = 0/);
+  assert.match(settings, /max_parallel_checks: 1/);
+  assert.match(settings, /mode: serial/);
+  assert.match(settings, /batch_size: 1/);
+  assert.match(settings, /max_checks_retries: 0/);
+  const queue = settings.match(/queue_conditions:[\s\S]*?(?=\nmerge_protections_settings:)/)?.[0] ?? '';
+  assert.ok(queue, 'queue conditions must be present');
+  assert.doesNotMatch(settings, /^\s+merge_conditions:/m);
+  for (const check of requiredChecks) assert.ok(queue.includes(`check-success = ${check}`), `queue ${check}`);
+  assert.match(queue, /#review-threads-unresolved = 0/);
+  assert.match(queue, /#approved-reviews-by >= 1/);
   assert.match(protections, /#approved-reviews-by >= 1/);
   for (const check of requiredChecks) assert.ok(protections.includes(`check-success = ${check}`), check);
   assert.doesNotMatch(text, /check-success = CodeRabbit/);

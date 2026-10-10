@@ -1,3 +1,32 @@
+# Keep GitHub's require-up-to-date protection. In-place queue validation
+# reuses the PR's exact-head checks instead of creating draft batch PRs.
+# Strictly serialize PRs to prevent stale concurrent merges and spare CI.
+merge_queue:
+  mode: serial
+  max_parallel_checks: 1
+
+queue_rules:
+  - name: default
+    merge_method: squash
+    batch_size: 1
+    max_checks_retries: 0
+    # No separate merge_conditions: two-step validation disables in-place CI.
+    queue_conditions:
+      - check-success = secret-scan
+      - check-success = backend-verify
+      - check-success = android-verify
+      - or:
+          - and:
+              - -from-fork
+              - check-success = review
+          - and:
+              - from-fork
+              - "#approved-reviews-by >= 1"
+      - check-success = GitGuardian Security Checks
+      - check-success = SonarCloud Code Analysis
+      - check-success = semgrep-cloud-platform/scan
+      - "#review-threads-unresolved = 0"
+
 # Human-maintained PRs stay manual. Only GitHub's built-in Dependabot can
 # auto-merge eligible dependency/security PRs after every exact-head gate.
 merge_protections_settings:
