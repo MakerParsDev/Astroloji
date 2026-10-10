@@ -170,8 +170,41 @@ async function deleteUserData(env: AppBindings['Bindings'], userId: string): Pro
     env.DB
       .prepare('UPDATE invite_codes SET redeemed_by = NULL, redeemed_at = NULL WHERE redeemed_by = ?')
       .bind(userId),
-    env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId)
+    env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId),
+    env.DB.prepare('DELETE FROM account_deletion_jobs WHERE user_id = ?').bind(userId)
   ]);
+}
+
+/**
+ * Persists consent to deletion before Firebase is irreversibly removed. The
+ * hourly Worker Cron replays this intent if the request terminates or the
+ * app JWT expires before the final D1 transaction can finish.
+ */
+async function persistDeletionIntent(db: D1Database, userId: string, firebaseUid: string) {
+  await db.prepare(
+    `INSERT OR IGNORE INTO account_deletion_jobs (user_id, firebase_uid, created_at)
+     VALUES (?, ?, ?)`
+  ).bind(userId, firebaseUid, new Date().toISOString()).run();
+}
+
+/** A bounded, idempotent reconciliation of durable deletion intents. */
+export async function reconcileAccountDeletions(env: AppBindings['Bindings']): Promise<void> {
+  const pending = await env.DB.prepare(
+    'SELECT user_id, firebase_uid FROM account_deletion_jobs ORDER BY created_at LIMIT ?'
+  ).bind(25).all<{ user_id: string; firebase_uid: string }>();
+
+  for (const job of pending.results ?? []) {
+    try {
+      await deleteKvKeysByPrefix(env.CACHE, `reward:${job.user_id}:`);
+      await deleteR2KeysByPrefix(env.CONTENT, `deep-reading/${job.user_id}/`);
+      await deleteFirebaseUser(env, job.firebase_uid);
+      // The final batch atomically removes user data and the pending intent.
+      await deleteUserData(env, job.user_id);
+    } catch {
+      // Never log user identifiers; leave the intent intact for the next Cron.
+      console.error('Account deletion reconciliation failed; retry scheduled.');
+    }
+  }
 }
 
 function toUserProfile(user: UserRow, token: FcmTokenRow | null): UserProfileResponse {
@@ -378,6 +411,12 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
     }
 
     try {
+      await persistDeletionIntent(c.env.DB, auth.userId, auth.firebaseUid);
+    } catch {
+      return jsonError(500, 'ACCOUNT_DELETION_FAILED', 'Account data could not be deleted. Retry the request.');
+    }
+
+    try {
       await deleteFirebaseUser(c.env, auth.firebaseUid);
     } catch (error) {
       if (isFirebaseAccountDeletionError(error)) {
@@ -389,7 +428,7 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
     try {
       await deleteUserData(c.env, auth.userId);
     } catch {
-      // Firebase deletion is idempotent; a still-valid app JWT can retry D1 deletion.
+      // The durable D1 intent also allows Cron to retry after the app JWT expires.
       return jsonError(500, 'ACCOUNT_DELETION_FAILED', 'Account data could not be deleted. Retry the request.');
     }
 
