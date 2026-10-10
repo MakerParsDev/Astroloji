@@ -659,51 +659,39 @@ describe('user routes', () => {
   });
 
 
-  it('does not delete identity when KV pagination cannot be completed', async () => {
-    const { db, batched } = createDeletionDb();
-    const env = createTestEnv({
-      DB: db,
-      CACHE: {
-        async list() {
-          return { keys: [], list_complete: false, cursor: undefined };
-        }
-      } as unknown as KVNamespace
-    });
-    const token = await signAppJwt(env, {
-      userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
-    });
-    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const response = await createApp().request('/api/v1/users/me', {
-      method: 'DELETE', headers: { authorization: `Bearer ${token}` }
-    }, env);
-    expect(response.status).toBe(503);
-    expect(batched).toEqual([]);
-    expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledOnce();
-  });
-
-  it('does not delete identity when R2 pagination cannot be completed', async () => {
-    const { db, batched } = createDeletionDb();
-    const env = createTestEnv({
-      DB: db,
-      CONTENT: {
-        async list() {
-          return { objects: [], truncated: true, cursor: undefined };
-        }
-      } as unknown as R2Bucket
-    });
-    const token = await signAppJwt(env, {
-      userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
-    });
-    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const response = await createApp().request('/api/v1/users/me', {
-      method: 'DELETE', headers: { authorization: `Bearer ${token}` }
-    }, env);
-    expect(response.status).toBe(503);
-    expect(batched).toEqual([]);
-    expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledOnce();
-  });
+  it.each(['KV', 'R2'] as const)(
+    'does not delete identity when %s pagination cannot be completed',
+    async (storage) => {
+      const { db, batched } = createDeletionDb();
+      const storageOverride = storage === 'KV'
+        ? {
+            CACHE: {
+              async list() {
+                return { keys: [], list_complete: false, cursor: undefined };
+              }
+            } as unknown as KVNamespace
+          }
+        : {
+            CONTENT: {
+              async list() {
+                return { objects: [], truncated: true, cursor: undefined };
+              }
+            } as unknown as R2Bucket
+          };
+      const env = createTestEnv({ DB: db, ...storageOverride });
+      const token = await signAppJwt(env, {
+        userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
+      });
+      const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const response = await createApp().request('/api/v1/users/me', {
+        method: 'DELETE', headers: { authorization: `Bearer ${token}` }
+      }, env);
+      expect(response.status).toBe(503);
+      expect(batched).toEqual([]);
+      expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
+      expect(log).toHaveBeenCalledOnce();
+    }
+  );
 
   it('executes Firebase deletion before the final database transaction', async () => {
     const { db } = createDeletionDb();
