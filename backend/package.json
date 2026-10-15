@@ -31,10 +31,10 @@
     "astronomy-engine": "2.1.19",
     "hono": "4.13.13",
     "jose": "6.2.12",
-    "zod": "4.6.5"
+    "zod": "4.6.6"
   },
   "devDependencies": {
-    "@types/node": "24.19.1",
+    "@types/node": "24.19.2",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "5.0.3",
