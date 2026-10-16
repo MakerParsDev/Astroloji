@@ -31,6 +31,7 @@ WORKING PRINCIPLES
 | JUnit / MockK / Turbine / Truth / Robolectric | 4.13.2 / 1.14.11 / 1.2.1 / 1.4.5 / 4.16.1 | The Android unit-test chain passes with this combination. |
 | Hono / jose / zod | 4.13.13 / 6.1.0 / 4.1.5 | Exact-pinned backend runtime libraries; Hono 4.13.13 includes the September 2026 static-middleware security fix. |
 | TypeScript / tsx / Vitest | 5.9.2 / 4.20.5 / 5.0.3 | Vitest 5.0.3 eliminates the affected 3.x security and tinypool dependency versions; compatibility is checked by backend and runtime tests. |
+| @codspeed/vitest-plugin | 6.0.1 | Dev-only CodSpeed integration for `vitest bench` (supports Vitest 5); powers the backend performance benchmarks in `backend/bench/` and the `codspeed` CI workflow. |
 | Wrangler / generated runtime types | 4.149.0 / worker-configuration.d.ts | Security-updated Wrangler v4 line; the generated binding contract is checked during backend builds. |
 | picomatch (override) | 4.0.4 | A transitive override pins the security-fixed version for GitHub Dependabot advisory GHSA-3v7f-55p6-f55p. |
 | postcss / undici / source-map-js (overrides) | 8.5.23 / 7.30.0 / 1.2.2 | Security-fixed transitive dependencies; exact overrides are retained until upstream pinned releases provide equivalent fixes. |

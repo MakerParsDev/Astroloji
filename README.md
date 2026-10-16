@@ -1,5 +1,7 @@
 # Astroloji Repo
 
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/MakerParsDev/Astroloji?utm_source=badge)
+
 Android istemcisi ve Cloudflare Worker backend'inden olusan bu repo, gunluk/haftalik/aylik astroloji icerigi, premium abonelik, bildirim ve analytics akislarini birlikte tasir.
 
 ## Kapsam
