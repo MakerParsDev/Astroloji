@@ -1,7 +1,5 @@
 # Astroloji Repo
 
-[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/MakerParsDev/Astroloji?utm_source=badge)
-
 Android istemcisi ve Cloudflare Worker backend'inden olusan bu repo, gunluk/haftalik/aylik astroloji icerigi, premium abonelik, bildirim ve analytics akislarini birlikte tasir.
 
 ## Kapsam
@@ -112,7 +110,7 @@ Repoda gercek secret tutulmaz. Asagidaki dosyalar lokal/CI secret store uzerinde
 
 1. Release Gradle properties ve signing bilgilerini GitHub Environment Secrets olarak tanimla.
 2. Play Publisher service account JSON'unu `PLAY_SERVICE_ACCOUNT_JSON` secret'i olarak sakla.
-3. `main` merge sonrasi `android-internal-release` workflow'u signed `AAB` uretip `internal` track'e yollar.
+3. `main` CI ve `android-internal-preflight` kontrolleri gectikten sonra `android-internal-release` workflow'unu manuel `RELEASE_INTERNAL` onayiyla tetikle; signed `AAB` internal track'e yuklenir.
 4. Production publish icin `android-production-release` workflow'unu manuel tetikle; default rollout `%10` staged rollout'tur.
 5. Store listing ve release notes degisikliklerini `android-metadata` workflow'u ile ayri yonet.
 6. Release artifact'i repoya commit etme; GitHub Actions artifact olarak saklanir.
@@ -128,15 +126,16 @@ npm run types:generate
 npm run build
 npm test
 npm run test:runtime
-npm run deploy:doppler
 ```
+
+Production backend yayini icin GitHub Actions icindeki backend-production-deploy is akisini main dalinda DEPLOY onayiyla calistirin. Lokal dogrudan production deploy etmeyin.
 
 ## CI/CD
 
 GitHub Actions workflow:
 
 - `ci`: secret scan, backend verify ve Android verify zinciri
-- `android-internal-release`: `main` merge sonrasi signed `AAB` ile `internal` track publish
+- `android-internal-release`: sadece manuel onayla signed `AAB` ile `internal` track publish
 - `android-production-release`: manuel onayli `production` staged rollout publish veya promote
 - `android-metadata`: Play listing ve release notes validasyonu, manuel metadata publish
 - `content-backfill` workflow'u `ENABLE_CONTENT_BACKFILL=true` iken her gun 01:15 UTC'de hafif seed calistirir; manuel dispatch her zaman kullanilabilir. Varsayilan olarak `SEED_DAILY_DAYS=14` ve `SEED_SKIP_STATIC_CONTENT=true` kullanir
