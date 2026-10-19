@@ -46,7 +46,6 @@ Scoped admin credential'lari generic `npm run doppler:cf-secrets` / `deploy:dopp
 - `npm run build`
 - `npm test`
 - `npm run test:runtime`
-- `npm run bench` (CodSpeed ile izlenen vitest benchmark'lari, `bench/`)
 - `npm run types:generate`
 - `npm run types:check`
 - `npm run doppler:devvars`
