@@ -75,7 +75,7 @@ Not: Debug/unit verify gorevleri gerekiyorsa `app/google-services.example.json` 
 3. android-internal-release yalniz main uzerindeki manuel RELEASE_INTERNAL dispatch ile calisir; production promotion ancak ayrica manuel tetiklenir.
 4. Staged rollout oranini ilerletme veya durdurma karari canli vitals ve Play verilerine gore manuel verilir.
 5. Varsayilan staged rollout `%10`'dur; break-glass dispatch'te gerekli ise workflow input'u ile override edilebilir.
-6. Metadata varsayilan otonom controller tarafindan reconcile edilir; manuel metadata workflow'u break-glass yoludur.
+6. Google Play metadata degisiklikleri icin `android-metadata` workflow'unu `main` dalinda manuel kullan: validate/backup/diff, sonra gereken onay ve readback. Push tetikleyicisi yalnizca metadata dogrulamasi yapar.
 7. Release artifact'i repoya commit etme; GitHub artifact olarak saklanir.
 8. Doppler modeli kullaniliyorsa `internal` ve `production` environment icin ayri read-only token tercih et.
 
@@ -133,34 +133,14 @@ npm run test:runtime
 
 3. Production backend deploy yalniz main uzerinde backend-production-deploy workflow_dispatch ve DEPLOY onayiyla baslatilir.
 4. Workflow; build, unit test, runtime smoke test, Doppler secret dogrulamasi, Worker secret senkronizasyonu, deploy ve canli endpoint kontrollerini sirayla calistirir.
-5. Acil lokal deploy gerekirse:
-
-```powershell
-cd backend
-npm run deploy:doppler
-```
-
+5. Acil deploy durumunda da `backend-production-deploy` workflow'unu `main` uzerinden `DEPLOY` onayiyla manuel calistir. Workflow exact `main` SHA, environment ve Doppler denetimlerini atlamaz.
 6. Deploy sonrasi Worker versiyonunu ve Git SHA'yi not et.
 
 ## Icerik Backfill Adimlari
 
-Deploy sonrasi ya da takvim ilerlediginde future content eksigi varsa:
+Burc iceriginde eksiklik varsa `main` uzerinden `content-backfill` workflow'unu `workflow_dispatch` ile baslat. `seed_date`, `daily_days`, `skip_static_content` girdilerini ihtiyaca gore sec. Islem `production-admin-content` environment izni, `ADMIN_CONTENT_SECRET` ve admin API kontrolunden gecer. Zamanlanmis backfill yalniz `ENABLE_CONTENT_BACKFILL=true` olarak ayrica acildiginda calisir.
 
-```powershell
-cd backend
-$env:SEED_DATE='2026-03-26'
-$env:SEED_DAILY_DAYS='14'
-$env:SEED_SKIP_STATIC_CONTENT='true'
-npm run seed
-```
-
-GitHub Actions uzerinden alternatif:
-
-- Zamanlanmis calisma icin `ENABLE_CONTENT_BACKFILL=true` repo variable'ini ayarla; secret hazir degilse bayragi kapali tut
-- `content-backfill` workflow'unu manuel tetikle
-- Gerekirse `seed_date` ve `daily_days` input'larini doldur
-- Workflow, deploy edilmis backend'deki `POST /api/v1/admin/content/backfill` endpoint'ini
-  `x-admin-secret` ile tetikler; ayrica `CLOUDFLARE_API_TOKEN` gerekmez.
+Lokal `npm run seed` komutunu production operasyon runbook'u olarak kullanma; onayli environment akisina girmez.
 
 ## Smoke Check
 

@@ -14,7 +14,6 @@
     "test": "vitest run",
     "test:runtime": "vitest run --config vitest.runtime.config.ts",
     "test:watch": "vitest",
-    "bench": "vitest bench --run",
     "doppler:devvars": "tsx scripts/render-dev-vars.ts",
     "doppler:cf-secrets": "tsx scripts/sync-cloudflare-secrets.ts",
     "seed": "tsx scripts/seed-content.ts",

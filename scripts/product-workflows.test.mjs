@@ -13,8 +13,17 @@ test('releases are manually dispatched from exact main', () => {
     ['android-production-release', null],
   ]) {
     const source = workflow(file);
-    assert.match(source, /workflow_dispatch:/);
-    assert.match(source, /github\.ref == 'refs\/heads\/main'/);
+    const lines = source.split(/\r?\n/);
+    const onStart = lines.findIndex((line) => line === 'on:');
+    assert.ok(onStart >= 0, 'Missing on block');
+    const eventNames = [];
+    for (const line of lines.slice(onStart + 1)) {
+      if (/^[^\s#]/.test(line)) break;
+      const event = /^  ([a-zA-Z][a-zA-Z0-9_-]*):/.exec(line);
+      if (event) eventNames.push(event[1]);
+    }
+    assert.deepEqual(eventNames, ['workflow_dispatch'], file + ' must have only a manual trigger');
+    assert.match(source, /jobs:[\s\S]*?if: >-[\s\S]*?github\.event_name == 'workflow_dispatch'[\s\S]*?github\.ref == 'refs\/heads\/main'/);
     assert.match(source, /Verify immutable main release SHA/);
     assert.doesNotMatch(source, /workflow_call:|schedule:|inputs\.autonomous/);
     if (confirmation) assert.ok(source.includes("inputs.confirm == '" + confirmation + "'"));
