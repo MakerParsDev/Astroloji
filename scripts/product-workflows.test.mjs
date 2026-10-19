@@ -47,8 +47,8 @@ test('remove only agent controllers, retain product publication paths', () => {
 
 test('Mergify requires existing CI rather than retired agent services', () => {
   const source = readFileSync('.mergify.yml', 'utf8');
-  for (const check of ['secret-scan','backend-verify','android-verify','GitGuardian Security Checks','SonarCloud Code Analysis']) {
+  for (const check of ['secret-scan','backend-verify','android-verify','GitGuardian Security Checks','SonarCloud Code Analysis','semgrep-cloud-platform/scan']) {
     assert.ok(source.includes('check-success = ' + check));
   }
-  assert.doesNotMatch(source, /check-success = review|check-success = semgrep-cloud-platform\/scan/);
+  assert.doesNotMatch(source, /check-success = review/);
 });

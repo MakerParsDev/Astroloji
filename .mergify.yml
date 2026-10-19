@@ -17,6 +17,7 @@ queue_rules:
       - check-success = android-verify
       - check-success = GitGuardian Security Checks
       - check-success = SonarCloud Code Analysis
+      - check-success = semgrep-cloud-platform/scan
       - "#review-threads-unresolved = 0"
 
 # Human-maintained PRs stay manual. Only GitHub's built-in Dependabot can
@@ -49,4 +50,5 @@ merge_protections:
       - check-success = android-verify
       - check-success = GitGuardian Security Checks
       - check-success = SonarCloud Code Analysis
+      - check-success = semgrep-cloud-platform/scan
       - "#review-threads-unresolved = 0"
