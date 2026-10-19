@@ -61,3 +61,11 @@ test('Mergify requires existing CI rather than retired agent services', () => {
   }
   assert.doesNotMatch(source, /check-success = review/);
 });
+
+test('backend rollback docs require reviewed main commit and guarded deploy workflow', () => {
+  const runbook = readFileSync('RELEASE_RUNBOOK.md', 'utf8');
+  assert.match(runbook, /rollback commit/);
+  assert.match(runbook, /backend-production-deploy/);
+  assert.match(runbook, /release_sha/);
+  assert.doesNotMatch(runbook, /npm run deploy:doppler/);
+});

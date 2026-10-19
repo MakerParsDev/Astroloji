@@ -169,9 +169,10 @@ Lokal `npm run seed` komutunu production operasyon runbook'u olarak kullanma; on
 
 ### Backend
 
-1. Son saglam Worker deploy versiyonunu belirle.
-2. Gerekirse onceki release commit'ine donup yeniden `npm run deploy:doppler` calistir.
-3. Secret seti release ile uyumlu kalmali; eski config'e donerken secret drift kontrolu yap.
+1. Son saglam Worker deploy versiyonunu ve gerekli kod degisikliklerini belirle; D1 sema degisikliklerinin geriye alinabilir oldugunu varsayma.
+2. Saglam release davranisini yeniden getiren bir rollback commit'ini `main` dalina al. Onceki release SHA'sini dogrudan deploy girdisi olarak kullanma; workflow yalnizca guncel `main` SHA'sini kabul eder.
+3. `backend-production-deploy` workflow'unu `main` uzerinden `workflow_dispatch` ile baslat; `release_sha` icin rollback commit SHA'sini ve `confirm` icin `DEPLOY` degerini kullan. CI, environment, migration ve canli smoke kontrollerini koru.
+4. Secret seti release ile uyumlu kalmali; eski config'e donerken secret drift kontrolu yap.
 
 ## Operasyon Sonrasi Kayit
 
