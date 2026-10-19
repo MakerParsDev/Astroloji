@@ -1,16 +1,11 @@
-import codspeedPlugin from '@codspeed/vitest-plugin';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  plugins: [codspeedPlugin()],
   test: {
     environment: 'node',
     globals: true,
     include: ['tests/**/*.test.ts'],
-    exclude: ['tests/runtime/**/*.test.ts'],
-    benchmark: {
-      include: ['bench/**/*.bench.ts']
-    }
+    exclude: ['tests/runtime/**/*.test.ts']
   },
   resolve: {
     alias: {

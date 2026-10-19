@@ -1,6 +1,6 @@
 # Release Runbook
 
-Bu dokuman `v1.0.0` ve sonraki release'ler icin production operasyon runbook'udur. Varsayilan yol otonom controller'lardir; manuel workflow'lar break-glass/diagnostik yol olarak korunur.
+Bu dokuman `v1.0.0` ve sonraki release'ler icin production operasyon runbook'udur. Yayinlar yalnizca onayli GitHub Actions workflow_dispatch ile main uzerinden baslatilir.
 
 ## Kapsam
 
@@ -9,20 +9,16 @@ Bu dokuman `v1.0.0` ve sonraki release'ler icin production operasyon runbook'udu
 - Deploy sonrasi smoke check
 - Rollback proseduru
 
-## Varsayilan Otonom Release Yolu
+## Manuel Kontrollu Yayin Akisi
 
-`main` uzerindeki exact commit CI'dan basariyla gectiginde `autonomous-production` release planini cikarir. Ayrica 6 saatte bir catch-up reconcile calisir. Plan, son basarili backend/Android/Play-metadata baseline'larindan current `main`'e kadar olan araligi hesaplar; ara run iptali veya kismi failure degisiklik kaybettirmez:
+1. main commit'i icin CI testlerini ve kod guvenligi kontrollerini dogrula.
+2. Backend degistiyse backend-production-deploy workflow'unu main ve DEPLOY onayiyla baslat. D1 pending migration politikasi, main SHA, canli health ve rollback denetimleri korunur.
+3. Android release icin once android-internal-preflight, sonra android-internal-release workflow'unu RELEASE_INTERNAL onayiyla calistir; gercek cihazda kabul testlerini tamamla.
+4. Google Play production icin android-production-release workflow'unu main uzerinden manuel baslat. Staged rollout ve ilerleme karari Play/Crashlytics verileriyle insan tarafindan verilir; otomatik terfi yoktur.
+5. Store metadatasi android-metadata workflow'u ile backup, diff, onayli publish ve readback asamalarindan gecirilir.
+6. content-backfill yalniz ENABLE_CONTENT_BACKFILL=true ise gunluk calisir; manuel dispatch ayrica kullanilabilir. Bu islem urunun burc icerigine aittir, ajan orkestrasyonu degildir.
 
-1. Backend degisti ise `backend-production-deploy` exact `main` SHA'yi deploy eder. Mutation'dan once full catch-up migration araligi ile remote `d1_migrations` tablosundan SELECT-only okunan gercek pending set expand-only policy'den gecmek zorundadir; sonra canli dogrulama yapilir ve post-deploy verification fail olursa Worker rollback uygulanir.
-2. Android runtime degisti ise ayni SHA once internal track'e yayinlanir; Play'in onerilen bir sonraki `versionCode` degeri otomatik kullanilir.
-3. Internal yayin basariliysa ayni artifact production'a `%10` staged rollout olarak promote edilir.
-4. Basarili production publish'in exact `auto-v1-*` release adi ve publication SHA'si machine-owned production state'e kaydedilir. `android-rollout-controller` yalnizca bu exact release'i periyodik olarak `%10 -> %25 -> %50 -> %100` ilerletir. Provenance yoksa veya release Play'de birebir bulunamazsa mutation yapmaz; backend health veya Play crash/ANR threshold ihlalinde rollout halt edilir, Play Developer Reporting erisilemezse promotion freeze edilir.
-5. `Astroloji/play/**` degisti ise canonical Play metadata exact `main` SHA'dan reconcile edilir; fresh backup, drift kontrolu, independent readback ve failure durumunda restore uygulanir.
-6. `content-backfill` her gun gelecek horoscope/content penceresini scoped `content-ops` credential'i ile yeniler ve failure durumunda GitHub incident acar.
-
-Otonom production mutation ancak gerekli repo variable'lari aciksa baslar: master `ENABLE_AUTONOMOUS_PRODUCTION`, Android icin `ENABLE_PRODUCTION_RELEASE`, metadata icin `ENABLE_METADATA_PUBLISH`, ve content icin `ENABLE_CONTENT_BACKFILL`.
-
-Controller/control-plane degisiklikleri kendi kendini merge edemez; `.github/**`, `.mergify.yml`, OpenCode policy/safety ve credential siniri `risk:blocked` olarak insan kontrolludur. Ayrintili topoloji icin `docs/AUTONOMOUS_OPERATIONS.md` dosyasina bak.
+production ve internal GitHub environment denetimleri, Doppler secret kaynagi ve geriye donus adimlari korunur.
 
 ## Preflight Checklist
 
@@ -76,10 +72,10 @@ cd Astroloji
 
 Not: Debug/unit verify gorevleri gerekiyorsa `app/google-services.example.json` dosyasini otomatik olarak `google-services.json` konumuna hazirlar. Release publish icin gercek secret akisi korunur.
 
-3. Varsayilan otonom yolda `ENABLE_AUTONOMOUS_PRODUCTION=true` ve `ENABLE_PRODUCTION_RELEASE=true` ise current-main CI sonrasi `android-internal-release` otomatik calisir; basarili exact version daha sonra `android-production-release` ile `%10` production staged rollout'a promote edilir.
-4. Scheduled rollout controller sadece machine-owned state'te kayitli exact autonomous release'i ilerletir. Manuel `android-production-release` dispatch'i break-glass/diagnostik yoludur; o release controller tarafindan otomatik sahiplenilmez.
+3. android-internal-release yalniz main uzerindeki manuel RELEASE_INTERNAL dispatch ile calisir; production promotion ancak ayrica manuel tetiklenir.
+4. Staged rollout oranini ilerletme veya durdurma karari canli vitals ve Play verilerine gore manuel verilir.
 5. Varsayilan staged rollout `%10`'dur; break-glass dispatch'te gerekli ise workflow input'u ile override edilebilir.
-6. Metadata varsayilan otonom controller tarafindan reconcile edilir; manuel metadata workflow'u break-glass yoludur.
+6. Google Play metadata degisiklikleri icin `android-metadata` workflow'unu `main` dalinda manuel kullan: validate/backup/diff, sonra gereken onay ve readback. Push tetikleyicisi yalnizca metadata dogrulamasi yapar.
 7. Release artifact'i repoya commit etme; GitHub artifact olarak saklanir.
 8. Doppler modeli kullaniliyorsa `internal` ve `production` environment icin ayri read-only token tercih et.
 
@@ -135,36 +131,16 @@ npm test
 npm run test:runtime
 ```
 
-3. Tercih edilen production deploy yolu `autonomous-production` -> reusable `backend-production-deploy` zinciridir. Manuel `DEPLOY` dispatch'i break-glass yoludur.
+3. Production backend deploy yalniz main uzerinde backend-production-deploy workflow_dispatch ve DEPLOY onayiyla baslatilir.
 4. Workflow; build, unit test, runtime smoke test, Doppler secret dogrulamasi, Worker secret senkronizasyonu, deploy ve canli endpoint kontrollerini sirayla calistirir.
-5. Acil lokal deploy gerekirse:
-
-```powershell
-cd backend
-npm run deploy:doppler
-```
-
+5. Acil deploy durumunda da `backend-production-deploy` workflow'unu `main` uzerinden `DEPLOY` onayiyla manuel calistir. Workflow exact `main` SHA, environment ve Doppler denetimlerini atlamaz.
 6. Deploy sonrasi Worker versiyonunu ve Git SHA'yi not et.
 
 ## Icerik Backfill Adimlari
 
-Deploy sonrasi ya da takvim ilerlediginde future content eksigi varsa:
+Burc iceriginde eksiklik varsa `main` uzerinden `content-backfill` workflow'unu `workflow_dispatch` ile baslat. `seed_date`, `daily_days`, `skip_static_content` girdilerini ihtiyaca gore sec. Islem `production-admin-content` environment izni, `ADMIN_CONTENT_SECRET` ve admin API kontrolunden gecer. Zamanlanmis backfill yalniz `ENABLE_CONTENT_BACKFILL=true` olarak ayrica acildiginda calisir.
 
-```powershell
-cd backend
-$env:SEED_DATE='2026-03-26'
-$env:SEED_DAILY_DAYS='14'
-$env:SEED_SKIP_STATIC_CONTENT='true'
-npm run seed
-```
-
-GitHub Actions uzerinden alternatif:
-
-- Zamanlanmis calisma icin `ENABLE_CONTENT_BACKFILL=true` repo variable'ini ayarla; secret hazir degilse bayragi kapali tut
-- `content-backfill` workflow'unu manuel tetikle
-- Gerekirse `seed_date` ve `daily_days` input'larini doldur
-- Workflow, deploy edilmis backend'deki `POST /api/v1/admin/content/backfill` endpoint'ini
-  `x-admin-secret` ile tetikler; ayrica `CLOUDFLARE_API_TOKEN` gerekmez.
+Lokal `npm run seed` komutunu production operasyon runbook'u olarak kullanma; onayli environment akisina girmez.
 
 ## Smoke Check
 
@@ -193,9 +169,10 @@ GitHub Actions uzerinden alternatif:
 
 ### Backend
 
-1. Son saglam Worker deploy versiyonunu belirle.
-2. Gerekirse onceki release commit'ine donup yeniden `npm run deploy:doppler` calistir.
-3. Secret seti release ile uyumlu kalmali; eski config'e donerken secret drift kontrolu yap.
+1. Son saglam Worker deploy versiyonunu ve gerekli kod degisikliklerini belirle; D1 sema degisikliklerinin geriye alinabilir oldugunu varsayma.
+2. Saglam release davranisini yeniden getiren bir rollback commit'ini `main` dalina al. Onceki release SHA'sini dogrudan deploy girdisi olarak kullanma; workflow yalnizca guncel `main` SHA'sini kabul eder.
+3. `backend-production-deploy` workflow'unu `main` uzerinden `workflow_dispatch` ile baslat; `release_sha` icin rollback commit SHA'sini ve `confirm` icin `DEPLOY` degerini kullan. CI, environment, migration ve canli smoke kontrollerini koru.
+4. Secret seti release ile uyumlu kalmali; eski config'e donerken secret drift kontrolu yap.
 
 ## Operasyon Sonrasi Kayit
 

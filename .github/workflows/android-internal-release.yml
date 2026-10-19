@@ -1,28 +1,6 @@
 name: android-internal-release
 
 on:
-  workflow_call:
-    inputs:
-      autonomous:
-        required: false
-        default: false
-        type: boolean
-      release_sha:
-        required: true
-        type: string
-      version_code:
-        required: false
-        default: ''
-        type: string
-      version_name:
-        required: false
-        default: ''
-        type: string
-    outputs:
-      version_code:
-        value: ${{ jobs.publish-internal.outputs.version_code }}
-      version_name:
-        value: ${{ jobs.publish-internal.outputs.version_name }}
   workflow_dispatch:
     inputs:
       confirm:
@@ -54,8 +32,9 @@ jobs:
   publish-internal:
     if: >-
       github.repository == 'MakerParsDev/Astroloji' &&
-      (inputs.autonomous == true ||
-       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'RELEASE_INTERNAL'))
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm == 'RELEASE_INTERNAL'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: internal

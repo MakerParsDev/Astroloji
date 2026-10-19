@@ -28,8 +28,7 @@ jobs:
   backfill:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (vars.ENABLE_AUTONOMOUS_PRODUCTION == 'true' &&
-       vars.ENABLE_CONTENT_BACKFILL == 'true')
+      vars.ENABLE_CONTENT_BACKFILL == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-admin-content
@@ -77,7 +76,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          title="Autonomous horoscope content backfill failed"
+          title="Scheduled horoscope content backfill failed"
           body="Scheduled content generation/backfill failed closed. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           existing="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "$title in:title" --json number --jq '.[0].number // empty')"
           if [ -n "$existing" ]; then

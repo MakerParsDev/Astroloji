@@ -6,8 +6,6 @@ const deploy = fs.readFileSync('.github/workflows/backend-ssv-transition-deploy.
 const rollback = fs.readFileSync('.github/workflows/backend-ssv-transition-rollback.yml', 'utf8');
 const ci = fs.readFileSync('.github/workflows/ci.yml', 'utf8');
 const transitionConfig = fs.readFileSync('backend/wrangler.transition.toml', 'utf8');
-const plan = fs.readFileSync('docs/superpowers/plans/2026-07-26-ssv-transition-router.md', 'utf8');
-const design = fs.readFileSync('docs/superpowers/specs/2026-07-26-ssv-transition-router-design.md', 'utf8');
 const backendReadme = fs.readFileSync('backend/README.md', 'utf8');
 const readiness = fs.readFileSync('docs/PLAY_PRODUCTION_READINESS.md', 'utf8');
 
@@ -104,13 +102,10 @@ test('CI runs transition bundle and runtime verification with minimal permission
 });
 
 
-test('operator docs use PowerShell and preserve fail-closed deployment and rollback order', () => {
-  for (const content of [plan, backendReadme, readiness]) {
-    assert.doesNotMatch(content, /```bash/);
+test('product operator docs preserve fail-closed transition and rollback guidance', () => {
+  for (const content of [backendReadme, readiness]) {
+    assert.doesNotMatch(content, /\x60\x60\x60bash/);
   }
-  assert.match(plan, /"deploy:transition": "tsx scripts\/deploy-transition\.ts"/);
-  const removeRoute = design.indexOf('Remove the exact reward route');
-  const verifyOrigin = design.indexOf('verify origin health');
-  const deleteWorker = design.indexOf('optionally delete');
-  assert.ok(removeRoute >= 0 && removeRoute < verifyOrigin && verifyOrigin < deleteWorker);
+  assert.match(readiness, /REMOVE_TRANSITION_ROUTE/);
+  assert.match(readiness, /D1 migration/);
 });

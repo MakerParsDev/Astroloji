@@ -1,19 +1,6 @@
 name: backend-production-deploy
 
 on:
-  workflow_call:
-    inputs:
-      autonomous:
-        required: false
-        default: false
-        type: boolean
-      release_sha:
-        required: true
-        type: string
-      migration_base_sha:
-        required: false
-        default: ''
-        type: string
   workflow_dispatch:
     inputs:
       confirm:
@@ -37,8 +24,9 @@ jobs:
   deploy:
     if: >-
       github.repository == 'MakerParsDev/Astroloji' &&
-      (inputs.autonomous == true ||
-       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm == 'DEPLOY'))
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.confirm == 'DEPLOY'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -159,13 +147,6 @@ jobs:
           NODE
 
 
-      - name: Validate autonomous migration catch-up range
-        if: ${{ inputs.autonomous == true && inputs.migration_base_sha != '' }}
-        env:
-          MIGRATION_BASE: ${{ inputs.migration_base_sha }}
-          MIGRATION_HEAD: ${{ env.RELEASE_SHA }}
-        run: node ../scripts/validate-autonomous-migrations.mjs
-
       - name: Read remote D1 migration state
         id: migration_state
         run: |
@@ -193,7 +174,7 @@ jobs:
         env:
           MIGRATION_APPLIED_LIST_PATH: ${{ runner.temp }}/d1-applied-migrations.json
           MIGRATION_TRACKING_TABLE_PRESENT: ${{ steps.migration_state.outputs.tracking_table_present }}
-        run: node ../scripts/validate-autonomous-migrations.mjs
+        run: node ../scripts/validate-migrations.mjs
 
 
       - name: Reverify current main immediately before production mutation
@@ -312,7 +293,7 @@ jobs:
 
       - name: Roll back Worker on failed post-deploy verification
         if: failure() && steps.deploy.outcome == 'success'
-        run: ./node_modules/.bin/wrangler rollback --message "Autonomous rollback after failed verification for $RELEASE_SHA"
+        run: ./node_modules/.bin/wrangler rollback --message "Rollback after failed verification for $RELEASE_SHA"
 
       - name: Verify rollback health
         if: failure() && steps.deploy.outcome == 'success'

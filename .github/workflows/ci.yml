@@ -44,7 +44,7 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: backend/package-lock.json
-      - name: Verify autonomous migration safety
+      - name: Verify migration safety
         env:
           MIGRATION_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
           MIGRATION_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -53,7 +53,7 @@ jobs:
             MIGRATION_BASE="$(git merge-base "$MIGRATION_BASE" "$MIGRATION_HEAD")"
             export MIGRATION_BASE
           fi
-          node ../scripts/validate-autonomous-migrations.mjs
+          node ../scripts/validate-migrations.mjs
 
       - name: Install dependencies
         run: npm ci

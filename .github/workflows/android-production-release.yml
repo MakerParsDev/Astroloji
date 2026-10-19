@@ -1,37 +1,6 @@
 name: android-production-release
 
 on:
-  workflow_call:
-    inputs:
-      autonomous:
-        required: false
-        default: false
-        type: boolean
-      release_sha:
-        required: true
-        type: string
-      version_name:
-        required: true
-        type: string
-      version_code:
-        required: true
-        type: string
-      release_name:
-        required: false
-        default: ''
-        type: string
-      rollout_fraction:
-        required: false
-        default: '0.1'
-        type: string
-      promote_from_track:
-        required: false
-        default: 'internal'
-        type: string
-    outputs:
-      release_name:
-        description: Exact Play release name published by the reusable workflow.
-        value: ${{ jobs.publish-production.outputs.release_name }}
   workflow_dispatch:
     inputs:
       version_name:
@@ -74,8 +43,8 @@ jobs:
     if: >-
       github.repository == 'MakerParsDev/Astroloji' &&
       vars.ENABLE_PRODUCTION_RELEASE == 'true' &&
-      (inputs.autonomous == true ||
-       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
@@ -124,13 +93,9 @@ jobs:
         env:
           REQUESTED_RELEASE_NAME: ${{ inputs.release_name }}
           VERSION_CODE: ${{ inputs.version_code }}
-          AUTONOMOUS: ${{ inputs.autonomous }}
         run: |
           if [ -n "$REQUESTED_RELEASE_NAME" ]; then
             release_name="$REQUESTED_RELEASE_NAME"
-          elif [ "$AUTONOMOUS" = "true" ]; then
-            epoch="$(date +%s)"
-            release_name="auto-v1-${VERSION_CODE}-${epoch}-${RELEASE_SHA:0:7}"
           else
             echo "release_name is required for a manual production release." >&2
             exit 1

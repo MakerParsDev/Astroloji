@@ -14,7 +14,6 @@
     "test": "vitest run",
     "test:runtime": "vitest run --config vitest.runtime.config.ts",
     "test:watch": "vitest",
-    "bench": "vitest bench --run",
     "doppler:devvars": "tsx scripts/render-dev-vars.ts",
     "doppler:cf-secrets": "tsx scripts/sync-cloudflare-secrets.ts",
     "seed": "tsx scripts/seed-content.ts",
@@ -35,7 +34,6 @@
     "zod": "4.6.6"
   },
   "devDependencies": {
-    "@codspeed/vitest-plugin": "6.0.1",
     "@types/node": "24.19.2",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
