@@ -58,6 +58,33 @@ test('requires origin health and transition route isolation', async () => {
   });
 });
 
+test('accepts only expired legacy claim rejection when forwarding is disabled', async () => {
+  const fetcher = (url, init = {}) => {
+    if (new URL(url).pathname === '/api/v1/rewards/claim' && init.body !== '{') {
+      return Promise.resolve(Response.json({ error: { code: 'LEGACY_REWARD_FLOW_EXPIRED' } }, { status: 410 }));
+    }
+    return successfulFetcher(url, init);
+  };
+  const evidence = await checkSsvTransitionRoute({
+    baseUrl: BASE_URL,
+    fetcher,
+    legacyJwt: 'invalid-smoke-token',
+    legacyForwardUntil: '1970-01-01T00:00:00Z'
+  });
+  assert.equal(evidence.legacyOriginResponse, 410);
+  assert.equal(evidence.legacyOriginCode, 'LEGACY_REWARD_FLOW_EXPIRED');
+
+  await assert.rejects(
+    checkSsvTransitionRoute({
+      baseUrl: BASE_URL,
+      fetcher: successfulFetcher,
+      legacyJwt: 'invalid-smoke-token',
+      legacyForwardUntil: '1970-01-01T00:00:00Z'
+    }),
+    /expected \(410, LEGACY_REWARD_FLOW_EXPIRED\)/
+  );
+});
+
 test('does not expose raw bodies or the bearer token in evidence', async () => {
   const evidence = await checkSsvTransitionRoute({
     baseUrl: BASE_URL,
