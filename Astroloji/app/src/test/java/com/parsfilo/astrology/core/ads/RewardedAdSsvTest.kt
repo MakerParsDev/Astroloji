@@ -1,20 +1,20 @@
 package com.parsfilo.astrology.core.ads
 
-import com.google.android.gms.ads.rewarded.RewardedAd
 import android.app.Activity
 import android.content.Context
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.OnUserEarnedRewardListener
 import com.google.android.gms.ads.rewarded.RewardItem
-import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
-import io.mockk.verify
+import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.ServerSideVerificationOptions
 import com.google.common.truth.Truth.assertThat
+import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.Test
 
 class RewardedAdSsvTest {
@@ -37,16 +37,18 @@ class RewardedAdSsvTest {
         var rewardCount = 0
         var dismissalCount = 0
 
-        val shown = manager.showIfAvailable(
-            activity = activity,
-            request = RewardedAdRequest(
-                placement = "unlock_daily_full",
-                ssvUserId = "test-user",
-                ssvCustomData = "test-challenge",
-            ),
-            onRewardEarned = { rewardCount++ },
-            onDismissed = { dismissalCount++ },
-        )
+        val shown =
+            manager.showIfAvailable(
+                activity = activity,
+                request =
+                    RewardedAdRequest(
+                        placement = "unlock_daily_full",
+                        ssvUserId = "test-user",
+                        ssvCustomData = "test-challenge",
+                    ),
+                onRewardEarned = { rewardCount++ },
+                onDismissed = { dismissalCount++ },
+            )
 
         assertThat(shown).isTrue()
         verify(exactly = 1) { ad.show(activity, any<OnUserEarnedRewardListener>()) }
@@ -61,11 +63,12 @@ class RewardedAdSsvTest {
         val activity = mockk<Activity>(relaxed = true)
         val consent = mockk<GoogleMobileAdsConsentManager>()
         every { consent.canRequestAds } returns false
-        val manager = RewardedAdManager(
-            mockk<Context>(relaxed = true),
-            consent,
-            mockk<AnalyticsRepository>(relaxed = true),
-        )
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
         val callback = slot<FullScreenContentCallback>()
         val rewardListener = slot<OnUserEarnedRewardListener>()
         every { ad.fullScreenContentCallback = capture(callback) } just Runs
