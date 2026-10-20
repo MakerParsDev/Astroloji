@@ -223,6 +223,25 @@ describe('content filters', () => {
     expect(puts).toEqual([]);
   });
 
+  it('exposes a protected backfill capability probe for fail-closed workflows', async () => {
+    const app = createApp();
+    const env = createTestEnv();
+    const path = '/api/v1/admin/content/backfill/capabilities';
+    const denied = await app.request(path, { method: 'GET' }, env);
+    expect(denied.status).not.toBe(200);
+
+    const allowed = await app.request(path, {
+      method: 'GET',
+      headers: { 'x-admin-secret': 'content-secret' }
+    }, env);
+    expect(allowed.status).toBe(200);
+    await expect(allowed.json()).resolves.toEqual({
+      deterministic_default: true,
+      skip_existing_supported: true,
+      max_product_horizon_days: 7
+    });
+  });
+
   it('uploads future content documents through the admin backfill route', async () => {
     const puts: string[] = [];
     const env = createTestEnv({
@@ -389,6 +408,8 @@ describe('content filters', () => {
       seed_date: '2026-04-10',
       daily_days: 1,
       skip_static_content: true,
+      enhance_with_ai: true,
+      language: 'en',
       editorial_status: 'approved',
       approved_by: 'test-editor',
       approval_reference: 'test:content-backfill'
@@ -399,6 +420,64 @@ describe('content filters', () => {
     const signs = dailyUpload?.payload.signs as Record<string, unknown>;
     expect(signs.aries).toEqual(llmSignPayload);
     expect(dailyUpload?.payload.source_signals).toContain('llm');
+  });
+
+  it('defaults to deterministic content without calling a paid or metered AI provider', async () => {
+    const values: Array<{ key: string; payload: Record<string, unknown> }> = [];
+    const env = createTestEnv({
+      AI: {
+        async run() { throw new Error('AI must not run during a routine backfill'); }
+      } as unknown as ReturnType<typeof createTestEnv>['AI'],
+      CONTENT: {
+        async head() { return null; },
+        async get() { return null; },
+        async put(key: string, value: string) {
+          values.push({ key, payload: JSON.parse(value) as Record<string, unknown> });
+        }
+      } as unknown as R2Bucket
+    });
+    const uploads = await backfillContentDocuments(env, {
+      seed_date: '2026-10-20',
+      daily_days: 2,
+      skip_static_content: true,
+      language: 'tr',
+      editorial_status: 'approved',
+      approved_by: 'test-editor',
+      approval_reference: 'issue-93'
+    });
+    expect(uploads).toHaveLength(4); // 2 daily + current weekly + monthly
+    expect(values).toHaveLength(4);
+    expect(values.every((value) => !(
+      (value.payload.source_signals as string[] | undefined)?.includes('llm')
+    ))).toBe(true);
+  });
+
+  it('does not overwrite existing R2 documents in skip_existing mode', async () => {
+    const writes: string[] = [];
+    const env = createTestEnv({
+      CONTENT: {
+        async head(key: string) {
+          return key.includes('/weekly/') ? ({ size: 1 } as R2Object) : null;
+        },
+        async get() { return null; },
+        async put(key: string) { writes.push(key); }
+      } as unknown as R2Bucket
+    });
+    const uploads = await backfillContentDocuments(env, {
+      seed_date: '2026-10-20',
+      daily_days: 1,
+      skip_static_content: true,
+      language: 'tr',
+      skip_existing: true,
+      editorial_status: 'approved',
+      approved_by: 'test-editor',
+      approval_reference: 'issue-93'
+    });
+    expect(uploads).toHaveLength(2);
+    expect(writes).toHaveLength(2);
+    expect(writes.some((key) => key.includes('/weekly/'))).toBe(false);
+    expect(writes.some((key) => key.includes('/daily/'))).toBe(true);
+    expect(writes.some((key) => key.includes('/monthly/'))).toBe(true);
   });
 
   it('fails before the first R2 write when generated content violates quality rules', async () => {

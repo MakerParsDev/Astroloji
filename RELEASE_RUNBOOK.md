@@ -29,7 +29,7 @@ Release almadan once su maddeler `PASS` olmali:
 3. GitHub security alerts acik olmamali.
 4. Android icin gerekli GitHub environment secret'lari hazir olmali.
 5. Backend icin Doppler ve Cloudflare secret'lari guncel olmali.
-6. R2 future content backfill son 14 gun araligini kapsiyor olmali.
+6. R2 burc icerigi, mevcut gun/hafta/ay ve ilerideki en az 7 gunu tum desteklenen diller icin kapsiyor olmali.
 7. Android publish secret'lari Doppler'da tutuluyorsa ilgili `DOPPLER_TOKEN` environment secret'lari gecerli olmali.
 8. Ilgili `ENABLE_INTERNAL_RELEASE`, `ENABLE_PRODUCTION_RELEASE` veya `ENABLE_METADATA_PUBLISH` repo variable'i ancak tum secret ve approval kontrolleri tamamlandiktan sonra `true` olmali.
 
@@ -138,9 +138,18 @@ npm run test:runtime
 
 ## Icerik Backfill Adimlari
 
-Burc iceriginde eksiklik varsa `main` uzerinden `content-backfill` workflow'unu `workflow_dispatch` ile baslat. `seed_date`, `daily_days`, `skip_static_content` girdilerini ihtiyaca gore sec. Islem `production-admin-content` environment izni, `ADMIN_CONTENT_SECRET` ve admin API kontrolunden gecer. Zamanlanmis backfill yalniz `ENABLE_CONTENT_BACKFILL=true` olarak ayrica acildiginda calisir.
+Bu, urunun kendi burc icerigi bakimidir; agent veya otonom release controller degildir.
 
-Lokal `npm run seed` komutunu production operasyon runbook'u olarak kullanma; onayli environment akisina girmez.
+1. GitHub main CI yesil olmali. Degisen backend kodunu **once** mevcut `backend-production-deploy` manuel is akisi ve `DEPLOY` onayi ile yayinla; Play/Android yayinina dokunma.
+2. `production-admin-content` ortami credential'i ile yeni salt okunur `GET /api/v1/admin/content/backfill/capabilities` endpoint'inin `deterministic_default=true`, `skip_existing_supported=true`, `max_product_horizon_days=7` dondurdugunu dogrula. `content-backfill` workflow'u da ayni kontrolu fail-closed yapar; eski Worker'a backfill cagrisi gondermez.
+3. `content-backfill` workflow'unu main'de manuel dispatch et. `daily_days=7`, `language=all` (veya tek dil), `seed_date` bos (bugun) olarak kullan. Zamanlanmis calisma sadece `ENABLE_CONTENT_BACKFILL=true` ile etkinlestirilir.
+4. Is akisi her dili ayri istekle isler, sadece eksik R2 tarih belgelerini yazar (`skip_existing=true`), kisilik/uyum belgelerini degistirmez ve **Workers AI cagirmaz** (`enhance_with_ai=false`). Mevcut onayli icerik korunur. Run URL ve editoryal onay metadata'si kaydedilir.
+5. R2'de su key'lerin varligini ve tarih metadata'sini kontrol et: `content/daily/{lang}/{YYYY-MM-DD}.json`, `content/weekly/{lang}/{YYYY-Www}.json`, `content/monthly/{lang}/{YYYY-MM}.json`. Desteklenen diller `tr/en/es/pt/de/fr`'dir. D1 sema, Android release ve reklam ayarlari degismemelidir.
+6. Uygulamada gunluk/haftalik/aylik yorumlari, premium gecislerini ve Turkce hata mesajlarini gercek cihaz veya emulatorde kabul testine sok. Gerekiyorsa ayri uygulama PR'i ac.
+7. Ilk backfill ve canli okumalar PASS olmadan `ENABLE_CONTENT_BACKFILL` degiskenini acma. Acildiktan sonra ertesi gunun zamanlanmis isini ve basarisizlik uyarilarini dogrula.
+
+`npm run seed` komutunu production kurtarma yolu olarak calistirma; environment onayini atlar. Urune dahil olmayan otomasyon/ajan sistemlerini geri getirme.
+
 
 ## Smoke Check
 

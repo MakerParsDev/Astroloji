@@ -45,7 +45,22 @@ export async function backfillContentDocuments(
   });
   assertSeedQuality(uploads);
 
-  const enhancedUploads = await enhanceDailyUploadsWithLlm(env, buildDailyContentProviderChain(env), uploads);
+  // Idempotent scheduled backfills must preserve already approved R2 documents.
+  // HEAD requests are only made when explicitly requested, keeping legacy
+  // one-off content repairs and their test fixtures backwards-compatible.
+  const pendingUploads: ContentSeedUpload[] = [];
+  for (const item of uploads) {
+    if (request.skip_existing && (await env.CONTENT.head(item.key))) {
+      continue;
+    }
+    pendingUploads.push(item);
+  }
+
+  // The product can always serve quality-checked deterministic content.
+  // Never spend Workers AI neurons implicitly during a routine backfill.
+  const enhancedUploads = request.enhance_with_ai
+    ? await enhanceDailyUploadsWithLlm(env, buildDailyContentProviderChain(env), pendingUploads)
+    : pendingUploads;
 
   const approvedAt = new Date().toISOString();
   const approvedUploads = enhancedUploads.map((item) => ({
@@ -264,6 +279,18 @@ export function registerContentRoutes(app: Hono<AppBindings>) {
 }
 
 export function registerContentAdminRoutes(app: Hono<AppBindings>) {
+  // A read-only fail-closed capability handshake prevents a newer scheduled
+  // workflow from calling an old Worker that would ignore safe backfill flags.
+  app.get(
+    '/admin/content/backfill/capabilities',
+    requireAdminCapability('content-ops', 'content.backfill'),
+    (c) => c.json({
+      deterministic_default: true,
+      skip_existing_supported: true,
+      max_product_horizon_days: 7
+    })
+  );
+
   app.post(
     '/admin/content/backfill',
     requireAdminCapability('content-ops', 'content.backfill'),
@@ -274,6 +301,8 @@ export function registerContentAdminRoutes(app: Hono<AppBindings>) {
     return c.json({
       ok: true,
       uploaded: uploads.length,
+      generation_mode: request.enhance_with_ai ? 'llm' : 'deterministic',
+      skip_existing: request.skip_existing ?? false,
       seed_date: request.seed_date ?? null,
       daily_days: request.daily_days,
       skip_static_content: request.skip_static_content,
