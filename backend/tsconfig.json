@@ -28,6 +28,7 @@
     "src/**/*.ts",
     "scripts/**/*.ts",
     "tests/**/*.ts",
+    "bench/**/*.ts",
     "vitest.config.ts",
     "vitest.runtime.config.ts"
   ]

@@ -253,7 +253,7 @@ function printResult(result) {
     process.exitCode = 1;
     return;
   }
-  console.log(`Autonomous migration safety passed for ${result.files.length} migration files.`);
+  console.log(`D1 migration safety passed for ${result.files.length} migration files.`);
 }
 
 function main() {

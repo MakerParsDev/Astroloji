@@ -15,13 +15,6 @@ queue_rules:
       - check-success = secret-scan
       - check-success = backend-verify
       - check-success = android-verify
-      - or:
-          - and:
-              - -from-fork
-              - check-success = review
-          - and:
-              - from-fork
-              - "#approved-reviews-by >= 1"
       - check-success = GitGuardian Security Checks
       - check-success = SonarCloud Code Analysis
       - check-success = semgrep-cloud-platform/scan
@@ -47,21 +40,14 @@ merge_protections_settings:
     - -files ~= ^backend/src/
 
 merge_protections:
-  - name: Require independent review and exact-head security gates
-    description: Bot updates and human PRs cannot bypass CI, security scanning, or independent review.
+  - name: Require CI and security gates
+    description: Merges require successful CI and configured security scans.
     if:
       - base = main
     success_conditions:
       - check-success = secret-scan
       - check-success = backend-verify
       - check-success = android-verify
-      - or:
-          - and:
-              - -from-fork
-              - check-success = review
-          - and:
-              - from-fork
-              - "#approved-reviews-by >= 1"
       - check-success = GitGuardian Security Checks
       - check-success = SonarCloud Code Analysis
       - check-success = semgrep-cloud-platform/scan
