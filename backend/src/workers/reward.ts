@@ -147,7 +147,7 @@ export function registerRewardRoutes<E extends RewardEnv>(
   dependencies: RewardRouteDependencies = {}
 ): void {
   const nowMs = dependencies.nowMs ?? Date.now;
-  const randomUUID = dependencies.randomUUID ?? crypto.randomUUID;
+  const randomUUID = dependencies.randomUUID ?? (() => crypto.randomUUID());
   const verifyCallback = dependencies.verifyCallback ?? verifyAdmobSsvCallback;
 
   app.post('/rewards/prepare', async (c) => {
