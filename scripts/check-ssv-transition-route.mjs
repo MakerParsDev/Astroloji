@@ -97,6 +97,7 @@ export async function checkSsvTransitionRoute({
   fetcher = fetch,
   timeoutMs = 10_000,
   legacyJwt,
+  legacyForwardUntil,
   routeReadyAttempts = MAX_ROUTE_READY_ATTEMPTS,
   routeReadyDelayMs = 3_000,
   sleep = defaultSleep
@@ -150,11 +151,14 @@ export async function checkSsvTransitionRoute({
     'Legacy origin forwarding check'
   );
   const legacyOriginCode = await readErrorCode(legacy);
-  if (legacy.status !== 401) {
-    throw new Error(
-      `Legacy origin forwarding check failed (${legacy.status}, ${legacyOriginCode ?? 'unknown'}); expected origin authentication response 401.`
-    );
-  }
+  const forwardingDisabled = legacyForwardUntil === '1970-01-01T00:00:00Z';
+  expectResult(
+    'Legacy reward claim isolation',
+    legacy.status,
+    forwardingDisabled ? 410 : 401,
+    legacyOriginCode,
+    forwardingDisabled ? 'LEGACY_REWARD_FLOW_EXPIRED' : null
+  );
 
   const unsupported = await fetchWithTimeout(
     fetcher,
@@ -213,7 +217,8 @@ export async function checkSsvTransitionRoute({
 async function main() {
   const evidence = await checkSsvTransitionRoute({
     baseUrl: process.env.BACKEND_BASE_URL,
-    legacyJwt: process.env.LEGACY_SMOKE_JWT ?? 'invalid-transition-smoke-token'
+    legacyJwt: process.env.LEGACY_SMOKE_JWT ?? 'invalid-transition-smoke-token',
+    legacyForwardUntil: process.env.LEGACY_FORWARD_UNTIL
   });
   console.log(JSON.stringify({ transitionRouteReady: true, ...evidence }));
 }

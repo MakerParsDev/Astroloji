@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import test from 'node:test';
 
@@ -16,6 +17,25 @@ function ordered(content, tokens) {
     assert.ok(positions[index - 1] < positions[index], `${tokens[index - 1]} must precede ${tokens[index]}`);
   }
 }
+
+test('transition deploy keeps legacy forwarding disabled without relaxing future deadline bounds', () => {
+  const section = deploy.slice(deploy.indexOf('name: Validate disabled or bounded future legacy forwarding deadline'));
+  const code = section.match(/node <<'NODE'\n([\s\S]*?)\n          NODE/)?.[1]?.replace(/^          /gm, '');
+  assert.ok(code, 'Missing embedded deadline validation script');
+  const check = (value) =>
+    spawnSync(process.execPath, ['-e', code], {
+      env: { ...process.env, LEGACY_FORWARD_UNTIL: value },
+      encoding: 'utf8'
+    });
+  assert.equal(check('1970-01-01T00:00:00Z').status, 0);
+  assert.equal(check(new Date(Date.now() + 7 * 24 * 60 * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z')).status, 0);
+  assert.notEqual(check('2026-01-01T00:00:00Z').status, 0);
+  assert.notEqual(check(new Date(Date.now() + 35 * 24 * 60 * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z')).status, 0);
+  assert.notEqual(check('1971-01-01T00:00:00Z').status, 0);
+  assert.match(deploy, /source\.split\(marker\)\.length !== 2/);
+  assert.match(fs.readFileSync('scripts/check-ssv-transition-route.mjs', 'utf8'), /legacyForwardUntil: process\.env\.LEGACY_FORWARD_UNTIL/);
+  assert.doesNotMatch(deploy, /if \(rendered === source\)/);
+});
 
 test('transition config cannot attach production routes by itself', () => {
   assert.match(transitionConfig, /name = "astrology-ssv-transition"/);
@@ -106,6 +126,8 @@ test('product operator docs preserve fail-closed transition and rollback guidanc
   for (const content of [backendReadme, readiness]) {
     assert.doesNotMatch(content, /\x60\x60\x60bash/);
   }
+  assert.match(backendReadme, /legacy_forward_until=1970-01-01T00:00:00Z/);
+  assert.match(readiness, /legacy_forward_until=1970-01-01T00:00:00Z/);
   assert.match(readiness, /REMOVE_TRANSITION_ROUTE/);
   assert.match(readiness, /D1 migration/);
 });

@@ -16,7 +16,7 @@ Last reviewed: 2026-07-27
 Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 
 1. Merge edilen transition Worker degisikligi icin `main` CI ve guvenlik kontrollerinin yesil oldugunu dogrulayin.
-2. Gerekliyse `backend-ssv-transition-deploy` workflow'unu `main` uzerinden `DEPLOY_TRANSITION` onayi ve en fazla 30 gun ileride UTC deadline ile calistirin.
+2. Gerekliyse yalniz onayli production deploy olarak `backend-ssv-transition-deploy` workflow'unu `main` uzerinden `DEPLOY_TRANSITION` ile calistirin. Eski forwarding kapali kalacaksa `legacy_forward_until=1970-01-01T00:00:00Z`; yalniz aktif uyumluluk gerektiginde en fazla 30 gun ileride UTC deadline kullanin.
 3. Canli callback `400 / MALFORMED_CALLBACK` donmeli; route ID, deployment ID, D1 migration ve rollback evidence kaydedilmelidir.
 4. Repo kokundeki `tools/admob-ssv-verification-values.html` dosyasini yerel tarayicida acin. Yeni degerler uretin ve sayfayi test tamamlanana kadar acik tutun.
 5. Uretilen degerleri gecici repository Actions secrets olarak kaydedin:

@@ -116,7 +116,7 @@ Production gecisi icin tam backend'i hemen deploy etmeyin. `astrology-ssv-transi
 
 Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 
-1. Gecis Worker'i gerekiyorsa `backend-ssv-transition-deploy` workflow'u ile `main` uzerinden deploy edin; onay `DEPLOY_TRANSITION` ve gelecekte UTC deadline kullanin.
+1. Gecis Worker'i gerekiyorsa yalniz onayli production deploy olarak `backend-ssv-transition-deploy` workflow'unu `main` uzerinden calistirin. `DEPLOY_TRANSITION` onayi ve legacy forwarding kapali kalacaksa `legacy_forward_until=1970-01-01T00:00:00Z` kullanin; yalniz gercek uyumluluk ihtiyaci varsa gelecekte en fazla 30 gun UTC deadline secin.
 2. Yerel bilgisayarda repo kokundeki `tools/admob-ssv-verification-values.html` dosyasini tarayicida acin, yeni degerler uretin ve sayfayi AdMob testi bitene kadar acik tutun.
 3. GitHub repository Actions secrets alanina su iki gecici secret'i kaydedin:
    - `ADMOB_SSV_TEST_USER_ID`
