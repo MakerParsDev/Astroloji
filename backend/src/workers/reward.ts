@@ -131,6 +131,7 @@ async function runRewardPrepareDbOperation<T>(
     // even in log consumers that omit custom structured-object fields.
     console.error(
       JSON.stringify({
+        message: 'reward_prepare_db_failure',
         event: 'reward_prepare_db_failure',
         stage,
         reason: classifyRewardPrepareDbFailure(error)
