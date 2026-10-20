@@ -293,6 +293,7 @@
     <string name="session_error_register_failed_code">Oturum kaydı tamamlanamadı. Kod: %1$d</string>
     <string name="session_error_register_empty">Boş oturum yanıtı.</string>
     <string name="session_error_refresh_failed">Oturum yenilenemedi.</string>
+    <string name="content_error_not_found">İçerik şu anda bulunamıyor. Lütfen daha sonra tekrar deneyin.</string>
     <string name="content_error_daily_empty">Günlük içerik boş geldi.</string>
     <string name="content_error_weekly_empty">Haftalık içerik boş geldi.</string>
     <string name="content_error_monthly_empty">Aylık içerik boş geldi.</string>

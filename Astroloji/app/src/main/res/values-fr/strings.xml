@@ -301,6 +301,7 @@
     <string name="session_error_register_failed_code">L\'inscription de la session a échoué. Code : %1$d</string>
     <string name="session_error_register_empty">La réponse de la session était vide.</string>
     <string name="session_error_refresh_failed">La session n\'a pas pu être actualisée.</string>
+    <string name="content_error_not_found">Ce contenu est momentanément indisponible. Réessayez plus tard.</string>
     <string name="content_error_daily_empty">La réponse du contenu quotidien était vide.</string>
     <string name="content_error_weekly_empty">La réponse du contenu hebdomadaire était vide.</string>
     <string name="content_error_monthly_empty">La réponse du contenu mensuel était vide.</string>

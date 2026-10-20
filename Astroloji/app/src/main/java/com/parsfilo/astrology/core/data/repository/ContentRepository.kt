@@ -409,7 +409,7 @@ class ContentRepository
                 is HttpException ->
                     when (code()) {
                         401 -> AppException.UnauthorizedException()
-                        404 -> AppException.NotFoundException()
+                        404 -> AppException.NotFoundException(stringsProvider.get(R.string.content_error_not_found))
                         403 -> AppException.PremiumRequiredException()
                         else -> AppException.NetworkException(message())
                     }
