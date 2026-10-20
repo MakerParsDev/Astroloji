@@ -114,7 +114,9 @@ function classifyRewardPrepareDbFailure(error: unknown): 'quota' | 'schema' | 'b
   if (/daily row (read|write) limit|free tier.*limit|exceeded.*D1.*limit/i.test(message)) return 'quota';
   if (/no such table|no such column|SQLITE_ERROR|syntax error/i.test(message)) return 'schema';
   if (/SQLITE_BUSY|database is locked/i.test(message)) return 'busy';
-  if (/timeout|timed out|unavailable|connection error/i.test(message)) return 'unavailable';
+  if (/network connection lost|D1 DB is overloaded|timeout|timed out|unavailable|connection error/i.test(message)) {
+    return 'unavailable';
+  }
   return 'unknown';
 }
 
