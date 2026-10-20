@@ -252,7 +252,15 @@ describe('rewarded access SSV routes', () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'INTERNAL_ERROR' } });
     expect(rows.size).toBe(0);
-    expect(errorLog).toHaveBeenCalledWith({
+    const diagnostic = JSON.stringify({
+      message: 'reward_prepare_db_failure',
+      event: 'reward_prepare_db_failure',
+      stage,
+      reason
+    });
+    expect(errorLog).toHaveBeenCalledWith(diagnostic);
+    expect(JSON.parse(diagnostic)).toEqual({
+      message: 'reward_prepare_db_failure',
       event: 'reward_prepare_db_failure',
       stage,
       reason
