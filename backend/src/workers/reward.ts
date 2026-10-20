@@ -106,6 +106,37 @@ function callbackMatchesExisting(
   );
 }
 
+type RewardPrepareDbStage = 'entitlement_lookup' | 'challenge_insert';
+
+function classifyRewardPrepareDbFailure(error: unknown): 'quota' | 'schema' | 'busy' | 'unavailable' | 'unknown' {
+  // Only emit fixed categories: D1 error messages can contain SQL or user information.
+  const message = error instanceof Error ? error.message : '';
+  if (/daily row (read|write) limit|free tier.*limit|exceeded.*D1.*limit/i.test(message)) return 'quota';
+  if (/no such table|no such column|SQLITE_ERROR|syntax error/i.test(message)) return 'schema';
+  if (/SQLITE_BUSY|database is locked/i.test(message)) return 'busy';
+  if (/network connection lost|D1 DB is overloaded|timeout|timed out|unavailable|connection error/i.test(message)) {
+    return 'unavailable';
+  }
+  return 'unknown';
+}
+
+async function runRewardPrepareDbOperation<T>(
+  stage: RewardPrepareDbStage,
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    console.error({
+      event: 'reward_prepare_db_failure',
+      stage,
+      reason: classifyRewardPrepareDbFailure(error)
+    });
+    // Preserve the existing 500/fail-closed contract without exposing raw D1 details.
+    throw new Error('Reward prepare database operation unavailable.');
+  }
+}
+
 export function registerRewardRoutes<E extends RewardEnv>(
   app: Hono<BindingsFor<E>>,
   dependencies: RewardRouteDependencies = {}
@@ -129,12 +160,8 @@ export function registerRewardRoutes<E extends RewardEnv>(
     if (rateLimitFailure) return rateLimitFailure;
     const createdAtMs = nowMs();
     if (
-      await hasRewardEntitlement(
-        c.env.DB,
-        auth.userId,
-        body.reward_type,
-        body.identifier,
-        new Date(createdAtMs)
+      await runRewardPrepareDbOperation('entitlement_lookup', () =>
+        hasRewardEntitlement(c.env.DB, auth.userId, body.reward_type, body.identifier, new Date(createdAtMs))
       )
     ) {
       return jsonError(409, 'ALREADY_CLAIMED', 'Reward was already claimed for this content period.');
@@ -142,23 +169,25 @@ export function registerRewardRoutes<E extends RewardEnv>(
     const challengeId = randomUUID();
     const expiresAtMs = createdAtMs + CHALLENGE_TTL_MS;
 
-    await c.env.DB
-      .prepare(
-        `INSERT INTO reward_challenges
+    await runRewardPrepareDbOperation('challenge_insert', () =>
+      c.env.DB
+        .prepare(
+          `INSERT INTO reward_challenges
          (id, user_id, reward_type, identifier, status, transaction_id, ad_unit,
           callback_timestamp_ms, created_at, expires_at, verified_at, consumed_at,
           entitlement_expires_at)
          VALUES (?, ?, ?, ?, 'pending', NULL, NULL, NULL, ?, ?, NULL, NULL, NULL)`
-      )
-      .bind(
-        challengeId,
-        auth.userId,
-        body.reward_type,
-        body.identifier,
-        iso(createdAtMs),
-        iso(expiresAtMs)
-      )
-      .run();
+        )
+        .bind(
+          challengeId,
+          auth.userId,
+          body.reward_type,
+          body.identifier,
+          iso(createdAtMs),
+          iso(expiresAtMs)
+        )
+        .run()
+    );
 
     return c.json(
       {
