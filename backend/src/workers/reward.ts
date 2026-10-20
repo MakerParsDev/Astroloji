@@ -127,11 +127,15 @@ async function runRewardPrepareDbOperation<T>(
   try {
     return await operation();
   } catch (error) {
-    console.error({
-      event: 'reward_prepare_db_failure',
-      stage,
-      reason: classifyRewardPrepareDbFailure(error)
-    });
+    // Stringify so the allowlisted diagnostic is searchable via $metadata.message
+    // even in log consumers that omit custom structured-object fields.
+    console.error(
+      JSON.stringify({
+        event: 'reward_prepare_db_failure',
+        stage,
+        reason: classifyRewardPrepareDbFailure(error)
+      })
+    );
     // Preserve the existing 500/fail-closed contract without exposing raw D1 details.
     throw new Error('Reward prepare database operation unavailable.');
   }
