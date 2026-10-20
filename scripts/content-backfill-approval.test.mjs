@@ -28,7 +28,7 @@ test('bounded product recovery never requests metered AI or static rewrites', ()
   assert.match(workflow, /SEED_CURRENT_LOCALE/);
   assert.match(workflow, /SEED_DAILY_DAYS/);
   assert.match(workflow, /languages="tr en es pt de fr"/);
-  assert.match(workflow, /ENABLE_CONTENT_BACKFILL == 'true'/);
+  assert.match(workflow, /github.event_name == 'schedule'/);
   assert.doesNotMatch(workflow, /SEED_SKIP_STATIC_CONTENT:/);
 });
 

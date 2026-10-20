@@ -27,9 +27,11 @@ concurrency:
 
 jobs:
   backfill:
+    # Product-owned deterministic daily content; separate from agent automation.
+    # Enable only after successful guarded backend deploy and live R2 acceptance.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      vars.ENABLE_CONTENT_BACKFILL == 'true'
+      github.repository == 'MakerParsDev/Astroloji' &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production-admin-content
