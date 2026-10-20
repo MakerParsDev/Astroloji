@@ -12,6 +12,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AdFrequencyManagerTest {
@@ -23,9 +25,11 @@ class AdFrequencyManagerTest {
     @Test
     fun `daily limit and cooldown are enforced for interstitials`() =
         runTest {
+            val localMidnight = LocalDate.of(1970, 1, 1).atStartOfDay(ZoneId.systemDefault())
+            val startOfTestDay = localMidnight.toInstant().toEpochMilli()
             coEvery { preferencesRepository.current() } returns
                 UserPreferences(
-                    lastInterstitialShown = 1_000L,
+                    lastInterstitialShown = startOfTestDay + 1_000L,
                     interstitialCountToday = 3,
                     interstitialCountDate = "1970-01-01",
                 )
@@ -33,8 +37,8 @@ class AdFrequencyManagerTest {
             val manager = AdFrequencyManager(preferencesRepository)
             val flags = RemoteFlags(interstitialDailyLimit = 3, interstitialCooldownMinutes = 5)
 
-            assertThat(manager.canShowInterstitial(flags, nowMs = 2_000L)).isFalse()
-            assertThat(manager.canShowInterstitial(flags, nowMs = 1_000L + (6 * 60 * 1000L))).isFalse()
+            assertThat(manager.canShowInterstitial(flags, nowMs = startOfTestDay + 2_000L)).isFalse()
+            assertThat(manager.canShowInterstitial(flags, nowMs = startOfTestDay + 1_000L + (6 * 60 * 1000L))).isFalse()
         }
 
     @Test
@@ -57,7 +61,8 @@ class AdFrequencyManagerTest {
     @Test
     fun `cooldown remains enforced when the calendar day changes`() =
         runTest {
-            val startOfNewDay = 24 * 60 * 60 * 1000L
+            val localMidnight = LocalDate.of(1970, 1, 2).atStartOfDay(ZoneId.systemDefault())
+            val startOfNewDay = localMidnight.toInstant().toEpochMilli()
             coEvery { preferencesRepository.current() } returns
                 UserPreferences(
                     lastInterstitialShown = startOfNewDay - 60_000L,
@@ -75,6 +80,8 @@ class AdFrequencyManagerTest {
     @Test
     fun `new day resets interstitial counters and record updates persisted state`() =
         runTest {
+            val localMidnight = LocalDate.of(1970, 1, 2).atStartOfDay(ZoneId.systemDefault())
+            val startOfNewDay = localMidnight.toInstant().toEpochMilli()
             coEvery { preferencesRepository.current() } returns
                 UserPreferences(
                     lastInterstitialShown = 0L,
@@ -85,13 +92,13 @@ class AdFrequencyManagerTest {
             val manager = AdFrequencyManager(preferencesRepository)
             val flags = RemoteFlags(interstitialDailyLimit = 3, interstitialCooldownMinutes = 5)
 
-            assertThat(manager.canShowInterstitial(flags, nowMs = 24 * 60 * 60 * 1000L)).isTrue()
+            assertThat(manager.canShowInterstitial(flags, nowMs = startOfNewDay)).isTrue()
 
-            manager.recordInterstitialShown(nowMs = 24 * 60 * 60 * 1000L)
+            manager.recordInterstitialShown(nowMs = startOfNewDay)
 
             coVerify {
                 preferencesRepository.updateInterstitialMetrics(
-                    lastShown = 24 * 60 * 60 * 1000L,
+                    lastShown = startOfNewDay,
                     count = 1,
                     date = "1970-01-02",
                 )
