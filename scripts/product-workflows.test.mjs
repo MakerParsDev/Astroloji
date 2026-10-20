@@ -38,9 +38,9 @@ test('backend deploy and CI retain real D1 migration gates', () => {
   assert.ok(existsSync('scripts/validate-migrations.test.mjs'));
 });
 
-test('product content backfill keeps independent opt-in', () => {
+test('product content backfill is scheduled independently of retired agent automation', () => {
   const content = workflow('content-backfill');
-  assert.match(content, /ENABLE_CONTENT_BACKFILL/);
+  assert.match(content, /github.event_name == 'schedule'/);
   assert.match(content, /workflow_dispatch/);
   assert.doesNotMatch(content, /ENABLE_AUTONOMOUS_PRODUCTION/);
 });

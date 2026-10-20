@@ -16,7 +16,7 @@ Bu dokuman `v1.0.0` ve sonraki release'ler icin production operasyon runbook'udu
 3. Android release icin once android-internal-preflight, sonra android-internal-release workflow'unu RELEASE_INTERNAL onayiyla calistir; gercek cihazda kabul testlerini tamamla.
 4. Google Play production icin android-production-release workflow'unu main uzerinden manuel baslat. Staged rollout ve ilerleme karari Play/Crashlytics verileriyle insan tarafindan verilir; otomatik terfi yoktur.
 5. Store metadatasi android-metadata workflow'u ile backup, diff, onayli publish ve readback asamalarindan gecirilir.
-6. content-backfill yalniz ENABLE_CONTENT_BACKFILL=true ise gunluk calisir; manuel dispatch ayrica kullanilabilir. Bu islem urunun burc icerigine aittir, ajan orkestrasyonu degildir.
+6. content-backfill onayli urun icerigi kurtarma tamamlandiktan sonra gunluk planli calisir; manuel dispatch ayrica kullanilabilir. Bu islem urunun burc icerigine aittir, ajan orkestrasyonu degildir.
 
 production ve internal GitHub environment denetimleri, Doppler secret kaynagi ve geriye donus adimlari korunur.
 
@@ -142,11 +142,11 @@ Bu, urunun kendi burc icerigi bakimidir; agent veya otonom release controller de
 
 1. GitHub main CI yesil olmali. Degisen backend kodunu **once** mevcut `backend-production-deploy` manuel is akisi ve `DEPLOY` onayi ile yayinla; Play/Android yayinina dokunma.
 2. `production-admin-content` ortami credential'i ile yeni salt okunur `GET /api/v1/admin/content/backfill/capabilities` endpoint'inin `deterministic_default=true`, `skip_existing_supported=true`, `max_product_horizon_days=7` dondurdugunu dogrula. `content-backfill` workflow'u da ayni kontrolu fail-closed yapar; eski Worker'a backfill cagrisi gondermez.
-3. `content-backfill` workflow'unu main'de manuel dispatch et. `daily_days=7`, `language=all` (veya tek dil), `seed_date` bos (bugun) olarak kullan. Zamanlanmis calisma sadece `ENABLE_CONTENT_BACKFILL=true` ile etkinlestirilir.
+3. `content-backfill` workflow'unu main'de manuel dispatch et. `daily_days=7`, `language=all` (veya tek dil), `seed_date` bos (bugun) olarak kullan. Zamanlanmis is, her gun bounded ve AI kullanmayan urun icerigini idempotent uretir; GitHub environment ve backend capabilities kontrolleri korunur.
 4. Is akisi her dili ayri istekle isler, sadece eksik R2 tarih belgelerini yazar (`skip_existing=true`), kisilik/uyum belgelerini degistirmez ve **Workers AI cagirmaz** (`enhance_with_ai=false`). Mevcut onayli icerik korunur. Run URL ve editoryal onay metadata'si kaydedilir.
 5. R2'de su key'lerin varligini ve tarih metadata'sini kontrol et: `content/daily/{lang}/{YYYY-MM-DD}.json`, `content/weekly/{lang}/{YYYY-Www}.json`, `content/monthly/{lang}/{YYYY-MM}.json`. Desteklenen diller `tr/en/es/pt/de/fr`'dir. D1 sema, Android release ve reklam ayarlari degismemelidir.
 6. Uygulamada gunluk/haftalik/aylik yorumlari, premium gecislerini ve Turkce hata mesajlarini gercek cihaz veya emulatorde kabul testine sok. Gerekiyorsa ayri uygulama PR'i ac.
-7. Ilk backfill ve canli okumalar PASS olmadan `ENABLE_CONTENT_BACKFILL` degiskenini acma. Acildiktan sonra ertesi gunun zamanlanmis isini ve basarisizlik uyarilarini dogrula.
+7. Ilk manuel kurtarma ve canli okumalar PASS olduktan sonra planli is etkin tutulur. Ilk ertesi gun zamanlanmis kosunun basarisini, butun dil/tarih kapsamini ve hata uyarilarini dogrula.
 
 `npm run seed` komutunu production kurtarma yolu olarak calistirma; environment onayini atlar. Urune dahil olmayan otomasyon/ajan sistemlerini geri getirme.
 
