@@ -24,7 +24,7 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
-function createRewardDb(options: { failVerifyUpdate?: boolean; failEntitlementLookup?: boolean; failPrepareInsert?: boolean } = {}) {
+function createRewardDb(options: { failVerifyUpdate?: boolean; failEntitlementLookup?: boolean; failEntitlementLookupMessage?: string; failPrepareInsert?: boolean } = {}) {
   const rows = new Map<string, RewardChallengeRow>();
 
   const db = {
@@ -49,7 +49,9 @@ function createRewardDb(options: { failVerifyUpdate?: boolean; failEntitlementLo
             query.includes('SELECT id FROM reward_challenges') &&
             query.includes("status = 'consumed'")
           ) {
-            if (options.failEntitlementLookup) throw new Error('D1_ERROR: no such table secret-forbidden-123');
+            if (options.failEntitlementLookup || options.failEntitlementLookupMessage) {
+              throw new Error(options.failEntitlementLookupMessage ?? 'D1_ERROR: no such table secret-forbidden-123');
+            }
             const [userId, rewardType, identifier, nowIso] = statement.bindings.map(String);
             const row = [...rows.values()].find(
               (candidate) =>
@@ -227,7 +229,10 @@ describe('rewarded access SSV routes', () => {
 
   it.each([
     ['entitlement_lookup', { failEntitlementLookup: true }, 'schema'],
-    ['challenge_insert', { failPrepareInsert: true }, 'unavailable']
+    ['challenge_insert', { failPrepareInsert: true }, 'unavailable'],
+    ['entitlement_lookup', { failEntitlementLookupMessage: 'Network connection lost.' }, 'unavailable'],
+    ['entitlement_lookup', { failEntitlementLookupMessage: 'D1 DB is overloaded. Requests queued for too long.' }, 'unavailable'],
+    ['entitlement_lookup', { failEntitlementLookupMessage: 'Unknown SQL failure secret-forbidden-123' }, 'unknown']
   ] as const)('fails closed and logs only safe %s D1 diagnostic categories', async (stage, options, reason) => {
     const { db, rows } = createRewardDb(options);
     const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
