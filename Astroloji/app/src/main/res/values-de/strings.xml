@@ -149,6 +149,8 @@
     <string name="settings_about_title">Über die App</string>
     <string name="settings_version">App-Version</string>
     <string name="settings_version_value">v%1$s</string>
+    <string name="settings_manage_ad_privacy">Werbe-Datenschutzeinstellungen verwalten</string>
+    <string name="settings_privacy_options_error">Datenschutzeinstellungen sind derzeit nicht verfügbar. Bitte später erneut versuchen.</string>
     <string name="settings_privacy">Datenschutzrichtlinie</string>
     <string name="settings_contact">Kontakt</string>
     <string name="settings_restore">Kauf wiederherstellen</string>

@@ -1,5 +1,7 @@
 package com.parsfilo.astrology.feature.settings
 
+import android.app.Activity
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +26,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -35,6 +38,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.BuildConfig
 import com.parsfilo.astrology.R
+import com.parsfilo.astrology.core.ads.adsEntryPoint
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.DetailChip
@@ -42,6 +46,7 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "FunctionNaming", "LongParameterList")
@@ -75,6 +80,10 @@ fun SettingsScreen(
     val currentSign = ZodiacSign.fromKey(uiState.profile?.sign ?: "aries")
     val configuration = LocalConfiguration.current
     val context = LocalContext.current
+    val consentManager = adsEntryPoint(context).consentManager()
+    val privacyOptionsRequired by consentManager.privacyOptionsRequired.collectAsStateWithLifecycle()
+    val activity = context as? Activity
+    val coroutineScope = rememberCoroutineScope()
     val appLanguage =
         com.parsfilo.astrology.core.util.TimeUtils
             .normalizeLanguageTag(configuration.locales[0].language)
@@ -368,6 +377,27 @@ fun SettingsScreen(
                     stringResource(R.string.settings_version_value, BuildConfig.VERSION_NAME),
                 )
                 SettingsAboutRow(stringResource(R.string.settings_privacy), "↗")
+                if (privacyOptionsRequired && activity != null) {
+                    OutlinedButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                val error = consentManager.showPrivacyOptionsForm(activity)
+                                if (error != null) {
+                                    val toast =
+                                        Toast.makeText(
+                                            context,
+                                            R.string.settings_privacy_options_error,
+                                            Toast.LENGTH_LONG,
+                                        )
+                                    toast.show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.settings_manage_ad_privacy))
+                    }
+                }
                 SettingsAboutRow(stringResource(R.string.settings_contact), "↗")
                 OutlinedButton(onClick = { viewModel.onEvent(SettingsUiEvent.RestorePurchase) }) {
                     Text(stringResource(R.string.settings_restore))

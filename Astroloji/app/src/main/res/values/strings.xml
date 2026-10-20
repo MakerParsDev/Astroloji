@@ -149,6 +149,8 @@
     <string name="settings_about_title">About</string>
     <string name="settings_version">App Version</string>
     <string name="settings_version_value">v%1$s</string>
+    <string name="settings_manage_ad_privacy">Manage advertising privacy choices</string>
+    <string name="settings_privacy_options_error">Privacy choices are unavailable right now. Try again later.</string>
     <string name="settings_privacy">Privacy Policy</string>
     <string name="settings_contact">Contact</string>
     <string name="settings_restore">Restore purchase</string>
