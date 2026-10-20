@@ -30,7 +30,9 @@ sealed class AppException(
 
     class UnauthorizedException : AppException("Your session has expired.")
 
-    class NotFoundException : AppException("Content could not be found.")
+    class NotFoundException(
+        message: String,
+    ) : AppException(message)
 
     class PremiumRequiredException : AppException("This content requires premium access.")
 

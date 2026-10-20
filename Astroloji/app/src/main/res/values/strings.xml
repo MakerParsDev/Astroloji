@@ -293,6 +293,7 @@
     <string name="session_error_register_failed_code">Session registration failed. Code: %1$d</string>
     <string name="session_error_register_empty">Session response was empty.</string>
     <string name="session_error_refresh_failed">Session could not be refreshed.</string>
+    <string name="content_error_not_found">Content is temporarily unavailable. Please try again later.</string>
     <string name="content_error_daily_empty">Daily content response was empty.</string>
     <string name="content_error_weekly_empty">Weekly content response was empty.</string>
     <string name="content_error_monthly_empty">Monthly content response was empty.</string>

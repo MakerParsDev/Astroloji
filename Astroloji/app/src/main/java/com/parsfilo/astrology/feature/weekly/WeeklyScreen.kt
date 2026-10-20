@@ -153,16 +153,20 @@ fun WeeklyScreen(
                         subtitle = "${weekly.weekStart} - ${weekly.weekEnd}",
                     )
 
-                    AstrologyCard {
-                        Text(
-                            text = stringResource(R.string.weekly_best_day, weekly.bestDay ?: "-"),
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            text = stringResource(R.string.weekly_best_day_highlight),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                    // The API intentionally hides the best day for free users.
+                    // Do not render a misleading "Best day: -" placeholder.
+                    weekly.bestDay?.takeIf { it.isNotBlank() }?.let { bestDay ->
+                        AstrologyCard {
+                            Text(
+                                text = stringResource(R.string.weekly_best_day, bestDay),
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = stringResource(R.string.weekly_best_day_highlight),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                     }
 
                     WeeklySectionCard(

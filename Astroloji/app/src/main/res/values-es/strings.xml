@@ -301,6 +301,7 @@
     <string name="session_error_register_failed_code">El registro de sesión falló. Código: %1$d</string>
     <string name="session_error_register_empty">La respuesta de la sesión estaba vacía.</string>
     <string name="session_error_refresh_failed">No se pudo actualizar la sesión.</string>
+    <string name="content_error_not_found">El contenido no está disponible en este momento. Inténtalo de nuevo más tarde.</string>
     <string name="content_error_daily_empty">La respuesta del contenido diario estaba vacía.</string>
     <string name="content_error_weekly_empty">La respuesta del contenido semanal estaba vacía.</string>
     <string name="content_error_monthly_empty">La respuesta del contenido mensual estaba vacía.</string>

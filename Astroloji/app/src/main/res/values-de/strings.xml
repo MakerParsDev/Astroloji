@@ -293,6 +293,7 @@
     <string name="session_error_register_failed_code">Die Sitzungsregistrierung ist fehlgeschlagen. Code: %1$d</string>
     <string name="session_error_register_empty">Die Sitzungsantwort war leer.</string>
     <string name="session_error_refresh_failed">Die Sitzung konnte nicht aktualisiert werden.</string>
+    <string name="content_error_not_found">Der Inhalt ist derzeit nicht verfügbar. Bitte versuchen Sie es später erneut.</string>
     <string name="content_error_daily_empty">Die Antwort für den täglichen Inhalt war leer.</string>
     <string name="content_error_weekly_empty">Die Antwort für den wöchentlichen Inhalt war leer.</string>
     <string name="content_error_monthly_empty">Die Antwort für den monatlichen Inhalt war leer.</string>
