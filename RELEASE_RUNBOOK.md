@@ -29,7 +29,7 @@ Release almadan once su maddeler `PASS` olmali:
 3. GitHub security alerts acik olmamali.
 4. Android icin gerekli GitHub environment secret'lari hazir olmali.
 5. Backend icin Doppler ve Cloudflare secret'lari guncel olmali.
-6. R2 burc icerigi, mevcut gun/hafta/ay ve ilerideki en az 7 gunu tum desteklenen diller icin kapsiyor olmali.
+6. R2 burc icerigi, mevcut hafta/ay ile bugun dahil en az 7 gunluk gunluk icerigi tum desteklenen diller icin kapsiyor olmali.
 7. Android publish secret'lari Doppler'da tutuluyorsa ilgili `DOPPLER_TOKEN` environment secret'lari gecerli olmali.
 8. Ilgili `ENABLE_INTERNAL_RELEASE`, `ENABLE_PRODUCTION_RELEASE` veya `ENABLE_METADATA_PUBLISH` repo variable'i ancak tum secret ve approval kontrolleri tamamlandiktan sonra `true` olmali.
 
