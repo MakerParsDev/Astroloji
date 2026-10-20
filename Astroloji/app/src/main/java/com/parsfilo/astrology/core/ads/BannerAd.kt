@@ -58,7 +58,7 @@ fun AdaptiveBannerAd(modifier: Modifier = Modifier) {
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .height(adSize.getHeightInPixels(activity).dp),
+                    .height(adSize.height.dp),
         )
     }
 }
