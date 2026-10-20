@@ -200,6 +200,35 @@ function testApp(args: {
 }
 
 describe('rewarded access SSV routes', () => {
+  it('calls native crypto.randomUUID with its Crypto receiver when preparing a challenge', async () => {
+    const uuid = vi.spyOn(globalThis.crypto, 'randomUUID').mockImplementation(function (this: Crypto) {
+      if (this !== globalThis.crypto) throw new TypeError('Illegal invocation');
+      return CHALLENGE_ID as ReturnType<typeof crypto.randomUUID>;
+    });
+    const { db, rows } = createRewardDb();
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+
+    const response = await createApp({ reward: { nowMs: () => NOW_MS } }).request(
+      '/api/v1/rewards/prepare',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+      },
+      env
+    );
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      challenge_id: CHALLENGE_ID,
+      custom_data: CHALLENGE_ID,
+      reward_type: 'daily'
+    });
+    expect(rows.size).toBe(1);
+    expect(uuid).toHaveBeenCalled();
+  });
+
   it.each([
     ['denied', async () => ({ allowed: false, remaining: 0, retryAfterSeconds: 7 }), 429, 'RATE_LIMITED'],
     ['unavailable', async () => { throw new Error('rate limiter unavailable'); }, 503, 'RATE_LIMIT_UNAVAILABLE']
