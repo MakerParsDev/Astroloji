@@ -30,6 +30,9 @@ class GoogleMobileAdsConsentManager
         private val _canRequestAds = MutableStateFlow(consentInformation.canRequestAds())
         val canRequestAdsFlow: StateFlow<Boolean> = _canRequestAds.asStateFlow()
 
+        private val _privacyOptionsRequired = MutableStateFlow(isPrivacyOptionsRequired)
+        val privacyOptionsRequired: StateFlow<Boolean> = _privacyOptionsRequired.asStateFlow()
+
         val canRequestAds: Boolean
             get() = _canRequestAds.value
 
@@ -48,15 +51,18 @@ class GoogleMobileAdsConsentManager
                     buildRequestParameters(activity),
                     {
                         _canRequestAds.value = consentInformation.canRequestAds()
+                        _privacyOptionsRequired.value = isPrivacyOptionsRequired
                         UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
                             formError?.let { Timber.w("Consent form dismissed with error: %s", it.message) }
                             _canRequestAds.value = consentInformation.canRequestAds()
+                            _privacyOptionsRequired.value = isPrivacyOptionsRequired
                             if (continuation.isActive) continuation.resume(Unit)
                         }
                     },
                     { requestError ->
                         Timber.w("Consent info update failed: %s", requestError.message)
                         _canRequestAds.value = consentInformation.canRequestAds()
+                        _privacyOptionsRequired.value = isPrivacyOptionsRequired
                         if (continuation.isActive) continuation.resume(Unit)
                     },
                 )
@@ -67,6 +73,7 @@ class GoogleMobileAdsConsentManager
             suspendCancellableCoroutine { continuation ->
                 UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
                     _canRequestAds.value = consentInformation.canRequestAds()
+                    _privacyOptionsRequired.value = isPrivacyOptionsRequired
                     if (continuation.isActive) continuation.resume(formError)
                 }
             }

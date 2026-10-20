@@ -149,6 +149,8 @@
     <string name="settings_about_title">Hakkında</string>
     <string name="settings_version">Uygulama Versiyonu</string>
     <string name="settings_version_value">v%1$s</string>
+    <string name="settings_manage_ad_privacy">Reklam gizliliği tercihlerini yönet</string>
+    <string name="settings_privacy_options_error">Gizlilik tercihleri şu anda açılamıyor. Daha sonra tekrar deneyin.</string>
     <string name="settings_privacy">Gizlilik Politikası</string>
     <string name="settings_contact">İletişime Geç</string>
     <string name="settings_restore">Satın almayı geri yükle</string>

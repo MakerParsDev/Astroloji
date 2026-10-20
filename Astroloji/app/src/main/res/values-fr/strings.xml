@@ -153,6 +153,8 @@
     <string name="settings_about_title">À propos</string>
     <string name="settings_version">Version de l\'application</string>
     <string name="settings_version_value">v%1$s</string>
+    <string name="settings_manage_ad_privacy">Gérer les choix de confidentialité publicitaire</string>
+    <string name="settings_privacy_options_error">Les choix de confidentialité sont temporairement indisponibles. Réessayez plus tard.</string>
     <string name="settings_privacy">Politique de confidentialité</string>
     <string name="settings_contact">Contact</string>
     <string name="settings_restore">Restaurer l\'achat</string>

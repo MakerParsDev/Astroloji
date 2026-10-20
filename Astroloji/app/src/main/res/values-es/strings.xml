@@ -153,6 +153,8 @@
     <string name="settings_about_title">Acerca de</string>
     <string name="settings_version">Versión de la App</string>
     <string name="settings_version_value">v%1$s</string>
+    <string name="settings_manage_ad_privacy">Gestionar preferencias de privacidad publicitaria</string>
+    <string name="settings_privacy_options_error">Las opciones de privacidad no están disponibles ahora. Inténtalo de nuevo más tarde.</string>
     <string name="settings_privacy">Política de Privacidad</string>
     <string name="settings_contact">Contacto</string>
     <string name="settings_restore">Restaurar compra</string>

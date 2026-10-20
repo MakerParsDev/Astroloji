@@ -19,6 +19,8 @@ interface AdsEntryPoint {
     fun remoteConfigRepository(): RemoteConfigRepository
 
     fun rewardedAdManager(): RewardedAdManager
+
+    fun consentManager(): GoogleMobileAdsConsentManager
 }
 
 fun adsEntryPoint(context: Context): AdsEntryPoint =
