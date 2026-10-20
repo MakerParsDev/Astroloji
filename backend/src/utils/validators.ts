@@ -281,6 +281,8 @@ export const contentBackfillSchema = z.object({
   daily_days: z.coerce.number().int().min(1).max(31).optional().default(14),
   skip_static_content: optionalBooleanSchema.default(true),
   language: languageSchema.optional(),
+  skip_existing: optionalBooleanSchema.default(false),
+  enhance_with_ai: optionalBooleanSchema.default(false),
   editorial_status: z.literal('approved'),
   approved_by: approvalIdentifierSchema,
   approval_reference: approvalIdentifierSchema

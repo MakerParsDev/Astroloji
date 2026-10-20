@@ -596,6 +596,10 @@ export interface ContentBackfillRequest {
   daily_days: number;
   skip_static_content: boolean;
   language?: Language;
+  /** Existing approved content must not be overwritten by a routine backfill. */
+  skip_existing?: boolean;
+  /** Costly Workers AI enhancement is opt-in; deterministic content is the default. */
+  enhance_with_ai?: boolean;
   editorial_status: 'approved';
   approved_by: string;
   approval_reference: string;

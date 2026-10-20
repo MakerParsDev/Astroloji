@@ -10,15 +10,16 @@ on:
         required: false
         type: string
       daily_days:
-        description: "Number of future daily documents to upload."
+        description: "Days to generate for each selected locale (1-7); AI disabled."
         required: false
-        default: "14"
+        default: "7"
         type: string
-      skip_static_content:
-        description: "Skip personality and compatibility uploads."
+      language:
+        description: "Supported locale, or all to cover the six product locales."
         required: false
-        default: true
-        type: boolean
+        default: "all"
+        type: choice
+        options: [all, tr, en, es, pt, de, fr]
 
 concurrency:
   group: content-backfill
@@ -39,8 +40,8 @@ jobs:
       ADMIN_CONTENT_SECRET: ${{ secrets.ADMIN_CONTENT_SECRET }}
       BACKEND_BASE_URL: https://astrology.parsfilo.com
       SEED_DATE: ${{ github.event.inputs.seed_date || '' }}
-      SEED_DAILY_DAYS: ${{ github.event.inputs.daily_days || '14' }}
-      SEED_SKIP_STATIC_CONTENT: ${{ github.event.inputs.skip_static_content || 'true' }}
+      SEED_DAILY_DAYS: ${{ github.event.inputs.daily_days || '7' }}
+      SEED_LANGUAGE: ${{ github.event.inputs.language || 'all' }}
       SEED_APPROVED_BY: github:${{ github.actor }}
       SEED_APPROVAL_REFERENCE: github-run:${{ github.run_id }}
     steps:
@@ -57,18 +58,43 @@ jobs:
           fi
           echo "::add-mask::$ADMIN_CONTENT_SECRET"
 
-      - name: Trigger content backfill
+      - name: Verify backend has deterministic and idempotent backfill support
         run: |
-          payload="$(
-            python -c "import json, os; payload = {'daily_days': int(os.environ['SEED_DAILY_DAYS']), 'skip_static_content': os.environ['SEED_SKIP_STATIC_CONTENT'].strip().lower() in {'1', 'true'}, 'editorial_status': 'approved', 'approved_by': os.environ['SEED_APPROVED_BY'], 'approval_reference': os.environ['SEED_APPROVAL_REFERENCE']}; seed_date = os.environ.get('SEED_DATE', '').strip(); payload.update({'seed_date': seed_date} if seed_date else {}); print(json.dumps(payload))"
+          # Fail closed before any R2 write. Old Workers ignore unknown flags.
+          capabilities="$(
+            curl --fail-with-body --silent --show-error \
+              --request GET \
+              --url "$BACKEND_BASE_URL/api/v1/admin/content/backfill/capabilities" \
+              --header "x-admin-secret: $ADMIN_CONTENT_SECRET"
           )"
+          printf '%s' "$capabilities" | python -c "import json,sys; c=json.load(sys.stdin); assert c.get('deterministic_default') is True and c.get('skip_existing_supported') is True and c.get('max_product_horizon_days') == 7, 'Backend backfill capabilities are incompatible'"
 
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --url "${BACKEND_BASE_URL%/}/api/v1/admin/content/backfill" \
-            --header "content-type: application/json" \
-            --header "x-admin-secret: $ADMIN_CONTENT_SECRET" \
-            --data "$payload"
+      - name: Recover bounded product content without metered AI
+        run: |
+          # One request per locale keeps R2/KV subrequests bounded.
+          if ! [[ "$SEED_DAILY_DAYS" =~ ^[1-7]$ ]]; then
+            echo "Daily horizon must be an integer from 1 through 7."
+            exit 1
+          fi
+          case "$SEED_LANGUAGE" in
+            all) languages="tr en es pt de fr" ;;
+            tr|en|es|pt|de|fr) languages="$SEED_LANGUAGE" ;;
+            *) echo "Unsupported locale"; exit 1 ;;
+          esac
+
+          for locale in $languages; do
+            payload="$(
+              SEED_CURRENT_LOCALE="$locale" python -c "import json, os; payload = {'daily_days': int(os.environ['SEED_DAILY_DAYS']), 'language': os.environ['SEED_CURRENT_LOCALE'], 'skip_static_content': True, 'skip_existing': True, 'enhance_with_ai': False, 'editorial_status': 'approved', 'approved_by': os.environ['SEED_APPROVED_BY'], 'approval_reference': os.environ['SEED_APPROVAL_REFERENCE']}; seed_date = os.environ.get('SEED_DATE', '').strip(); payload.update({'seed_date': seed_date} if seed_date else {}); print(json.dumps(payload))"
+            )"
+            echo "Backfilling locale: $locale (deterministic, 7-day maximum)"
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --url "$BACKEND_BASE_URL/api/v1/admin/content/backfill" \
+              --header "content-type: application/json" \
+              --header "x-admin-secret: $ADMIN_CONTENT_SECRET" \
+              --data "$payload"
+            echo
+          done
 
 
       - name: Open or update incident on content backfill failure

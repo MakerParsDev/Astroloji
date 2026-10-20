@@ -112,6 +112,25 @@ describe('validators', () => {
     });
   });
 
+  it('uses deterministic content unless AI enhancement is explicitly opted in', () => {
+    const payload = {
+      daily_days: 7,
+      skip_static_content: true,
+      language: 'tr',
+      editorial_status: 'approved',
+      approved_by: 'github-actions',
+      approval_reference: 'workflow:content-backfill'
+    };
+    expect(validateContentBackfillBody(payload)).toMatchObject({
+      enhance_with_ai: false, skip_existing: false
+    });
+    expect(validateContentBackfillBody({
+      ...payload, enhance_with_ai: true, skip_existing: true
+    })).toMatchObject({
+      enhance_with_ai: true, skip_existing: true
+    });
+  });
+
   it('accepts an optional language filter for content backfill so a single-language backfill stays under the Worker subrequest limit', () => {
     expect(
       validateContentBackfillBody({
