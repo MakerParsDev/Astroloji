@@ -33,6 +33,7 @@ test('transition deploy keeps legacy forwarding disabled without relaxing future
   assert.notEqual(check(new Date(Date.now() + 35 * 24 * 60 * 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z')).status, 0);
   assert.notEqual(check('1971-01-01T00:00:00Z').status, 0);
   assert.match(deploy, /source\.split\(marker\)\.length !== 2/);
+  assert.match(fs.readFileSync('scripts/check-ssv-transition-route.mjs', 'utf8'), /legacyForwardUntil: process\.env\.LEGACY_FORWARD_UNTIL/);
   assert.doesNotMatch(deploy, /if \(rendered === source\)/);
 });
 
