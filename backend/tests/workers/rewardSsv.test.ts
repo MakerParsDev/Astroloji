@@ -252,9 +252,19 @@ describe('rewarded access SSV routes', () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'INTERNAL_ERROR' } });
     expect(rows.size).toBe(0);
-    const diagnostic = JSON.stringify({ event: 'reward_prepare_db_failure', stage, reason });
+    const diagnostic = JSON.stringify({
+      message: 'reward_prepare_db_failure',
+      event: 'reward_prepare_db_failure',
+      stage,
+      reason
+    });
     expect(errorLog).toHaveBeenCalledWith(diagnostic);
-    expect(JSON.parse(diagnostic)).toEqual({ event: 'reward_prepare_db_failure', stage, reason });
+    expect(JSON.parse(diagnostic)).toEqual({
+      message: 'reward_prepare_db_failure',
+      event: 'reward_prepare_db_failure',
+      stage,
+      reason
+    });
     const logs = JSON.stringify(errorLog.mock.calls);
     for (const forbidden of ['secret-forbidden-123', 'user-1', CHALLENGE_ID, jwt]) {
       expect(logs).not.toContain(forbidden);
