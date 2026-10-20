@@ -24,7 +24,7 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
-function createRewardDb(options: { failVerifyUpdate?: boolean } = {}) {
+function createRewardDb(options: { failVerifyUpdate?: boolean; failEntitlementLookup?: boolean; failPrepareInsert?: boolean } = {}) {
   const rows = new Map<string, RewardChallengeRow>();
 
   const db = {
@@ -49,6 +49,7 @@ function createRewardDb(options: { failVerifyUpdate?: boolean } = {}) {
             query.includes('SELECT id FROM reward_challenges') &&
             query.includes("status = 'consumed'")
           ) {
+            if (options.failEntitlementLookup) throw new Error('D1_ERROR: no such table secret-forbidden-123');
             const [userId, rewardType, identifier, nowIso] = statement.bindings.map(String);
             const row = [...rows.values()].find(
               (candidate) =>
@@ -69,6 +70,7 @@ function createRewardDb(options: { failVerifyUpdate?: boolean } = {}) {
         async run() {
           const query = normalize(sql);
           if (query.startsWith('INSERT INTO reward_challenges')) {
+            if (options.failPrepareInsert) throw new Error('database unavailable secret-forbidden-123');
             const [id, userId, rewardType, identifier, createdAt, expiresAt] = statement.bindings.map(String);
             rows.set(id, {
               id,
@@ -221,6 +223,39 @@ describe('rewarded access SSV routes', () => {
     await expect(response.json()).resolves.toMatchObject({ error: { code } });
     expect(limiterCheck).toHaveBeenCalledTimes(1);
     expect(rows.size).toBe(0);
+  });
+
+  it.each([
+    ['entitlement_lookup', { failEntitlementLookup: true }, 'schema'],
+    ['challenge_insert', { failPrepareInsert: true }, 'unavailable']
+  ] as const)('fails closed and logs only safe %s D1 diagnostic categories', async (stage, options, reason) => {
+    const { db, rows } = createRewardDb(options);
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const response = await testApp().request(
+      '/api/v1/rewards/prepare',
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+      },
+      env
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'INTERNAL_ERROR' } });
+    expect(rows.size).toBe(0);
+    expect(errorLog).toHaveBeenCalledWith({
+      event: 'reward_prepare_db_failure',
+      stage,
+      reason
+    });
+    const logs = JSON.stringify(errorLog.mock.calls);
+    for (const forbidden of ['secret-forbidden-123', 'user-1', CHALLENGE_ID, jwt]) {
+      expect(logs).not.toContain(forbidden);
+    }
   });
 
   it('rejects the legacy client-only claim payload', async () => {
