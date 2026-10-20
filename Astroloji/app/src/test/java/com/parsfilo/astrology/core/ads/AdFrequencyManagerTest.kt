@@ -38,6 +38,41 @@ class AdFrequencyManagerTest {
         }
 
     @Test
+    fun `a zero daily limit disables interstitials even at midnight rollover`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    lastInterstitialShown = 0L,
+                    interstitialCountToday = 0,
+                    interstitialCountDate = "1970-01-01",
+                )
+
+            val manager = AdFrequencyManager(preferencesRepository)
+            val flags = RemoteFlags(interstitialDailyLimit = 0, interstitialCooldownMinutes = 0)
+
+            assertThat(manager.canShowInterstitial(flags, nowMs = 0L)).isFalse()
+            assertThat(manager.canShowInterstitial(flags, nowMs = 24 * 60 * 60 * 1000L)).isFalse()
+        }
+
+    @Test
+    fun `cooldown remains enforced when the calendar day changes`() =
+        runTest {
+            val startOfNewDay = 24 * 60 * 60 * 1000L
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    lastInterstitialShown = startOfNewDay - 60_000L,
+                    interstitialCountToday = 3,
+                    interstitialCountDate = "1970-01-01",
+                )
+
+            val manager = AdFrequencyManager(preferencesRepository)
+            val flags = RemoteFlags(interstitialDailyLimit = 3, interstitialCooldownMinutes = 5)
+
+            assertThat(manager.canShowInterstitial(flags, nowMs = startOfNewDay)).isFalse()
+            assertThat(manager.canShowInterstitial(flags, nowMs = startOfNewDay + 5 * 60_000L)).isTrue()
+        }
+
+    @Test
     fun `new day resets interstitial counters and record updates persisted state`() =
         runTest {
             coEvery { preferencesRepository.current() } returns

@@ -19,14 +19,17 @@ class AdFrequencyManager
         ): Boolean {
             val preferences = preferencesRepository.current()
             val today = nowMs.toDateKey()
-            val isSameDay = preferences.interstitialCountDate == today
-            val cooldownMs = flags.interstitialCooldownMinutes.coerceAtLeast(0) * 60 * 1000L
-            if (!isSameDay) {
-                return true
-            }
-            if (preferences.interstitialCountToday >= flags.interstitialDailyLimit.coerceAtLeast(0)) {
+            val dailyLimit = flags.interstitialDailyLimit.coerceAtLeast(0)
+            if (dailyLimit == 0) {
                 return false
             }
+            val isSameDay = preferences.interstitialCountDate == today
+            val countToday = if (isSameDay) preferences.interstitialCountToday else 0
+            if (countToday >= dailyLimit) {
+                return false
+            }
+            // A day boundary must not bypass the minimum interval between impressions.
+            val cooldownMs = flags.interstitialCooldownMinutes.coerceAtLeast(0) * 60 * 1000L
             return nowMs - preferences.lastInterstitialShown >= cooldownMs
         }
 
