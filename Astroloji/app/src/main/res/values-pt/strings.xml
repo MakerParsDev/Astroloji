@@ -371,4 +371,12 @@
     <string name="daily_feedback_partly">Em parte</string>
     <string name="daily_feedback_not_today">Hoje não</string>
     <string name="daily_feedback_thanks">Obrigado — seu feedback estruturado foi registrado.</string>
+    <string name="settings_birth_data_delete_title">Excluir perfil de nascimento salvo</string>
+    <string name="settings_birth_data_delete_description">Remova do servidor a data, a hora e o local de nascimento salvos sem excluir sua conta. Leituras anteriores e outros dados permanecem.</string>
+    <string name="settings_birth_data_delete_button">Excluir perfil de nascimento</string>
+    <string name="settings_birth_data_delete_success">Perfil de nascimento salvo excluído. Sua conta continua ativa.</string>
+    <string name="settings_birth_data_delete_dialog_title">Excluir perfil de nascimento?</string>
+    <string name="settings_birth_data_delete_dialog_body">O perfil de nascimento salvo será removido permanentemente do servidor. Sua conta, outros dados e leituras anteriores serão mantidos.</string>
+    <string name="settings_birth_data_delete_confirm">Excluir perfil</string>
+    <string name="settings_birth_data_delete_progress">Excluindo perfil de nascimento…</string>
 </resources>

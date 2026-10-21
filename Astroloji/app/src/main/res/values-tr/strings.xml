@@ -363,4 +363,12 @@
     <string name="daily_feedback_partly">Kısmen</string>
     <string name="daily_feedback_not_today">Bugün değil</string>
     <string name="daily_feedback_thanks">Teşekkürler — yapılandırılmış geri bildirimin kaydedildi.</string>
+    <string name="settings_birth_data_delete_title">Kayıtlı doğum profilini sil</string>
+    <string name="settings_birth_data_delete_description">Hesabınızı silmeden sunucuda kayıtlı doğum tarihi, saati ve doğum yeri bilgilerinizi kaldırın. Üretilmiş yorumlar ve diğer hesap verileri silinmez.</string>
+    <string name="settings_birth_data_delete_button">Kayıtlı doğum profilini sil</string>
+    <string name="settings_birth_data_delete_success">Kayıtlı doğum profili silindi. Hesabınız etkin kalıyor.</string>
+    <string name="settings_birth_data_delete_dialog_title">Kayıtlı doğum profili silinsin mi?</string>
+    <string name="settings_birth_data_delete_dialog_body">Kayıtlı doğum profiliniz sunucudan kalıcı olarak kaldırılacak. Hesabınız açık kalır; diğer kayıtlar ve önceki yorumlar silinmez.</string>
+    <string name="settings_birth_data_delete_confirm">Doğum profilini sil</string>
+    <string name="settings_birth_data_delete_progress">Doğum profili siliniyor…</string>
 </resources>

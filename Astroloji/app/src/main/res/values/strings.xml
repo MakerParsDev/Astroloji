@@ -363,4 +363,12 @@
     <string name="daily_feedback_partly">Partly</string>
     <string name="daily_feedback_not_today">Not today</string>
     <string name="daily_feedback_thanks">Thanks — your structured feedback was recorded.</string>
+    <string name="settings_birth_data_delete_title">Delete saved birth profile</string>
+    <string name="settings_birth_data_delete_description">Remove your saved birth date, time and birth-city details from the server without deleting your account. Generated readings and other account data are not deleted.</string>
+    <string name="settings_birth_data_delete_button">Delete saved birth profile</string>
+    <string name="settings_birth_data_delete_success">Saved birth profile deleted. Your account remains active.</string>
+    <string name="settings_birth_data_delete_dialog_title">Delete saved birth profile?</string>
+    <string name="settings_birth_data_delete_dialog_body">This permanently removes your saved birth profile from the server. Your account stays active; other stored data and previous readings remain.</string>
+    <string name="settings_birth_data_delete_confirm">Delete birth profile</string>
+    <string name="settings_birth_data_delete_progress">Deleting birth profile…</string>
 </resources>

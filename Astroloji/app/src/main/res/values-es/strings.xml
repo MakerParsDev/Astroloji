@@ -371,4 +371,12 @@
     <string name="daily_feedback_partly">En parte</string>
     <string name="daily_feedback_not_today">Hoy no</string>
     <string name="daily_feedback_thanks">Gracias — tu opinión estructurada quedó registrada.</string>
+    <string name="settings_birth_data_delete_title">Eliminar perfil de nacimiento guardado</string>
+    <string name="settings_birth_data_delete_description">Elimina del servidor la fecha, hora y lugar de nacimiento guardados sin eliminar tu cuenta. Las lecturas anteriores y otros datos permanecerán.</string>
+    <string name="settings_birth_data_delete_button">Eliminar perfil de nacimiento</string>
+    <string name="settings_birth_data_delete_success">Perfil de nacimiento guardado eliminado. Tu cuenta sigue activa.</string>
+    <string name="settings_birth_data_delete_dialog_title">¿Eliminar perfil de nacimiento?</string>
+    <string name="settings_birth_data_delete_dialog_body">El perfil de nacimiento guardado se eliminará definitivamente del servidor. Tu cuenta, otros datos y lecturas anteriores se conservarán.</string>
+    <string name="settings_birth_data_delete_confirm">Eliminar perfil</string>
+    <string name="settings_birth_data_delete_progress">Eliminando perfil de nacimiento…</string>
 </resources>
