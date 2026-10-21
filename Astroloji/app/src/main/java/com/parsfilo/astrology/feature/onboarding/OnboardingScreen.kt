@@ -62,9 +62,7 @@ import com.parsfilo.astrology.core.ui.components.ZodiacChip
 import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
 import kotlinx.coroutines.launch
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -389,14 +387,7 @@ private fun BirthDateCard(
         )
     val locale = localeForLanguage(language)
     val dateFormatter = remember(locale) { DateTimeFormatter.ofPattern("d MMMM yyyy", locale) }
-    val selectedDateLabel =
-        birthDateMillis?.let {
-            Instant
-                .ofEpochMilli(it)
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate()
-                .format(dateFormatter)
-        }
+    val selectedDateLabel = birthDateMillis?.let { formatSelectedBirthDate(it, dateFormatter) }
 
     if (showDatePicker) {
         DatePickerDialog(
