@@ -77,6 +77,12 @@ Android uygulamasının kişisel veri işleme uygulamalarını açıklar. Gizlil
     etkileşimleri, paylaşım düğmesi tıklamaları, reklam gösterimi, abonelik akışı ve günlük yorum için seçilen
     <em>uydu / kısmen / bugün değil</em> kategorisi gibi uygulama içi olaylar ile bunlara ilişkin sınırlı metadata.
     Serbest günlük metni veya kişisel not toplanmaz.</li>
+  <li><strong>İsteğe bağlı ruh hâli kayıtları:</strong> Kullanıcı ruh hâlini (örneğin iyi, düşük
+    veya stresli) işaretlerse seçilen kategori, tarih ve varsa yaşam alanı uygulama API'si
+    üzerinden hesapla ilişkilendirilerek veritabanında saklanır. Bu kayıtlar kişiselleştirilmiş
+    ruh hâli eğilimi/içgörüsü oluşturmak için kullanılabilir. Ayrıca <em>mood_logged</em>
+    analitik olayı, seçilen ruh hâli kategorisiyle birlikte Firebase Analytics'e ve uygulamanın
+    kendi olay toplama API'sine gönderilir. Bu veriler hesap silme işlemiyle kaldırılır.</li>
   <li><strong>Satın alma ve abonelik verileri:</strong> ürün kimliği, Google Play satın alma belirteci,
     abonelik durumu ve geçerlilik tarihleri. Ödeme kartı bilgilerini ParsFilo toplamaz; ödeme Google Play
     tarafından işlenir.</li>
@@ -112,6 +118,8 @@ kullanıcının Kişisel Rehber hesaplamasını ayrı olarak başlatması halind
     hesaplamak; doğum tarihini bu gerçek zamanlı istek sonrasında kalıcı olarak saklamamak.</li>
   <li>Yapılandırılmış günlük geri bildirim ve paylaşım tıklamalarını içerik kalitesi ile ürün deneyimini
     geliştirmek amacıyla ölçmek.</li>
+  <li>İsteğe bağlı ruh hâli kayıtlarıyla kullanıcıya özel eğilim/içgörü üretmek ve
+    sınırlı kategorik kullanım olaylarını analiz etmek.</li>
   <li>Bildirim tercihlerini uygulamak ve istenen bildirimleri göndermek.</li>
   <li>Premium abonelikleri doğrulamak, geri yüklemek ve kötüye kullanımı önlemek.</li>
   <li>Uygulama kararlılığını, güvenliğini, performansını ve kullanıcı deneyimini geliştirmek.</li>
@@ -141,6 +149,8 @@ aynı sorunun tekrar gösterilmemesi için cihazda tutulur; uygulama verileri te
 kaldırıldığında silinir. Kaydedilmiş doğum profili ise kullanıcı tarafından silinene veya hesap
 silme talebi tamamlanana kadar sunucu veritabanında şifreli olarak saklanır. AI sohbet mesajları,
 isteğe bağlı danışmanlık isteğinin işlenmesi için harici hizmet sağlayıcılarına iletilebilir.
+İsteğe bağlı ruh hâli kayıtları, sunucu tarafında hesapla ilişkilendirilerek hesap silinene
+kadar tutulabilir; bu kayıtları cihazdaki günlük geri bildirim tercihleriyle karıştırmamak gerekir.
 Diğer cihaz tercihleri ve önbellek de aynı şekilde yerel veri temizliğiyle silinebilir. Sunucu tarafındaki hesap ve ilişkili verileri uygulamadaki Ayarlar ekranından silebilir veya
 <a href="/delete-account">hesap ve veri silme sayfasındaki</a> adımları izleyebilirsiniz. Uygulamaya erişemiyorsanız
 <a href="mailto:${SUPPORT_EMAIL}?subject=Astroloji%20veri%20silme%20talebi">${SUPPORT_EMAIL}</a> adresine yazabilirsiniz. Kimliğinizi ve hesabın size ait olduğunu doğrulamak için
@@ -171,7 +181,10 @@ sayfada yayımlanır ve üst bölümdeki tarih değiştirilir.</p>
 <p>ParsFilo operates the Astroloji Android app. We process account/session identifiers, zodiac and language
 preferences, time-zone and notification settings, Firebase installation IDs, transitional legacy FCM tokens, bounded app-interaction analytics, structured
 daily feedback categories, subscription records, and diagnostic/device/ad data needed to operate, secure,
-improve and monetize the app. Optional birth-profile details (date, time and birth city)
+improve and monetize the app. Optional mood check-ins (for example, good, low or stressed) are
+associated with the account and stored with the date and optional life domain in the backend
+until account deletion, for mood-pattern insights. The <code>mood_logged</code> event and mood category
+are sent to Firebase Analytics and our own event-tracking API. Optional birth-profile details (date, time and birth city)
 are stored encrypted in the backend for natal-chart and consultation features until removed
 by the user or on account deletion; this is distinct from the transient Personal Guidance Beta
 calculation. For AI consultations, user-initiated chat messages, conversation context and
