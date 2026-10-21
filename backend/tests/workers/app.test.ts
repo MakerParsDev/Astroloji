@@ -28,7 +28,7 @@ describe('app routes', () => {
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
     expect(html).toContain(heading);
     expect(html).toContain('info@parsfilo.com');
-    expect(html).toContain(path === '/privacy' ? '21 October 2026' : '5 August 2026');
+    expect(html).toContain(path === '/privacy' ? '22 October 2026' : '5 August 2026');
   });
 
   it('serves public account deletion instructions', async () => {
@@ -43,8 +43,30 @@ describe('app routes', () => {
     expect(html).toContain('Account and Data Deletion');
     expect(html).toContain('Google Play');
     expect(html).toContain('info@parsfilo.com');
-    expect(html).toContain('21 October 2026');
+    expect(html).toContain('22 October 2026');
     expect(html).toContain('şifreli kaydedilmiş doğum profili');
+  });
+
+  it('distinguishes older mood analytics and version-specific birth deletion', async () => {
+    const response = await createApp().request('/privacy', {}, createTestEnv());
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Google Play'de dağıtılmış eski uygulama");
+    expect(html).toContain("Firebase Analytics'e geçmişte gönderilmiş");
+    expect(html).toContain('sürümlerde bu seçenek bulunmayabilir');
+    expect(html).toContain('mailto:info@parsfilo.com?subject=Astroloji%20veri%20silme%20talebi');
+  });
+
+  it('separates full-account and selective deletion instructions', async () => {
+    const response = await createApp().request('/delete-account', {}, createTestEnv());
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain('Hesabı koruyarak belirli verilerin silinmesi');
+    expect(html).toContain('Hesabı ve verileri sil');
+    expect(html).toContain('Older distributed versions');
+    expect(html).toContain('subject=Astroloji%20belirli%20veri%20silme%20talebi');
   });
 
   it('requires firebase authorization for user registration', async () => {
@@ -207,7 +229,10 @@ describe('app routes', () => {
     expect(html).toContain('Kaydedilen doğum profili (isteğe bağlı)');
     expect(html).toContain('İsteğe bağlı ruh hâli kayıtları');
     expect(html).toContain('mood_logged');
-    expect(html).toContain("Firebase Analytics'e ve uygulamanın");
+    expect(html).toContain("Firebase Analytics'e geçmişte gönderilmiş");
+    expect(html).toContain('Older distributed app versions may send');
+    expect(html).toContain('earlier Firebase Analytics events');
+    expect(html).toContain('older distributed versions may lack the control');
     expect(html).toContain('Optional mood check-ins');
     expect(html).toContain('until account deletion, for mood-pattern insights');
     expect(html).toContain('AI sohbet mesajları');
