@@ -189,7 +189,7 @@ export function createApp(options: CreateAppOptions = {}) {
         crypto.randomUUID(),
         c.get('auth').userId,
         body.event_type,
-        JSON.stringify(body.meta ?? {}),
+        JSON.stringify(body.event_type === 'mood_logged' ? {} : body.meta ?? {}),
         new Date().toISOString()
       )
       .run();
