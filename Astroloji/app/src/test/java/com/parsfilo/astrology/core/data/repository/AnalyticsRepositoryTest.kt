@@ -5,6 +5,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.parsfilo.astrology.core.data.local.QueuedEventDao
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
+import com.parsfilo.astrology.core.data.remote.TrackEventResponse
 import io.mockk.coEvery
 import io.mockk.coJustRun
 import io.mockk.coVerify
@@ -140,7 +141,7 @@ class AnalyticsRepositoryTest {
             val server = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
             val firebaseParams = slot<Bundle>()
             coEvery { api.trackEvent(capture(server)) } returns
-                Response.success(com.parsfilo.astrology.core.data.remote.TrackEventResponse(ok = true))
+                Response.success(TrackEventResponse(ok = true))
 
             repository.track(
                 AnalyticsEvents.MOOD_LOGGED,
