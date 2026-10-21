@@ -27,6 +27,24 @@ test('Turkish copy uses professional Unicode and covers shipped discovery intent
   assert.doesNotMatch(trFull, /\bGunluk\b|\bBurc\b|\bask\b/i);
 });
 
+test('all Play locales disclose non-medical purpose of mood check-ins', () => {
+  const notices = {
+    'en-US': ['Optional mood check-ins', 'not a medical device', 'qualified healthcare professional'],
+    'tr-TR': ['İsteğe bağlı ruh hâli', 'tıbbi bir cihaz değildir', 'sağlık uzmanına danışın'],
+    'de-DE': ['Optionale Stimmungseinträge', 'kein Medizinprodukt', 'medizinisches Fachpersonal'],
+    'fr-FR': ['bilans d’humeur facultatifs', 'pas un dispositif médical', 'professionnel de santé'],
+    'es-ES': ['registros opcionales del estado de ánimo', 'no es un dispositivo médico', 'profesional sanitario'],
+    'pt-BR': ['registros opcionais de humor', 'não é um dispositivo médico', 'profissional de saúde'],
+  };
+  for (const [locale, phrases] of Object.entries(notices)) {
+    const description = read(`Astroloji/play/listings/${locale}/full-description.txt`);
+    for (const phrase of phrases) {
+      assert.ok(description.includes(phrase), `${locale} must disclose: ${phrase}`);
+    }
+    assert.ok(length(description) <= 4000, `${locale} listing exceeds 4000 characters`);
+  }
+});
+
 test('English copy covers the shipped international discovery intents', () => {
   assert.match(enFull, /daily horoscope/i);
   assert.match(enFull, /weekly/i);
@@ -89,6 +107,24 @@ test('validator rejects Turkish copy without Turkish Unicode quality', () => {
     englishFullDescription: 'Daily horoscope, weekly and monthly guidance.',
   });
   assert.ok(errors.some((error) => /Turkish Unicode ratio/i.test(error)));
+});
+
+test('approved negative health notices do not permit independent medical claims', () => {
+  const descriptions = [
+    enFull + '\n\nWe provide medical diagnosis.',
+    trFull + '\n\nTıbbi teşhis yapar.',
+  ];
+  for (const [i, fullDescription] of descriptions.entries()) {
+    const locale = i === 0 ? 'en-US' : 'tr-TR';
+    const errors = validateListingCopy({
+      locale,
+      title: locale === 'en-US' ? enTitle : trTitle,
+      shortDescription: locale === 'en-US' ? enShort : trShort,
+      fullDescription,
+      englishFullDescription: enFull,
+    });
+    assert.ok(errors.some((error) => /medical or diagnosis claim/i.test(error)));
+  }
 });
 
 test('validator rejects every excluded commercial/deterministic claim in English and Turkish', () => {
