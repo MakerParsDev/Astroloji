@@ -278,6 +278,15 @@ describe('DELETE /users/me/birth-data', () => {
 
     expect(response.status).toBe(200);
     expect(rows.has('user-1')).toBe(false);
+
+    // The same authenticated session stays valid; only saved birth data is gone.
+    const readBack = await createApp().request('/api/v1/users/me/birth-data', { method: 'GET', headers }, env);
+    expect(readBack.status).toBe(200);
+    await expect(readBack.json()).resolves.toEqual({ time_certainty: 'unknown', has_birth_data: false });
+
+    // Repeating the selective deletion is safe and does not remove the account.
+    const repeat = await createApp().request('/api/v1/users/me/birth-data', { method: 'DELETE', headers }, env);
+    expect(repeat.status).toBe(200);
   });
 });
 
