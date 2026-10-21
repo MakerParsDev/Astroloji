@@ -152,6 +152,11 @@ describe('app routes', () => {
     expect(html.toLowerCase()).toContain('anonim paylaşım bağlantıları');
     expect(html).toContain('Personal Guidance');
     expect(html).toContain('Kaydedilen doğum profili (isteğe bağlı)');
+    expect(html).toContain('İsteğe bağlı ruh hâli kayıtları');
+    expect(html).toContain('mood_logged');
+    expect(html).toContain("Firebase Analytics'e ve uygulamanın");
+    expect(html).toContain('Optional mood check-ins');
+    expect(html).toContain('until account deletion, for mood-pattern insights');
     expect(html).toContain('AI sohbet mesajları');
     expect(html).toContain('doğum profilinden hesaplanan harita özeti');
     expect(html).toContain('Sun, Moon, Venus and Mars signs/degrees');
