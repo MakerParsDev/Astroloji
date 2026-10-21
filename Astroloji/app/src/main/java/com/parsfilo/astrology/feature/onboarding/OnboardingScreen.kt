@@ -12,16 +12,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -478,7 +474,7 @@ private fun DetectedSignCard(
 }
 
 @Composable
-private fun ManualSignGrid(
+internal fun ManualSignGrid(
     selected: ZodiacSign?,
     language: String,
     onSelectSign: (ZodiacSign) -> Unit,
@@ -487,14 +483,16 @@ private fun ManualSignGrid(
         text = stringResource(R.string.onboarding_manual_selection_title),
         style = MaterialTheme.typography.titleMedium,
     )
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 152.dp),
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(2.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    // The containing onboarding page is already vertically scrollable. A nested
+    // LazyVerticalGrid would receive unbounded height and crash during composition.
+    // The twelve fixed zodiac chips are small enough to compose eagerly.
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(2.dp),
+        maxItemsInEachRow = 2,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        items(ZodiacSign.entries) { sign ->
+        ZodiacSign.entries.forEach { sign ->
             ZodiacChip(
                 sign = sign,
                 language = language,
