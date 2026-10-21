@@ -16,3 +16,5 @@ Uygulamada:
 Premium üyelik, reklamsız kullanım ve uygulamada belirtilen ek içeriklere erişim sağlar. Aboneliklerinizi Google Play üzerinden yönetebilir veya iptal edebilirsiniz.
 
 Hesabınızı ve uygulamayla ilişkili verilerinizi Ayarlar bölümünden silebilirsiniz. Gizlilik ve hesap silme ayrıntıları için uygulamanın mağaza sayfasındaki bağlantıları kullanın.
+
+İsteğe bağlı ruh hâli kayıtları yalnızca astrolojik eğilim içgörüleri için kullanılır; sağlık takibi veya terapi hizmeti sunulmaz. Bu uygulama tıbbi bir cihaz değildir; herhangi bir sağlık sorununu teşhis, tedavi, iyileştirme veya önleme amacı taşımaz. Tıbbi tavsiye, tanı veya tedavi için nitelikli bir sağlık uzmanına danışın.

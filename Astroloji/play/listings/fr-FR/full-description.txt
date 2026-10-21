@@ -16,3 +16,5 @@ Le contenu s'adapte à la langue et au signe que vous choisissez. Le contenu ast
 L'abonnement premium offre une expérience sans publicité et l'accès au contenu supplémentaire décrit dans l'app. Vous pouvez gérer ou résilier vos abonnements via Google Play.
 
 Vous pouvez supprimer votre compte et les données associées à l'app à tout moment depuis les paramètres. Consultez les liens vers la politique de confidentialité et la suppression de compte sur cette page pour plus de détails.
+
+Les bilans d’humeur facultatifs servent uniquement à présenter des tendances astrologiques, pas à surveiller ni à traiter la santé. Cette application n’est pas un dispositif médical et ne permet pas de diagnostiquer, traiter, guérir ou prévenir une maladie. Pour tout avis, diagnostic ou traitement médical, consultez un professionnel de santé qualifié.

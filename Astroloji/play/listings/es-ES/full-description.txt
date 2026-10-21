@@ -16,3 +16,5 @@ El contenido se adapta al idioma y al signo zodiacal que elijas. El contenido de
 La membresía premium ofrece una experiencia sin anuncios y acceso al contenido adicional descrito en la app. Puedes gestionar o cancelar las suscripciones desde Google Play.
 
 Puedes eliminar tu cuenta y los datos asociados de la app desde Ajustes. Consulta los enlaces de privacidad y eliminación de cuenta en esta página para más información.
+
+Los registros opcionales del estado de ánimo sirven para mostrar tendencias astrológicas, no para el seguimiento ni tratamiento de la salud. Esta aplicación no es un dispositivo médico y no diagnostica, trata, cura ni previene ninguna enfermedad. Para consejos, diagnósticos o tratamientos médicos, consulta a un profesional sanitario cualificado.

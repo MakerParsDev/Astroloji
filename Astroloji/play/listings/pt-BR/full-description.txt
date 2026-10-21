@@ -16,3 +16,5 @@ O conteúdo se adapta ao idioma e ao signo que você escolher. O conteúdo de as
 A assinatura premium oferece uma experiência sem anúncios e acesso ao conteúdo adicional descrito no app. Você pode gerenciar ou cancelar assinaturas pelo Google Play.
 
 Você pode excluir sua conta e os dados associados ao app em Configurações. Consulte os links de privacidade e exclusão de conta nesta página para mais detalhes.
+
+Os registros opcionais de humor servem para mostrar tendências astrológicas, não para monitoramento ou tratamento de saúde. Este aplicativo não é um dispositivo médico e não diagnostica, trata, cura ou previne qualquer condição médica. Para orientações, diagnósticos ou tratamentos médicos, consulte um profissional de saúde qualificado.
