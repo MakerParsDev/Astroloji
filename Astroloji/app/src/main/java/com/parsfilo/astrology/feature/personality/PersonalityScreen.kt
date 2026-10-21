@@ -52,8 +52,8 @@ fun PersonalityScreen(
                 val personalitySign = ZodiacSign.fromKey(report.sign)
                 PremiumHeroCard(
                     symbol = personalitySign.symbol,
-                    eyebrow = personalitySign.localizedName(report.language),
-                    title = report.sign,
+                    eyebrow = personalitySign.localizedDateRange(report.language),
+                    title = personalitySign.localizedName(report.language),
                     subtitle = "${report.element} • ${report.planet} • ${report.color}",
                 )
                 Button(
@@ -76,14 +76,26 @@ fun PersonalityScreen(
                     Text(report.summary, style = MaterialTheme.typography.bodyLarge)
                     Text("${report.element} • ${report.planet} • ${report.color}")
                 }
-                AstrologyCard {
-                    Text(
-                        stringResource(R.string.personality_strengths_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    report.strengths.forEach { Text("• $it") }
-                    Text(stringResource(R.string.personality_ideal_partners, report.idealPartners.joinToString()))
+                val highlights = visiblePersonalityHighlights(report)
+                if (highlights.hasContent) {
+                    AstrologyCard {
+                        if (highlights.strengths.isNotEmpty()) {
+                            Text(
+                                stringResource(R.string.personality_strengths_title),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            highlights.strengths.forEach { Text("• $it") }
+                        }
+                        if (highlights.partners.isNotEmpty()) {
+                            Text(
+                                stringResource(
+                                    R.string.personality_ideal_partners,
+                                    highlights.partners.joinToString(),
+                                ),
+                            )
+                        }
+                    }
                 }
                 AstrologyCard {
                     if (report.deepAnalysis == null) {
