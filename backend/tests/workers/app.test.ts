@@ -47,26 +47,33 @@ describe('app routes', () => {
     expect(html).toContain('şifreli kaydedilmiş doğum profili');
   });
 
-  it('distinguishes older mood analytics and version-specific birth deletion', async () => {
-    const response = await createApp().request('/privacy', {}, createTestEnv());
+  it.each([
+    {
+      path: '/privacy',
+      expected: [
+        "Google Play'de dağıtılmış eski uygulama",
+        "Firebase Analytics'e geçmişte gönderilmiş",
+        'sürümlerde bu seçenek bulunmayabilir',
+        'mailto:info@parsfilo.com?subject=Astroloji%20veri%20silme%20talebi'
+      ]
+    },
+    {
+      path: '/delete-account',
+      expected: [
+        'Hesabı koruyarak belirli verilerin silinmesi',
+        'Hesabı ve verileri sil',
+        'Older distributed versions',
+        'subject=Astroloji%20belirli%20veri%20silme%20talebi'
+      ]
+    }
+  ])('describes version-aware data deletion at $path', async ({ path, expected }) => {
+    const response = await createApp().request(path, {}, createTestEnv());
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain("Google Play'de dağıtılmış eski uygulama");
-    expect(html).toContain("Firebase Analytics'e geçmişte gönderilmiş");
-    expect(html).toContain('sürümlerde bu seçenek bulunmayabilir');
-    expect(html).toContain('mailto:info@parsfilo.com?subject=Astroloji%20veri%20silme%20talebi');
-  });
-
-  it('separates full-account and selective deletion instructions', async () => {
-    const response = await createApp().request('/delete-account', {}, createTestEnv());
-    const html = await response.text();
-
-    expect(response.status).toBe(200);
-    expect(html).toContain('Hesabı koruyarak belirli verilerin silinmesi');
-    expect(html).toContain('Hesabı ve verileri sil');
-    expect(html).toContain('Older distributed versions');
-    expect(html).toContain('subject=Astroloji%20belirli%20veri%20silme%20talebi');
+    for (const text of expected) {
+      expect(html).toContain(text);
+    }
   });
 
   it('requires firebase authorization for user registration', async () => {
