@@ -152,6 +152,26 @@ class SettingsViewModel
 
         private suspend fun handleAccountActions(event: SettingsUiEvent) {
             when (event) {
+                SettingsUiEvent.RequestBirthDataDeletion,
+                SettingsUiEvent.DismissBirthDataDeletion,
+                SettingsUiEvent.ConfirmBirthDataDeletion,
+                -> handleBirthDataAction(event)
+                SettingsUiEvent.RequestAccountDeletion -> {
+                    setState { copy(showDeleteConfirmation = true, error = null) }
+                }
+                SettingsUiEvent.DismissAccountDeletion -> {
+                    if (!state.value.isDeletingAccount) {
+                        setState { copy(showDeleteConfirmation = false, error = null) }
+                    }
+                }
+                SettingsUiEvent.ConfirmAccountDeletion -> deleteAccount()
+                SettingsUiEvent.RestorePurchase -> restorePurchase()
+                else -> Unit
+            }
+        }
+
+        private suspend fun handleBirthDataAction(event: SettingsUiEvent) {
+            when (event) {
                 SettingsUiEvent.RequestBirthDataDeletion -> {
                     if (!state.value.isDeletingBirthData && !state.value.isDeletingAccount) {
                         setState {
@@ -178,16 +198,6 @@ class SettingsViewModel
                         deleteBirthData()
                     }
                 }
-                SettingsUiEvent.RequestAccountDeletion -> {
-                    setState { copy(showDeleteConfirmation = true, error = null) }
-                }
-                SettingsUiEvent.DismissAccountDeletion -> {
-                    if (!state.value.isDeletingAccount) {
-                        setState { copy(showDeleteConfirmation = false, error = null) }
-                    }
-                }
-                SettingsUiEvent.ConfirmAccountDeletion -> deleteAccount()
-                SettingsUiEvent.RestorePurchase -> restorePurchase()
                 else -> Unit
             }
         }
