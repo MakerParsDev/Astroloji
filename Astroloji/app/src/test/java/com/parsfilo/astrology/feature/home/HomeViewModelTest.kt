@@ -219,6 +219,6 @@ class HomeViewModelTest {
             assertThat(viewModel.state.value.loggedMood).isEqualTo("good")
             assertThat(viewModel.state.value.moodInsight)
                 .isEqualTo(MoodInsightUi("communication", 3, 2))
-            coVerify(exactly = 1) { analyticsRepository.track(AnalyticsEvents.MOOD_LOGGED, mapOf("mood" to "good")) }
+            coVerify(exactly = 1) { analyticsRepository.track(AnalyticsEvents.MOOD_LOGGED, emptyMap()) }
         }
 }

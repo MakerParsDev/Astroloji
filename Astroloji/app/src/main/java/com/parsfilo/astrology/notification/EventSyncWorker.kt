@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.parsfilo.astrology.core.data.local.QueuedEventDao
+import com.parsfilo.astrology.core.data.repository.sanitizeAnalyticsMeta
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventRequest
 import dagger.assisted.Assisted
@@ -45,7 +46,7 @@ class EventSyncWorker
                             api.trackEvent(
                                 TrackEventRequest(
                                     eventType = event.type,
-                                    meta = meta,
+                                    meta = sanitizeAnalyticsMeta(event.type, meta),
                                 ),
                             )
                         } catch (exception: CancellationException) {

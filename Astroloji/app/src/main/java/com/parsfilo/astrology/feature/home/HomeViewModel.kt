@@ -102,7 +102,7 @@ class HomeViewModel
                 when (val result = moodRepository.logMood(mood, domain)) {
                     is AppResult.Success -> {
                         setState { copy(loggedMood = result.data.mood) }
-                        analyticsRepository.track(AnalyticsEvents.MOOD_LOGGED, mapOf("mood" to mood))
+                        analyticsRepository.track(AnalyticsEvents.MOOD_LOGGED)
                         refreshMoodInsight()
                     }
                     is AppResult.Error, AppResult.Loading -> Unit

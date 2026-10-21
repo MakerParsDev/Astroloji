@@ -12,6 +12,7 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Test
@@ -97,6 +98,37 @@ class EventSyncWorkerTest {
 
             assertThat(result).isInstanceOf(ListenableWorker.Result.Success::class.java)
             coVerify(exactly = 1) { queuedEventDao.delete("delivered") }
+        }
+
+    @Test
+    fun `strips mood details from legacy offline events while preserving event count`() =
+        runTest {
+            val legacy = event(id = "legacy-mood", payload = """{"mood":"stressed","source":"home"}""")
+                .copy(type = "mood_logged")
+            val submitted = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            coEvery { queuedEventDao.getBatch(50) } returns listOf(legacy)
+            coEvery { api.trackEvent(capture(submitted)) } returns
+                Response.success(TrackEventResponse(ok = true))
+
+            val result = createWorker().doWork()
+
+            assertThat(result).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            assertThat(submitted.captured.eventType).isEqualTo("mood_logged")
+            assertThat(submitted.captured.meta).isEmpty()
+            coVerify(exactly = 1) { queuedEventDao.delete("legacy-mood") }
+        }
+
+    @Test
+    fun `still delivers benign allowlisted metadata from offline events`() =
+        runTest {
+            val old = event(id = "other", payload = """{"sign":"aries","email":"private@example.com"}""")
+            val submitted = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            coEvery { queuedEventDao.getBatch(50) } returns listOf(old)
+            coEvery { api.trackEvent(capture(submitted)) } returns
+                Response.success(TrackEventResponse(ok = true))
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            assertThat(submitted.captured.meta).containsExactly("sign", "aries")
         }
 
     private fun createWorker(): EventSyncWorker =

@@ -141,6 +141,59 @@ describe('app routes', () => {
     expect(writes).toBe(0);
   });
 
+  it.each([
+    {
+      eventType: 'mood_logged',
+      incoming: { mood: 'stressed', source: 'home', arbitrary: 'personal information' },
+      expected: '{}'
+    },
+    {
+      eventType: 'app_open',
+      incoming: { source: 'home' },
+      expected: '{"source":"home"}'
+    }
+  ])('minimizes %s events before they are persisted in D1', async ({ eventType, incoming, expected }) => {
+    let storedMeta: string | undefined;
+    const env = createTestEnv({
+      DB: {
+        prepare(sql: string) {
+          const statement = {
+            bind(...values: unknown[]) {
+              if (sql.includes('INSERT INTO user_events')) {
+                storedMeta = values[3] as string;
+              }
+              return statement;
+            },
+            async first() {
+              return { ok: 1 };
+            },
+            async run() {
+              return { success: true };
+            }
+          };
+          return statement;
+        }
+      } as unknown as D1Database
+    });
+    const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
+    const response = await createApp().request(
+      '/api/v1/events/track',
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${jwt}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({ event_type: eventType, meta: incoming })
+      },
+      env
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true });
+    expect(storedMeta).toBe(expected);
+  });
+
   it('keeps privacy disclosures aligned with transient chart, feedback, and share behavior', async () => {
     const response = await createApp().request('/privacy', {}, createTestEnv());
     const html = await response.text();

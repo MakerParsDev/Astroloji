@@ -1,5 +1,6 @@
 package com.parsfilo.astrology.core.data.repository
 
+import android.os.Bundle
 import com.google.common.truth.Truth.assertThat
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.parsfilo.astrology.core.data.local.QueuedEventDao
@@ -9,6 +10,7 @@ import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -131,6 +133,54 @@ class AnalyticsRepositoryTest {
             assertThat(queuedSlot.captured.type).isEqualTo(AnalyticsEvents.ONBOARDING_COMPLETED)
             assertThat(queuedSlot.captured.payload).isEqualTo("{\"sign\":\"aries\",\"locale\":\"en\"}")
         }
+
+    @Test
+    fun `mood analytics strips wellbeing metadata before Firebase and server delivery`() =
+        runTest {
+            val server = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            val firebaseParams = slot<Bundle>()
+            coEvery { api.trackEvent(capture(server)) } returns
+                Response.success(com.parsfilo.astrology.core.data.remote.TrackEventResponse(ok = true))
+
+            repository.track(
+                AnalyticsEvents.MOOD_LOGGED,
+                mapOf("mood" to "stressed", "source" to "home", "reason" to "personal"),
+            )
+
+            assertThat(server.captured.eventType).isEqualTo(AnalyticsEvents.MOOD_LOGGED)
+            assertThat(server.captured.meta).isEmpty()
+            verify(exactly = 1) { firebaseAnalytics.logEvent(AnalyticsEvents.MOOD_LOGGED, capture(firebaseParams)) }
+            assertThat(firebaseParams.captured.isEmpty).isTrue()
+        }
+
+    @Test
+    fun `mood analytics never persists details to new offline queue`() =
+        runTest {
+            val queued = slot<com.parsfilo.astrology.core.data.local.QueuedEventEntity>()
+            coEvery { api.trackEvent(any()) } throws IOException("offline")
+            coJustRun { queuedEventDao.enqueueBounded(capture(queued), any(), any()) }
+
+            repository.track(AnalyticsEvents.MOOD_LOGGED, mapOf("mood" to "low", "reason" to "sensitive"))
+
+            assertThat(queued.captured.type).isEqualTo(AnalyticsEvents.MOOD_LOGGED)
+            assertThat(queued.captured.payload).isEqualTo("{}")
+        }
+
+    @Test
+    fun `other analytics events retain allowed metadata`() {
+        assertThat(
+            sanitizeAnalyticsMeta(
+                AnalyticsEvents.DAILY_VIEWED,
+                mapOf("sign" to "aries", "email" to "private@example.com"),
+            ),
+        ).containsExactly("sign", "aries")
+        assertThat(
+            sanitizeAnalyticsMeta(
+                AnalyticsEvents.MOOD_LOGGED,
+                mapOf("mood" to "low", "sign" to "aries"),
+            ),
+        ).isEmpty()
+    }
 
     private companion object {
         const val THIRTY_DAYS_MILLIS = 30L * 24L * 60L * 60L * 1_000L

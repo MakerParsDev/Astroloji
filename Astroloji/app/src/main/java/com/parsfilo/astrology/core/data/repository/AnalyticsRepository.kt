@@ -77,12 +77,18 @@ private val ALLOWED_ANALYTICS_META_KEYS =
         "feature",
         "cached",
         "milestone",
-        "mood",
     )
 
+// Mood is personal wellbeing data. Preserve the event count, never its details in analytics.
 internal fun sanitizeAnalyticsMeta(
+    eventType: String,
     meta: Map<String, String>,
-): Map<String, String> = meta.filterKeys(ALLOWED_ANALYTICS_META_KEYS::contains)
+): Map<String, String> =
+    if (eventType == AnalyticsEvents.MOOD_LOGGED) {
+        emptyMap()
+    } else {
+        meta.filterKeys(ALLOWED_ANALYTICS_META_KEYS::contains)
+    }
 
 @Singleton
 class AnalyticsRepository
@@ -97,7 +103,7 @@ class AnalyticsRepository
             eventType: String,
             meta: Map<String, String> = emptyMap(),
         ) = withContext(Dispatchers.IO) {
-            val safeMeta = sanitizeAnalyticsMeta(meta)
+            val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
             logFirebaseEvent(eventType, safeMeta)
             queueEvent(eventType, safeMeta)
         }
@@ -106,7 +112,7 @@ class AnalyticsRepository
             eventType: String,
             meta: Map<String, String> = emptyMap(),
         ) = withContext(Dispatchers.IO) {
-            val safeMeta = sanitizeAnalyticsMeta(meta)
+            val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
             logFirebaseEvent(eventType, safeMeta)
             try {
                 val response = api.trackEvent(TrackEventRequest(eventType = eventType, meta = safeMeta))
