@@ -153,6 +153,8 @@ describe('app routes', () => {
     expect(html).toContain('Personal Guidance');
     expect(html).toContain('Kaydedilen doğum profili (isteğe bağlı)');
     expect(html).toContain('AI sohbet mesajları');
+    expect(html).toContain('doğum profilinden hesaplanan harita özeti');
+    expect(html).toContain('Sun, Moon, Venus and Mars signs/degrees');
     expect(html).toContain('sunucu veritabanında şifreli biçimde saklanabilir');
     expect(html).not.toContain('Sunucuya gönderilen profil verisi doğum');
   });

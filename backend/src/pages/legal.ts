@@ -94,8 +94,9 @@ kullanıcı hesabına bağlı olarak sunucu veritabanında şifreli biçimde sak
 profilini uygulamadan silebilir; hesap silindiğinde bu kayıt da silinir. Bu saklama, yalnızca
 Kişisel Rehber Beta'da istek sırasında yapılan geçici işlemeden ayrı bir akıştır.</li>
   <li><strong>İsteğe bağlı AI sohbet mesajları:</strong> Kullanıcı sohbet özelliğinde bir mesaj gönderdiğinde,
-mesaj ve ilgili konuşma bağlamı yanıt oluşturulması amacıyla uygulama API'sine ve metin üretim
-hizmet sağlayıcılarına iletilir. Sohbet içeriği uygulama backend'inin kullanıcı veritabanında
+mesaj ve ilgili konuşma bağlamı ile doğum profilinden hesaplanan harita özeti (Güneş, Ay, Venüs
+ve Mars burçları/dereceleri ve hesaplanabiliyorsa yükselen burç/derece) yanıt oluşturulması
+amacıyla uygulama API'sine ve metin üretim hizmet sağlayıcılarına iletilir. Sohbet içeriği uygulama backend'inin kullanıcı veritabanında
 konuşma geçmişi olarak saklanmaz; hizmet sağlayıcıların işleme koşulları ayrıca uygulanabilir.</li>
   <li><strong>Anonim paylaşım bağlantıları:</strong> günlük burç veya burç çifti içeren herkese açık bağlantılar
     oluşturulabilir. Bu bağlantılar hesap kimliği, kullanıcı kimliği, skor geçmişi, alıcı kimliği veya reklam
@@ -173,8 +174,10 @@ daily feedback categories, subscription records, and diagnostic/device/ad data n
 improve and monetize the app. Optional birth-profile details (date, time and birth city)
 are stored encrypted in the backend for natal-chart and consultation features until removed
 by the user or on account deletion; this is distinct from the transient Personal Guidance Beta
-calculation. User-initiated AI chat messages and relevant conversation context are transmitted
-to our API and text-generation providers to generate replies. When a user explicitly requests Personal Guidance, the date of birth is transmitted
+calculation. For AI consultations, user-initiated chat messages, conversation context and
+a computed birth-chart summary (Sun, Moon, Venus and Mars signs/degrees, plus ascendant
+sign/degree when available) are transmitted to our API and text-generation providers to
+generate replies. When a user explicitly requests Personal Guidance, the date of birth is transmitted
 to the backend and processed ephemerally in memory for that real-time calculation; this feature does not write it
 to persistent storage, analytics or logs. Anonymous share links contain a zodiac sign or canonical sign pair, not
 an account ID or recipient identity. Google/Firebase, Google Play, Google Mobile Ads/UMP and Cloudflare may
