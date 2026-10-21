@@ -59,6 +59,44 @@ class SessionRepositoryRefreshTest {
     }
 
     @Test
+    fun `offline profile loading returns an error instead of crashing and retains session`() =
+        runTest {
+            val activeToken = jwt(exp = 4_000_000_000)
+            tokenStore.update(activeToken)
+            coEvery { api.getUserProfile() } throws java.net.UnknownHostException("offline")
+            val repository = createRepository()
+
+            val result = repository.loadProfile()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception)
+                .isInstanceOf(AppException.NetworkException::class.java)
+            assertThat(tokenStore.current()).isEqualTo(activeToken)
+            coVerify(exactly = 0) { preferencesRepository.clearSession() }
+            coVerify(exactly = 0) { userProfileDao.clear() }
+        }
+
+    @Test
+    fun `profile loading propagates coroutine cancellation without invalidating session`() =
+        runTest {
+            val activeToken = jwt(exp = 4_000_000_000)
+            tokenStore.update(activeToken)
+            coEvery { api.getUserProfile() } throws CancellationException("stopped")
+            val repository = createRepository()
+
+            var cancellation: CancellationException? = null
+            try {
+                repository.loadProfile()
+            } catch (exception: CancellationException) {
+                cancellation = exception
+            }
+
+            assertThat(cancellation).isNotNull()
+            assertThat(tokenStore.current()).isEqualTo(activeToken)
+            coVerify(exactly = 0) { preferencesRepository.clearSession() }
+        }
+
+    @Test
     fun `missing FID does not generate a placeholder during registration`() =
         runTest {
             val fresh = jwt(exp = 4_000_000_100)
