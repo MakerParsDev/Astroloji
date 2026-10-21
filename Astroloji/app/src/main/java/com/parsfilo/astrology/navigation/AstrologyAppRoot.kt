@@ -105,12 +105,22 @@ fun AstrologyAppRoot(
                             PremiumNavigationItem(
                                 label = item.label,
                                 icon = item.icon,
-                                selected = currentDestination?.hasRoute(item.route::class) == true,
+                                selected =
+                                    if (item.route == HomeRoute) {
+                                        isHomeTabDestination { routeClass ->
+                                            currentDestination?.hasRoute(routeClass) == true
+                                        }
+                                    } else {
+                                        currentDestination?.hasRoute(item.route::class) == true
+                                    },
                                 onClick = {
+                                    val restoreTabState = shouldRestoreBottomTabState(item.route)
                                     navController.navigate(item.route) {
                                         launchSingleTop = true
-                                        restoreState = true
-                                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                        restoreState = restoreTabState
+                                        popUpTo(navController.graph.startDestinationId) {
+                                            saveState = restoreTabState
+                                        }
                                     }
                                 },
                             )
