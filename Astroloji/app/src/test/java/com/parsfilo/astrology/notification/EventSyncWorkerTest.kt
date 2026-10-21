@@ -103,7 +103,11 @@ class EventSyncWorkerTest {
     @Test
     fun `strips mood details from legacy offline events while preserving event count`() =
         runTest {
-            val legacy = event(id = "legacy-mood", payload = """{"mood":"stressed","source":"home"}""").copy(type = "mood_logged")
+            val legacy =
+                event(
+                    id = "legacy-mood",
+                    payload = """{"mood":"stressed","source":"home"}""",
+                ).copy(type = "mood_logged")
             val submitted = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
             coEvery { queuedEventDao.getBatch(50) } returns listOf(legacy)
             coEvery { api.trackEvent(capture(submitted)) } returns
