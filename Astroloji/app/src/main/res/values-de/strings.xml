@@ -363,4 +363,12 @@
     <string name="daily_feedback_partly">Teilweise</string>
     <string name="daily_feedback_not_today">Heute nicht</string>
     <string name="daily_feedback_thanks">Danke — Ihr strukturiertes Feedback wurde erfasst.</string>
+    <string name="settings_birth_data_delete_title">Gespeichertes Geburtsprofil löschen</string>
+    <string name="settings_birth_data_delete_description">Löschen Sie gespeichertes Geburtsdatum, Uhrzeit und Geburtsort vom Server, ohne Ihr Konto zu löschen. Frühere Deutungen und andere Kontodaten bleiben erhalten.</string>
+    <string name="settings_birth_data_delete_button">Geburtsprofil löschen</string>
+    <string name="settings_birth_data_delete_success">Gespeichertes Geburtsprofil gelöscht. Ihr Konto bleibt aktiv.</string>
+    <string name="settings_birth_data_delete_dialog_title">Gespeichertes Geburtsprofil löschen?</string>
+    <string name="settings_birth_data_delete_dialog_body">Ihr gespeichertes Geburtsprofil wird dauerhaft vom Server entfernt. Ihr Konto, andere Daten und frühere Deutungen bleiben erhalten.</string>
+    <string name="settings_birth_data_delete_confirm">Geburtsprofil löschen</string>
+    <string name="settings_birth_data_delete_progress">Geburtsprofil wird gelöscht…</string>
 </resources>

@@ -278,6 +278,61 @@ describe('DELETE /users/me/birth-data', () => {
 
     expect(response.status).toBe(200);
     expect(rows.has('user-1')).toBe(false);
+
+    // The same authenticated session stays valid; only saved birth data is gone.
+    const readBack = await createApp().request('/api/v1/users/me/birth-data', { method: 'GET', headers }, env);
+    expect(readBack.status).toBe(200);
+    await expect(readBack.json()).resolves.toEqual({ time_certainty: 'unknown', has_birth_data: false });
+
+    // Repeating the selective deletion is safe and does not remove the account.
+    const repeat = await createApp().request('/api/v1/users/me/birth-data', { method: 'DELETE', headers }, env);
+    expect(repeat.status).toBe(200);
+  });
+});
+
+describe('selective birth profile deletion isolation', () => {
+  it('requires authentication and deletes only the requesting user birth profile', async () => {
+    const { db, rows } = createBirthDataDb();
+    const env = createTestEnv({ DB: db });
+    const headersA = await authHeaders(env, 'user-1');
+    const headersB = await authHeaders(env, 'user-2');
+    const birthProfile = {
+      local_date: '1990-06-15',
+      local_time: '14:30:00',
+      time_certainty: 'exact',
+      city_id: 'istanbul-tr'
+    };
+
+    for (const headers of [headersA, headersB]) {
+      const saved = await createApp().request(
+        '/api/v1/users/me/birth-data',
+        { method: 'PUT', headers, body: JSON.stringify(birthProfile) },
+        env
+      );
+      expect(saved.status).toBe(200);
+    }
+    expect(rows.size).toBe(2);
+
+    const unauthenticated = await createApp().request('/api/v1/users/me/birth-data', { method: 'DELETE' }, env);
+    expect(unauthenticated.status).toBe(401);
+    expect(rows.size).toBe(2);
+
+    const ownDeletion = await createApp().request(
+      '/api/v1/users/me/birth-data',
+      { method: 'DELETE', headers: headersA },
+      env
+    );
+    expect(ownDeletion.status).toBe(200);
+    expect(rows.has('user-1')).toBe(false);
+    expect(rows.has('user-2')).toBe(true);
+
+    const otherUserReadBack = await createApp().request(
+      '/api/v1/users/me/birth-data',
+      { method: 'GET', headers: headersB },
+      env
+    );
+    expect(otherUserReadBack.status).toBe(200);
+    await expect(otherUserReadBack.json()).resolves.toEqual({ time_certainty: 'exact', has_birth_data: true });
   });
 });
 
