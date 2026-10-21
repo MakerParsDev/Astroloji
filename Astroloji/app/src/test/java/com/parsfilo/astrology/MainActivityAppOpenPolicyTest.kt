@@ -152,7 +152,7 @@ class MainActivityAppOpenPolicyTest {
         assertTrue(plan.preloadInterstitial)
         assertTrue(plan.preloadRewarded)
         assertFalse(plan.preloadRewardedInterstitial)
-        assertTrue(plan.preloadNative)
+        assertFalse(plan.preloadNative)
     }
 
     @Test
