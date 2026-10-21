@@ -224,7 +224,7 @@ internal fun resolveAdPreloadPlan(policy: AdPreloadPolicy): AdPreloadPlan =
         preloadInterstitial = !policy.isPremium,
         preloadRewarded = !policy.isPremium && policy.canShowRewarded,
         preloadRewardedInterstitial = false,
-        preloadNative = !policy.isPremium,
+        preloadNative = false, // No screen currently consumes a NativeAd.
     )
 
 internal fun resolveNextAppOpenCount(
