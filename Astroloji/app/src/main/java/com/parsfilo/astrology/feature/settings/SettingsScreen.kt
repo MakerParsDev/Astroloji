@@ -406,6 +406,32 @@ fun SettingsScreen(
 
             AstrologyCard {
                 Text(
+                    text = stringResource(R.string.settings_birth_data_delete_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.settings_birth_data_delete_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(
+                    onClick = { viewModel.onEvent(SettingsUiEvent.RequestBirthDataDeletion) },
+                    enabled = !uiState.isDeletingBirthData && !uiState.isDeletingAccount,
+                ) {
+                    Text(stringResource(R.string.settings_birth_data_delete_button))
+                }
+                if (uiState.birthDataDeleted) {
+                    Text(
+                        text = stringResource(R.string.settings_birth_data_delete_success),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
+            AstrologyCard {
+                Text(
                     text = stringResource(R.string.settings_account_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
@@ -438,6 +464,53 @@ fun SettingsScreen(
 
             uiState.error?.let { ErrorState(message = it, onRetry = {}) }
         }
+    }
+
+    if (uiState.showDeleteBirthDataConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isDeletingBirthData) {
+                    viewModel.onEvent(SettingsUiEvent.DismissBirthDataDeletion)
+                }
+            },
+            title = { Text(stringResource(R.string.settings_birth_data_delete_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.settings_birth_data_delete_dialog_body))
+                    uiState.birthDataDeletionError?.let { error ->
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.onEvent(SettingsUiEvent.ConfirmBirthDataDeletion) },
+                    enabled = !uiState.isDeletingBirthData,
+                ) {
+                    Text(
+                        stringResource(
+                            if (uiState.isDeletingBirthData) {
+                                R.string.settings_birth_data_delete_progress
+                            } else {
+                                R.string.settings_birth_data_delete_confirm
+                            },
+                        ),
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.onEvent(SettingsUiEvent.DismissBirthDataDeletion) },
+                    enabled = !uiState.isDeletingBirthData,
+                ) {
+                    Text(stringResource(R.string.settings_delete_dialog_cancel))
+                }
+            },
+        )
     }
 
     if (uiState.showDeleteConfirmation) {

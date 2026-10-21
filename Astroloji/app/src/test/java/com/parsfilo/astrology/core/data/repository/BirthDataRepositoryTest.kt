@@ -78,6 +78,43 @@ class BirthDataRepositoryTest {
         }
 
     @Test
+    fun `successful birth data deletion uses authenticated endpoint`() =
+        runTest {
+            coEvery { api.deleteBirthData() } returns Response.success(Unit)
+
+            val result = repository.deleteBirthData()
+
+            assertThat(result).isInstanceOf(AppResult.Success::class.java)
+            coVerify(exactly = 1) { api.deleteBirthData() }
+        }
+
+    @Test
+    fun `birth data deletion server failure is not reported as success`() =
+        runTest {
+            coEvery { api.deleteBirthData() } returns Response.error(503, "unavailable".toResponseBody())
+
+            val result = repository.deleteBirthData()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception).isInstanceOf(AppException.NetworkException::class.java)
+        }
+
+    @Test
+    fun `birth data deletion retries authentication and reports unauthorized`() =
+        runTest {
+            coEvery { api.deleteBirthData() } returns Response.error(401, "unauthorized".toResponseBody())
+            coEvery { sessionRepository.refreshAfterUnauthorized(null) } returns
+                AppResult.Error(AppException.UnauthorizedException())
+
+            val result = repository.deleteBirthData()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception)
+                .isInstanceOf(AppException.UnauthorizedException::class.java)
+            coVerify(exactly = 1) { sessionRepository.refreshAfterUnauthorized(null) }
+        }
+
+    @Test
     fun `saving birth data returns the persisted time certainty`() =
         runTest {
             coEvery { api.saveBirthData(any()) } returns
