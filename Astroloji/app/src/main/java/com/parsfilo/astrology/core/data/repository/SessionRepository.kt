@@ -25,6 +25,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -102,11 +103,16 @@ class SessionRepository
         suspend fun loadProfile(): AppResult<UserProfile> =
             withContext(dispatchers.io) {
                 val response =
-                    requestExecutor.execute(
-                        api::getUserProfile,
-                        ::refreshAfterUnauthorized,
-                        ::clearInvalidSession,
-                    )
+                    try {
+                        requestExecutor.execute(
+                            api::getUserProfile,
+                            ::refreshAfterUnauthorized,
+                            ::clearInvalidSession,
+                        )
+                    } catch (exception: IOException) {
+                        val message = stringsProvider.get(R.string.session_error_profile_fetch_failed)
+                        return@withContext AppResult.Error(AppException.NetworkException(message, exception))
+                    }
                 if (!response.isSuccessful) {
                     return@withContext AppResult.Error(
                         if (response.code() == 401) {
