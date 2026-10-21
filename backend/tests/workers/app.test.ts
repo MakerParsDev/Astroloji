@@ -28,7 +28,7 @@ describe('app routes', () => {
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
     expect(html).toContain(heading);
     expect(html).toContain('info@parsfilo.com');
-    expect(html).toContain('5 August 2026');
+    expect(html).toContain(path === '/privacy' ? '21 October 2026' : '5 August 2026');
   });
 
   it('serves public account deletion instructions', async () => {
@@ -43,7 +43,8 @@ describe('app routes', () => {
     expect(html).toContain('Account and Data Deletion');
     expect(html).toContain('Google Play');
     expect(html).toContain('info@parsfilo.com');
-    expect(html).toContain('5 August 2026');
+    expect(html).toContain('21 October 2026');
+    expect(html).toContain('şifreli kaydedilmiş doğum profili');
   });
 
   it('requires firebase authorization for user registration', async () => {
@@ -150,6 +151,9 @@ describe('app routes', () => {
     expect(html).toContain('yapılandırılmış günlük geri bildirim');
     expect(html.toLowerCase()).toContain('anonim paylaşım bağlantıları');
     expect(html).toContain('Personal Guidance');
+    expect(html).toContain('Kaydedilen doğum profili (isteğe bağlı)');
+    expect(html).toContain('AI sohbet mesajları');
+    expect(html).toContain('sunucu veritabanında şifreli biçimde saklanabilir');
     expect(html).not.toContain('Sunucuya gönderilen profil verisi doğum');
   });
 
