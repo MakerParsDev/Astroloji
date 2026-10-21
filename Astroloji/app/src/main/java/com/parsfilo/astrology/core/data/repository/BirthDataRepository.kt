@@ -131,7 +131,9 @@ class BirthDataRepository
                         ),
                     )
                 } catch (exception: SerializationException) {
-                    AppResult.Error(AppException.NetworkException("Birth data deletion response was invalid.", exception))
+                    AppResult.Error(
+                        AppException.NetworkException("Birth data deletion response was invalid.", exception),
+                    )
                 }
             }
 

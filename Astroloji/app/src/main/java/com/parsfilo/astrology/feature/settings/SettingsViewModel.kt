@@ -145,43 +145,50 @@ class SettingsViewModel
                         val favorites = favoritesRepository.getFavorites()
                         setState { copy(favorites = favorites) }
                     }
-                    SettingsUiEvent.RequestBirthDataDeletion -> {
-                        if (!state.value.isDeletingBirthData && !state.value.isDeletingAccount) {
-                            setState {
-                                copy(
-                                    showDeleteBirthDataConfirmation = true,
-                                    birthDataDeletionError = null,
-                                    birthDataDeleted = false,
-                                )
-                            }
-                        }
-                    }
-                    SettingsUiEvent.DismissBirthDataDeletion -> {
-                        if (!state.value.isDeletingBirthData) {
-                            setState {
-                                copy(
-                                    showDeleteBirthDataConfirmation = false,
-                                    birthDataDeletionError = null,
-                                )
-                            }
-                        }
-                    }
-                    SettingsUiEvent.ConfirmBirthDataDeletion -> {
-                        if (state.value.showDeleteBirthDataConfirmation && !state.value.isDeletingBirthData) {
-                            deleteBirthData()
-                        }
-                    }
-                    SettingsUiEvent.RequestAccountDeletion -> {
-                        setState { copy(showDeleteConfirmation = true, error = null) }
-                    }
-                    SettingsUiEvent.DismissAccountDeletion -> {
-                        if (!state.value.isDeletingAccount) {
-                            setState { copy(showDeleteConfirmation = false, error = null) }
-                        }
-                    }
-                    SettingsUiEvent.ConfirmAccountDeletion -> deleteAccount()
-                    SettingsUiEvent.RestorePurchase -> restorePurchase()
+                    else -> handleAccountActions(event)
                 }
+            }
+        }
+
+        private suspend fun handleAccountActions(event: SettingsUiEvent) {
+            when (event) {
+                SettingsUiEvent.RequestBirthDataDeletion -> {
+                    if (!state.value.isDeletingBirthData && !state.value.isDeletingAccount) {
+                        setState {
+                            copy(
+                                showDeleteBirthDataConfirmation = true,
+                                birthDataDeletionError = null,
+                                birthDataDeleted = false,
+                            )
+                        }
+                    }
+                }
+                SettingsUiEvent.DismissBirthDataDeletion -> {
+                    if (!state.value.isDeletingBirthData) {
+                        setState {
+                            copy(
+                                showDeleteBirthDataConfirmation = false,
+                                birthDataDeletionError = null,
+                            )
+                        }
+                    }
+                }
+                SettingsUiEvent.ConfirmBirthDataDeletion -> {
+                    if (state.value.showDeleteBirthDataConfirmation && !state.value.isDeletingBirthData) {
+                        deleteBirthData()
+                    }
+                }
+                SettingsUiEvent.RequestAccountDeletion -> {
+                    setState { copy(showDeleteConfirmation = true, error = null) }
+                }
+                SettingsUiEvent.DismissAccountDeletion -> {
+                    if (!state.value.isDeletingAccount) {
+                        setState { copy(showDeleteConfirmation = false, error = null) }
+                    }
+                }
+                SettingsUiEvent.ConfirmAccountDeletion -> deleteAccount()
+                SettingsUiEvent.RestorePurchase -> restorePurchase()
+                else -> Unit
             }
         }
 
