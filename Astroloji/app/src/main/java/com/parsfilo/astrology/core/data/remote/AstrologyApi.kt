@@ -631,6 +631,9 @@ interface AstrologyApi {
         @Query("limit") limit: Int = 8,
     ): Response<CitySearchResponse>
 
+    @DELETE("api/v1/users/me/birth-data")
+    suspend fun deleteBirthData(): Response<Unit>
+
     @PUT("api/v1/users/me/birth-data")
     suspend fun saveBirthData(
         @Body body: SaveBirthDataRequest,
