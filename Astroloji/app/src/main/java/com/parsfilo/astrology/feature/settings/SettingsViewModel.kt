@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.UpdateUserRequest
 import com.parsfilo.astrology.core.data.repository.BillingManager
+import com.parsfilo.astrology.core.data.repository.BirthDataRepository
 import com.parsfilo.astrology.core.data.repository.FavoritesRepository
 import com.parsfilo.astrology.core.data.repository.SessionRepository
 import com.parsfilo.astrology.core.domain.model.UserProfile
@@ -21,6 +22,10 @@ data class SettingsUiState(
     val language: String = "tr",
     val notificationEnabled: Boolean = true,
     val notificationHour: Int = 9,
+    val showDeleteBirthDataConfirmation: Boolean = false,
+    val isDeletingBirthData: Boolean = false,
+    val birthDataDeleted: Boolean = false,
+    val birthDataDeletionError: String? = null,
     val showDeleteConfirmation: Boolean = false,
     val isDeletingAccount: Boolean = false,
     val error: String? = null,
@@ -53,6 +58,12 @@ sealed interface SettingsUiEvent {
 
     data object RestorePurchase : SettingsUiEvent
 
+    data object RequestBirthDataDeletion : SettingsUiEvent
+
+    data object DismissBirthDataDeletion : SettingsUiEvent
+
+    data object ConfirmBirthDataDeletion : SettingsUiEvent
+
     data object RequestAccountDeletion : SettingsUiEvent
 
     data object DismissAccountDeletion : SettingsUiEvent
@@ -72,6 +83,7 @@ class SettingsViewModel
         private val sessionRepository: SessionRepository,
         private val favoritesRepository: FavoritesRepository,
         private val billingManager: BillingManager,
+        private val birthDataRepository: BirthDataRepository,
     ) : MviViewModel<SettingsUiState, SettingsUiEvent, SettingsEffect>(SettingsUiState()) {
         init {
             viewModelScope.launch {
@@ -133,6 +145,32 @@ class SettingsViewModel
                         val favorites = favoritesRepository.getFavorites()
                         setState { copy(favorites = favorites) }
                     }
+                    SettingsUiEvent.RequestBirthDataDeletion -> {
+                        if (!state.value.isDeletingBirthData && !state.value.isDeletingAccount) {
+                            setState {
+                                copy(
+                                    showDeleteBirthDataConfirmation = true,
+                                    birthDataDeletionError = null,
+                                    birthDataDeleted = false,
+                                )
+                            }
+                        }
+                    }
+                    SettingsUiEvent.DismissBirthDataDeletion -> {
+                        if (!state.value.isDeletingBirthData) {
+                            setState {
+                                copy(
+                                    showDeleteBirthDataConfirmation = false,
+                                    birthDataDeletionError = null,
+                                )
+                            }
+                        }
+                    }
+                    SettingsUiEvent.ConfirmBirthDataDeletion -> {
+                        if (state.value.showDeleteBirthDataConfirmation && !state.value.isDeletingBirthData) {
+                            deleteBirthData()
+                        }
+                    }
                     SettingsUiEvent.RequestAccountDeletion -> {
                         setState { copy(showDeleteConfirmation = true, error = null) }
                     }
@@ -144,6 +182,32 @@ class SettingsViewModel
                     SettingsUiEvent.ConfirmAccountDeletion -> deleteAccount()
                     SettingsUiEvent.RestorePurchase -> restorePurchase()
                 }
+            }
+        }
+
+        private suspend fun deleteBirthData() {
+            setState { copy(isDeletingBirthData = true, birthDataDeletionError = null) }
+            when (val result = birthDataRepository.deleteBirthData()) {
+                is AppResult.Success -> {
+                    setState {
+                        copy(
+                            isDeletingBirthData = false,
+                            showDeleteBirthDataConfirmation = false,
+                            birthDataDeleted = true,
+                            birthDataDeletionError = null,
+                        )
+                    }
+                }
+                is AppResult.Error -> {
+                    setState {
+                        copy(
+                            isDeletingBirthData = false,
+                            showDeleteBirthDataConfirmation = true,
+                            birthDataDeletionError = result.exception.message,
+                        )
+                    }
+                }
+                AppResult.Loading -> Unit
             }
         }
 

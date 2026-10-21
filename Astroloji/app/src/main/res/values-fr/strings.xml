@@ -371,4 +371,12 @@
     <string name="daily_feedback_partly">En partie</string>
     <string name="daily_feedback_not_today">Pas aujourd\'hui</string>
     <string name="daily_feedback_thanks">Merci — votre retour structuré a été enregistré.</string>
+    <string name="settings_birth_data_delete_title">Supprimer le profil de naissance enregistré</string>
+    <string name="settings_birth_data_delete_description">Supprimez du serveur la date, l’heure et le lieu de naissance enregistrés sans supprimer votre compte. Les lectures précédentes et les autres données restent.</string>
+    <string name="settings_birth_data_delete_button">Supprimer le profil de naissance</string>
+    <string name="settings_birth_data_delete_success">Profil de naissance enregistré supprimé. Votre compte reste actif.</string>
+    <string name="settings_birth_data_delete_dialog_title">Supprimer le profil de naissance ?</string>
+    <string name="settings_birth_data_delete_dialog_body">Le profil de naissance enregistré sera supprimé définitivement du serveur. Votre compte, les autres données et les lectures précédentes restent.</string>
+    <string name="settings_birth_data_delete_confirm">Supprimer le profil</string>
+    <string name="settings_birth_data_delete_progress">Suppression du profil de naissance…</string>
 </resources>

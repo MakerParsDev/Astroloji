@@ -101,6 +101,40 @@ class BirthDataRepository
                 }
             }
 
+        suspend fun deleteBirthData(): AppResult<Unit> =
+            withContext(dispatchers.io) {
+                try {
+                    val response =
+                        requestExecutor.execute(
+                            request = { api.deleteBirthData() },
+                            refreshAfterUnauthorized = sessionRepository::refreshAfterUnauthorized,
+                            onUnauthorizedAfterRetry = sessionRepository::invalidateSession,
+                        )
+                    when {
+                        response.code() == HTTP_UNAUTHORIZED ->
+                            AppResult.Error(AppException.UnauthorizedException())
+                        !response.isSuccessful ->
+                            AppResult.Error(
+                                AppException.NetworkException(
+                                    response.message().ifBlank { "Saved birth data could not be deleted." },
+                                ),
+                            )
+                        else -> AppResult.Success(Unit)
+                    }
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: IOException) {
+                    AppResult.Error(
+                        AppException.NetworkException(
+                            exception.message ?: "Saved birth data could not be deleted.",
+                            exception,
+                        ),
+                    )
+                } catch (exception: SerializationException) {
+                    AppResult.Error(AppException.NetworkException("Birth data deletion response was invalid.", exception))
+                }
+            }
+
         private companion object {
             const val HTTP_UNAUTHORIZED = 401
         }
