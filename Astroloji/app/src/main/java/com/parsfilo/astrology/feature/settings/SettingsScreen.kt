@@ -5,13 +5,16 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -31,8 +34,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -566,57 +572,111 @@ fun SettingsScreen(
     }
 }
 
+private const val SETTINGS_MAX_SINGLE_ROW_OPTIONS = 3
+private const val SETTINGS_LARGE_TEXT_SCALE = 1.5f
+
+@Suppress("FunctionNaming")
 @Composable
-private fun SettingsSegmentRow(
+internal fun SettingsSegmentRow(
     title: String,
     options: List<Pair<String, String>>,
     selected: String,
     onSelect: (String) -> Unit,
 ) {
+    val frame =
+        Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                RoundedCornerShape(18.dp),
+            ).padding(6.dp)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
         )
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-                        RoundedCornerShape(18.dp),
-                    ).padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            options.forEach { (key, label) ->
-                val isSelected = key == selected
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    color =
-                        if (isSelected) {
-                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.22f)
-                        } else {
-                            androidx.compose.ui.graphics.Color.Transparent
-                        },
-                    onClick = { onSelect(key) },
+        if (options.size > SETTINGS_MAX_SINGLE_ROW_OPTIONS) {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val narrow = maxWidth < 380.dp
+                val largeText = LocalDensity.current.fontScale >= SETTINGS_LARGE_TEXT_SCALE
+                FlowRow(
+                    modifier = frame,
+                    maxItemsInEachRow = if (narrow || largeText) 1 else 2,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text(
-                        text = label,
-                        modifier = Modifier.padding(vertical = 12.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color =
-                            if (isSelected) {
-                                MaterialTheme.colorScheme.secondary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
+                    options.forEach { (key, label) ->
+                        SettingsSegmentChoice(
+                            key = key,
+                            label = label,
+                            selected = key == selected,
+                            modifier = Modifier.weight(1f),
+                            onSelect = onSelect,
+                        )
+                    }
+                }
+            }
+        } else {
+            Row(
+                modifier = frame,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                options.forEach { (key, label) ->
+                    SettingsSegmentChoice(
+                        key = key,
+                        label = label,
+                        selected = key == selected,
+                        modifier = Modifier.weight(1f),
+                        onSelect = onSelect,
                     )
                 }
             }
         }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun SettingsSegmentChoice(
+    key: String,
+    label: String,
+    selected: Boolean,
+    modifier: Modifier,
+    onSelect: (String) -> Unit,
+) {
+    Surface(
+        modifier =
+            modifier.selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = { onSelect(key) },
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color =
+            if (selected) {
+                MaterialTheme.colorScheme.secondary.copy(alpha = 0.22f)
+            } else {
+                androidx.compose.ui.graphics.Color.Transparent
+            },
+    ) {
+        Text(
+            text = label,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color =
+                if (selected) {
+                    MaterialTheme.colorScheme.secondary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+        )
     }
 }
 
