@@ -7,9 +7,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.parsfilo.astrology.core.ads.AdEligibilityChecker
@@ -87,6 +89,12 @@ class MainActivity : AppCompatActivity() {
                     "system" -> isSystemInDarkTheme()
                     else -> true
                 }
+            SideEffect {
+                // Edge-to-edge initializes system bars from the OS theme. The app can use
+                // a different theme and change it without restarting the Activity.
+                val controller = WindowCompat.getInsetsController(window, window.decorView)
+                controller.isAppearanceLightStatusBars = shouldUseDarkStatusBarIcons(darkTheme)
+            }
             AstrolojiTheme(darkTheme = darkTheme) {
                 AstrologyAppRoot(
                     deepLink = pendingDeepLink,
