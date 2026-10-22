@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -20,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -84,7 +87,7 @@ internal fun PremiumOfferCard(
 }
 
 @Composable
-private fun PremiumPlanSelector(
+internal fun PremiumPlanSelector(
     plans: List<PremiumPlanUi>,
     selectedPlanId: String,
     variant: PaywallVariant,
@@ -92,7 +95,7 @@ private fun PremiumPlanSelector(
 ) {
     val yearlySavingsPercent = premiumYearlySavingsPercent(plans)
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         plans.forEach { plan ->
@@ -143,11 +146,10 @@ private fun PremiumPlanOption(
         }
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         shape = RoundedCornerShape(22.dp),
         color = containerColor,
         border = BorderStroke(1.dp, borderColor),
-        onClick = onClick,
     ) {
         Column(
             modifier =
