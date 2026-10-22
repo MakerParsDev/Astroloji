@@ -1,12 +1,16 @@
 package com.parsfilo.astrology.core.util
 
 import java.time.LocalDate
+import java.time.Month
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.time.temporal.IsoFields
 import java.util.Locale
 
 private const val MAX_CALENDAR_SPAN_DAYS = 31
+private const val LAST_ISO_WEEK_DECEMBER_DAY = 28
+private const val ISO_WEEK_YEAR_DIGITS = 4
 private val weekIdentifier = Regex("""^\d{4}-W(\d{2})$""")
 
 private fun readingLocale(language: String): Locale = Locale.forLanguageTag(language)
@@ -21,13 +25,22 @@ internal fun localizedReadingMonth(
     }.getOrDefault(identifier)
 
 internal fun localizedReadingWeek(identifier: String): String {
-    val weekNumber =
-        weekIdentifier
-            .matchEntire(identifier)
-            ?.groupValues
-            ?.get(1)
-            ?.toIntOrNull()
-    return weekNumber?.toString() ?: identifier
+    val match = weekIdentifier.matchEntire(identifier)
+    val weekNumber = match?.groupValues?.get(1)?.toIntOrNull()
+    val weekYear = match?.value?.take(ISO_WEEK_YEAR_DIGITS)?.toIntOrNull()
+    val maxWeek =
+        weekYear?.let { year ->
+            runCatching {
+                LocalDate
+                    .of(year, Month.DECEMBER, LAST_ISO_WEEK_DECEMBER_DAY)
+                    .get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)
+            }.getOrNull()
+        }
+    return if (weekNumber != null && maxWeek != null && weekNumber in 1..maxWeek) {
+        weekNumber.toString()
+    } else {
+        identifier
+    }
 }
 
 /** Invalid, missing or inverted date ranges are omitted instead of crashing the screen. */

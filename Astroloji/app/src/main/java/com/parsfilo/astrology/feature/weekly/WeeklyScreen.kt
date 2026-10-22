@@ -152,9 +152,7 @@ fun WeeklyScreen(
                         symbol = weeklySign.symbol,
                         eyebrow = weeklySign.localizedName(weekly.language),
                         title = stringResource(R.string.weekly_label_week, localizedReadingWeek(weekly.week)),
-                        subtitle =
-                            localizedReadingRange(weekly.weekStart, weekly.weekEnd, weekly.language)
-                                ?: weekly.week,
+                        subtitle = localizedReadingRange(weekly.weekStart, weekly.weekEnd, weekly.language),
                     )
 
                     // The API intentionally hides the best day for free users.

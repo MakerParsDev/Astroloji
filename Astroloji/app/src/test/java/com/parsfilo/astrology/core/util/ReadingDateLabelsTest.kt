@@ -23,6 +23,10 @@ class ReadingDateLabelsTest {
                 .contains(monthName)
         }
         assertThat(localizedReadingWeek("2026-W43")).isEqualTo("43")
+        assertThat(localizedReadingWeek("2026-W53")).isEqualTo("53")
+        assertThat(localizedReadingWeek("2027-W53")).isEqualTo("2027-W53")
+        assertThat(localizedReadingWeek("2026-W00")).isEqualTo("2026-W00")
+        assertThat(localizedReadingWeek("2026-W99")).isEqualTo("2026-W99")
     }
 
     @Test
