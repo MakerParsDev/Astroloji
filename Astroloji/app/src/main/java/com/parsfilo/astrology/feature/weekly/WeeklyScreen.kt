@@ -36,6 +36,8 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
 import com.parsfilo.astrology.core.util.ZodiacSign
+import com.parsfilo.astrology.core.util.localizedReadingRange
+import com.parsfilo.astrology.core.util.localizedReadingWeek
 import kotlinx.coroutines.launch
 
 @Composable
@@ -149,8 +151,8 @@ fun WeeklyScreen(
                     PremiumHeroCard(
                         symbol = weeklySign.symbol,
                         eyebrow = weeklySign.localizedName(weekly.language),
-                        title = stringResource(R.string.weekly_label_week, weekly.week),
-                        subtitle = "${weekly.weekStart} - ${weekly.weekEnd}",
+                        title = stringResource(R.string.weekly_label_week, localizedReadingWeek(weekly.week)),
+                        subtitle = localizedReadingRange(weekly.weekStart, weekly.weekEnd, weekly.language),
                     )
 
                     // The API intentionally hides the best day for free users.

@@ -238,7 +238,6 @@
     <string name="weekly_premium_locked">Cette section se débloque avec Premium.</string>
     <string name="weekly_warning">Attention : %1$s</string>
     <string name="monthly_label_month">Mois : %1$s</string>
-    <string name="monthly_range_label">%1$s - %2$s</string>
     <string name="monthly_premium_locked">Les détails mensuels se débloquent avec Premium.</string>
     <string name="monthly_calendar_title">Vue calendrier</string>
     <string name="favorites_add">Ajouter aux favoris</string>
