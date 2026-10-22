@@ -231,7 +231,6 @@
     <string name="weekly_premium_locked">Dieser Bereich wird mit Premium freigeschaltet.</string>
     <string name="weekly_warning">Achtung: %1$s</string>
     <string name="monthly_label_month">Monat: %1$s</string>
-    <string name="monthly_range_label">%1$s - %2$s</string>
     <string name="monthly_premium_locked">Monatliche Details werden mit Premium freigeschaltet.</string>
     <string name="monthly_calendar_title">Kalenderansicht</string>
     <string name="favorites_add">Zu Favoriten hinzufügen</string>
