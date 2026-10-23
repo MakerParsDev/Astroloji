@@ -11,7 +11,7 @@ vi.mock('@/workers/birthData', async (importOriginal) => {
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
-import { createRateLimiterNamespace, createTestEnv } from '../helpers/env';
+import { createRateLimiterNamespace, createTestEnv, FREE_AUTH_ENTITLEMENT, isAuthEntitlementQuery } from '../helpers/env';
 
 const VALID_BIRTH_DATA = {
   plaintext: { timestamp: '1990-01-15T12:00:00.000Z', latitude: 41, longitude: 29, tzid: 'Europe/Istanbul' },
@@ -74,7 +74,7 @@ describe('chart routes', () => {
               return statement;
             },
             async first() {
-              return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null;
+              return isAuthEntitlementQuery(sql) ? FREE_AUTH_ENTITLEMENT : null;
             },
             async all() {
               return { results: [] };
@@ -150,7 +150,7 @@ describe('chart routes', () => {
           if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
           const statement = {
             bind() { return statement; },
-            async first() { return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null; },
+            async first() { return isAuthEntitlementQuery(sql) ? FREE_AUTH_ENTITLEMENT : null; },
             async all() { return { results: [] }; },
             async run() { return { success: true, meta: {} }; }
           };
@@ -274,7 +274,7 @@ describe('chart routes', () => {
           if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
           const statement = {
             bind() { return statement; },
-            async first() { return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null; },
+            async first() { return isAuthEntitlementQuery(sql) ? FREE_AUTH_ENTITLEMENT : null; },
             async all() { return { results: [] }; },
             async run() { return { success: true, meta: {} }; }
           };
@@ -323,7 +323,7 @@ describe('chart routes', () => {
           if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
           const statement = {
             bind() { return statement; },
-            async first() { return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null; },
+            async first() { return isAuthEntitlementQuery(sql) ? FREE_AUTH_ENTITLEMENT : null; },
             async all() { return { results: [] }; },
             async run() { return { success: true, meta: {} }; }
           };
