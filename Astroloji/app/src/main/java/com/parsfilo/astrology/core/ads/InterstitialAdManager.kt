@@ -11,6 +11,7 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -82,7 +83,9 @@ class InterstitialAdManager
                     }
 
                     override fun onAdImpression() {
-                        scope.launch {
+                        // Start immediately, before dismiss/navigation can perform another
+                        // eligibility check. The manager mutex holds until count persistence.
+                        scope.launch(start = CoroutineStart.UNDISPATCHED) {
                             // Only a confirmed SDK impression consumes the daily cap/cooldown.
                             // A show() attempt can fail and must not consume the quota.
                             adFrequencyManager.recordInterstitialShown()
