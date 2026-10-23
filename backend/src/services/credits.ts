@@ -123,8 +123,8 @@ export async function spendCreditsOnce(
 
   const existing = await db.prepare(
     `SELECT 1 AS charged FROM credit_ledger
-     WHERE id = ? AND user_id = ? AND delta = ? AND reason = 'spend' AND feature = ?`
-  ).bind(input.id, input.userId, -input.amount, input.feature).first<{ charged: number }>();
+     WHERE id = ? AND user_id = ? AND reason = 'spend'`
+  ).bind(input.id, input.userId).first<{ charged: number }>();
   return existing
     ? { status: 'already_spent', balance }
     : { status: 'insufficient_balance', balance };
