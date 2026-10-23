@@ -28,6 +28,7 @@ import com.parsfilo.astrology.core.ui.components.PremiumSectionHeader
 import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
 import java.time.LocalDate
+import java.util.Locale
 
 private const val SCORE_MAX = 100
 
@@ -57,7 +58,10 @@ internal fun DailyPremiumSummary(
         )
         PremiumHeroCard(
             symbol = sign.symbol,
-            eyebrow = sign.localizedDateRange(horoscope.language),
+            eyebrow =
+                sign
+                    .localizedDateRange(horoscope.language)
+                    .uppercase(Locale.forLanguageTag(TimeUtils.normalizeLanguageTag(horoscope.language))),
             title = signName,
             supportingText = horoscope.short,
         )
