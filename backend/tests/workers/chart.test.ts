@@ -74,7 +74,7 @@ describe('chart routes', () => {
               return statement;
             },
             async first() {
-              return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null;
+              return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null;
             },
             async all() {
               return { results: [] };
@@ -150,7 +150,7 @@ describe('chart routes', () => {
           if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
           const statement = {
             bind() { return statement; },
-            async first() { return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null; },
+            async first() { return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null; },
             async all() { return { results: [] }; },
             async run() { return { success: true, meta: {} }; }
           };
@@ -274,7 +274,7 @@ describe('chart routes', () => {
           if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
           const statement = {
             bind() { return statement; },
-            async first() { return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null; },
+            async first() { return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null; },
             async all() { return { results: [] }; },
             async run() { return { success: true, meta: {} }; }
           };
@@ -323,7 +323,7 @@ describe('chart routes', () => {
           if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
           const statement = {
             bind() { return statement; },
-            async first() { return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null; },
+            async first() { return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null; },
             async all() { return { results: [] }; },
             async run() { return { success: true, meta: {} }; }
           };

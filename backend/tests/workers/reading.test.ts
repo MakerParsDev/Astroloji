@@ -34,7 +34,7 @@ interface CreditLedgerRow {
   delta: number;
 }
 
-function createReadingDb(seed: { ledger?: CreditLedgerRow[] } = {}) {
+function createReadingDb(seed: { ledger?: CreditLedgerRow[]; premium?: boolean } = {}) {
   const ledger = [...(seed.ledger ?? [])];
 
   const db = {
@@ -47,8 +47,12 @@ function createReadingDb(seed: { ledger?: CreditLedgerRow[] } = {}) {
           return statement;
         },
         async first() {
-          if (normalized.startsWith('SELECT 1 AS ok FROM users')) {
-            return { ok: 1 };
+          if (normalized.startsWith('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
+            return {
+              is_premium: seed.premium ? 1 : 0,
+              subscription_state: seed.premium ? 'active' : 'none',
+              premium_expires_at: seed.premium ? '2030-01-01T00:00:00.000Z' : null
+            };
           }
           if (normalized.startsWith('SELECT COALESCE(SUM(delta)')) {
             const userId = statement.bindings[0] as string;
@@ -168,7 +172,7 @@ describe('reading worker', () => {
   it('generates and stores a reading for a premium user without spending credits', async () => {
     getDecryptedBirthData.mockResolvedValue(VALID_BIRTH_DATA);
     generateDeepReading.mockResolvedValue({ text: 'A long, personalized reading.', attempts: [] });
-    const { db } = createReadingDb();
+    const { db } = createReadingDb({ premium: true });
     const content = createContentBucket();
     const env = createTestEnv({ DB: db, CONTENT: content });
     const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: true });
@@ -228,7 +232,7 @@ describe('reading worker', () => {
   it('returns a stored reading for free on a repeat request without calling the LLM again', async () => {
     getDecryptedBirthData.mockResolvedValue(VALID_BIRTH_DATA);
     generateDeepReading.mockResolvedValue({ text: 'first reading', attempts: [] });
-    const { db } = createReadingDb();
+    const { db } = createReadingDb({ premium: true });
     const content = createContentBucket();
     const env = createTestEnv({ DB: db, CONTENT: content });
     const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: true });
@@ -378,7 +382,7 @@ describe('reading worker', () => {
       const db = await runtime.getD1Database('DB');
       const content = await runtime.getR2Bucket('CONTENT') as unknown as R2Bucket;
       await db.exec([
-        'CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL);',
+        "CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL, is_premium INTEGER NOT NULL DEFAULT 0, subscription_state TEXT NOT NULL DEFAULT 'none', premium_expires_at TEXT);",
         "INSERT INTO users (id) VALUES ('user-1');",
         "CREATE TABLE credit_ledger (id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, purchase_token TEXT UNIQUE, product_id TEXT, delta INTEGER NOT NULL, reason TEXT NOT NULL CHECK (reason IN ('purchase', 'spend', 'streak_reward')), feature TEXT, created_at TEXT NOT NULL);",
         "INSERT INTO credit_ledger (id, user_id, delta, reason, created_at) VALUES ('seed', 'user-1', 40, 'purchase', '2026-08-10T00:00:00Z');"

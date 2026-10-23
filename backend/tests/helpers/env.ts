@@ -26,7 +26,11 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
             return statement;
           },
           async first() {
-            return sql.replace(/\s+/g, ' ').trim().startsWith('SELECT 1') ? { ok: 1 } : null;
+            const normalized = sql.replace(/\s+/g, ' ').trim();
+            if (normalized.startsWith('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
+              return { is_premium: 0, subscription_state: 'none', premium_expires_at: null };
+            }
+            return normalized.startsWith('SELECT 1') ? { ok: 1 } : null;
           },
           async all() {
             return { results: [] };
