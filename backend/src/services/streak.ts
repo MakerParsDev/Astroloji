@@ -52,20 +52,18 @@ export async function checkInStreak(
   let creditsGranted = 0;
   const milestone = updated.milestoneAchieved;
   if (milestone !== null && milestone > user.streak_milestone_claimed && isRewardedMilestone(milestone)) {
-    const claim = await db
-      .prepare('UPDATE users SET streak_milestone_claimed = ? WHERE id = ? AND streak_milestone_claimed < ?')
-      .bind(milestone, userId, milestone)
-      .run();
-    if ((claim.meta.changes ?? 0) === 1) {
-      creditsGranted = STREAK_MILESTONE_REWARDS[milestone];
-      await db
-        .prepare(
-          `INSERT INTO credit_ledger (id, user_id, purchase_token, product_id, delta, reason, feature, created_at)
-           VALUES (?, ?, NULL, NULL, ?, 'streak_reward', ?, ?)`
-        )
-        .bind(ledgerId, userId, creditsGranted, String(milestone), now.toISOString())
-        .run();
-    }
+    const reward = STREAK_MILESTONE_REWARDS[milestone];
+    // Claim and ledger write share a D1 transaction; a failed insert cannot consume the milestone.
+    const [grant] = await db.batch([
+      db.prepare(
+        `INSERT INTO credit_ledger (id, user_id, purchase_token, product_id, delta, reason, feature, created_at)
+         SELECT ?, ?, NULL, NULL, ?, 'streak_reward', ?, ?
+         WHERE EXISTS (SELECT 1 FROM users WHERE id = ? AND streak_milestone_claimed < ?)`
+      ).bind(ledgerId, userId, reward, String(milestone), now.toISOString(), userId, milestone),
+      db.prepare('UPDATE users SET streak_milestone_claimed = ? WHERE id = ? AND streak_milestone_claimed < ?')
+        .bind(milestone, userId, milestone)
+    ]);
+    if ((grant.meta.changes ?? 0) === 1) creditsGranted = reward;
   }
 
   const balance = await getCreditBalance(db, userId);
