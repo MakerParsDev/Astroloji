@@ -98,3 +98,34 @@ export async function spendCredits(db: D1Database, input: SpendCreditsInput): Pr
   }
   return { status: 'spent', balance };
 }
+
+/**
+ * Idempotent debit for a specific paid content key. The caller must persist the
+ * content before invoking this function. A repeated request for the same key
+ * returns already_spent without reducing the balance a second time.
+ */
+export async function spendCreditsOnce(
+  db: D1Database,
+  input: SpendCreditsInput
+): Promise<{ status: 'spent' | 'already_spent' | 'insufficient_balance'; balance: number }> {
+  const result = await db
+    .prepare(
+      `INSERT INTO credit_ledger (id, user_id, purchase_token, product_id, delta, reason, feature, created_at)
+       SELECT ?, ?, NULL, NULL, ?, 'spend', ?, ?
+       WHERE (SELECT COALESCE(SUM(delta), 0) FROM credit_ledger WHERE user_id = ?) >= ?
+       ON CONFLICT(id) DO NOTHING`
+    )
+    .bind(input.id, input.userId, -input.amount, input.feature, input.createdAt, input.userId, input.amount)
+    .run();
+
+  const balance = await getCreditBalance(db, input.userId);
+  if ((result.meta.changes ?? 0) === 1) return { status: 'spent', balance };
+
+  const existing = await db.prepare(
+    `SELECT 1 AS charged FROM credit_ledger
+     WHERE id = ? AND user_id = ? AND delta = ? AND reason = 'spend' AND feature = ?`
+  ).bind(input.id, input.userId, -input.amount, input.feature).first<{ charged: number }>();
+  return existing
+    ? { status: 'already_spent', balance }
+    : { status: 'insufficient_balance', balance };
+}
