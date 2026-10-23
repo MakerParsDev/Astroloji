@@ -19,6 +19,7 @@ vi.mock('@/llm/deepReadingGenerator', async () => {
 const { Miniflare, convertV4MiniflareOptions } = createRequire(import.meta.url)('miniflare') as typeof import('miniflare');
 
 import { createApp } from '@/index';
+import { spendCreditsOnce } from '@/services/credits';
 import { signAppJwt } from '@/utils/jwt';
 import { createTestEnv } from '../helpers/env';
 
@@ -55,8 +56,8 @@ function createReadingDb(seed: { ledger?: CreditLedgerRow[] } = {}) {
             return { balance };
           }
           if (normalized.startsWith('SELECT 1 AS charged FROM credit_ledger')) {
-            const [id, userId, delta] = statement.bindings as [string, string, number];
-            return ledger.some((row) => row.id === id && row.user_id === userId && row.delta === delta)
+            const [id, userId] = statement.bindings as [string, string];
+            return ledger.some((row) => row.id === id && row.user_id === userId)
               ? { charged: 1 }
               : null;
           }
@@ -412,6 +413,16 @@ describe('reading worker', () => {
       expect(again.status).toBe(200);
       await expect(again.json()).resolves.toMatchObject({ cached: true, credits_spent: 0 });
       expect((await db.prepare('SELECT SUM(delta) AS balance FROM credit_ledger').first<{ balance: number }>())?.balance).toBe(10);
+      expect((await db.prepare("SELECT COUNT(*) AS n FROM credit_ledger WHERE reason = 'spend'").first<{ n: number }>())?.n).toBe(1);
+      // A future pricing change must not invalidate the previous one-time payment.
+      const alreadyPaid = await spendCreditsOnce(db, {
+        id: `deep-reading:${key}`,
+        userId: 'user-1',
+        amount: 45,
+        feature: 'deep_reading',
+        createdAt: '2026-10-23T00:00:00Z'
+      });
+      expect(alreadyPaid).toEqual({ status: 'already_spent', balance: 10 });
       expect((await db.prepare("SELECT COUNT(*) AS n FROM credit_ledger WHERE reason = 'spend'").first<{ n: number }>())?.n).toBe(1);
     } finally {
       await runtime.dispose();
