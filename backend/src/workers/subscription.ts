@@ -46,6 +46,15 @@ async function findUserByPurchaseToken(db: D1Database, purchaseToken: string): P
   return findSubscriptionOwner(db, purchaseToken);
 }
 
+const SUBSCRIPTION_INSERT_SQL = `INSERT INTO subscriptions
+  (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, cancel_reason, created_at, updated_at)`;
+
+const SUBSCRIPTION_UPSERT_SQL = `ON CONFLICT(purchase_token) DO UPDATE SET
+  user_id = excluded.user_id, product_id = excluded.product_id, status = excluded.status,
+  starts_at = excluded.starts_at, expires_at = excluded.expires_at,
+  auto_renewing = excluded.auto_renewing, cancel_reason = excluded.cancel_reason,
+  updated_at = excluded.updated_at`;
+
 function createSubscriptionUpsertStatement(
   db: D1Database,
   userId: string,
@@ -53,14 +62,9 @@ function createSubscriptionUpsertStatement(
   now: string
 ): D1PreparedStatement {
   return db.prepare(
-    `INSERT INTO subscriptions
-     (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, cancel_reason, created_at, updated_at)
+    `${SUBSCRIPTION_INSERT_SQL}
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(purchase_token) DO UPDATE SET
-       user_id = excluded.user_id, product_id = excluded.product_id, status = excluded.status,
-       starts_at = excluded.starts_at, expires_at = excluded.expires_at,
-       auto_renewing = excluded.auto_renewing, cancel_reason = excluded.cancel_reason,
-       updated_at = excluded.updated_at
+     ${SUBSCRIPTION_UPSERT_SQL}
      WHERE subscriptions.user_id = excluded.user_id`
   ).bind(
     crypto.randomUUID(), userId, subscription.purchaseToken, subscription.productId,
@@ -140,19 +144,10 @@ function createRtdnSubscriptionUpsertStatement(
   guard: PlayRtdnLeaseGuard
 ): D1PreparedStatement {
   return db.prepare(
-    `INSERT INTO subscriptions
-     (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, cancel_reason, created_at, updated_at)
+    `${SUBSCRIPTION_INSERT_SQL}
      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
      WHERE ${RTDN_LEASE_EXISTS_SQL}
-     ON CONFLICT(purchase_token) DO UPDATE SET
-       user_id = excluded.user_id,
-       product_id = excluded.product_id,
-       status = excluded.status,
-       starts_at = excluded.starts_at,
-       expires_at = excluded.expires_at,
-       auto_renewing = excluded.auto_renewing,
-       cancel_reason = excluded.cancel_reason,
-       updated_at = excluded.updated_at`
+     ${SUBSCRIPTION_UPSERT_SQL}`
   ).bind(
     crypto.randomUUID(), userId, subscription.purchaseToken, subscription.productId,
     subscription.status, subscription.startsAt, subscription.expiresAt,
