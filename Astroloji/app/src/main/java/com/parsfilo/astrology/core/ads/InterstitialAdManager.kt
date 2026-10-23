@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -88,7 +89,11 @@ class InterstitialAdManager
                         scope.launch(start = CoroutineStart.UNDISPATCHED) {
                             // Only a confirmed SDK impression consumes the daily cap/cooldown.
                             // A show() attempt can fail and must not consume the quota.
-                            adFrequencyManager.recordInterstitialShown()
+                            try {
+                                adFrequencyManager.recordInterstitialShown()
+                            } catch (e: IOException) {
+                                Timber.w(e, "Failed to persist interstitial impression")
+                            }
                             analyticsRepository.track(
                                 AnalyticsEvents.AD_SHOWN,
                                 mapOf("format" to "interstitial", "placement" to placement),
