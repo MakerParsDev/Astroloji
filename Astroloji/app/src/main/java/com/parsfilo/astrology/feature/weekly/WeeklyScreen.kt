@@ -104,9 +104,7 @@ fun WeeklyScreen(
                     placement = "weekly_back",
                     onDismissed = onNavigateBack,
                 )
-            if (shown) {
-                adsEntryPoint.adFrequencyManager().recordInterstitialShown()
-            } else {
+            if (!shown) {
                 onNavigateBack()
             }
         }
