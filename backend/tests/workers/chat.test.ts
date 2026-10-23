@@ -17,7 +17,7 @@ vi.mock('@/llm/chatConsultationGenerator', async (importOriginal) => {
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
-import { createTestEnv, FREE_AUTH_ENTITLEMENT, isAuthEntitlementQuery } from '../helpers/env';
+import { createTestEnv, authEntitlementStatement } from '../helpers/env';
 
 const VALID_BIRTH_DATA = {
   plaintext: { timestamp: '1990-01-15T12:00:00.000Z', latitude: 41, longitude: 29, tzid: 'Europe/Istanbul' },
@@ -34,6 +34,8 @@ function createChatDb(seed: { ledger?: CreditLedgerRow[] } = {}) {
 
   const db = {
     prepare(sql: string) {
+      const entitlement = authEntitlementStatement(sql);
+      if (entitlement) return entitlement;
       const normalized = sql.replace(/\s+/g, ' ').trim();
       const statement = {
         bindings: [] as unknown[],
@@ -42,9 +44,6 @@ function createChatDb(seed: { ledger?: CreditLedgerRow[] } = {}) {
           return statement;
         },
         async first() {
-          if (isAuthEntitlementQuery(normalized)) {
-            return FREE_AUTH_ENTITLEMENT;
-          }
           if (normalized.startsWith('SELECT COALESCE(SUM(delta)')) {
             const userId = statement.bindings[0] as string;
             const balance = ledger.filter((row) => row.user_id === userId).reduce((sum, row) => sum + row.delta, 0);
