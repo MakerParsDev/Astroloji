@@ -1,5 +1,15 @@
 import type { Env } from '@/types';
 
+export const FREE_AUTH_ENTITLEMENT = {
+  is_premium: 0,
+  subscription_state: 'none',
+  premium_expires_at: null
+} as const;
+
+export function isAuthEntitlementQuery(sql: string): boolean {
+  return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users');
+}
+
 export interface TestRateLimitDecision {
   allowed: boolean;
   remaining: number;
