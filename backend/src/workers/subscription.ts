@@ -46,97 +46,57 @@ async function findUserByPurchaseToken(db: D1Database, purchaseToken: string): P
   return findSubscriptionOwner(db, purchaseToken);
 }
 
-async function writeSubscriptionEvent(
+function createSubscriptionUpsertStatement(
+  db: D1Database,
+  userId: string,
+  subscription: GooglePlaySubscription,
+  now: string
+): D1PreparedStatement {
+  return db.prepare(
+    `INSERT INTO subscriptions
+     (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, cancel_reason, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(purchase_token) DO UPDATE SET
+       user_id = excluded.user_id, product_id = excluded.product_id, status = excluded.status,
+       starts_at = excluded.starts_at, expires_at = excluded.expires_at,
+       auto_renewing = excluded.auto_renewing, cancel_reason = excluded.cancel_reason,
+       updated_at = excluded.updated_at
+     WHERE subscriptions.user_id = excluded.user_id`
+  ).bind(
+    crypto.randomUUID(), userId, subscription.purchaseToken, subscription.productId,
+    subscription.status, subscription.startsAt, subscription.expiresAt,
+    Number(subscription.autoRenewing), subscription.cancelReason, now, now
+  );
+}
+
+function createPremiumStateStatement(
+  db: D1Database,
+  userId: string,
+  subscription: GooglePlaySubscription,
+  now: string
+): D1PreparedStatement {
+  return db.prepare(
+    `UPDATE users SET is_premium = ?, subscription_state = ?, premium_expires_at = ?, last_seen_at = ?
+     WHERE id = ? AND EXISTS (SELECT 1 FROM subscriptions WHERE purchase_token = ? AND user_id = ?)`
+  ).bind(
+    hasPremiumEntitlement(subscription) ? 1 : 0, subscription.status,
+    subscription.expiresAt, now, userId, subscription.purchaseToken, userId
+  );
+}
+
+function createSubscriptionEventStatement(
   db: D1Database,
   userId: string,
   purchaseToken: string,
   eventType: SubscriptionEventType,
-  payload: unknown
-) {
-  await db
-    .prepare(
-      `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .bind(
-      crypto.randomUUID(),
-      userId,
-      purchaseToken,
-      eventType,
-      JSON.stringify(payload),
-      new Date().toISOString()
-    )
-    .run();
-}
-
-async function setUserPremiumState(
-  db: D1Database,
-  userId: string,
-  subscription: Pick<GooglePlaySubscription, 'status' | 'expiresAt'>
-) {
-  await db
-    .prepare(
-      'UPDATE users SET is_premium = ?, subscription_state = ?, premium_expires_at = ?, last_seen_at = ? WHERE id = ?'
-    )
-    .bind(
-      hasPremiumEntitlement(subscription) ? 1 : 0,
-      subscription.status,
-      subscription.expiresAt,
-      new Date().toISOString(),
-      userId
-    )
-    .run();
-}
-
-async function upsertSubscription(db: D1Database, userId: string, subscription: GooglePlaySubscription) {
-  const now = new Date().toISOString();
-  const existing = (await db
-    .prepare('SELECT id FROM subscriptions WHERE purchase_token = ?')
-    .bind(subscription.purchaseToken)
-    .first()) as { id: string } | null;
-
-  if (existing) {
-    await db
-      .prepare(
-        `UPDATE subscriptions
-         SET user_id = ?, product_id = ?, status = ?, starts_at = ?, expires_at = ?, auto_renewing = ?, cancel_reason = ?, updated_at = ?
-         WHERE id = ?`
-      )
-      .bind(
-        userId,
-        subscription.productId,
-        subscription.status,
-        subscription.startsAt,
-        subscription.expiresAt,
-        Number(subscription.autoRenewing),
-        subscription.cancelReason,
-        now,
-        existing.id
-      )
-      .run();
-    return;
-  }
-
-  await db
-    .prepare(
-      `INSERT INTO subscriptions
-       (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, cancel_reason, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .bind(
-      crypto.randomUUID(),
-      userId,
-      subscription.purchaseToken,
-      subscription.productId,
-      subscription.status,
-      subscription.startsAt,
-      subscription.expiresAt,
-      Number(subscription.autoRenewing),
-      subscription.cancelReason,
-      now,
-      now
-    )
-    .run();
+  payload: unknown,
+  now: string
+): D1PreparedStatement {
+  return db.prepare(
+    `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
+     SELECT ?, ?, ?, ?, ?, ?
+     WHERE EXISTS (SELECT 1 FROM subscriptions WHERE purchase_token = ? AND user_id = ?)`
+  ).bind(crypto.randomUUID(), userId, purchaseToken, eventType, JSON.stringify(payload), now, purchaseToken, userId);
 }
 
 async function processSubscription(
@@ -146,9 +106,14 @@ async function processSubscription(
   eventType: SubscriptionEventType,
   payload: unknown
 ) {
-  await upsertSubscription(db, userId, subscription);
-  await setUserPremiumState(db, userId, subscription);
-  await writeSubscriptionEvent(db, userId, subscription.purchaseToken, eventType, payload);
+  const now = new Date().toISOString();
+  // A failed event write must not leave a subscription or premium state partially updated.
+  const [upsert] = await db.batch([
+    createSubscriptionUpsertStatement(db, userId, subscription, now),
+    createPremiumStateStatement(db, userId, subscription, now),
+    createSubscriptionEventStatement(db, userId, subscription.purchaseToken, eventType, payload, now)
+  ]);
+  return (upsert.meta.changes ?? 0) === 1;
 }
 
 interface PlayRtdnLeaseGuard {
@@ -413,7 +378,9 @@ export function registerSubscriptionRoutes(
       return jsonError(400, 'INVALID_PURCHASE', 'Purchase token could not be verified.');
     }
 
-    await processSubscription(c.env.DB, userId, subscription, 'purchased', body);
+    if (!(await processSubscription(c.env.DB, userId, subscription, 'purchased', body))) {
+      return jsonError(409, 'PURCHASE_TOKEN_CONFLICT', 'Purchase token belongs to another user.');
+    }
     return c.json({
       is_premium: hasPremiumEntitlement(subscription),
       subscription_state: subscription.status,
@@ -441,7 +408,9 @@ export function registerSubscriptionRoutes(
       return jsonError(400, 'INVALID_PURCHASE', 'Purchase token could not be verified.');
     }
 
-    await processSubscription(c.env.DB, userId, subscription, 'renewed', body);
+    if (!(await processSubscription(c.env.DB, userId, subscription, 'renewed', body))) {
+      return jsonError(409, 'PURCHASE_TOKEN_CONFLICT', 'Purchase token belongs to another user.');
+    }
     return c.json({
       is_premium: hasPremiumEntitlement(subscription),
       subscription_state: subscription.status,
@@ -824,8 +793,11 @@ export function registerSubscriptionAdminRoutes(app: Hono<AppBindings>) {
         ));
 
       if (live) {
-        await upsertSubscription(c.env.DB, row.user_id, live);
-        await setUserPremiumState(c.env.DB, row.user_id, live);
+        const now = new Date().toISOString();
+        await c.env.DB.batch([
+          createSubscriptionUpsertStatement(c.env.DB, row.user_id, live, now),
+          createPremiumStateStatement(c.env.DB, row.user_id, live, now)
+        ]);
       }
 
       results.push({
