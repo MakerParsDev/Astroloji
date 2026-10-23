@@ -10,6 +10,8 @@ interface UserRow {
 }
 
 function createFakeDb(user: UserRow) {
+  let failLedgerInsert = false;
+  let batchTail: Promise<void> = Promise.resolve();
   const ledger: { user_id: string; delta: number; reason: string }[] = [];
 
   const db = {
@@ -39,6 +41,13 @@ function createFakeDb(user: UserRow) {
             user.last_streak_date = lastStreakDate;
             return { success: true, meta: { changes: 1 } };
           }
+          if (normalized.startsWith('INSERT INTO credit_ledger')) {
+            if (failLedgerInsert) throw new Error('Injected credit ledger failure');
+            const [, userId, delta, , , , threshold] = statement.bindings as [string, string, number, string, string, string, number];
+            if (user.streak_milestone_claimed >= threshold) return { success: true, meta: { changes: 0 } };
+            ledger.push({ user_id: userId, delta, reason: 'streak_reward' });
+            return { success: true, meta: { changes: 1 } };
+          }
           if (normalized.startsWith('UPDATE users SET streak_milestone_claimed = ?')) {
             const [milestone, , threshold] = statement.bindings as [number, string, number];
             if (user.streak_milestone_claimed < threshold) {
@@ -46,11 +55,6 @@ function createFakeDb(user: UserRow) {
               return { success: true, meta: { changes: 1 } };
             }
             return { success: true, meta: { changes: 0 } };
-          }
-          if (normalized.startsWith('INSERT INTO credit_ledger')) {
-            const [, userId, delta] = statement.bindings as [string, string, number];
-            ledger.push({ user_id: userId, delta, reason: 'streak_reward' });
-            return { success: true, meta: { changes: 1 } };
           }
           return { success: true, meta: {} };
         },
@@ -60,10 +64,30 @@ function createFakeDb(user: UserRow) {
       };
 
       return statement;
+    },
+    async batch(statements: Array<{ run(): Promise<{ meta: { changes?: number } }> }>) {
+      // Match D1: concurrent batches are isolated and executed serially.
+      const previous = batchTail;
+      let release!: () => void;
+      batchTail = new Promise<void>((resolve) => { release = resolve; });
+      await previous;
+      const oldClaimed = user.streak_milestone_claimed;
+      const oldLedgerLength = ledger.length;
+      try {
+        const results = [];
+        for (const statement of statements) results.push(await statement.run());
+        return results;
+      } catch (error) {
+        user.streak_milestone_claimed = oldClaimed;
+        ledger.length = oldLedgerLength;
+        throw error;
+      } finally {
+        release();
+      }
     }
   };
 
-  return { db: db as unknown as D1Database, ledger };
+  return { db: db as unknown as D1Database, ledger, setFailLedgerInsert: (fail: boolean) => { failLedgerInsert = fail; } };
 }
 
 describe('checkInStreak', () => {
@@ -98,6 +122,34 @@ describe('checkInStreak', () => {
     expect(result.creditsGranted).toBe(5);
     expect(result.balance).toBe(5);
     expect(ledger).toEqual([{ user_id: 'user-1', delta: 5, reason: 'streak_reward' }]);
+  });
+
+  it('does not consume a milestone when its ledger insert fails, then grants on retry', async () => {
+    const user = { streak_count: 2, last_streak_date: '2026-08-10', streak_milestone_claimed: 0, utc_offset: 0 };
+    const { db, ledger, setFailLedgerInsert } = createFakeDb(user);
+    setFailLedgerInsert(true);
+    await expect(checkInStreak(db, 'user-1', 'ledger-1', new Date('2026-08-11T12:00:00Z')))
+      .rejects.toThrow('Injected credit ledger failure');
+    expect(user.streak_milestone_claimed).toBe(0);
+    expect(ledger).toHaveLength(0);
+
+    setFailLedgerInsert(false);
+    const retry = await checkInStreak(db, 'user-1', 'ledger-2', new Date('2026-08-11T12:01:00Z'));
+    expect(retry.creditsGranted).toBe(5);
+    expect(user.streak_milestone_claimed).toBe(3);
+    expect(ledger).toHaveLength(1);
+  });
+
+  it('grants only once when two requests use the same stale pre-claim state', async () => {
+    const { db, ledger } = createFakeDb({
+      streak_count: 2, last_streak_date: '2026-08-10', streak_milestone_claimed: 0, utc_offset: 0
+    });
+    const [a, b] = await Promise.all([
+      checkInStreak(db, 'user-1', 'ledger-a', new Date('2026-08-11T12:00:00Z')),
+      checkInStreak(db, 'user-1', 'ledger-b', new Date('2026-08-11T12:00:00Z'))
+    ]);
+    expect(a.creditsGranted + b.creditsGranted).toBe(5);
+    expect(ledger).toHaveLength(1);
   });
 
   it('does not re-grant a milestone that was already claimed', async () => {

@@ -41,7 +41,7 @@ function createDeletionDb() {
           return statement;
         },
         async first() {
-          return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null;
+          return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null;
         },
         async all() {
           return { results: [] };
@@ -280,7 +280,7 @@ describe('user routes', () => {
               return statement;
             },
             async first() {
-              if (sql.includes('SELECT 1 AS ok FROM users')) return { ok: 1 };
+              if (sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users')) return { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null };
               if (sql.includes('SELECT * FROM users WHERE id = ?')) {
                 return user;
               }

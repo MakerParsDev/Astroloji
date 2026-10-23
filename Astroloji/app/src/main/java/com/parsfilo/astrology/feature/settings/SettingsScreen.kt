@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -273,39 +274,12 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.onEvent(SettingsUiEvent.ChangeNotificationEnabled(it)) },
                     )
                 }
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    listOf(7, 8, 9, 20, 21).forEach { hour ->
-                        val selected = uiState.notificationHour == hour
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color =
-                                if (selected) {
-                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)
-                                },
-                            border =
-                                BorderStroke(
-                                    1.dp,
-                                    if (selected) {
-                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
-                                    } else {
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
-                                    },
-                                ),
-                            onClick = { viewModel.onEvent(SettingsUiEvent.ChangeNotificationHour(hour)) },
-                        ) {
-                            Text(
-                                text = String.format(Locale.ROOT, "%02d:00", hour),
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-                    }
-                }
+                ReminderHourOptions(
+                    selectedHour = uiState.notificationHour,
+                    onSelectHour = { hour ->
+                        viewModel.onEvent(SettingsUiEvent.ChangeNotificationHour(hour))
+                    },
+                )
             }
 
             AstrologyCard {
@@ -574,6 +548,7 @@ fun SettingsScreen(
 
 private const val SETTINGS_MAX_SINGLE_ROW_OPTIONS = 3
 private const val SETTINGS_LARGE_TEXT_SCALE = 1.5f
+private const val MAX_REMINDER_HOUR = 23
 
 @Suppress("FunctionNaming")
 @Composable
@@ -692,5 +667,64 @@ private fun SettingsAboutRow(
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyLarge)
         Text(text = trailing, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+@Suppress("FunctionNaming")
+internal fun ReminderHourOptions(
+    selectedHour: Int,
+    onSelectHour: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FlowRow(
+        modifier = modifier.fillMaxWidth().selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val presetHours = listOf(7, 8, 9, 20, 21)
+        // Earlier versions can store any valid hour. Keep that selection visible
+        // without silently changing or persisting a different reminder time.
+        val displayedHours =
+            if (selectedHour in 0..MAX_REMINDER_HOUR && selectedHour !in presetHours) {
+                presetHours + selectedHour
+            } else {
+                presetHours
+            }
+        displayedHours.forEach { hour ->
+            val selected = selectedHour == hour
+            Surface(
+                modifier =
+                    Modifier
+                        .defaultMinSize(minHeight = 48.dp)
+                        .selectable(
+                            selected = selected,
+                            role = Role.RadioButton,
+                            onClick = { onSelectHour(hour) },
+                        ),
+                shape = RoundedCornerShape(16.dp),
+                color =
+                    if (selected) {
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)
+                    },
+                border =
+                    BorderStroke(
+                        1.dp,
+                        if (selected) {
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                        },
+                    ),
+            ) {
+                Text(
+                    text = String.format(Locale.ROOT, "%02d:00", hour),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
     }
 }

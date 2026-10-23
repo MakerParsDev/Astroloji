@@ -1,5 +1,24 @@
 import type { Env } from '@/types';
 
+export const FREE_AUTH_ENTITLEMENT = {
+  is_premium: 0,
+  subscription_state: 'none',
+  premium_expires_at: null
+} as const;
+
+export function isAuthEntitlementQuery(sql: string): boolean {
+  return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users');
+}
+
+export function authEntitlementStatement(sql: string): D1PreparedStatement | null {
+  if (!isAuthEntitlementQuery(sql)) return null;
+  const statement = {
+    bind() { return statement; },
+    async first() { return FREE_AUTH_ENTITLEMENT; }
+  };
+  return statement as unknown as D1PreparedStatement;
+}
+
 export interface TestRateLimitDecision {
   allowed: boolean;
   remaining: number;
@@ -26,7 +45,11 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
             return statement;
           },
           async first() {
-            return sql.replace(/\s+/g, ' ').trim().startsWith('SELECT 1') ? { ok: 1 } : null;
+            const normalized = sql.replace(/\s+/g, ' ').trim();
+            if (normalized.startsWith('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
+              return { is_premium: 0, subscription_state: 'none', premium_expires_at: null };
+            }
+            return normalized.startsWith('SELECT 1') ? { ok: 1 } : null;
           },
           async all() {
             return { results: [] };

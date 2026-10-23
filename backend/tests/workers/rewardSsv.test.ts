@@ -37,7 +37,7 @@ function createRewardDb(options: { failVerifyUpdate?: boolean; failEntitlementLo
         },
         async first<T>() {
           const query = normalize(sql);
-          if (query.includes('SELECT 1 AS ok FROM users')) return { ok: 1 } as T;
+          if (query.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users')) return { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } as T;
           if (query.includes('FROM reward_challenges WHERE id = ?')) {
             return (rows.get(String(statement.bindings[0])) ?? null) as T | null;
           }

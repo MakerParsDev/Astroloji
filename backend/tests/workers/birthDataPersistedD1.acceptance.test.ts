@@ -27,7 +27,7 @@ describe('account-scoped birth-data deletion in persistent local D1', () => {
     let runtime = createLocalDatabase();
     try {
       let db = await runtime.getD1Database('DB');
-      await db.exec('CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL);');
+      await db.exec("CREATE TABLE users (id TEXT PRIMARY KEY NOT NULL, is_premium INTEGER NOT NULL DEFAULT 0, subscription_state TEXT NOT NULL DEFAULT 'none', premium_expires_at TEXT);");
       await db.prepare(readFileSync('migrations/0003_user_birth_data.sql', 'utf8')).run();
       await db.prepare('INSERT INTO users (id) VALUES (?), (?)').bind('synthetic-user-1', 'synthetic-user-2').run();
 
