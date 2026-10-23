@@ -5,11 +5,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.core.domain.model.DailyHoroscope
+import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.ui.theme.AstrolojiTheme
 import org.junit.Rule
@@ -17,6 +20,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -64,8 +68,21 @@ class DailyPremiumHeroSemanticsTest {
 
         // The summary must remain a complete, separately accessible text node,
         // rather than the oversize headline or a truncated preview.
-        composeRule.onNodeWithText(copy).assertExists()
+        val renderedCopy = composeRule.onNodeWithText(copy)
+        renderedCopy.assertExists()
+        renderedCopy.assertIsDisplayed()
+        // A full-width, laid-out paragraph rather than a hidden semantic string
+        // next to the fixed-size icon. Screenshot acceptance remains separate.
+        val bounds = renderedCopy.fetchSemanticsNode().boundsInRoot
+        assertThat(bounds.width).isAtLeast((width - 60).toFloat())
+        assertThat(bounds.height).isGreaterThan(0f)
+
         composeRule.onNodeWithText(ZodiacSign.TAURUS.localizedName(language)).assertExists()
+        val expectedRange =
+            ZodiacSign.TAURUS
+                .localizedDateRange(language)
+                .uppercase(Locale.forLanguageTag(TimeUtils.normalizeLanguageTag(language)))
+        composeRule.onNodeWithText(expectedRange).assertExists()
     }
 
     @Test
@@ -77,7 +94,7 @@ class DailyPremiumHeroSemanticsTest {
         )
 
     @Test
-    fun englishShortSummaryInLightTheme() = assertFullSummary("en", "A focused day is ahead.", 360, 1f, false)
+    fun englishShortSummaryInLightTheme() = assertFullSummary("en", "A focused day is ahead.", 320, 1f, false)
 
     @Test
     fun germanLongSummaryAt320dpAnd200PercentFont() =
