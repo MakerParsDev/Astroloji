@@ -16,7 +16,7 @@ vi.mock('@/services/playBilling', async () => {
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
-import { createTestEnv, FREE_AUTH_ENTITLEMENT, isAuthEntitlementQuery } from '../helpers/env';
+import { createTestEnv, authEntitlementStatement } from '../helpers/env';
 
 interface LedgerRow {
   id: string;
@@ -30,6 +30,8 @@ function createCreditLedgerDb(seed: LedgerRow[] = []) {
 
   const db = {
     prepare(sql: string) {
+      const entitlement = authEntitlementStatement(sql);
+      if (entitlement) return entitlement;
       const normalized = sql.replace(/\s+/g, ' ').trim();
       const statement = {
         bindings: [] as unknown[],
@@ -38,9 +40,6 @@ function createCreditLedgerDb(seed: LedgerRow[] = []) {
           return statement;
         },
         async first() {
-          if (isAuthEntitlementQuery(normalized)) {
-            return FREE_AUTH_ENTITLEMENT;
-          }
           if (normalized.startsWith('SELECT COALESCE(SUM(delta)')) {
             const userId = statement.bindings[0] as string;
             const balance = rows.filter((row) => row.user_id === userId).reduce((sum, row) => sum + row.delta, 0);
