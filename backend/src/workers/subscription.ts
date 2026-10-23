@@ -24,6 +24,7 @@ import {
 import { requireAdminCapability, requirePlayWebhookAuth } from '@/middleware/auth';
 import type {
   AppBindings,
+  AppContext,
   GooglePlaySubscription,
   GooglePlaySubscriptionResponse,
   SubscriptionEventType
@@ -345,6 +346,36 @@ const defaultSubscriptionRouteDependencies: SubscriptionRouteDependencies = {
   verifyPlayRtdnIdentity
 };
 
+async function verifyAndPersistSubscription(c: AppContext, eventType: 'purchased' | 'renewed') {
+  const userId = c.get('auth').userId;
+  const body = validateSubscriptionBody(await c.req.json());
+  const ownerId = await findSubscriptionOwner(c.env.DB, body.purchase_token);
+  if (ownerId && ownerId !== userId) {
+    return jsonError(409, 'PURCHASE_TOKEN_CONFLICT', 'Purchase token belongs to another user.');
+  }
+
+  const subscription = await verifySubscriptionPurchase(
+    c.env,
+    body.purchase_token,
+    body.product_id,
+    c.env.PACKAGE_NAME
+  );
+
+  if (!subscription) {
+    return jsonError(400, 'INVALID_PURCHASE', 'Purchase token could not be verified.');
+  }
+
+  if (!(await processSubscription(c.env.DB, userId, subscription, eventType, body))) {
+    return jsonError(409, 'PURCHASE_TOKEN_CONFLICT', 'Purchase token belongs to another user.');
+  }
+  return c.json({
+    is_premium: hasPremiumEntitlement(subscription),
+    subscription_state: subscription.status,
+    premium_expires_at: subscription.expiresAt,
+    product_id: subscription.productId
+  });
+}
+
 export function registerSubscriptionRoutes(
   app: Hono<AppBindings>,
   dependencies: SubscriptionRouteDependencies = defaultSubscriptionRouteDependencies
@@ -356,63 +387,10 @@ export function registerSubscriptionRoutes(
     );
     if (rateLimitFailure) return rateLimitFailure;
 
-    const body = validateSubscriptionBody(await c.req.json());
-    const ownerId = await findSubscriptionOwner(c.env.DB, body.purchase_token);
-    if (ownerId && ownerId !== userId) {
-      return jsonError(409, 'PURCHASE_TOKEN_CONFLICT', 'Purchase token belongs to another user.');
-    }
-
-    const subscription = await verifySubscriptionPurchase(
-      c.env,
-      body.purchase_token,
-      body.product_id,
-      c.env.PACKAGE_NAME
-    );
-
-    if (!subscription) {
-      return jsonError(400, 'INVALID_PURCHASE', 'Purchase token could not be verified.');
-    }
-
-    if (!(await processSubscription(c.env.DB, userId, subscription, 'purchased', body))) {
-      return jsonError(409, 'PURCHASE_TOKEN_CONFLICT', 'Purchase token belongs to another user.');
-    }
-    return c.json({
-      is_premium: hasPremiumEntitlement(subscription),
-      subscription_state: subscription.status,
-      premium_expires_at: subscription.expiresAt,
-      product_id: subscription.productId
-    });
+    return verifyAndPersistSubscription(c, 'purchased');
   });
 
-  app.post('/subscriptions/restore', async (c) => {
-    const userId = c.get('auth').userId;
-    const body = validateSubscriptionBody(await c.req.json());
-    const ownerId = await findSubscriptionOwner(c.env.DB, body.purchase_token);
-    if (ownerId && ownerId !== userId) {
-      return jsonError(409, 'PURCHASE_TOKEN_CONFLICT', 'Purchase token belongs to another user.');
-    }
-
-    const subscription = await verifySubscriptionPurchase(
-      c.env,
-      body.purchase_token,
-      body.product_id,
-      c.env.PACKAGE_NAME
-    );
-
-    if (!subscription) {
-      return jsonError(400, 'INVALID_PURCHASE', 'Purchase token could not be verified.');
-    }
-
-    if (!(await processSubscription(c.env.DB, userId, subscription, 'renewed', body))) {
-      return jsonError(409, 'PURCHASE_TOKEN_CONFLICT', 'Purchase token belongs to another user.');
-    }
-    return c.json({
-      is_premium: hasPremiumEntitlement(subscription),
-      subscription_state: subscription.status,
-      premium_expires_at: subscription.expiresAt,
-      product_id: subscription.productId
-    });
-  });
+  app.post('/subscriptions/restore', (c) => verifyAndPersistSubscription(c, 'renewed'));
 
   app.post('/webhooks/play-rtdn', async (c) => {
     const requestId = c.get('requestId');
