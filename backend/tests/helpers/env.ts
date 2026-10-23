@@ -10,6 +10,15 @@ export function isAuthEntitlementQuery(sql: string): boolean {
   return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users');
 }
 
+export function authEntitlementStatement(sql: string): D1PreparedStatement | null {
+  if (!isAuthEntitlementQuery(sql)) return null;
+  const statement = {
+    bind() { return statement; },
+    async first() { return FREE_AUTH_ENTITLEMENT; }
+  };
+  return statement as unknown as D1PreparedStatement;
+}
+
 export interface TestRateLimitDecision {
   allowed: boolean;
   remaining: number;
