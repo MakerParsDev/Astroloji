@@ -6,8 +6,10 @@ import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.common.truth.Truth.assertThat
+import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import io.mockk.Runs
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
@@ -15,6 +17,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.Test
+import java.io.IOException
 
 class InterstitialImpressionAccountingTest {
     private val activity = mockk<Activity>(relaxed = true)
@@ -72,6 +75,27 @@ class InterstitialImpressionAccountingTest {
         coVerify(exactly = 0) { frequency.recordInterstitialShown(any()) }
         callback.captured.onAdImpression()
         coVerify(exactly = 1, timeout = 3000) { frequency.recordInterstitialShown(any()) }
+    }
+
+    @Test
+    fun `failed quota write does not crash the impression callback or skip analytics`() {
+        every { consent.canRequestAds } returns true
+        coEvery { frequency.recordInterstitialShown(any()) } throws IOException("test storage error")
+        val manager = manager()
+        val ad = preloadedAd(manager)
+        val callback = slot<FullScreenContentCallback>()
+        every { ad.fullScreenContentCallback = capture(callback) } just Runs
+        every { ad.show(activity) } just Runs
+
+        assertThat(manager.showIfAvailable(activity, "monthly_back")).isTrue()
+        callback.captured.onAdImpression()
+
+        coVerify(exactly = 1, timeout = 3000) {
+            analytics.track(
+                AnalyticsEvents.AD_SHOWN,
+                mapOf("format" to "interstitial", "placement" to "monthly_back"),
+            )
+        }
     }
 
     @Test
