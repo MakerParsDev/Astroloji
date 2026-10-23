@@ -72,9 +72,7 @@ fun MonthlyScreen(
                     placement = "monthly_back",
                     onDismissed = onNavigateBack,
                 )
-            if (shown) {
-                adsEntryPoint.adFrequencyManager().recordInterstitialShown()
-            } else {
+            if (!shown) {
                 onNavigateBack()
             }
         }

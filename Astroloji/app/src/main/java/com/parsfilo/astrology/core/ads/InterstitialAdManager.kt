@@ -11,10 +11,12 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,6 +27,7 @@ class InterstitialAdManager
         @param:ApplicationContext private val context: Context,
         private val consentManager: GoogleMobileAdsConsentManager,
         private val analyticsRepository: AnalyticsRepository,
+        private val adFrequencyManager: AdFrequencyManager,
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
@@ -58,8 +61,11 @@ class InterstitialAdManager
             placement: String,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            // Consent may change after the interstitial was preloaded.
+            val consentAllowed = consentManager.canRequestAds
             val ad =
-                interstitialAd ?: run {
+                interstitialAd.takeIf { consentAllowed } ?: run {
+                    if (!consentAllowed) interstitialAd = null
                     preload()
                     return false
                 }
@@ -78,7 +84,16 @@ class InterstitialAdManager
                     }
 
                     override fun onAdImpression() {
-                        scope.launch {
+                        // Start immediately, before dismiss/navigation can perform another
+                        // eligibility check. The manager mutex holds until count persistence.
+                        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                            // Only a confirmed SDK impression consumes the daily cap/cooldown.
+                            // A show() attempt can fail and must not consume the quota.
+                            try {
+                                adFrequencyManager.recordInterstitialShown()
+                            } catch (e: IOException) {
+                                Timber.w(e, "Failed to persist interstitial impression")
+                            }
                             analyticsRepository.track(
                                 AnalyticsEvents.AD_SHOWN,
                                 mapOf("format" to "interstitial", "placement" to placement),
