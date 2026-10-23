@@ -11,12 +11,41 @@ vi.mock('@/workers/birthData', async (importOriginal) => {
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
-import { createRateLimiterNamespace, createTestEnv } from '../helpers/env';
+import { createRateLimiterNamespace, createTestEnv, authEntitlementStatement } from '../helpers/env';
 
 const VALID_BIRTH_DATA = {
   plaintext: { timestamp: '1990-01-15T12:00:00.000Z', latitude: 41, longitude: 29, tzid: 'Europe/Istanbul' },
   timeCertainty: 'exact' as const
 };
+
+function statelessChartDb(onWrite: () => void): D1Database {
+  return {
+    prepare(sql: string) {
+      if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) onWrite();
+      const entitlement = authEntitlementStatement(sql);
+      if (entitlement) return entitlement;
+      const statement = {
+        bind() { return statement; },
+        async first() { return null; },
+        async all() { return { results: [] }; },
+        async run() { return { success: true, meta: {} }; }
+      };
+      return statement;
+    }
+  } as unknown as D1Database;
+}
+
+async function requestStatelessChart(route: string, payload: Record<string, unknown>) {
+  let writes = 0;
+  const env = createTestEnv({ DB: statelessChartDb(() => { writes += 1; }) });
+  const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
+  const response = await createApp().request(route, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, env);
+  return { response, countWrites: () => writes };
+}
 
 describe('chart routes', () => {
   beforeEach(() => {
@@ -62,47 +91,9 @@ describe('chart routes', () => {
   });
 
   it('returns a versioned natal chart without persisting birth data', async () => {
-    let writeStatements = 0;
-    const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) {
-            writeStatements += 1;
-          }
-          const statement = {
-            bind() {
-              return statement;
-            },
-            async first() {
-              return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null;
-            },
-            async all() {
-              return { results: [] };
-            },
-            async run() {
-              return { success: true, meta: {} };
-            }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
-    });
-    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
-
-    const response = await createApp().request(
+    const { response, countWrites } = await requestStatelessChart(
       '/api/v1/chart/natal',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          timestamp: '2026-08-05T00:00:00.000Z',
-          time_certainty: 'exact'
-        })
-      },
-      env
+      { timestamp: '2026-08-05T00:00:00.000Z', time_certainty: 'exact' }
     );
 
     expect(response.status).toBe(200);
@@ -113,7 +104,7 @@ describe('chart routes', () => {
       ascendant: null,
       houses: null
     });
-    expect(writeStatements).toBe(0);
+    expect(countWrites()).toBe(0);
   });
 
   it('rejects ambiguous local timestamps', async () => {
@@ -143,37 +134,9 @@ describe('chart routes', () => {
   });
 
   it('returns a versioned sidereal Vedic chart without persisting birth data', async () => {
-    let writeStatements = 0;
-    const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
-          const statement = {
-            bind() { return statement; },
-            async first() { return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null; },
-            async all() { return { results: [] }; },
-            async run() { return { success: true, meta: {} }; }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
-    });
-    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
-
-    const response = await createApp().request(
+    const { response, countWrites } = await requestStatelessChart(
       '/api/v1/chart/vedic',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          timestamp: '2026-08-05T00:00:00.000Z',
-          time_certainty: 'exact'
-        })
-      },
-      env
+      { timestamp: '2026-08-05T00:00:00.000Z', time_certainty: 'exact' }
     );
 
     expect(response.status).toBe(200);
@@ -196,7 +159,7 @@ describe('chart routes', () => {
     expect(typeof body.moonNakshatra.nakshatra).toBe('string');
     expect(body.mahadashas).toHaveLength(9);
     expect(body.limitations).toEqual([]);
-    expect(writeStatements).toBe(0);
+    expect(countWrites()).toBe(0);
   });
 
   it('flags Vedic chart limitations for an uncertain birth time, same as the tropical chart', async () => {
@@ -267,38 +230,9 @@ describe('chart routes', () => {
   });
 
   it('returns a bounded stateless transit snapshot', async () => {
-    let writeStatements = 0;
-    const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
-          const statement = {
-            bind() { return statement; },
-            async first() { return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null; },
-            async all() { return { results: [] }; },
-            async run() { return { success: true, meta: {} }; }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
-    });
-    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
-
-    const response = await createApp().request(
+    const { response, countWrites } = await requestStatelessChart(
       '/api/v1/chart/transits',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          natal_timestamp: '1990-01-15T12:00:00.000Z',
-          natal_time_certainty: 'unknown',
-          target_timestamp: '2026-08-05T00:00:00.000Z'
-        })
-      },
-      env
+      { natal_timestamp: '1990-01-15T12:00:00.000Z', natal_time_certainty: 'unknown', target_timestamp: '2026-08-05T00:00:00.000Z' }
     );
 
     expect(response.status).toBe(200);
@@ -311,44 +245,14 @@ describe('chart routes', () => {
     expect(body.aspects.length).toBeGreaterThan(5);
     expect(body.aspects.length).toBeLessThanOrEqual(30);
     expect(body.limitations).toContain('birth_time_uncertain');
-    expect(writeStatements).toBe(0);
+    expect(countWrites()).toBe(0);
   });
 
 
   it('returns localized personal guidance without database writes', async () => {
-    let writeStatements = 0;
-    const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
-          const statement = {
-            bind() { return statement; },
-            async first() { return sql.includes('SELECT 1 AS ok FROM users') ? { ok: 1 } : null; },
-            async all() { return { results: [] }; },
-            async run() { return { success: true, meta: {} }; }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
-    });
-    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
-
-    const response = await createApp().request(
+    const { response, countWrites } = await requestStatelessChart(
       '/api/v1/chart/guidance',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          natal_timestamp: '1990-01-15T12:00:00.000Z',
-          natal_time_certainty: 'unknown',
-          target_timestamp: '2026-08-05T00:00:00.000Z',
-          language: 'tr'
-        })
-      },
-      env
+      { natal_timestamp: '1990-01-15T12:00:00.000Z', natal_time_certainty: 'unknown', target_timestamp: '2026-08-05T00:00:00.000Z', language: 'tr' }
     );
 
     expect(response.status).toBe(200);
@@ -361,7 +265,7 @@ describe('chart routes', () => {
     expect(body.language).toBe('tr');
     expect(body.signals).toHaveLength(3);
     expect(body.signals.every((signal) => typeof signal.evidence.natalBody === 'string')).toBe(true);
-    expect(writeStatements).toBe(0);
+    expect(countWrites()).toBe(0);
   });
 
 });

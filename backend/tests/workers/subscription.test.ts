@@ -50,8 +50,8 @@ function createRecordingDb(options: RecordingDbOptions = {}) {
           },
           async first() {
             reads.push({ sql, bindings });
-            if (sql.includes('SELECT 1 AS ok FROM users')) {
-              return { ok: 1 };
+            if (sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
+              return { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null };
             }
             if (sql.includes('SELECT user_id FROM subscriptions')) {
               const owner = options.subscriptionOwner === undefined ? 'user-1' : options.subscriptionOwner;

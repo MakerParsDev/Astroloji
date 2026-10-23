@@ -1,8 +1,9 @@
 import type { Next } from 'hono';
 
 import { logAdminOperation } from '@/services/adminAudit';
+import { hasPremiumEntitlement } from '@/services/playBilling';
 import { verifyPlayRtdnIdentity } from '@/services/playRtdnAuth';
-import type { AdminCapability, AdminOperation, AppContext, AppMiddleware, Env } from '@/types';
+import type { AdminCapability, AdminOperation, AppContext, AppMiddleware, Env, SubscriptionStatus } from '@/types';
 import { verifyAppJwt } from '@/utils/jwt';
 import { verifyCloudflareAccessJwt } from '@/utils/cloudflareAccess';
 import { matchesSecret } from '@/utils/security';
@@ -12,12 +13,28 @@ function jsonError(c: AppContext, status: number, code: string, message: string)
   return c.json({ error: { code, message } }, { status: status as 401 | 403 });
 }
 
-async function userExists(db: D1Database, userId: string): Promise<boolean> {
+interface CurrentUserEntitlementRow {
+  is_premium: number;
+  subscription_state: SubscriptionStatus;
+  premium_expires_at: string | null;
+}
+
+async function getCurrentUserEntitlement(
+  db: D1Database,
+  userId: string
+): Promise<{ isPremium: boolean } | null> {
   const row = await db
-    .prepare('SELECT 1 AS ok FROM users WHERE id = ? LIMIT 1')
+    .prepare('SELECT is_premium, subscription_state, premium_expires_at FROM users WHERE id = ? LIMIT 1')
     .bind(userId)
-    .first<{ ok: number }>();
-  return row?.ok === 1;
+    .first<CurrentUserEntitlementRow>();
+  if (!row) return null;
+
+  return {
+    isPremium: row.is_premium === 1 && hasPremiumEntitlement({
+      status: row.subscription_state,
+      expiresAt: row.premium_expires_at ?? ''
+    })
+  };
 }
 
 export function getBearerToken(value: string | undefined | null): string | null {
@@ -48,12 +65,15 @@ export const jwtAuthMiddleware: AppMiddleware = async (c, next: Next) => {
 
   // Database and downstream handler failures must reach Hono's 500 error handler,
   // not be misclassified as expired or invalid credentials.
-  if (!(await userExists(c.env.DB, claims.user_id))) {
+  const entitlement = await getCurrentUserEntitlement(c.env.DB, claims.user_id);
+  if (!entitlement) {
     return jsonError(c, 401, 'INVALID_TOKEN', 'Authorization token is invalid or expired.');
   }
   c.set('auth', {
     userId: claims.user_id,
-    isPremium: claims.is_premium,
+    // The signed claim is only a snapshot. Revocations and expirations must take
+    // effect immediately, without waiting for the JWT's one-hour expiry.
+    isPremium: entitlement.isPremium,
     firebaseUid: claims.firebase_uid,
     exp: claims.exp
   });
