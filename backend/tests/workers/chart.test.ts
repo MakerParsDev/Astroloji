@@ -35,6 +35,12 @@ function statelessChartDb(onWrite: () => void): D1Database {
   } as unknown as D1Database;
 }
 
+function createStatelessChartEnv() {
+  let writes = 0;
+  const env = createTestEnv({ DB: statelessChartDb(() => { writes += 1; }) });
+  return { env, countWrites: () => writes };
+}
+
 describe('chart routes', () => {
   beforeEach(() => {
     getDecryptedBirthData.mockReset();
@@ -79,10 +85,7 @@ describe('chart routes', () => {
   });
 
   it('returns a versioned natal chart without persisting birth data', async () => {
-    let writeStatements = 0;
-    const env = createTestEnv({
-      DB: statelessChartDb(() => { writeStatements += 1; })
-    });
+    const { env, countWrites } = createStatelessChartEnv();
     const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
 
     const response = await createApp().request(
@@ -109,7 +112,7 @@ describe('chart routes', () => {
       ascendant: null,
       houses: null
     });
-    expect(writeStatements).toBe(0);
+    expect(countWrites()).toBe(0);
   });
 
   it('rejects ambiguous local timestamps', async () => {
@@ -139,10 +142,7 @@ describe('chart routes', () => {
   });
 
   it('returns a versioned sidereal Vedic chart without persisting birth data', async () => {
-    let writeStatements = 0;
-    const env = createTestEnv({
-      DB: statelessChartDb(() => { writeStatements += 1; })
-    });
+    const { env, countWrites } = createStatelessChartEnv();
     const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
 
     const response = await createApp().request(
@@ -181,7 +181,7 @@ describe('chart routes', () => {
     expect(typeof body.moonNakshatra.nakshatra).toBe('string');
     expect(body.mahadashas).toHaveLength(9);
     expect(body.limitations).toEqual([]);
-    expect(writeStatements).toBe(0);
+    expect(countWrites()).toBe(0);
   });
 
   it('flags Vedic chart limitations for an uncertain birth time, same as the tropical chart', async () => {
@@ -252,10 +252,7 @@ describe('chart routes', () => {
   });
 
   it('returns a bounded stateless transit snapshot', async () => {
-    let writeStatements = 0;
-    const env = createTestEnv({
-      DB: statelessChartDb(() => { writeStatements += 1; })
-    });
+    const { env, countWrites } = createStatelessChartEnv();
     const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
 
     const response = await createApp().request(
@@ -285,15 +282,12 @@ describe('chart routes', () => {
     expect(body.aspects.length).toBeGreaterThan(5);
     expect(body.aspects.length).toBeLessThanOrEqual(30);
     expect(body.limitations).toContain('birth_time_uncertain');
-    expect(writeStatements).toBe(0);
+    expect(countWrites()).toBe(0);
   });
 
 
   it('returns localized personal guidance without database writes', async () => {
-    let writeStatements = 0;
-    const env = createTestEnv({
-      DB: statelessChartDb(() => { writeStatements += 1; })
-    });
+    const { env, countWrites } = createStatelessChartEnv();
     const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
 
     const response = await createApp().request(
@@ -324,7 +318,7 @@ describe('chart routes', () => {
     expect(body.language).toBe('tr');
     expect(body.signals).toHaveLength(3);
     expect(body.signals.every((signal) => typeof signal.evidence.natalBody === 'string')).toBe(true);
-    expect(writeStatements).toBe(0);
+    expect(countWrites()).toBe(0);
   });
 
 });
