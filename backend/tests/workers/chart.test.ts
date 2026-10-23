@@ -11,12 +11,29 @@ vi.mock('@/workers/birthData', async (importOriginal) => {
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
-import { createRateLimiterNamespace, createTestEnv, FREE_AUTH_ENTITLEMENT, isAuthEntitlementQuery } from '../helpers/env';
+import { createRateLimiterNamespace, createTestEnv, authEntitlementStatement } from '../helpers/env';
 
 const VALID_BIRTH_DATA = {
   plaintext: { timestamp: '1990-01-15T12:00:00.000Z', latitude: 41, longitude: 29, tzid: 'Europe/Istanbul' },
   timeCertainty: 'exact' as const
 };
+
+function statelessChartDb(onWrite: () => void): D1Database {
+  return {
+    prepare(sql: string) {
+      if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) onWrite();
+      const entitlement = authEntitlementStatement(sql);
+      if (entitlement) return entitlement;
+      const statement = {
+        bind() { return statement; },
+        async first() { return null; },
+        async all() { return { results: [] }; },
+        async run() { return { success: true, meta: {} }; }
+      };
+      return statement;
+    }
+  } as unknown as D1Database;
+}
 
 describe('chart routes', () => {
   beforeEach(() => {
@@ -64,28 +81,7 @@ describe('chart routes', () => {
   it('returns a versioned natal chart without persisting birth data', async () => {
     let writeStatements = 0;
     const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) {
-            writeStatements += 1;
-          }
-          const statement = {
-            bind() {
-              return statement;
-            },
-            async first() {
-              return isAuthEntitlementQuery(sql) ? FREE_AUTH_ENTITLEMENT : null;
-            },
-            async all() {
-              return { results: [] };
-            },
-            async run() {
-              return { success: true, meta: {} };
-            }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
+      DB: statelessChartDb(() => { writeStatements += 1; })
     });
     const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
 
@@ -145,18 +141,7 @@ describe('chart routes', () => {
   it('returns a versioned sidereal Vedic chart without persisting birth data', async () => {
     let writeStatements = 0;
     const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
-          const statement = {
-            bind() { return statement; },
-            async first() { return isAuthEntitlementQuery(sql) ? FREE_AUTH_ENTITLEMENT : null; },
-            async all() { return { results: [] }; },
-            async run() { return { success: true, meta: {} }; }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
+      DB: statelessChartDb(() => { writeStatements += 1; })
     });
     const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
 
@@ -269,18 +254,7 @@ describe('chart routes', () => {
   it('returns a bounded stateless transit snapshot', async () => {
     let writeStatements = 0;
     const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
-          const statement = {
-            bind() { return statement; },
-            async first() { return isAuthEntitlementQuery(sql) ? FREE_AUTH_ENTITLEMENT : null; },
-            async all() { return { results: [] }; },
-            async run() { return { success: true, meta: {} }; }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
+      DB: statelessChartDb(() => { writeStatements += 1; })
     });
     const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
 
@@ -318,18 +292,7 @@ describe('chart routes', () => {
   it('returns localized personal guidance without database writes', async () => {
     let writeStatements = 0;
     const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          if (/\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql)) writeStatements += 1;
-          const statement = {
-            bind() { return statement; },
-            async first() { return isAuthEntitlementQuery(sql) ? FREE_AUTH_ENTITLEMENT : null; },
-            async all() { return { results: [] }; },
-            async run() { return { success: true, meta: {} }; }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
+      DB: statelessChartDb(() => { writeStatements += 1; })
     });
     const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
 
