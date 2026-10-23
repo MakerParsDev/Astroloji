@@ -35,10 +35,16 @@ function statelessChartDb(onWrite: () => void): D1Database {
   } as unknown as D1Database;
 }
 
-function createStatelessChartEnv() {
+async function requestStatelessChart(route: string, payload: Record<string, unknown>) {
   let writes = 0;
   const env = createTestEnv({ DB: statelessChartDb(() => { writes += 1; }) });
-  return { env, countWrites: () => writes };
+  const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
+  const response = await createApp().request(route, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, env);
+  return { response, countWrites: () => writes };
 }
 
 describe('chart routes', () => {
@@ -85,23 +91,9 @@ describe('chart routes', () => {
   });
 
   it('returns a versioned natal chart without persisting birth data', async () => {
-    const { env, countWrites } = createStatelessChartEnv();
-    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
-
-    const response = await createApp().request(
+    const { response, countWrites } = await requestStatelessChart(
       '/api/v1/chart/natal',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          timestamp: '2026-08-05T00:00:00.000Z',
-          time_certainty: 'exact'
-        })
-      },
-      env
+      { timestamp: '2026-08-05T00:00:00.000Z', time_certainty: 'exact' }
     );
 
     expect(response.status).toBe(200);
@@ -142,23 +134,9 @@ describe('chart routes', () => {
   });
 
   it('returns a versioned sidereal Vedic chart without persisting birth data', async () => {
-    const { env, countWrites } = createStatelessChartEnv();
-    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
-
-    const response = await createApp().request(
+    const { response, countWrites } = await requestStatelessChart(
       '/api/v1/chart/vedic',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          timestamp: '2026-08-05T00:00:00.000Z',
-          time_certainty: 'exact'
-        })
-      },
-      env
+      { timestamp: '2026-08-05T00:00:00.000Z', time_certainty: 'exact' }
     );
 
     expect(response.status).toBe(200);
@@ -252,24 +230,9 @@ describe('chart routes', () => {
   });
 
   it('returns a bounded stateless transit snapshot', async () => {
-    const { env, countWrites } = createStatelessChartEnv();
-    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
-
-    const response = await createApp().request(
+    const { response, countWrites } = await requestStatelessChart(
       '/api/v1/chart/transits',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          natal_timestamp: '1990-01-15T12:00:00.000Z',
-          natal_time_certainty: 'unknown',
-          target_timestamp: '2026-08-05T00:00:00.000Z'
-        })
-      },
-      env
+      { natal_timestamp: '1990-01-15T12:00:00.000Z', natal_time_certainty: 'unknown', target_timestamp: '2026-08-05T00:00:00.000Z' }
     );
 
     expect(response.status).toBe(200);
@@ -287,25 +250,9 @@ describe('chart routes', () => {
 
 
   it('returns localized personal guidance without database writes', async () => {
-    const { env, countWrites } = createStatelessChartEnv();
-    const jwt = await signAppJwt(env, { userId: 'chart-user', isPremium: false });
-
-    const response = await createApp().request(
+    const { response, countWrites } = await requestStatelessChart(
       '/api/v1/chart/guidance',
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${jwt}`,
-          'content-type': 'application/json'
-        },
-        body: JSON.stringify({
-          natal_timestamp: '1990-01-15T12:00:00.000Z',
-          natal_time_certainty: 'unknown',
-          target_timestamp: '2026-08-05T00:00:00.000Z',
-          language: 'tr'
-        })
-      },
-      env
+      { natal_timestamp: '1990-01-15T12:00:00.000Z', natal_time_certainty: 'unknown', target_timestamp: '2026-08-05T00:00:00.000Z', language: 'tr' }
     );
 
     expect(response.status).toBe(200);
