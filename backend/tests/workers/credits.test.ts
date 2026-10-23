@@ -16,7 +16,7 @@ vi.mock('@/services/playBilling', async () => {
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
-import { createTestEnv } from '../helpers/env';
+import { createTestEnv, FREE_AUTH_ENTITLEMENT, isAuthEntitlementQuery } from '../helpers/env';
 
 interface LedgerRow {
   id: string;
@@ -38,8 +38,8 @@ function createCreditLedgerDb(seed: LedgerRow[] = []) {
           return statement;
         },
         async first() {
-          if (normalized.startsWith('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
-            return { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null };
+          if (isAuthEntitlementQuery(normalized)) {
+            return FREE_AUTH_ENTITLEMENT;
           }
           if (normalized.startsWith('SELECT COALESCE(SUM(delta)')) {
             const userId = statement.bindings[0] as string;
