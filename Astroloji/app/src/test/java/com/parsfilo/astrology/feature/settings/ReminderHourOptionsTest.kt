@@ -25,6 +25,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -76,5 +77,33 @@ class ReminderHourOptionsTest {
             composeRule.onNodeWithText(it).assertIsNotSelected()
         }
         composeRule.onNodeWithTag("notifications-switch").assertIsOff()
+    }
+
+    @Test
+    fun previouslyStoredCustomHourRemainsSelectedWithoutImplicitlySavingAnotherTime() {
+        var changeCalls = 0
+        composeRule.setContent {
+            var selectedHour by remember { mutableStateOf(10) }
+            MaterialTheme {
+                Column(Modifier.width(320.dp)) {
+                    ReminderHourOptions(
+                        selectedHour = selectedHour,
+                        onSelectHour = {
+                            changeCalls += 1
+                            selectedHour = it
+                        },
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("10:00").assertIsSelected()
+        composeRule.onNodeWithText("09:00").assertIsNotSelected()
+        composeRule.runOnIdle { assertEquals(0, changeCalls) }
+
+        composeRule.onNodeWithText("07:00").performClick()
+        composeRule.onNodeWithText("07:00").assertIsSelected()
+        composeRule.onNodeWithText("10:00").assertDoesNotExist()
+        composeRule.runOnIdle { assertEquals(1, changeCalls) }
     }
 }
