@@ -548,6 +548,7 @@ fun SettingsScreen(
 
 private const val SETTINGS_MAX_SINGLE_ROW_OPTIONS = 3
 private const val SETTINGS_LARGE_TEXT_SCALE = 1.5f
+private const val MAX_REMINDER_HOUR = 23
 
 @Suppress("FunctionNaming")
 @Composable
@@ -681,7 +682,16 @@ internal fun ReminderHourOptions(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        listOf(7, 8, 9, 20, 21).forEach { hour ->
+        val presetHours = listOf(7, 8, 9, 20, 21)
+        // Earlier versions can store any valid hour. Keep that selection visible
+        // without silently changing or persisting a different reminder time.
+        val displayedHours =
+            if (selectedHour in 0..MAX_REMINDER_HOUR && selectedHour !in presetHours) {
+                presetHours + selectedHour
+            } else {
+                presetHours
+            }
+        displayedHours.forEach { hour ->
             val selected = selectedHour == hour
             Surface(
                 modifier =
