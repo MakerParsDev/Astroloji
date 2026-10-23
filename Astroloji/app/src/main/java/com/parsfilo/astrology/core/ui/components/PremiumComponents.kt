@@ -114,12 +114,12 @@ fun PremiumHeroCard(
     symbol: String,
     eyebrow: String,
     title: String,
-    modifier: Modifier = Modifier,
     subtitle: String? = null,
+    supportingText: String? = null,
 ) {
     Box(
         modifier =
-            modifier
+            Modifier
                 .fillMaxWidth()
                 .clip(PremiumShape)
                 .background(
@@ -131,50 +131,60 @@ fun PremiumHeroCard(
                     PremiumShape,
                 ).padding(22.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(82.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(WarmGold.copy(alpha = 0.28f), CosmicPurple.copy(alpha = 0.18f)),
-                            ),
-                        ).border(1.dp, WarmGold.copy(alpha = 0.46f), CircleShape),
-                contentAlignment = Alignment.Center,
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    text = symbol,
-                    style = MaterialTheme.typography.displayMedium,
-                    color = SoftGold,
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = eyebrow.uppercase(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = WarmGold,
-                )
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Starlight,
-                )
-                subtitle?.takeIf(String::isNotBlank)?.let {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(82.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(WarmGold.copy(alpha = 0.28f), CosmicPurple.copy(alpha = 0.18f)),
+                                ),
+                            ).border(1.dp, WarmGold.copy(alpha = 0.46f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Starlight.copy(alpha = 0.72f),
+                        text = symbol,
+                        style = MaterialTheme.typography.displayMedium,
+                        color = SoftGold,
                     )
                 }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = eyebrow.uppercase(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = WarmGold,
+                    )
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Starlight,
+                    )
+                    subtitle?.takeIf(String::isNotBlank)?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Starlight.copy(alpha = 0.72f),
+                        )
+                    }
+                }
+            }
+            supportingText?.takeIf(String::isNotBlank)?.let {
+                Text(
+                    text = it,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Starlight.copy(alpha = 0.90f),
+                )
             }
         }
     }

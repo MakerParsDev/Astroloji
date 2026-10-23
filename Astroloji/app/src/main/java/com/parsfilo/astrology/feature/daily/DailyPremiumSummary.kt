@@ -57,9 +57,9 @@ internal fun DailyPremiumSummary(
         )
         PremiumHeroCard(
             symbol = sign.symbol,
-            eyebrow = signName,
-            title = horoscope.short,
-            subtitle = sign.localizedDateRange(horoscope.language),
+            eyebrow = sign.localizedDateRange(horoscope.language),
+            title = signName,
+            supportingText = horoscope.short,
         )
         PremiumGlassCard {
             Row(
