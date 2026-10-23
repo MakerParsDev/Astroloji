@@ -8,7 +8,11 @@ import com.parsfilo.astrology.core.domain.model.UserPreferences
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -75,6 +79,77 @@ class AdFrequencyManagerTest {
 
             assertThat(manager.canShowInterstitial(flags, nowMs = startOfNewDay)).isFalse()
             assertThat(manager.canShowInterstitial(flags, nowMs = startOfNewDay + 5 * 60_000L)).isTrue()
+        }
+
+    @Test
+    fun `a pending impression blocks eligibility until the quota write commits`() =
+        runTest {
+            val localMidnight = LocalDate.of(2026, 10, 23).atStartOfDay(ZoneId.systemDefault())
+            val now = localMidnight.toInstant().toEpochMilli() + 8 * 60 * 60_000L
+            var persisted = UserPreferences(interstitialCountDate = "2026-10-23")
+            val releaseWrite = CompletableDeferred<Unit>()
+            coEvery { preferencesRepository.current() } coAnswers { persisted }
+            coEvery { preferencesRepository.updateInterstitialMetrics(any(), any(), any()) } coAnswers {
+                releaseWrite.await()
+                persisted =
+                    persisted.copy(
+                        lastInterstitialShown = firstArg(),
+                        interstitialCountToday = secondArg(),
+                        interstitialCountDate = thirdArg(),
+                    )
+            }
+
+            val manager = AdFrequencyManager(preferencesRepository)
+            val impression = launch { manager.recordInterstitialShown(now) }
+            runCurrent()
+
+            val eligible =
+                async {
+                    manager.canShowInterstitial(
+                        RemoteFlags(interstitialDailyLimit = 1, interstitialCooldownMinutes = 30),
+                        nowMs = now + 1000L,
+                    )
+                }
+            runCurrent()
+            assertThat(eligible.isCompleted).isFalse()
+
+            releaseWrite.complete(Unit)
+            impression.join()
+            assertThat(eligible.await()).isFalse()
+            assertThat(persisted.interstitialCountToday).isEqualTo(1)
+        }
+
+    @Test
+    fun `parallel impression writes cannot lose a daily increment`() =
+        runTest {
+            val localMidnight = LocalDate.of(2026, 10, 23).atStartOfDay(ZoneId.systemDefault())
+            val now = localMidnight.toInstant().toEpochMilli() + 8 * 60 * 60_000L
+            var persisted = UserPreferences(interstitialCountDate = "2026-10-23")
+            val firstWriteGate = CompletableDeferred<Unit>()
+            var writes = 0
+            coEvery { preferencesRepository.current() } coAnswers { persisted }
+            coEvery { preferencesRepository.updateInterstitialMetrics(any(), any(), any()) } coAnswers {
+                writes += 1
+                if (writes == 1) firstWriteGate.await()
+                persisted =
+                    persisted.copy(
+                        lastInterstitialShown = firstArg(),
+                        interstitialCountToday = secondArg(),
+                        interstitialCountDate = thirdArg(),
+                    )
+            }
+            val manager = AdFrequencyManager(preferencesRepository)
+            val first = launch { manager.recordInterstitialShown(now) }
+            runCurrent()
+            val second = launch { manager.recordInterstitialShown(now + 100L) }
+            runCurrent()
+            assertThat(writes).isEqualTo(1)
+
+            firstWriteGate.complete(Unit)
+            first.join()
+            second.join()
+            assertThat(writes).isEqualTo(2)
+            assertThat(persisted.interstitialCountToday).isEqualTo(2)
         }
 
     @Test
