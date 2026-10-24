@@ -29,6 +29,7 @@ import com.parsfilo.astrology.core.ui.components.PremiumSectionHeader
 import com.parsfilo.astrology.core.ui.components.ZodiacIcon
 import com.parsfilo.astrology.core.util.ZodiacSign
 
+@Suppress("LongMethod")
 @Composable
 internal fun SettingsPremiumOverview(
     currentSign: ZodiacSign,

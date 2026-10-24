@@ -18,6 +18,10 @@ import java.io.FileOutputStream
 import kotlin.math.min
 
 object HoroscopeCardRenderer {
+    private const val ZODIAC_ICON_SIZE_PX = 180
+    private const val ZODIAC_ICON_RIGHT_INSET_PX = 110
+    private const val ZODIAC_ICON_TOP_PX = 70
+
     fun renderDailyCard(
         context: Context,
         horoscope: DailyHoroscope,
@@ -95,7 +99,13 @@ object HoroscopeCardRenderer {
         // Share assets use the same bundled vector as the app, not device emoji fonts.
         ContextCompat.getDrawable(context, sign.iconRes)?.mutate()?.apply {
             setTint(Color.White.copy(alpha = 0.92f).toArgb())
-            setBounds(width - 290, 70, width - 110, 250)
+            val right = width - ZODIAC_ICON_RIGHT_INSET_PX
+            setBounds(
+                right - ZODIAC_ICON_SIZE_PX,
+                ZODIAC_ICON_TOP_PX,
+                right,
+                ZODIAC_ICON_TOP_PX + ZODIAC_ICON_SIZE_PX,
+            )
             draw(canvas)
         }
 

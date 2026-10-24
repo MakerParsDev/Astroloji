@@ -10,6 +10,7 @@ import androidx.compose.ui.res.painterResource
 import com.parsfilo.astrology.core.util.ZodiacSign
 
 /** Bundled vector glyph: decorative because the adjacent localized sign name is announced. */
+@Suppress("FunctionNaming")
 @Composable
 fun ZodiacIcon(
     sign: ZodiacSign,
