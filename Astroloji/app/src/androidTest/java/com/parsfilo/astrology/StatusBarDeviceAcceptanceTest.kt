@@ -19,11 +19,13 @@ class StatusBarDeviceAcceptanceTest {
     @Test
     fun appThemeChangesSystemBarIconsWithoutActivityRestart() {
         val target = InstrumentationRegistry.getInstrumentation().targetContext
-        val originalTheme = "dark" // Only the separate, freshly installed storeQa app is used.
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             var originalActivity: MainActivity? = null
             scenario.onActivity { activity -> originalActivity = activity }
             val activity = requireNotNull(originalActivity)
+            val originalTheme = runBlocking { activity.preferencesRepository.current().theme }
+            val isDeviceDark =
+                target.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
             assertTrue("MainActivity must be attached to a window", activity.window.decorView.isAttachedToWindow)
 
             fun checkIcons(darkIcons: Boolean) {
@@ -73,14 +75,22 @@ class StatusBarDeviceAcceptanceTest {
                 capture("light")
                 setTheme("dark")
                 checkIcons(darkIcons = false)
+                // Transition away from the system state, even if the device is in dark mode.
+                setTheme(if (isDeviceDark) "light" else "dark")
+                checkIcons(darkIcons = isDeviceDark)
                 setTheme("system")
-                val isDeviceDark = target.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
                 checkIcons(darkIcons = !isDeviceDark)
                 capture("system")
             } finally {
                 setTheme(originalTheme)
             }
-            checkIcons(darkIcons = false)
+            val restoredDarkTheme =
+                when (originalTheme) {
+                    "light" -> false
+                    "system" -> isDeviceDark
+                    else -> true
+                }
+            checkIcons(darkIcons = !restoredDarkTheme)
             scenario.onActivity { current ->
                 assertTrue("Activity not resumed after theme changes", current.window.decorView.isShown)
             }
