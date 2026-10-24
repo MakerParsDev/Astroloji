@@ -25,106 +25,30 @@ import org.robolectric.annotation.Config
 class PersonalityHeroLocalizationTest {
     @get:Rule val rule = createComposeRule()
 
-    // Independent expectations, in ZodiacSign enum order; catches wrong-language fallbacks.
+    // Fixed expectations ordered tr/en/es/pt/de/fr, independent of the production fields.
     private val expectedNames =
         mapOf(
-            "tr" to
-                listOf(
-                    "Koç",
-                    "Boğa",
-                    "İkizler",
-                    "Yengeç",
-                    "Aslan",
-                    "Başak",
-                    "Terazi",
-                    "Akrep",
-                    "Yay",
-                    "Oğlak",
-                    "Kova",
-                    "Balık",
-                ),
-            "en" to
-                listOf(
-                    "Aries",
-                    "Taurus",
-                    "Gemini",
-                    "Cancer",
-                    "Leo",
-                    "Virgo",
-                    "Libra",
-                    "Scorpio",
-                    "Sagittarius",
-                    "Capricorn",
-                    "Aquarius",
-                    "Pisces",
-                ),
-            "es" to
-                listOf(
-                    "Aries",
-                    "Tauro",
-                    "Géminis",
-                    "Cáncer",
-                    "Leo",
-                    "Virgo",
-                    "Libra",
-                    "Escorpio",
-                    "Sagitario",
-                    "Capricornio",
-                    "Acuario",
-                    "Piscis",
-                ),
-            "pt" to
-                listOf(
-                    "Áries",
-                    "Touro",
-                    "Gêmeos",
-                    "Câncer",
-                    "Leão",
-                    "Virgem",
-                    "Libra",
-                    "Escorpião",
-                    "Sagitário",
-                    "Capricórnio",
-                    "Aquário",
-                    "Peixes",
-                ),
-            "de" to
-                listOf(
-                    "Widder",
-                    "Stier",
-                    "Zwillinge",
-                    "Krebs",
-                    "Löwe",
-                    "Jungfrau",
-                    "Waage",
-                    "Skorpion",
-                    "Schütze",
-                    "Steinbock",
-                    "Wassermann",
-                    "Fische",
-                ),
-            "fr" to
-                listOf(
-                    "Bélier",
-                    "Taureau",
-                    "Gémeaux",
-                    "Cancer",
-                    "Lion",
-                    "Vierge",
-                    "Balance",
-                    "Scorpion",
-                    "Sagittaire",
-                    "Capricorne",
-                    "Verseau",
-                    "Poissons",
-                ),
+            ZodiacSign.ARIES to "Koç|Aries|Aries|Áries|Widder|Bélier",
+            ZodiacSign.TAURUS to "Boğa|Taurus|Tauro|Touro|Stier|Taureau",
+            ZodiacSign.GEMINI to "İkizler|Gemini|Géminis|Gêmeos|Zwillinge|Gémeaux",
+            ZodiacSign.CANCER to "Yengeç|Cancer|Cáncer|Câncer|Krebs|Cancer",
+            ZodiacSign.LEO to "Aslan|Leo|Leo|Leão|Löwe|Lion",
+            ZodiacSign.VIRGO to "Başak|Virgo|Virgo|Virgem|Jungfrau|Vierge",
+            ZodiacSign.LIBRA to "Terazi|Libra|Libra|Libra|Waage|Balance",
+            ZodiacSign.SCORPIO to "Akrep|Scorpio|Escorpio|Escorpião|Skorpion|Scorpion",
+            ZodiacSign.SAGITTARIUS to "Yay|Sagittarius|Sagitario|Sagitário|Schütze|Sagittaire",
+            ZodiacSign.CAPRICORN to "Oğlak|Capricorn|Capricornio|Capricórnio|Steinbock|Capricorne",
+            ZodiacSign.AQUARIUS to "Kova|Aquarius|Acuario|Aquário|Wassermann|Verseau",
+            ZodiacSign.PISCES to "Balık|Pisces|Piscis|Peixes|Fische|Poissons",
         )
 
     @Test fun allSignsHaveUserFacingNamesInSixLanguages() {
-        assertThat(ZodiacSign.entries).hasSize(12)
-        for ((language, names) in expectedNames) {
-            assertThat(names).hasSize(ZodiacSign.entries.size)
-            for ((sign, expectedName) in ZodiacSign.entries.zip(names)) {
+        val languages = listOf("tr", "en", "es", "pt", "de", "fr")
+        assertThat(expectedNames.keys).containsExactlyElementsIn(ZodiacSign.entries)
+        for ((sign, translations) in expectedNames) {
+            val names = translations.split('|')
+            assertThat(names).hasSize(languages.size)
+            for ((language, expectedName) in languages.zip(names)) {
                 assertThat(sign.localizedName(language)).isEqualTo(expectedName)
                 assertThat(ZodiacSign.fromKey(sign.key)).isEqualTo(sign)
             }
