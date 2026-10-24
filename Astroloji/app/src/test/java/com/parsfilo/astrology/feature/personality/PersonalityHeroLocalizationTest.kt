@@ -26,13 +26,21 @@ class PersonalityHeroLocalizationTest {
     @get:Rule val rule = createComposeRule()
 
     @Test fun allSignsHaveUserFacingNamesInSixLanguages() {
-        val languages = listOf("tr", "en", "es", "pt", "de", "fr")
+        // Independent expectations, in ZodiacSign enum order; catches wrong-language fallbacks.
+        val expectedNames =
+            mapOf(
+                "tr" to listOf("Koç", "Boğa", "İkizler", "Yengeç", "Aslan", "Başak", "Terazi", "Akrep", "Yay", "Oğlak", "Kova", "Balık"),
+                "en" to listOf("Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"),
+                "es" to listOf("Aries", "Tauro", "Géminis", "Cáncer", "Leo", "Virgo", "Libra", "Escorpio", "Sagitario", "Capricornio", "Acuario", "Piscis"),
+                "pt" to listOf("Áries", "Touro", "Gêmeos", "Câncer", "Leão", "Virgem", "Libra", "Escorpião", "Sagitário", "Capricórnio", "Aquário", "Peixes"),
+                "de" to listOf("Widder", "Stier", "Zwillinge", "Krebs", "Löwe", "Jungfrau", "Waage", "Skorpion", "Schütze", "Steinbock", "Wassermann", "Fische"),
+                "fr" to listOf("Bélier", "Taureau", "Gémeaux", "Cancer", "Lion", "Vierge", "Balance", "Scorpion", "Sagittaire", "Capricorne", "Verseau", "Poissons"),
+            )
         assertThat(ZodiacSign.entries).hasSize(12)
-        for (language in languages) {
-            for (sign in ZodiacSign.entries) {
-                val title = sign.localizedName(language)
-                assertThat(title).isNotEmpty()
-                assertThat(title).isNotEqualTo(sign.key)
+        for ((language, names) in expectedNames) {
+            assertThat(names).hasSize(ZodiacSign.entries.size)
+            for ((sign, expectedName) in ZodiacSign.entries.zip(names)) {
+                assertThat(sign.localizedName(language)).isEqualTo(expectedName)
                 assertThat(ZodiacSign.fromKey(sign.key)).isEqualTo(sign)
             }
         }
