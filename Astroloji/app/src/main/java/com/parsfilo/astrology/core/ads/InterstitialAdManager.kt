@@ -31,10 +31,12 @@ class InterstitialAdManager
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
+        private val loadRetryGate = AdLoadRetryGate()
         private var interstitialAd: InterstitialAd? = null
 
         fun preload() {
-            if (isLoading || interstitialAd != null || !consentManager.canRequestAds) return
+            val canStartPreload = !isLoading && interstitialAd == null && consentManager.canRequestAds
+            if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
             InterstitialAd.load(
                 context,
@@ -44,12 +46,14 @@ class InterstitialAdManager
                     override fun onAdLoaded(ad: InterstitialAd) {
                         interstitialAd = ad
                         isLoading = false
+                        loadRetryGate.recordSuccess()
                         Timber.d("Interstitial ad loaded")
                     }
 
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         interstitialAd = null
                         isLoading = false
+                        loadRetryGate.recordFailure()
                         Timber.w("Interstitial ad failed: %s", error.message)
                     }
                 },

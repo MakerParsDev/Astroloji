@@ -29,12 +29,14 @@ class AppOpenAdManager
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
+        private val loadRetryGate = AdLoadRetryGate()
         private var isShowing = false
         private var loadTime = 0L
         private var appOpenAd: AppOpenAd? = null
 
         fun preload() {
-            if (isLoading || isAdAvailable() || !consentManager.canRequestAds) return
+            val canStartPreload = !isLoading && !isAdAvailable() && consentManager.canRequestAds
+            if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
             AppOpenAd.load(
                 context,
@@ -44,6 +46,7 @@ class AppOpenAdManager
                     override fun onAdLoaded(ad: AppOpenAd) {
                         appOpenAd = ad
                         isLoading = false
+                        loadRetryGate.recordSuccess()
                         loadTime = System.currentTimeMillis()
                         Timber.d("App open ad loaded")
                     }
@@ -51,6 +54,7 @@ class AppOpenAdManager
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         appOpenAd = null
                         isLoading = false
+                        loadRetryGate.recordFailure()
                         Timber.w("App open ad failed: %s", error.message)
                     }
                 },
