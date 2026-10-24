@@ -10,6 +10,8 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.platform.app.InstrumentationRegistry
+import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.repository.PaywallVariant
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import org.junit.Rule
@@ -52,10 +54,15 @@ class PremiumPlanSelectionTest {
             }
         }
 
-        composeRule.onNodeWithText("Monthly").assertIsSelected()
-        composeRule.onNodeWithText("Yearly").assertIsNotSelected()
-        composeRule.onNodeWithText("Yearly").performClick()
-        composeRule.onNodeWithText("Monthly").assertIsNotSelected()
-        composeRule.onNodeWithText("Yearly").assertIsSelected()
+        // PremiumPlanSelector displays localized cadence resources, not plan.title.
+        // Resolve them from the current device locale (e.g. Aylık/Yıllık in Turkish).
+        val resources = InstrumentationRegistry.getInstrumentation().targetContext.resources
+        val monthlyLabel = resources.getString(R.string.premium_monthly_label)
+        val yearlyLabel = resources.getString(R.string.premium_yearly_label)
+        composeRule.onNodeWithText(monthlyLabel).assertIsSelected()
+        composeRule.onNodeWithText(yearlyLabel).assertIsNotSelected()
+        composeRule.onNodeWithText(yearlyLabel).performClick()
+        composeRule.onNodeWithText(monthlyLabel).assertIsNotSelected()
+        composeRule.onNodeWithText(yearlyLabel).assertIsSelected()
     }
 }
