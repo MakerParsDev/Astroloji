@@ -61,8 +61,11 @@ class DailyScoreLargeFontTest {
         }
     }
 
-    private fun assertScoreLabelsAndValuesDoNotOverlap(language: String) {
-        for ((label, score) in listOf("LOVE" to 73, "WORK" to 82, "MONEY" to 64, "HEALTH" to 85)) {
+    private fun assertScoreLabelsAndValuesDoNotOverlap(
+        language: String,
+        labels: List<String> = listOf("LOVE", "WORK", "MONEY", "HEALTH"),
+    ) {
+        for ((label, score) in labels.zip(listOf(73, 82, 64, 85))) {
             val labelBounds = rule.onNodeWithText(label).fetchSemanticsNode().boundsInRoot
             val valueBounds =
                 rule
@@ -91,9 +94,17 @@ class DailyScoreLargeFontTest {
         assertThat(firstScoreTop).isGreaterThan(energyBottom)
     }
 
-    @Test fun turkishPercentageFormatAt320dpAnd200PercentRemainsIntact() {
+    @Test
+    @Config(qualifiers = "tr-rTR")
+    fun turkishPercentageFormatAt320dpAnd200PercentRemainsIntact() {
         render(fontScale = 2f, widthDp = 320, language = "tr")
-        assertScoreLabelsAndValuesDoNotOverlap("tr")
+        val turkishLabels = listOf("AŞK", "İŞ", "PARA", "SAĞLIK")
+        for (label in turkishLabels) {
+            rule.onNodeWithText(label).assertExists()
+        }
+        // This literal assertion catches formatter/card wiring regressions independently.
+        rule.onNodeWithText("%85").assertExists()
+        assertScoreLabelsAndValuesDoNotOverlap("tr", turkishLabels)
     }
 
     @Test fun normalScaleKeepsEnergyAndScoresSideBySide() {
