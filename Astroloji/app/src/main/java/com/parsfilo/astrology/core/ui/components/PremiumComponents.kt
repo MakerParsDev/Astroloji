@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -134,11 +135,9 @@ fun PremiumHeroCard(
                 ).padding(22.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            // Reflow at large system text sizes so the title keeps the full card width.
+            val largeText = LocalDensity.current.fontScale >= 1.5f
+            val symbolContent: @Composable () -> Unit = {
                 Box(
                     modifier =
                         Modifier
@@ -162,8 +161,10 @@ fun PremiumHeroCard(
                         )
                     }
                 }
+            }
+            val detailContent: @Composable (Modifier) -> Unit = { detailModifier ->
                 Column(
-                    modifier = Modifier.weight(1f),
+                    modifier = detailModifier,
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     Text(
@@ -183,6 +184,24 @@ fun PremiumHeroCard(
                             color = Starlight.copy(alpha = 0.72f),
                         )
                     }
+                }
+            }
+            if (largeText) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    symbolContent()
+                    detailContent(Modifier.fillMaxWidth())
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    symbolContent()
+                    detailContent(Modifier.weight(1f))
                 }
             }
             supportingText?.takeIf(String::isNotBlank)?.let {

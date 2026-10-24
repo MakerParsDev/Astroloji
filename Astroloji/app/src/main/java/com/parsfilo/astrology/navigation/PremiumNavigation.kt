@@ -14,7 +14,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+
+// Four equally sized tabs cannot fit long translations at 200% font scaling.
+private const val ICON_ONLY_FONT_SCALE = 1.5f
 
 internal data class PremiumNavigationItem(
     val label: String,
@@ -28,6 +32,7 @@ internal fun PremiumNavigationBar(
     items: List<PremiumNavigationItem>,
     modifier: Modifier = Modifier,
 ) {
+    val iconOnly = LocalDensity.current.fontScale >= ICON_ONLY_FONT_SCALE
     Box(
         modifier =
             modifier
@@ -51,8 +56,14 @@ internal fun PremiumNavigationBar(
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
-                    icon = { Icon(item.icon, contentDescription = null) },
-                    label = { Text(item.label, style = MaterialTheme.typography.labelSmall) },
+                    // Preserve the full localized destination label for TalkBack in icon-only mode.
+                    icon = { Icon(item.icon, contentDescription = if (iconOnly) item.label else null) },
+                    label =
+                        if (iconOnly) {
+                            null
+                        } else {
+                            { Text(item.label, style = MaterialTheme.typography.labelSmall) }
+                        },
                 )
             }
         }
