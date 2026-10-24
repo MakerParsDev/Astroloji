@@ -1,7 +1,7 @@
 package com.parsfilo.astrology.navigation
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Home
@@ -27,11 +27,14 @@ import org.robolectric.annotation.Config
 class PremiumNavigationLargeFontTest {
     @get:Rule val rule = createComposeRule()
 
-    private fun render(fontScale: Float) {
+    private fun render(
+        fontScale: Float,
+        widthDp: Int = 400,
+    ) {
         rule.setContent {
             CompositionLocalProvider(LocalDensity provides Density(density = 1f, fontScale = fontScale)) {
                 AstrolojiTheme(darkTheme = false) {
-                    Box(Modifier.width(320.dp)) {
+                    Box(Modifier.requiredWidth(widthDp.dp)) {
                         PremiumNavigationBar(
                             listOf(
                                 PremiumNavigationItem("Home", Icons.Outlined.Home, true, {}),
@@ -54,8 +57,16 @@ class PremiumNavigationLargeFontTest {
         }
     }
 
+    @Test fun compact320dpNavigationHasAccessibleIconLabelsAtNormalFontScale() {
+        render(1f, widthDp = 320)
+        for (name in listOf("Home", "Compatibility", "Profile", "Premium")) {
+            rule.onNodeWithContentDescription(name, useUnmergedTree = true).assertExists()
+            rule.onNodeWithText(name, useUnmergedTree = true).assertDoesNotExist()
+        }
+    }
+
     @Test fun normalTextScaleRetainsVisibleLabels() {
-        render(1f)
+        render(1f, widthDp = 400)
         for (name in listOf("Home", "Compatibility", "Profile", "Premium")) {
             rule.onNodeWithText(name, useUnmergedTree = true).assertExists()
         }
