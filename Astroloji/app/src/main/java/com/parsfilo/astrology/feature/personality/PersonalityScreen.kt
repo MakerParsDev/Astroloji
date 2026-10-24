@@ -27,6 +27,9 @@ import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
 import com.parsfilo.astrology.core.util.ZodiacSign
 
+// The route's sign is loaded by the ViewModel from SavedStateHandle.
+// Keep the public composable parameter for navigation callers.
+@Suppress("UnusedParameter", "FunctionNaming", "LongMethod")
 @Composable
 fun PersonalityScreen(
     sign: String,
@@ -108,6 +111,7 @@ fun PersonalityScreen(
     }
 }
 
+@Suppress("FunctionNaming")
 @Composable
 internal fun PersonalityHero(report: PersonalityReport) {
     val sign = ZodiacSign.fromKey(report.sign)
