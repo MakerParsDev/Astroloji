@@ -2,6 +2,7 @@ package com.parsfilo.astrology.core.ads
 
 import android.app.Activity
 import android.content.Context
+import android.os.SystemClock
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
@@ -17,8 +18,6 @@ import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private const val APP_OPEN_TIMEOUT_MS = 4 * 60 * 60 * 1000L
-
 @Singleton
 class AppOpenAdManager
     @Inject
@@ -31,7 +30,7 @@ class AppOpenAdManager
         private var isLoading = false
         private val loadRetryGate = AdLoadRetryGate()
         private var isShowing = false
-        private var loadTime = 0L
+        private var loadElapsedRealtimeMs = 0L
         private var appOpenAd: AppOpenAd? = null
 
         fun preload() {
@@ -47,7 +46,7 @@ class AppOpenAdManager
                         appOpenAd = ad
                         isLoading = false
                         loadRetryGate.recordSuccess()
-                        loadTime = System.currentTimeMillis()
+                        loadElapsedRealtimeMs = SystemClock.elapsedRealtime()
                         Timber.d("App open ad loaded")
                     }
 
@@ -114,5 +113,10 @@ class AppOpenAdManager
             return true
         }
 
-        private fun isAdAvailable(): Boolean = appOpenAd != null && (System.currentTimeMillis() - loadTime) < APP_OPEN_TIMEOUT_MS
+        private fun isAdAvailable(): Boolean =
+            appOpenAd != null &&
+                isFreshAppOpenAd(
+                    loadedAtElapsedMs = loadElapsedRealtimeMs,
+                    nowElapsedMs = SystemClock.elapsedRealtime(),
+                )
     }
