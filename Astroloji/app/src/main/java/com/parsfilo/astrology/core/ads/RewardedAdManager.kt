@@ -67,8 +67,11 @@ class RewardedAdManager
             onRewardEarned: (RewardItem) -> Unit,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            // Consent can change after preload. Never show an old ad if revoked.
+            val consentAllowed = consentManager.canRequestAds
             val ad =
-                rewardedAd ?: run {
+                rewardedAd.takeIf { consentAllowed } ?: run {
+                    if (!consentAllowed) rewardedAd = null
                     preload()
                     return false
                 }
