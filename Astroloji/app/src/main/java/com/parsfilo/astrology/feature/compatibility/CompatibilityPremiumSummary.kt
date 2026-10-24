@@ -27,6 +27,7 @@ import com.parsfilo.astrology.core.domain.model.CompatibilityReport
 import com.parsfilo.astrology.core.ui.components.PremiumGlassCard
 import com.parsfilo.astrology.core.ui.components.PremiumMetricRing
 import com.parsfilo.astrology.core.ui.components.PremiumPill
+import com.parsfilo.astrology.core.ui.components.ZodiacIcon
 import com.parsfilo.astrology.core.util.ZodiacSign
 
 @Suppress("LongMethod")
@@ -122,9 +123,10 @@ private fun PremiumCompatibilitySign(
                     ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = sign.symbol,
-                    style = MaterialTheme.typography.headlineMedium,
+                ZodiacIcon(
+                    sign = sign,
+                    modifier = Modifier.size(30.dp),
+                    tint = MaterialTheme.colorScheme.primary,
                 )
             }
         }

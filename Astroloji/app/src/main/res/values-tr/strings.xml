@@ -50,7 +50,6 @@
     <string name="onboarding_birthdate_placeholder">Henüz tarih seçilmedi</string>
     <string name="onboarding_birthdate_action">Doğum tarihini seç</string>
     <string name="onboarding_detected_sign_label">Önerilen burç</string>
-    <string name="onboarding_detected_sign_value">%1$s %2$s</string>
     <string name="onboarding_show_manual_selection">Farklı bir burç elle seç</string>
     <string name="onboarding_hide_manual_selection">Önerilen burcu kullan</string>
     <string name="onboarding_manual_selection_title">Manuel burç seçimi</string>

@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.ui.theme.CosmicPurple
 import com.parsfilo.astrology.ui.theme.Midnight800
 import com.parsfilo.astrology.ui.theme.Midnight900
@@ -149,11 +151,16 @@ fun PremiumHeroCard(
                             ).border(1.dp, WarmGold.copy(alpha = 0.46f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = symbol,
-                        style = MaterialTheme.typography.displayMedium,
-                        color = SoftGold,
-                    )
+                    val zodiacSign = remember(symbol) { ZodiacSign.entries.firstOrNull { it.symbol == symbol } }
+                    if (zodiacSign != null) {
+                        ZodiacIcon(sign = zodiacSign, modifier = Modifier.size(48.dp), tint = SoftGold)
+                    } else {
+                        Text(
+                            text = symbol,
+                            style = MaterialTheme.typography.displayMedium,
+                            color = SoftGold,
+                        )
+                    }
                 }
                 Column(
                     modifier = Modifier.weight(1f),

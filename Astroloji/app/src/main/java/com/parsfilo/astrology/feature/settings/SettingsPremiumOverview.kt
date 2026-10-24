@@ -6,9 +6,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -23,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
 import com.parsfilo.astrology.core.ui.components.PremiumSectionHeader
+import com.parsfilo.astrology.core.ui.components.ZodiacIcon
 import com.parsfilo.astrology.core.util.ZodiacSign
 
 @Composable
@@ -80,11 +84,18 @@ internal fun SettingsPremiumOverview(
                             },
                         ),
                 ) {
-                    Text(
-                        text = "${sign.symbol} ${sign.localizedName(language)}",
+                    Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ZodiacIcon(
+                            sign = sign,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(sign.localizedName(language), style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
         }

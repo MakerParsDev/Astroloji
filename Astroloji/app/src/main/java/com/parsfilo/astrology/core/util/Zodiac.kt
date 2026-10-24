@@ -58,7 +58,7 @@ enum class ZodiacSign(
         19,
         ZodiacElement.FIRE,
         "Mars",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_aries,
     ),
     TAURUS(
         "taurus",
@@ -75,7 +75,7 @@ enum class ZodiacSign(
         20,
         ZodiacElement.EARTH,
         "Venüs",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_taurus,
     ),
     GEMINI(
         "gemini",
@@ -92,7 +92,7 @@ enum class ZodiacSign(
         20,
         ZodiacElement.AIR,
         "Merkür",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_gemini,
     ),
     CANCER(
         "cancer",
@@ -109,7 +109,7 @@ enum class ZodiacSign(
         22,
         ZodiacElement.WATER,
         "Ay",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_cancer,
     ),
     LEO(
         "leo",
@@ -126,7 +126,7 @@ enum class ZodiacSign(
         22,
         ZodiacElement.FIRE,
         "Güneş",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_leo,
     ),
     VIRGO(
         "virgo",
@@ -143,7 +143,7 @@ enum class ZodiacSign(
         22,
         ZodiacElement.EARTH,
         "Merkür",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_virgo,
     ),
     LIBRA(
         "libra",
@@ -160,7 +160,7 @@ enum class ZodiacSign(
         22,
         ZodiacElement.AIR,
         "Venüs",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_libra,
     ),
     SCORPIO(
         "scorpio",
@@ -177,7 +177,7 @@ enum class ZodiacSign(
         21,
         ZodiacElement.WATER,
         "Plüton",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_scorpio,
     ),
     SAGITTARIUS(
         "sagittarius",
@@ -194,7 +194,7 @@ enum class ZodiacSign(
         21,
         ZodiacElement.FIRE,
         "Jüpiter",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_sagittarius,
     ),
     CAPRICORN(
         "capricorn",
@@ -211,7 +211,7 @@ enum class ZodiacSign(
         19,
         ZodiacElement.EARTH,
         "Satürn",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_capricorn,
     ),
     AQUARIUS(
         "aquarius",
@@ -228,7 +228,7 @@ enum class ZodiacSign(
         18,
         ZodiacElement.AIR,
         "Uranüs",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_aquarius,
     ),
     PISCES(
         "pisces",
@@ -245,7 +245,7 @@ enum class ZodiacSign(
         20,
         ZodiacElement.WATER,
         "Neptün",
-        R.drawable.ic_zodiac_generic,
+        R.drawable.ic_zodiac_pisces,
     ),
     ;
 

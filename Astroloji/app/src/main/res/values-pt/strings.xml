@@ -53,7 +53,6 @@
     <string name="onboarding_birthdate_placeholder">Nenhuma data selecionada ainda</string>
     <string name="onboarding_birthdate_action">Selecionar data de nascimento</string>
     <string name="onboarding_detected_sign_label">Signo sugerido</string>
-    <string name="onboarding_detected_sign_value">%1$s %2$s</string>
     <string name="onboarding_show_manual_selection">Escolher outro signo manualmente</string>
     <string name="onboarding_hide_manual_selection">Usar o signo sugerido</string>
     <string name="onboarding_manual_selection_title">Seleção manual de signo</string>
