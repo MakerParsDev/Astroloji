@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.R
+import com.parsfilo.astrology.core.domain.model.PersonalityReport
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
@@ -49,13 +50,7 @@ fun PersonalityScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             uiState.report?.let { report ->
-                val personalitySign = ZodiacSign.fromKey(report.sign)
-                PremiumHeroCard(
-                    symbol = personalitySign.symbol,
-                    eyebrow = personalitySign.localizedDateRange(report.language),
-                    title = personalitySign.localizedName(report.language),
-                    subtitle = "${report.element} • ${report.planet} • ${report.color}",
-                )
+                PersonalityHero(report)
                 Button(
                     onClick = { viewModel.onEvent(PersonalityUiEvent.ToggleFavorite) },
                     colors =
@@ -111,4 +106,15 @@ fun PersonalityScreen(
             uiState.error?.let { ErrorState(message = it, onRetry = {}) }
         }
     }
+}
+
+@Composable
+internal fun PersonalityHero(report: PersonalityReport) {
+    val sign = ZodiacSign.fromKey(report.sign)
+    PremiumHeroCard(
+        symbol = sign.symbol,
+        eyebrow = sign.localizedDateRange(report.language),
+        title = sign.localizedName(report.language),
+        subtitle = "${report.element} • ${report.planet} • ${report.color}",
+    )
 }
