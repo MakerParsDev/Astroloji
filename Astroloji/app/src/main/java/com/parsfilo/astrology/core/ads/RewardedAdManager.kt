@@ -36,10 +36,12 @@ class RewardedAdManager
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
+        private val loadRetryGate = AdLoadRetryGate()
         private var rewardedAd: RewardedAd? = null
 
         fun preload() {
-            if (isLoading || rewardedAd != null || !consentManager.canRequestAds) return
+            val canStartPreload = !isLoading && rewardedAd == null && consentManager.canRequestAds
+            if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
             RewardedAd.load(
                 context,
@@ -49,12 +51,14 @@ class RewardedAdManager
                     override fun onAdLoaded(ad: RewardedAd) {
                         rewardedAd = ad
                         isLoading = false
+                        loadRetryGate.recordSuccess()
                         Timber.d("Rewarded ad loaded")
                     }
 
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         rewardedAd = null
                         isLoading = false
+                        loadRetryGate.recordFailure()
                         Timber.w("Rewarded ad failed: %s", error.message)
                     }
                 },
