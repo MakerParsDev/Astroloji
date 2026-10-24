@@ -23,7 +23,7 @@ class RewardedAdSsvTest {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
         val consent = mockk<GoogleMobileAdsConsentManager>()
-        every { consent.canRequestAds } returns false
+        every { consent.canRequestAds } returns true
         val analytics = mockk<AnalyticsRepository>(relaxed = true)
         val manager = RewardedAdManager(mockk<Context>(relaxed = true), consent, analytics)
         val callback = slot<FullScreenContentCallback>()
@@ -52,6 +52,8 @@ class RewardedAdSsvTest {
 
         assertThat(shown).isTrue()
         verify(exactly = 1) { ad.show(activity, any<OnUserEarnedRewardListener>()) }
+        // Prevent a fresh SDK load in this JVM-only lifecycle test.
+        every { consent.canRequestAds } returns false
         callback.captured.onAdDismissedFullScreenContent()
         assertThat(dismissalCount).isEqualTo(1)
         assertThat(rewardCount).isEqualTo(0)
@@ -62,7 +64,7 @@ class RewardedAdSsvTest {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
         val consent = mockk<GoogleMobileAdsConsentManager>()
-        every { consent.canRequestAds } returns false
+        every { consent.canRequestAds } returns true
         val manager =
             RewardedAdManager(
                 mockk<Context>(relaxed = true),
@@ -90,8 +92,44 @@ class RewardedAdSsvTest {
         assertThat(rewardCount).isEqualTo(0)
         rewardListener.captured.onUserEarnedReward(reward)
         assertThat(rewardCount).isEqualTo(1)
+        // Simulate consent changing before the automatic next preload.
+        every { consent.canRequestAds } returns false
         callback.captured.onAdDismissedFullScreenContent()
         assertThat(rewardCount).isEqualTo(1)
+    }
+
+    @Test
+    fun revokedConsentDiscardsPreloadedAdWithoutRewardOrSsvSetup() {
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>()
+        every { consent.canRequestAds } returns false
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
+            isAccessible = true
+            set(manager, ad)
+        }
+        var rewardCount = 0
+
+        val shown =
+            manager.showIfAvailable(
+                activity,
+                RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                onRewardEarned = { rewardCount++ },
+            )
+
+        assertThat(shown).isFalse()
+        assertThat(rewardCount).isEqualTo(0)
+        verify(exactly = 0) { ad.show(any<Activity>(), any<OnUserEarnedRewardListener>()) }
+        verify(exactly = 0) { ad.setServerSideVerificationOptions(any()) }
+        val cachedAdField = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
+        cachedAdField.isAccessible = true
+        assertThat(cachedAdField.get(manager)).isNull()
     }
 
     @Test
