@@ -3,7 +3,7 @@
 package com.parsfilo.astrology.navigation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,13 +32,15 @@ internal fun PremiumNavigationBar(
     items: List<PremiumNavigationItem>,
     modifier: Modifier = Modifier,
 ) {
-    val iconOnly = LocalDensity.current.fontScale >= ICON_ONLY_FONT_SCALE
-    Box(
+    BoxWithConstraints(
         modifier =
             modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)),
     ) {
+        // The reported font scale alone cannot guarantee enough room for long labels.
+        // Also use the real available width so narrow four-tab bars never wrap long labels.
+        val iconOnly = LocalDensity.current.fontScale >= ICON_ONLY_FONT_SCALE || maxWidth < 360.dp
         NavigationBar(
             modifier = Modifier.fillMaxWidth(),
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
