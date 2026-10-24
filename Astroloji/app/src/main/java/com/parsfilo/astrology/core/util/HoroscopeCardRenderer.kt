@@ -9,6 +9,7 @@ import android.graphics.RectF
 import android.graphics.Shader
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.graphics.createBitmap
 import com.parsfilo.astrology.core.domain.model.DailyHoroscope
@@ -17,6 +18,10 @@ import java.io.FileOutputStream
 import kotlin.math.min
 
 object HoroscopeCardRenderer {
+    private const val ZODIAC_ICON_SIZE_PX = 180
+    private const val ZODIAC_ICON_RIGHT_INSET_PX = 110
+    private const val ZODIAC_ICON_TOP_PX = 70
+
     fun renderDailyCard(
         context: Context,
         horoscope: DailyHoroscope,
@@ -75,13 +80,6 @@ object HoroscopeCardRenderer {
                 color = Color.White.copy(alpha = 0.82f).toArgb()
                 textSize = 40f
             }
-        val symbolPaint =
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.White.copy(alpha = 0.92f).toArgb()
-                textSize = 184f
-                textAlign = Paint.Align.RIGHT
-                isFakeBoldText = true
-            }
         val bodyPaint =
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.White.copy(alpha = 0.96f).toArgb()
@@ -98,7 +96,18 @@ object HoroscopeCardRenderer {
 
         canvas.drawText(signLabel, 110f, 190f, titlePaint)
         canvas.drawText(TimeUtils.displayDate(language), 110f, 246f, captionPaint)
-        canvas.drawText(sign.symbol, width - 110f, 210f, symbolPaint)
+        // Share assets use the same bundled vector as the app, not device emoji fonts.
+        ContextCompat.getDrawable(context, sign.iconRes)?.mutate()?.apply {
+            setTint(Color.White.copy(alpha = 0.92f).toArgb())
+            val right = width - ZODIAC_ICON_RIGHT_INSET_PX
+            setBounds(
+                right - ZODIAC_ICON_SIZE_PX,
+                ZODIAC_ICON_TOP_PX,
+                right,
+                ZODIAC_ICON_TOP_PX + ZODIAC_ICON_SIZE_PX,
+            )
+            draw(canvas)
+        }
 
         drawWrappedText(
             canvas = canvas,

@@ -12,11 +12,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -59,6 +61,7 @@ import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.ZodiacChip
+import com.parsfilo.astrology.core.ui.components.ZodiacIcon
 import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
 import kotlinx.coroutines.launch
@@ -439,15 +442,17 @@ private fun DetectedSignCard(
             text = stringResource(R.string.onboarding_detected_sign_label),
             style = MaterialTheme.typography.titleMedium,
         )
-        Text(
-            text =
-                stringResource(
-                    R.string.onboarding_detected_sign_value,
-                    sign.localizedName(language),
-                    sign.symbol,
-                ),
-            style = MaterialTheme.typography.bodyLarge,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ZodiacIcon(
+                sign = sign,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(sign.localizedName(language), style = MaterialTheme.typography.bodyLarge)
+        }
         Text(
             text = sign.localizedDateRange(language),
             style = MaterialTheme.typography.bodyMedium,

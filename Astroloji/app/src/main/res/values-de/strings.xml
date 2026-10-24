@@ -50,7 +50,6 @@
     <string name="onboarding_birthdate_placeholder">Noch kein Datum ausgewählt</string>
     <string name="onboarding_birthdate_action">Geburtsdatum auswählen</string>
     <string name="onboarding_detected_sign_label">Vorgeschlagenes Sternzeichen</string>
-    <string name="onboarding_detected_sign_value">%1$s %2$s</string>
     <string name="onboarding_show_manual_selection">Ein anderes Sternzeichen manuell auswählen</string>
     <string name="onboarding_hide_manual_selection">Vorgeschlagenes Sternzeichen verwenden</string>
     <string name="onboarding_manual_selection_title">Manuelle Auswahl des Sternzeichens</string>

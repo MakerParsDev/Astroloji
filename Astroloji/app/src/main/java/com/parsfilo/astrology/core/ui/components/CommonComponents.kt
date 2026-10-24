@@ -275,7 +275,11 @@ fun ZodiacChip(
                     .background(Color.White.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = sign.symbol, style = MaterialTheme.typography.titleLarge)
+            ZodiacIcon(
+                sign = sign,
+                modifier = Modifier.size(30.dp),
+                tint = if (selected) Color.White else MaterialTheme.colorScheme.primary,
+            )
         }
         Text(
             text = sign.localizedName(language),

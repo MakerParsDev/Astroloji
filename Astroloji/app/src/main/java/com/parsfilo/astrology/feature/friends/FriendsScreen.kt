@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +33,7 @@ import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumGoldButton
+import com.parsfilo.astrology.core.ui.components.ZodiacIcon
 
 @Composable
 fun FriendsScreen(
@@ -168,10 +170,17 @@ private fun FriendRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "${friend.sign.symbol} ${friend.sign.localizedName(friend.language)}",
-            style = MaterialTheme.typography.bodyLarge,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ZodiacIcon(
+                sign = friend.sign,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(friend.sign.localizedName(friend.language), style = MaterialTheme.typography.bodyLarge)
+        }
         TextButton(onClick = onRemove) {
             Text(stringResource(R.string.friends_remove_cta))
         }
