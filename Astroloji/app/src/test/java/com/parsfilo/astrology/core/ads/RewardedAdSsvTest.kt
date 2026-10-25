@@ -2,6 +2,7 @@ package com.parsfilo.astrology.core.ads
 
 import android.app.Activity
 import android.content.Context
+import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.OnUserEarnedRewardListener
 import com.google.android.gms.ads.rewarded.RewardItem
@@ -57,6 +58,47 @@ class RewardedAdSsvTest {
         callback.captured.onAdDismissedFullScreenContent()
         assertThat(dismissalCount).isEqualTo(1)
         assertThat(rewardCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `failed to show an ad dismisses safely without granting any reward`() {
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>()
+        every { consent.canRequestAds } returns true
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        val callback = slot<FullScreenContentCallback>()
+        every { ad.fullScreenContentCallback = capture(callback) } just Runs
+        every { ad.show(activity, any<OnUserEarnedRewardListener>()) } just Runs
+        RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
+            isAccessible = true
+            set(manager, ad)
+        }
+        var rewardCount = 0
+        var dismissedCount = 0
+
+        assertThat(
+            manager.showIfAvailable(
+                activity = activity,
+                request = RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                onRewardEarned = { rewardCount++ },
+                onDismissed = { dismissedCount++ },
+            ),
+        ).isTrue()
+
+        // A show failure has no earned-reward callback, so it must never
+        // trigger a claim. Revoke consent to avoid a real SDK preload.
+        every { consent.canRequestAds } returns false
+        callback.captured.onAdFailedToShowFullScreenContent(mockk<AdError>(relaxed = true))
+
+        assertThat(dismissedCount).isEqualTo(1)
+        assertThat(rewardCount).isEqualTo(0)
+        verify(exactly = 1) { ad.show(activity, any<OnUserEarnedRewardListener>()) }
     }
 
     @Test
