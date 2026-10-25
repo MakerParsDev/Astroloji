@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.CircularProgressIndicator
@@ -20,11 +23,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,7 +52,14 @@ fun ChatScreen(
     CosmicBackground(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             ChatHeader(balance = uiState.balance)
+            val chatListState = rememberLazyListState()
+            LaunchedEffect(uiState.messages.size) {
+                if (uiState.messages.isNotEmpty()) {
+                    chatListState.animateScrollToItem(uiState.messages.lastIndex)
+                }
+            }
             LazyColumn(
+                state = chatListState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -109,7 +123,7 @@ private fun ChatBubble(turn: ChatTurn) {
 }
 
 @Composable
-private fun ChatInputBar(
+internal fun ChatInputBar(
     input: String,
     isSending: Boolean,
     onInputChanged: (String) -> Unit,
@@ -124,8 +138,16 @@ private fun ChatInputBar(
             value = input,
             onValueChange = onInputChanged,
             placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).testTag("chat-input"),
             enabled = !isSending,
+            minLines = 1,
+            maxLines = 4,
+            keyboardOptions =
+                KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    imeAction = ImeAction.Send,
+                ),
+            keyboardActions = KeyboardActions(onSend = { if (input.isNotBlank() && !isSending) onSend() }),
         )
         if (isSending) {
             CircularProgressIndicator(modifier = Modifier.padding(8.dp))
