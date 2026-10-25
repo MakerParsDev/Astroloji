@@ -30,7 +30,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -53,7 +52,6 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
-import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "FunctionNaming", "LongParameterList")
@@ -90,7 +88,6 @@ fun SettingsScreen(
     val consentManager = adsEntryPoint(context).consentManager()
     val privacyOptionsRequired by consentManager.privacyOptionsRequired.collectAsStateWithLifecycle()
     val activity = context as? Activity
-    val coroutineScope = rememberCoroutineScope()
     val appLanguage =
         com.parsfilo.astrology.core.util.TimeUtils
             .normalizeLanguageTag(configuration.locales[0].language)
@@ -358,25 +355,17 @@ fun SettingsScreen(
                 )
                 SettingsAboutRow(stringResource(R.string.settings_privacy), "↗")
                 if (privacyOptionsRequired && activity != null) {
-                    OutlinedButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                val error = consentManager.showPrivacyOptionsForm(activity)
-                                if (error != null) {
-                                    val toast =
-                                        Toast.makeText(
-                                            context,
-                                            R.string.settings_privacy_options_error,
-                                            Toast.LENGTH_LONG,
-                                        )
-                                    toast.show()
-                                }
-                            }
+                    PrivacyOptionsButton(
+                        onShowForm = { consentManager.showPrivacyOptionsForm(activity) == null },
+                        onFormError = {
+                            Toast
+                                .makeText(
+                                    context,
+                                    R.string.settings_privacy_options_error,
+                                    Toast.LENGTH_LONG,
+                                ).show()
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.settings_manage_ad_privacy))
-                    }
+                    )
                 }
                 SettingsAboutRow(stringResource(R.string.settings_contact), "↗")
                 OutlinedButton(onClick = { viewModel.onEvent(SettingsUiEvent.RestorePurchase) }) {
