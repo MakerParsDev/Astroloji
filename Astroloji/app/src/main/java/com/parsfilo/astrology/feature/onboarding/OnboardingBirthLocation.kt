@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -21,7 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
@@ -93,7 +99,10 @@ private fun CitySearchField(
         ) {
             Text(
                 text = "${selectedCity.name}, ${selectedCity.country}",
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
             TextButton(onClick = onClearCity) {
                 Text(stringResource(R.string.onboarding_city_change))
@@ -116,16 +125,28 @@ private fun CitySearchField(
         )
     }
     citySuggestions.forEach { suggestion ->
-        Text(
-            text = "${suggestion.name}, ${suggestion.country}",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .clickable { onCitySelected(suggestion) }
-                    .padding(vertical = 8.dp),
-        )
+        CitySuggestionOption(suggestion, onCitySelected)
     }
+}
+
+@Composable
+internal fun CitySuggestionOption(
+    suggestion: CitySuggestion,
+    onCitySelected: (CitySuggestion) -> Unit,
+) {
+    Text(
+        text = "${suggestion.name}, ${suggestion.country}",
+        style = MaterialTheme.typography.bodyLarge,
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag("city-suggestion-${suggestion.id}")
+                .sizeIn(minHeight = 48.dp)
+                .clickable(
+                    role = Role.Button,
+                    onClick = { onCitySelected(suggestion) },
+                ).padding(vertical = 10.dp),
+    )
 }
 
 @Composable
@@ -136,17 +157,7 @@ private fun BirthTimeSection(
     onBirthTimeKnownChange: (Boolean) -> Unit,
     onBirthTimeChange: (Int, Int) -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.onboarding_birth_time_known_label),
-            style = MaterialTheme.typography.bodyLarge,
-        )
-        Switch(checked = birthTimeKnown, onCheckedChange = onBirthTimeKnownChange)
-    }
+    BirthTimeKnownToggle(birthTimeKnown, onBirthTimeKnownChange)
     if (!birthTimeKnown) {
         Text(
             text = stringResource(R.string.onboarding_birth_time_unknown_note),
@@ -164,6 +175,33 @@ private fun BirthTimeSection(
         onBirthTimeChange(timePickerState.hour, timePickerState.minute)
     }
     TimePicker(state = timePickerState, modifier = Modifier.fillMaxWidth())
+}
+
+@Composable
+internal fun BirthTimeKnownToggle(
+    birthTimeKnown: Boolean,
+    onBirthTimeKnownChange: (Boolean) -> Unit,
+) {
+    val label = stringResource(R.string.onboarding_birth_time_known_label)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Switch(
+            checked = birthTimeKnown,
+            onCheckedChange = onBirthTimeKnownChange,
+            modifier =
+                Modifier
+                    .testTag("birth-time-known-switch")
+                    .semantics { contentDescription = label },
+        )
+    }
 }
 
 @Composable
