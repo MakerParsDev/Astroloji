@@ -66,6 +66,11 @@ fun WeeklyScreen(
                             viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable(unavailableMessage))
                             return@collect
                         }
+                    // A previously prepared challenge does not bypass a fresh premium/UMP decision.
+                    if (!adsEntryPoint(context).adEligibilityChecker().canShowRewarded()) {
+                        viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable(unavailableMessage))
+                        return@collect
+                    }
                     val shown =
                         rewardedAdManager.showIfAvailable(
                             activity = hostActivity,

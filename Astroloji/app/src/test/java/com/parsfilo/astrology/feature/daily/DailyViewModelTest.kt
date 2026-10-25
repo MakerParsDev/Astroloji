@@ -216,6 +216,39 @@ class DailyViewModelTest {
         }
 
     @Test
+    fun `revoked reward eligibility before or after prepare cannot expose an ad`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            coEvery { contentRepository.prepareRewardUnlock("daily", any()) } returns
+                AppResult.Success(dailyRewardChallenge())
+
+            // Exercise both revocation before prepare and during its network response.
+            for (lostDuringPrepare in listOf(false, true)) {
+                coEvery { adEligibilityChecker.canShowRewarded() } returnsMany
+                    if (lostDuringPrepare) listOf(true, true, false) else listOf(true, false)
+                val viewModel =
+                    createViewModel()
+                advanceUntilIdle()
+                assertThat(viewModel.state.value.canUnlockWithReward).isTrue()
+
+                viewModel.onEvent(DailyUiEvent.UnlockWithReward)
+                advanceUntilIdle()
+
+                assertThat(viewModel.state.value.canUnlockWithReward).isFalse()
+                coVerify(exactly = if (lostDuringPrepare) 1 else 0) {
+                    contentRepository.prepareRewardUnlock("daily", any())
+                }
+                coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+            }
+        }
+
+    @Test
     fun `prepares SSV challenge before ad and claims only after reward callback`() =
         runTest {
             val locked = lockedDailyHoroscope()
