@@ -40,6 +40,7 @@ import com.parsfilo.astrology.core.data.local.MIGRATION_3_4
 import com.parsfilo.astrology.core.data.preferences.PreferencesKeys
 import com.parsfilo.astrology.core.data.preferences.userPreferencesDataStore
 import com.parsfilo.astrology.core.util.TimeUtils
+import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.ui.theme.MoonMist
 import com.parsfilo.astrology.ui.theme.SoftGold
 import com.parsfilo.astrology.ui.theme.Starlight
@@ -86,7 +87,7 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
                 personalizedLine
             } else {
                 val entity = database.dailyDao().get(sign, TimeUtils.dateIdentifier(), language)
-                entity?.toWidgetSnapshot(context) ?: fallbackWidgetSnapshot(context)
+                entity?.toWidgetSnapshot(context, sign) ?: fallbackWidgetSnapshot(context, sign)
             }
         } finally {
             database.close()
@@ -104,16 +105,22 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
         }
     }
 
-    private fun DailyHoroscopeEntity.toWidgetSnapshot(context: Context): WidgetSnapshot =
+    private fun DailyHoroscopeEntity.toWidgetSnapshot(
+        context: Context,
+        sign: String,
+    ): WidgetSnapshot =
         WidgetSnapshot(
-            title = context.getString(R.string.widget_daily_title),
+            title = dailyWidgetTitle(context, sign),
             body = short,
             energy = context.getString(R.string.widget_daily_energy, energy),
         )
 
-    private fun fallbackWidgetSnapshot(context: Context): WidgetSnapshot =
+    private fun fallbackWidgetSnapshot(
+        context: Context,
+        sign: String,
+    ): WidgetSnapshot =
         WidgetSnapshot(
-            title = context.getString(R.string.widget_daily_title),
+            title = dailyWidgetTitle(context, sign),
             body = context.getString(R.string.widget_daily_body),
             energy = context.getString(R.string.widget_daily_energy, FALLBACK_ENERGY_SCORE),
         )
@@ -175,6 +182,14 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
         key: Preferences.Key<String>,
         defaultValue: String,
     ): String = this[key] ?: defaultValue
+}
+
+internal fun dailyWidgetTitle(
+    context: Context,
+    selectedSignKey: String,
+): String {
+    val symbol = (ZodiacSign.fromKeyOrNull(selectedSignKey) ?: ZodiacSign.ARIES).symbol
+    return context.getString(R.string.widget_daily_title, symbol)
 }
 
 class DailyHoroscopeWidgetReceiver : GlanceAppWidgetReceiver() {

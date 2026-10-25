@@ -201,7 +201,7 @@
     <string name="session_error_open_failed_after_register">Kayıt tamamlandı ama oturum açılamadı.</string>
     <string name="notification_channel_daily_name">Günlük Burç Yorumu</string>
     <string name="notification_channel_daily_description">Günlük astroloji bildirimleri</string>
-    <string name="widget_daily_title">♈ Bugünün enerjisi</string>
+    <string name="widget_daily_title">%1$s Bugünün enerjisi</string>
     <string name="widget_daily_body">Yıldızlar seninle hizalanıyor.</string>
     <string name="widget_daily_energy">Enerji: %1$d</string>
     <string name="daily_title">Günlük yorum</string>
