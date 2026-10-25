@@ -1,6 +1,7 @@
 package com.parsfilo.astrology.core.ads
 
 import android.content.Context
+import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -17,6 +18,8 @@ interface AdsEntryPoint {
     fun interstitialAdManager(): InterstitialAdManager
 
     fun remoteConfigRepository(): RemoteConfigRepository
+
+    fun userPreferencesRepository(): UserPreferencesRepository
 
     fun rewardedAdManager(): RewardedAdManager
 
