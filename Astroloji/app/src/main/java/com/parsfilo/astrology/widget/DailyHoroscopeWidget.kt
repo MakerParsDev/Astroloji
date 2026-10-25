@@ -11,6 +11,7 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.ImageProvider
+import androidx.glance.LocalContext
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -45,6 +46,7 @@ import com.parsfilo.astrology.ui.theme.Starlight
 import kotlinx.coroutines.flow.first
 
 private const val FALLBACK_ENERGY_SCORE = 85
+private const val LARGE_WIDGET_FONT_SCALE = 1.5f
 
 class DailyHoroscopeWidget : GlanceAppWidget() {
     override suspend fun provideGlance(
@@ -122,6 +124,11 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
         body: String,
         energy: String?,
     ) {
+        // Glance has limited widget real estate: keep the primary text and
+        // the energy label visible instead of letting 2x system font scale
+        // push the bottom information outside the fixed 2x2 card.
+        val largeFont = LocalContext.current.resources.configuration.fontScale >= LARGE_WIDGET_FONT_SCALE
+        val labelSpacing = if (largeFont) 4.dp else 6.dp
         Column(
             modifier =
                 GlanceModifier
@@ -137,25 +144,25 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
                 style =
                     TextStyle(
                         color = ColorProvider(SoftGold),
-                        fontSize = 16.sp,
+                        fontSize = if (largeFont) 10.sp else 16.sp,
                         fontWeight = FontWeight.Bold,
                     ),
                 maxLines = 2,
             )
-            Spacer(GlanceModifier.height(6.dp))
+            Spacer(GlanceModifier.height(labelSpacing))
             Text(
                 body,
-                style = TextStyle(color = ColorProvider(Starlight), fontSize = 13.sp),
+                style = TextStyle(color = ColorProvider(Starlight), fontSize = if (largeFont) 10.sp else 13.sp),
                 maxLines = 3,
             )
             energy?.let {
-                Spacer(GlanceModifier.height(6.dp))
+                Spacer(GlanceModifier.height(labelSpacing))
                 Text(
                     it,
                     style =
                         TextStyle(
                             color = ColorProvider(MoonMist),
-                            fontSize = 12.sp,
+                            fontSize = if (largeFont) 9.sp else 12.sp,
                             fontWeight = FontWeight.Medium,
                         ),
                     maxLines = 1,
