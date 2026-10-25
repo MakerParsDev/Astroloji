@@ -67,6 +67,37 @@ class BillingManagerTest {
     }
 
     @Test
+    fun `credit checkout callback never falls through into premium even when empty or malformed`() {
+        val active = PendingBillingFlow.CREDITS
+        assertThat(resolveSuccessfulPurchaseFlow(active, emptyList())).isEqualTo(active)
+        assertThat(resolveSuccessfulPurchaseFlow(active, listOf(listOf("unknown_sku")))).isEqualTo(active)
+        assertThat(resolveSuccessfulPurchaseFlow(active, listOf(listOf("premium_yearly")))).isEqualTo(active)
+    }
+
+    @Test
+    fun `premium checkout callback never becomes credit purchase`() {
+        val active = PendingBillingFlow.PREMIUM
+        assertThat(resolveSuccessfulPurchaseFlow(active, emptyList())).isEqualTo(active)
+        assertThat(resolveSuccessfulPurchaseFlow(active, listOf(listOf("credits_small")))).isEqualTo(active)
+    }
+
+    @Test
+    fun `unsolicited recognized purchase is routed only when product family is unambiguous`() {
+        val inactive = PendingBillingFlow.NONE
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("credits_small"))))
+            .isEqualTo(PendingBillingFlow.CREDITS)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("premium_monthly"))))
+            .isEqualTo(PendingBillingFlow.PREMIUM)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, emptyList())).isEqualTo(PendingBillingFlow.NONE)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("unknown_sku"))))
+            .isEqualTo(PendingBillingFlow.NONE)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("credits_large"), listOf("premium_yearly"))))
+            .isEqualTo(PendingBillingFlow.NONE)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("credits_small", "premium_monthly"))))
+            .isEqualTo(PendingBillingFlow.NONE)
+    }
+
+    @Test
     fun `plan ids are stable across base plan and offer variants`() {
         assertThat(buildPlanId("premium_weekly", "weekly", "trial"))
             .isEqualTo("premium_weekly:weekly:trial")
