@@ -1,6 +1,7 @@
 package com.parsfilo.astrology.feature.premium
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -90,12 +91,36 @@ class PremiumPlanSelectionTest {
     }
 
     @Test
+    fun narrowPhoneAtDefaultFontStacksRatherThanCrampingPrices() {
+        val (monthly, yearly) = samplePlans()
+        composeRule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(density = 2f, fontScale = 1f)) {
+                MaterialTheme {
+                    Box(Modifier.width(248.dp)) {
+                        PremiumPlanSelector(
+                            plans = listOf(monthly, yearly),
+                            selectedPlanId = "monthly",
+                            variant = PaywallVariant.MONTHLY_FIRST,
+                            onSelect = {},
+                        )
+                    }
+                }
+            }
+        }
+        val first = composeRule.onNodeWithTag("premium-plan-monthly").fetchSemanticsNode().boundsInRoot
+        val second = composeRule.onNodeWithTag("premium-plan-yearly").fetchSemanticsNode().boundsInRoot
+        assertTrue("Compact 320dp phone must stack plan cards", second.top >= first.bottom)
+        composeRule.onNodeWithTag("premium-plan-monthly").assertIsSelected()
+        composeRule.onNodeWithTag("premium-plan-yearly").assertIsNotSelected()
+    }
+
+    @Test
     fun wideScreenWithDefaultFontKeepsTwoColumnPlanOptions() {
         val (monthly, yearly) = samplePlans()
         composeRule.setContent {
             CompositionLocalProvider(LocalDensity provides Density(density = 2f, fontScale = 1f)) {
                 MaterialTheme {
-                    Box(Modifier.width(550.dp)) {
+                    Box(Modifier.requiredWidth(550.dp)) {
                         PremiumPlanSelector(
                             plans = listOf(monthly, yearly),
                             selectedPlanId = "monthly",
