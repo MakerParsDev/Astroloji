@@ -114,7 +114,7 @@ internal fun PremiumPlanSelector(
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         // Prefer complete localized prices and plan labels over cramped cards.
-        val stackPlans = maxWidth < 340.dp || fontScale >= STACKED_PLAN_FONT_SCALE
+        val stackPlans = maxWidth < 280.dp || fontScale >= STACKED_PLAN_FONT_SCALE
         if (stackPlans) {
             Column(
                 modifier = Modifier.fillMaxWidth().selectableGroup(),
