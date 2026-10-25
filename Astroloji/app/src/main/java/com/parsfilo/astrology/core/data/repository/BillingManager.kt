@@ -416,11 +416,17 @@ class BillingManager
                     .also { _purchaseState.value = it }
             }
             val purchase =
-                purchases.second.firstOrNull()
+                selectPurchaseForVerification(purchases.second)
                     ?: return AppResult
                         .Error(
                             AppException.BillingException(
-                                stringsProvider.get(R.string.billing_restore_missing_purchase),
+                                stringsProvider.get(
+                                    if (hasPendingPremiumPurchase(purchases.second)) {
+                                        R.string.billing_payment_pending
+                                    } else {
+                                        R.string.billing_restore_missing_purchase
+                                    },
+                                ),
                             ),
                         ).also { _purchaseState.value = it }
             return verifyPurchase(purchase, restore = true)
@@ -445,7 +451,7 @@ class BillingManager
                         PendingBillingFlow.CREDITS -> {
                             val purchase = selectCreditPurchaseForVerification(purchases.orEmpty())
                             if (purchase == null) {
-                                applyPurchaseFlowResult(flow, missingPurchaseError())
+                                applyPurchaseFlowResult(flow, missingPurchaseError(flow, purchases.orEmpty()))
                             } else {
                                 scope.launch { _creditPurchaseState.value = verifyCreditPurchase(purchase) }
                             }
@@ -453,7 +459,7 @@ class BillingManager
                         PendingBillingFlow.PREMIUM -> {
                             val purchase = selectPurchaseForVerification(purchases.orEmpty())
                             if (purchase == null) {
-                                applyPurchaseFlowResult(flow, missingPurchaseError())
+                                applyPurchaseFlowResult(flow, missingPurchaseError(flow, purchases.orEmpty()))
                             } else {
                                 scope.launch { _purchaseState.value = verifyPurchase(purchase, restore = false) }
                             }
@@ -529,10 +535,27 @@ class BillingManager
             }
         }
 
-        private fun missingPurchaseError(): AppResult.Error =
-            AppResult.Error(
-                AppException.BillingException(stringsProvider.get(R.string.billing_purchase_failed)),
+        private fun missingPurchaseError(
+            flow: PendingBillingFlow,
+            purchases: List<Purchase>,
+        ): AppResult.Error {
+            val hasPending =
+                purchases.any { purchase ->
+                    purchase.purchaseState == Purchase.PurchaseState.PENDING &&
+                        when (flow) {
+                            PendingBillingFlow.CREDITS -> resolveRecognizedCreditProductId(purchase.products) != null
+                            PendingBillingFlow.PREMIUM -> resolveRecognizedProductId(purchase.products) != null
+                            PendingBillingFlow.NONE -> false
+                        }
+                }
+            return AppResult.Error(
+                AppException.BillingException(
+                    stringsProvider.get(
+                        if (hasPending) R.string.billing_payment_pending else R.string.billing_purchase_failed,
+                    ),
+                ),
             )
+        }
 
         private suspend fun verifyCreditPurchase(purchase: Purchase): AppResult<CreditPurchaseResult> {
             val productId = resolveRecognizedCreditProductId(purchase.products)
@@ -569,20 +592,6 @@ class BillingManager
             if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
                 return AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_payment_pending)))
             }
-            if (!purchase.isAcknowledged) {
-                val ackResult =
-                    suspendCancellableCoroutine { continuation ->
-                        billingClient.acknowledgePurchase(
-                            AcknowledgePurchaseParams
-                                .newBuilder()
-                                .setPurchaseToken(purchase.purchaseToken)
-                                .build(),
-                        ) { continuation.resume(it) }
-                    }
-                if (ackResult.responseCode != BillingResponseCode.OK) {
-                    return AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_acknowledge_failed)))
-                }
-            }
             val productId =
                 resolveRecognizedProductId(purchase.products)
                     ?: return AppResult.Error(
@@ -604,6 +613,21 @@ class BillingManager
                         ),
                     )
                 }
+            if (response !is AppResult.Success) return response
+            if (!purchase.isAcknowledged) {
+                val ackResult =
+                    suspendCancellableCoroutine { continuation ->
+                        billingClient.acknowledgePurchase(
+                            AcknowledgePurchaseParams
+                                .newBuilder()
+                                .setPurchaseToken(purchase.purchaseToken)
+                                .build(),
+                        ) { continuation.resume(it) }
+                    }
+                if (ackResult.responseCode != BillingResponseCode.OK) {
+                    return AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_acknowledge_failed)))
+                }
+            }
             return response
         }
 
@@ -792,7 +816,13 @@ internal fun resolveCatalogueLoadResult(
         )
     }
 
-private fun selectPurchaseForVerification(purchases: List<Purchase>): Purchase? =
+internal fun hasPendingPremiumPurchase(purchases: List<Purchase>): Boolean =
+    purchases.any {
+        it.purchaseState == Purchase.PurchaseState.PENDING &&
+            resolveRecognizedProductId(it.products) != null
+    }
+
+internal fun selectPurchaseForVerification(purchases: List<Purchase>): Purchase? =
     purchases
         .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
         .sortedBy { resolveRecognizedProductId(it.products) }

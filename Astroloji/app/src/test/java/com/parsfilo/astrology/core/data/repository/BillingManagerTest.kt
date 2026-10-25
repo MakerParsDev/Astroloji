@@ -1,7 +1,10 @@
 package com.parsfilo.astrology.core.data.repository
 
 import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.Purchase
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.Test
 
 class BillingManagerTest {
@@ -43,6 +46,44 @@ class BillingManagerTest {
             billingPeriod = "P1Y",
             displayPriority = 0,
         )
+
+    private fun purchase(
+        sku: String,
+        state: Int,
+    ): Purchase =
+        mockk {
+            every { purchaseState } returns state
+            every { products } returns listOf(sku)
+        }
+
+    @Test
+    fun `restore selects valid purchased subscription instead of first pending or unrelated item`() {
+        val pending = purchase("premium_weekly", Purchase.PurchaseState.PENDING)
+        val unknown = purchase("credits_small", Purchase.PurchaseState.PURCHASED)
+        val owned = purchase("premium_monthly", Purchase.PurchaseState.PURCHASED)
+
+        assertThat(selectPurchaseForVerification(listOf(pending, unknown, owned))).isSameInstanceAs(owned)
+        assertThat(hasPendingPremiumPurchase(listOf(pending, unknown, owned))).isTrue()
+    }
+
+    @Test
+    fun `restore does not accept only pending or unknown subscriptions`() {
+        val pending = purchase("premium_weekly", Purchase.PurchaseState.PENDING)
+        val unrelated = purchase("credits_small", Purchase.PurchaseState.PURCHASED)
+        assertThat(selectPurchaseForVerification(listOf(pending, unrelated))).isNull()
+        assertThat(hasPendingPremiumPurchase(listOf(pending, unrelated))).isTrue()
+        assertThat(hasPendingPremiumPurchase(listOf(unrelated))).isFalse()
+        assertThat(hasPendingPremiumPurchase(emptyList())).isFalse()
+    }
+
+    @Test
+    fun `purchase callback recognizes pending premium and excludes pending credit pack`() {
+        val pendingCredit = purchase("credits_large", Purchase.PurchaseState.PENDING)
+        val pendingPremium = purchase("premium_yearly", Purchase.PurchaseState.PENDING)
+        assertThat(hasPendingPremiumPurchase(listOf(pendingCredit))).isFalse()
+        assertThat(hasPendingPremiumPurchase(listOf(pendingCredit, pendingPremium))).isTrue()
+        assertThat(selectPurchaseForVerification(listOf(pendingCredit, pendingPremium))).isNull()
+    }
 
     @Test
     fun `billing setup is ready only for ok response codes`() {
