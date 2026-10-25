@@ -254,6 +254,11 @@
         <item quantity="other">+%1$d créditos añadidos a tu saldo.</item>
     </plurals>
     <string name="home_mood_title">¿Cómo te sientes hoy?</string>
+    <string name="home_mood_option_great">Muy bien</string>
+    <string name="home_mood_option_good">Bien</string>
+    <string name="home_mood_option_neutral">Neutral</string>
+    <string name="home_mood_option_low">Decaído</string>
+    <string name="home_mood_option_stressed">Estresado</string>
     <string name="home_mood_logged">Registrado: %1$s Gracias por contarnos cómo estás.</string>
     <string name="home_mood_insight">En %1$d de tus últimos %2$d registros de ánimo bajo sobre %3$s, tu carta mostró un tránsito coincidente.</string>
     <string name="streak_milestone_3">3 días seguidos. Tu ritual ha comenzado.</string>

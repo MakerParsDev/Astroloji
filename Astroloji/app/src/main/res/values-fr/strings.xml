@@ -254,6 +254,11 @@
         <item quantity="other">+%1$d crédits ont été ajoutés à votre solde.</item>
     </plurals>
     <string name="home_mood_title">Comment vous sentez-vous aujourd\'hui ?</string>
+    <string name="home_mood_option_great">Très bien</string>
+    <string name="home_mood_option_good">Bien</string>
+    <string name="home_mood_option_neutral">Neutre</string>
+    <string name="home_mood_option_low">Mal</string>
+    <string name="home_mood_option_stressed">Stressé</string>
     <string name="home_mood_logged">Enregistré : %1$s Merci de nous avoir tenus informés.</string>
     <string name="home_mood_insight">Dans %1$d de vos %2$d derniers enregistrements d\'humeur basse concernant %3$s, votre thème montrait un transit correspondant.</string>
     <string name="streak_milestone_3">3 jours de suite. Votre rituel a commencé.</string>

@@ -246,6 +246,11 @@
         <item quantity="other">+%1$d kredi bakiyene eklendi.</item>
     </plurals>
     <string name="home_mood_title">Bugün nasıl hissediyorsun?</string>
+    <string name="home_mood_option_great">Harika</string>
+    <string name="home_mood_option_good">İyi</string>
+    <string name="home_mood_option_neutral">Nötr</string>
+    <string name="home_mood_option_low">Keyifsiz</string>
+    <string name="home_mood_option_stressed">Stresli</string>
     <string name="home_mood_logged">Kaydedildi: %1$s Kayıt için teşekkürler.</string>
     <string name="home_mood_insight">Son %2$d düşük ruh hali kaydından %1$d tanesinde, %3$s alanında haritanda eşleşen bir transit vardı.</string>
     <string name="streak_milestone_3">3 gün üst üste geldin. Ritüelin başladı.</string>

@@ -246,6 +246,11 @@
         <item quantity="other">+%1$d Credits wurden Ihrem Guthaben hinzugefügt.</item>
     </plurals>
     <string name="home_mood_title">Wie fühlen Sie sich heute?</string>
+    <string name="home_mood_option_great">Sehr gut</string>
+    <string name="home_mood_option_good">Gut</string>
+    <string name="home_mood_option_neutral">Neutral</string>
+    <string name="home_mood_option_low">Niedergeschlagen</string>
+    <string name="home_mood_option_stressed">Gestresst</string>
     <string name="home_mood_logged">Erfasst: %1$s Danke, dass Sie uns mitgeteilt haben, wie es Ihnen geht.</string>
     <string name="home_mood_insight">In %1$d Ihrer letzten %2$d Einträge mit gedrückter Stimmung zu %3$s zeigte Ihr Horoskop einen passenden Transit.</string>
     <string name="streak_milestone_3">3 Tage hintereinander. Ihr Ritual hat begonnen.</string>
