@@ -98,6 +98,8 @@
     <string name="premium_catalog_loading">Sichere Preisinformationen werden von Google Play geladen. Es kann noch kein Kauf gestartet werden.</string>
     <string name="premium_billing_disclosure">%1$s wird %2$s abgerechnet. Verlängert sich automatisch, sofern nicht vor dem Verlängerungsdatum in Google Play gekündigt.</string>
     <string name="premium_billing_disclosure_trial">%1$d-tägige kostenlose Testversion, danach %2$s abgerechnet %3$s. Verlängert sich automatisch, sofern nicht vor dem Verlängerungsdatum in Google Play gekündigt.</string>
+    <string name="premium_billing_disclosure_intro">Einführungspreis: %1$s für die ersten %2$d %3$s Abrechnungszeiträume, danach %4$s %5$s. Automatische Verlängerung, sofern nicht vor der Verlängerung in Google Play gekündigt.</string>
+    <string name="premium_billing_disclosure_trial_intro">%1$d Tage kostenlos testen, danach Einführungspreis %2$s für die ersten %3$d %4$s Abrechnungszeiträume, anschließend %5$s %6$s. Automatische Verlängerung, sofern nicht vor der Verlängerung in Google Play gekündigt.</string>
     <string name="premium_period_monthly">monatlich</string>
     <string name="premium_period_weekly">wöchentlich</string>
     <string name="premium_period_yearly">jährlich</string>

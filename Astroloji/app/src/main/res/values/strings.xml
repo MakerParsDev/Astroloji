@@ -98,6 +98,8 @@
     <string name="premium_catalog_loading">Secure price information is loading from Google Play. No purchase can start yet.</string>
     <string name="premium_billing_disclosure">%1$s billed %2$s. Renews automatically unless canceled in Google Play before the renewal date.</string>
     <string name="premium_billing_disclosure_trial">%1$d-day free trial, then %2$s billed %3$s. Renews automatically unless canceled in Google Play before the renewal date.</string>
+    <string name="premium_billing_disclosure_intro">Introductory: %1$s for the first %2$d %3$s billing cycle(s), then %4$s billed %5$s. Renews automatically unless canceled in Google Play before renewal.</string>
+    <string name="premium_billing_disclosure_trial_intro">%1$d-day free trial, then introductory %2$s for the first %3$d %4$s billing cycle(s), followed by %5$s billed %6$s. Renews automatically unless canceled in Google Play before renewal.</string>
     <string name="premium_period_monthly">monthly</string>
     <string name="premium_period_weekly">weekly</string>
     <string name="premium_period_yearly">yearly</string>

@@ -102,6 +102,8 @@
     <string name="premium_catalog_loading">La información segura de precios se está cargando desde Google Play. Aún no se puede iniciar ninguna compra.</string>
     <string name="premium_billing_disclosure">%1$s facturado %2$s. Se renueva automáticamente salvo que se cancele en Google Play antes de la fecha de renovación.</string>
     <string name="premium_billing_disclosure_trial">%1$d días de prueba gratis, luego %2$s facturado %3$s. Se renueva automáticamente salvo que se cancele en Google Play antes de la fecha de renovación.</string>
+    <string name="premium_billing_disclosure_intro">Precio inicial: %1$s durante los primeros %2$d períodos de facturación %3$s; después %4$s facturado %5$s. Se renueva automáticamente salvo cancelación previa en Google Play.</string>
+    <string name="premium_billing_disclosure_trial_intro">Prueba gratuita de %1$d días; después %2$s durante los primeros %3$d períodos %4$s, y luego %5$s facturado %6$s. Se renueva automáticamente salvo cancelación previa en Google Play.</string>
     <string name="premium_period_monthly">mensualmente</string>
     <string name="premium_period_weekly">semanalmente</string>
     <string name="premium_period_yearly">anualmente</string>

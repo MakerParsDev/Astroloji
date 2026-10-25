@@ -103,6 +103,8 @@ data class PremiumPlanUi(
     val offerDescription: String? = null,
     val billingPeriod: String? = null,
     val displayPriority: Int = Int.MAX_VALUE,
+    val introductoryPrice: String? = null,
+    val introductoryCycles: Int = 0,
 )
 
 data class CreditPackUi(
@@ -122,6 +124,13 @@ internal data class PricingPhaseSummary(
     val priceAmountMicros: Long,
     val formattedPrice: String,
     val billingPeriod: String?,
+    val recurrenceMode: Int =
+        if (priceAmountMicros == 0L) {
+            ProductDetails.RecurrenceMode.NON_RECURRING
+        } else {
+            ProductDetails.RecurrenceMode.INFINITE_RECURRING
+        },
+    val billingCycleCount: Int = 0,
 )
 
 internal data class DisplayPricingSummary(
@@ -884,9 +893,12 @@ private fun buildPremiumPlans(productDetailsList: List<ProductDetails>): List<Pr
                             priceAmountMicros = phase.priceAmountMicros,
                             formattedPrice = phase.formattedPrice,
                             billingPeriod = phase.billingPeriod,
+                            recurrenceMode = phase.recurrenceMode,
+                            billingCycleCount = phase.billingCycleCount,
                         )
                     }
                 val displayPricing = resolveDisplayPricing(phases)
+                val introductoryPhase = resolveIntroductoryPricing(phases)
                 listOf(
                     PremiumPlanUi(
                         planId = buildPlanId(detail.productId, selectedOffer.basePlanId, selectedOffer.offerId),
@@ -902,6 +914,8 @@ private fun buildPremiumPlans(productDetailsList: List<ProductDetails>): List<Pr
                         offerDescription = detail.description,
                         billingPeriod = displayPricing?.billingPeriod,
                         displayPriority = defaultDisplayPriority(detail.productId),
+                        introductoryPrice = introductoryPhase?.formattedPrice,
+                        introductoryCycles = introductoryPhase?.let { introductoryCycleCount(it) } ?: 0,
                     ),
                 )
             }
@@ -912,18 +926,47 @@ internal fun selectPreferredOfferIndex(hasFreeTrial: List<Boolean>): Int =
         ?: hasFreeTrial.indices.firstOrNull()
         ?: -1
 
+/**
+ * The amount shown as the renewal price must be the indefinitely recurring phase,
+ * never a finite discounted introductory payment. Unsupported pricing schedules
+ * fail closed until the paywall can disclose every charge accurately.
+ */
 internal fun resolveDisplayPricing(phases: List<PricingPhaseSummary>): DisplayPricingSummary? {
-    val paidPhase =
-        phases.firstOrNull { it.priceAmountMicros > 0L }
-            ?: phases.firstOrNull()
-    return paidPhase?.let {
+    val renewal = phases.lastOrNull()
+    val prior = phases.dropLast(1)
+    val paidIntro = prior.filter { it.priceAmountMicros > 0L }
+    val validRenewal =
+        renewal != null &&
+            renewal.recurrenceMode == ProductDetails.RecurrenceMode.INFINITE_RECURRING &&
+            renewal.priceAmountMicros > 0L &&
+            renewal.formattedPrice.isNotBlank()
+    val validIntro =
+        paidIntro.size <= 1 &&
+            prior.none { it.recurrenceMode == ProductDetails.RecurrenceMode.INFINITE_RECURRING } &&
+            paidIntro.all {
+                it.billingPeriod == renewal?.billingPeriod && introductoryCycleCount(it) > 0
+            }
+    return renewal?.takeIf { validRenewal && validIntro }?.let {
         DisplayPricingSummary(
-            priceAmountMicros = if (it.priceAmountMicros > 0L) it.priceAmountMicros else null,
+            priceAmountMicros = it.priceAmountMicros,
             formattedPrice = it.formattedPrice,
             billingPeriod = it.billingPeriod,
         )
     }
 }
+
+internal fun resolveIntroductoryPricing(phases: List<PricingPhaseSummary>): PricingPhaseSummary? =
+    phases
+        .dropLast(1)
+        .singleOrNull { it.priceAmountMicros > 0L }
+        ?.takeIf { resolveDisplayPricing(phases) != null }
+
+private fun introductoryCycleCount(phase: PricingPhaseSummary): Int =
+    when (phase.recurrenceMode) {
+        ProductDetails.RecurrenceMode.FINITE_RECURRING -> phase.billingCycleCount
+        ProductDetails.RecurrenceMode.NON_RECURRING -> 1
+        else -> 0
+    }
 
 internal fun extractTrialDays(phases: List<PricingPhaseSummary>): Int? =
     phases

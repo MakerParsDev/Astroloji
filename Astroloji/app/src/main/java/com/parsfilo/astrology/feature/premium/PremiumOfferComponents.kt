@@ -204,7 +204,7 @@ private fun PremiumPlanDetails(model: PremiumPlanOptionModel) {
         )
         Text(
             text =
-                plan.price.takeIf { isPremiumOfferReady(plan) }
+                (plan.introductoryPrice ?: plan.price).takeIf { isPremiumOfferReady(plan) }
                     ?: stringResource(R.string.premium_price_loading),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
@@ -250,7 +250,9 @@ private fun PremiumOfferSummary(
     purchaseReady: Boolean,
 ) {
     Text(
-        text = selected.price.takeIf { purchaseReady } ?: stringResource(R.string.premium_price_loading),
+        text =
+            (selected.introductoryPrice ?: selected.price).takeIf { purchaseReady }
+                ?: stringResource(R.string.premium_price_loading),
         style = MaterialTheme.typography.headlineLarge,
         fontWeight = FontWeight.Bold,
     )
@@ -279,7 +281,7 @@ private fun premiumCtaLabel(
         !purchaseReady -> stringResource(R.string.premium_price_loading)
         selected.hasFreeTrial && uiState.trialDays > 0 ->
             stringResource(R.string.premium_start_trial_cta, uiState.trialDays)
-        else -> stringResource(R.string.premium_continue_with_price, selected.price)
+        else -> stringResource(R.string.premium_continue_with_price, selected.introductoryPrice ?: selected.price)
     }
 
 @Composable
@@ -309,14 +311,35 @@ private fun premiumBillingDisclosureText(
     selected: PremiumPlanUi,
 ): String {
     val period = premiumPeriodLabel(selected)
-    return if (selected.hasFreeTrial && uiState.trialDays > 0) {
-        stringResource(
-            R.string.premium_billing_disclosure_trial,
-            uiState.trialDays,
-            selected.price,
-            period,
-        )
-    } else {
-        stringResource(R.string.premium_billing_disclosure, selected.price, period)
+    val intro = selected.introductoryPrice
+    val hasTrial = selected.hasFreeTrial && uiState.trialDays > 0
+    return when {
+        intro != null && hasTrial ->
+            stringResource(
+                R.string.premium_billing_disclosure_trial_intro,
+                uiState.trialDays,
+                intro,
+                selected.introductoryCycles,
+                period,
+                selected.price,
+                period,
+            )
+        intro != null ->
+            stringResource(
+                R.string.premium_billing_disclosure_intro,
+                intro,
+                selected.introductoryCycles,
+                period,
+                selected.price,
+                period,
+            )
+        hasTrial ->
+            stringResource(
+                R.string.premium_billing_disclosure_trial,
+                uiState.trialDays,
+                selected.price,
+                period,
+            )
+        else -> stringResource(R.string.premium_billing_disclosure, selected.price, period)
     }
 }

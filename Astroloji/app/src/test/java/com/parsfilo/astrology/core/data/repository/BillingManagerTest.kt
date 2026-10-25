@@ -169,6 +169,74 @@ class BillingManagerTest {
     }
 
     @Test
+    fun `renewal amount is not replaced with a discounted introductory price`() {
+        val phases =
+            listOf(
+                PricingPhaseSummary(
+                    priceAmountMicros = 0L,
+                    formattedPrice = "Free",
+                    billingPeriod = "P7D",
+                ),
+                PricingPhaseSummary(
+                    priceAmountMicros = 49_000_000L,
+                    formattedPrice = "TRY 49.00",
+                    billingPeriod = "P1M",
+                    recurrenceMode = com.android.billingclient.api.ProductDetails.RecurrenceMode.FINITE_RECURRING,
+                    billingCycleCount = 2,
+                ),
+                PricingPhaseSummary(
+                    priceAmountMicros = 89_000_000L,
+                    formattedPrice = "TRY 89.00",
+                    billingPeriod = "P1M",
+                ),
+            )
+        assertThat(resolveDisplayPricing(phases)?.formattedPrice).isEqualTo("TRY 89.00")
+        assertThat(resolveDisplayPricing(phases)?.priceAmountMicros).isEqualTo(89_000_000L)
+        assertThat(resolveIntroductoryPricing(phases)?.formattedPrice).isEqualTo("TRY 49.00")
+        assertThat(resolveIntroductoryPricing(phases)?.billingCycleCount).isEqualTo(2)
+        assertThat(extractTrialDays(phases)).isEqualTo(7)
+    }
+
+    @Test
+    fun `one-time introductory payment is distinguished from auto-renewal`() {
+        val phases =
+            listOf(
+                PricingPhaseSummary(
+                    priceAmountMicros = 15_000_000L,
+                    formattedPrice = "TRY 15.00",
+                    billingPeriod = "P1W",
+                    recurrenceMode = com.android.billingclient.api.ProductDetails.RecurrenceMode.NON_RECURRING,
+                ),
+                PricingPhaseSummary(
+                    priceAmountMicros = 35_000_000L,
+                    formattedPrice = "TRY 35.00",
+                    billingPeriod = "P1W",
+                ),
+            )
+        assertThat(resolveDisplayPricing(phases)?.formattedPrice).isEqualTo("TRY 35.00")
+        assertThat(resolveIntroductoryPricing(phases)?.formattedPrice).isEqualTo("TRY 15.00")
+    }
+
+    @Test
+    fun `unrepresentable prices disable checkout instead of misrepresenting renewal`() {
+        val finite = com.android.billingclient.api.ProductDetails.RecurrenceMode.FINITE_RECURRING
+        val discount =
+            PricingPhaseSummary(
+                priceAmountMicros = 49_000_000L,
+                formattedPrice = "TRY 49.00",
+                billingPeriod = "P1M",
+                recurrenceMode = finite,
+                billingCycleCount = 2,
+            )
+        val monthly = PricingPhaseSummary(89_000_000L, "TRY 89.00", "P1M")
+        assertThat(resolveDisplayPricing(listOf(discount))).isNull()
+        assertThat(resolveDisplayPricing(listOf(discount, discount, monthly))).isNull()
+        assertThat(resolveDisplayPricing(listOf(discount.copy(billingCycleCount = 0), monthly))).isNull()
+        assertThat(resolveDisplayPricing(listOf(discount.copy(billingPeriod = "P1W"), monthly))).isNull()
+        assertThat(resolveIntroductoryPricing(listOf(discount.copy(billingPeriod = "P1W"), monthly))).isNull()
+    }
+
+    @Test
     fun `trial metadata is derived only from zero-priced phases`() {
         assertThat(
             extractTrialDays(
