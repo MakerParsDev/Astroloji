@@ -106,45 +106,12 @@ class WeeklyViewModelTest {
         }
 
     @Test
-    fun `consent or premium loss after screen load prevents reward prepare`() =
+    fun `revoked reward eligibility before or after prepare cannot expose an ad`() =
         runTest {
             coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
             coEvery { remoteConfigRepository.fetchFlags() } returns
                 RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
             coEvery { adEligibilityChecker.canShowBannerAds() } returns false
-            coEvery { adEligibilityChecker.canShowRewarded() } returnsMany listOf(true, false)
-            coJustRun { analyticsRepository.track(any(), any()) }
-            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
-                AppResult.Success(weekly(love = null, career = null, money = null))
-
-            val viewModel =
-                WeeklyViewModel(
-                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
-                    contentRepository = contentRepository,
-                    preferencesRepository = preferencesRepository,
-                    analyticsRepository = analyticsRepository,
-                    remoteConfigRepository = remoteConfigRepository,
-                    adEligibilityChecker = adEligibilityChecker,
-                )
-            advanceUntilIdle()
-            assertThat(viewModel.state.value.canUnlockWithReward).isTrue()
-
-            viewModel.onEvent(WeeklyUiEvent.UnlockWithReward)
-            advanceUntilIdle()
-
-            assertThat(viewModel.state.value.canUnlockWithReward).isFalse()
-            coVerify(exactly = 0) { contentRepository.prepareRewardUnlock("weekly", any()) }
-            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
-        }
-
-    @Test
-    fun `consent or premium loss during challenge preparation prevents reward effect`() =
-        runTest {
-            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
-            coEvery { remoteConfigRepository.fetchFlags() } returns
-                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
-            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
-            coEvery { adEligibilityChecker.canShowRewarded() } returnsMany listOf(true, true, false)
             coJustRun { analyticsRepository.track(any(), any()) }
             coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
                 AppResult.Success(weekly(love = null, career = null, money = null))
@@ -160,24 +127,31 @@ class WeeklyViewModelTest {
                     ),
                 )
 
-            val viewModel =
-                WeeklyViewModel(
-                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
-                    contentRepository = contentRepository,
-                    preferencesRepository = preferencesRepository,
-                    analyticsRepository = analyticsRepository,
-                    remoteConfigRepository = remoteConfigRepository,
-                    adEligibilityChecker = adEligibilityChecker,
-                )
-            advanceUntilIdle()
-            assertThat(viewModel.state.value.canUnlockWithReward).isTrue()
+            // Exercise both revocation before prepare and during its network response.
+            for (lostDuringPrepare in listOf(false, true)) {
+                coEvery { adEligibilityChecker.canShowRewarded() } returnsMany
+                    if (lostDuringPrepare) listOf(true, true, false) else listOf(true, false)
+                val viewModel =
+                    WeeklyViewModel(
+                        savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                        contentRepository = contentRepository,
+                        preferencesRepository = preferencesRepository,
+                        analyticsRepository = analyticsRepository,
+                        remoteConfigRepository = remoteConfigRepository,
+                        adEligibilityChecker = adEligibilityChecker,
+                    )
+                advanceUntilIdle()
+                assertThat(viewModel.state.value.canUnlockWithReward).isTrue()
 
-            viewModel.onEvent(WeeklyUiEvent.UnlockWithReward)
-            advanceUntilIdle()
+                viewModel.onEvent(WeeklyUiEvent.UnlockWithReward)
+                advanceUntilIdle()
 
-            assertThat(viewModel.state.value.canUnlockWithReward).isFalse()
-            coVerify(exactly = 1) { contentRepository.prepareRewardUnlock("weekly", any()) }
-            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+                assertThat(viewModel.state.value.canUnlockWithReward).isFalse()
+                coVerify(exactly = if (lostDuringPrepare) 1 else 0) {
+                    contentRepository.prepareRewardUnlock("weekly", any())
+                }
+                coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+            }
         }
 
     @Test
