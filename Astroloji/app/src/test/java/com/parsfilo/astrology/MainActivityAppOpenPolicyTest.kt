@@ -21,7 +21,7 @@ class MainActivityAppOpenPolicyTest {
     @Test
     fun `skip flag blocks app open ad`() {
         assertFalse(
-            shouldShowAppOpenAd(
+            isAppOpenSessionEligible(
                 basePolicy.copy(
                     skipNextAppOpen = true,
                 ),
@@ -32,7 +32,7 @@ class MainActivityAppOpenPolicyTest {
     @Test
     fun `cold start without background timestamp does not show app open ad`() {
         assertFalse(
-            shouldShowAppOpenAd(
+            isAppOpenSessionEligible(
                 basePolicy.copy(
                     lastStoppedAtMs = 0L,
                 ),
@@ -43,7 +43,7 @@ class MainActivityAppOpenPolicyTest {
     @Test
     fun `recent lifecycle bounce does not show app open ad`() {
         assertFalse(
-            shouldShowAppOpenAd(
+            isAppOpenSessionEligible(
                 basePolicy.copy(
                     lastStoppedAtMs = 10_000L,
                     nowMs = 16_000L,
@@ -57,7 +57,7 @@ class MainActivityAppOpenPolicyTest {
     fun `first three app opens never show app open ad`() {
         (1..3).forEach { openCount ->
             assertFalse(
-                shouldShowAppOpenAd(
+                isAppOpenSessionEligible(
                     basePolicy.copy(
                         appOpenCount = openCount,
                         minBackgroundDurationMs = 10_000L,
@@ -70,7 +70,7 @@ class MainActivityAppOpenPolicyTest {
     @Test
     fun `fourth app open can show app open ad after the safe background interval`() {
         assertTrue(
-            shouldShowAppOpenAd(
+            isAppOpenSessionEligible(
                 basePolicy.copy(
                     appOpenCount = 4,
                     minBackgroundDurationMs = 10_000L,
@@ -82,7 +82,7 @@ class MainActivityAppOpenPolicyTest {
     @Test
     fun `default policy requires four hours in background`() {
         assertFalse(
-            shouldShowAppOpenAd(
+            isAppOpenSessionEligible(
                 basePolicy.copy(
                     lastStoppedAtMs = 1_000L,
                     nowMs = 1_000L + (4L * 60L * 60L * 1_000L) - 1L,
@@ -90,7 +90,7 @@ class MainActivityAppOpenPolicyTest {
             ),
         )
         assertTrue(
-            shouldShowAppOpenAd(
+            isAppOpenSessionEligible(
                 basePolicy.copy(
                     lastStoppedAtMs = 1_000L,
                     nowMs = 1_000L + (4L * 60L * 60L * 1_000L),
@@ -102,7 +102,7 @@ class MainActivityAppOpenPolicyTest {
     @Test
     fun `eligible return from background shows app open ad`() {
         assertTrue(
-            shouldShowAppOpenAd(
+            isAppOpenSessionEligible(
                 basePolicy.copy(
                     minBackgroundDurationMs = 10_000L,
                 ),
@@ -113,7 +113,7 @@ class MainActivityAppOpenPolicyTest {
     @Test
     fun `debug build never shows app open ad`() {
         assertFalse(
-            shouldShowAppOpenAd(
+            isAppOpenSessionEligible(
                 basePolicy.copy(
                     isDebug = true,
                 ),
@@ -148,11 +148,32 @@ class MainActivityAppOpenPolicyTest {
                 ),
             )
 
-        assertTrue(plan.preloadAppOpen)
+        assertFalse(plan.preloadAppOpen)
         assertTrue(plan.preloadInterstitial)
         assertTrue(plan.preloadRewarded)
         assertFalse(plan.preloadRewardedInterstitial)
         assertFalse(plan.preloadNative)
+    }
+
+    @Test
+    fun disabledAppOpenDeliveryNeverShowsEvenIfBackgroundPolicyEligible() {
+        // No loading-screen-only integration exists; eligibility is NOT permission to display.
+        for (backgroundMs in listOf(10_000L, 14_400_000L, 14_400_001L)) {
+            val policy =
+                basePolicy.copy(
+                    nowMs = 1_000L + backgroundMs,
+                    minBackgroundDurationMs = 14_400_000L,
+                )
+            assertFalse(shouldShowAppOpenAd(policy))
+        }
+    }
+
+    @Test
+    fun disabledAppOpenPreloadLeavesOtherFreeAdFormatsAvailable() {
+        val plan = resolveAdPreloadPlan(AdPreloadPolicy(isPremium = false, canShowRewarded = true))
+        assertFalse(plan.preloadAppOpen)
+        assertTrue(plan.preloadInterstitial)
+        assertTrue(plan.preloadRewarded)
     }
 
     @Test
