@@ -47,6 +47,7 @@ class EventSyncWorker
                                 TrackEventRequest(
                                     eventType = event.type,
                                     meta = sanitizeAnalyticsMeta(event.type, meta),
+                                    eventId = event.id,
                                 ),
                             )
                         } catch (exception: CancellationException) {

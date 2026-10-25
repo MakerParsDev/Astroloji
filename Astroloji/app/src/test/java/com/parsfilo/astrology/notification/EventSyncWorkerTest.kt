@@ -124,6 +124,26 @@ class EventSyncWorkerTest {
         }
 
     @Test
+    fun `retries a queued event using the same durable event ID`() =
+        runTest {
+            val item = event(id = "01234567-89ab-4cde-8f01-23456789abcd", payload = "{}")
+            val requests = mutableListOf<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            coEvery { queuedEventDao.getBatch(50) } returns listOf(item)
+            coEvery { api.trackEvent(capture(requests)) } returnsMany
+                listOf(
+                    Response.error(503, "retry".toResponseBody()),
+                    Response.success(TrackEventResponse(ok = true)),
+                )
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Retry::class.java)
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            assertThat(requests).hasSize(2)
+            assertThat(requests[0].eventId).isEqualTo(item.id)
+            assertThat(requests[1].eventId).isEqualTo(item.id)
+            coVerify(exactly = 1) { queuedEventDao.delete(item.id) }
+        }
+
+    @Test
     fun `deletes successfully delivered events`() =
         runTest {
             val delivered = event(id = "delivered", payload = "{}")

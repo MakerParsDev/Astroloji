@@ -114,19 +114,22 @@ class AnalyticsRepository
         ) = withContext(Dispatchers.IO) {
             val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
             logFirebaseEvent(eventType, safeMeta)
+            // The same event identity survives a response-lost / retry path.
+            val eventId = UUID.randomUUID().toString()
             try {
-                val response = api.trackEvent(TrackEventRequest(eventType = eventType, meta = safeMeta))
+                val response =
+                    api.trackEvent(TrackEventRequest(eventType = eventType, meta = safeMeta, eventId = eventId))
                 when (classifyAnalyticsResponse(response.code())) {
                     AnalyticsDeliveryDisposition.DELIVERED -> Unit
                     AnalyticsDeliveryDisposition.PERMANENT_FAILURE ->
                         Timber.w("Dropping permanently rejected analytics event: %s (%d)", eventType, response.code())
-                    AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, safeMeta)
+                    AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, safeMeta, eventId)
                 }
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: IOException) {
                 Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
-                queueEvent(eventType, safeMeta)
+                queueEvent(eventType, safeMeta, eventId)
             }
         }
 
@@ -145,12 +148,13 @@ class AnalyticsRepository
         private suspend fun queueEvent(
             eventType: String,
             meta: Map<String, String>,
+            eventId: String = UUID.randomUUID().toString(),
         ) {
             val createdAt = System.currentTimeMillis()
             queuedEventDao.enqueueBounded(
                 entity =
                     QueuedEventEntity(
-                        id = UUID.randomUUID().toString(),
+                        id = eventId,
                         type = eventType,
                         payload = json.encodeToString(MapSerializer(String.serializer(), String.serializer()), meta),
                         createdAt = createdAt,

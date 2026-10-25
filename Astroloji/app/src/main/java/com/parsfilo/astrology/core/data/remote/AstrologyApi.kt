@@ -332,6 +332,7 @@ data class RewardClaimResponse(
 data class TrackEventRequest(
     @SerialName("event_type") val eventType: String,
     val meta: Map<String, String> = emptyMap(),
+    @SerialName("event_id") val eventId: String? = null,
 )
 
 @Serializable

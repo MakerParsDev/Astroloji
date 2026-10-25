@@ -180,14 +180,23 @@ export function createApp(options: CreateAppOptions = {}) {
 
   apiRoutes.post('/events/track', async (c) => {
     const body = validateTrackEventBody(await c.req.json());
+    const userId = c.get('auth').userId;
+    // User-scoped, length-delimited key prevents one account from suppressing
+    // another's event when the two clients happen to send the same UUID.
+    // Legacy apps without event_id retain their original append-only behavior.
+    // No D1 migration: user_events.id already has a PRIMARY KEY constraint.
+    const storageId = body.event_id
+      ? `evt:${userId.length}:${userId}:${body.event_id}`
+      : crypto.randomUUID();
     await c.env.DB
       .prepare(
         `INSERT INTO user_events (id, user_id, event_type, meta, created_at)
-         VALUES (?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO NOTHING`
       )
       .bind(
-        crypto.randomUUID(),
-        c.get('auth').userId,
+        storageId,
+        userId,
         body.event_type,
         JSON.stringify(body.event_type === 'mood_logged' ? {} : body.meta ?? {}),
         new Date().toISOString()

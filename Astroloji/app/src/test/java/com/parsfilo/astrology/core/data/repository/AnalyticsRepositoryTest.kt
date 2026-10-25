@@ -69,6 +69,36 @@ class AnalyticsRepositoryTest {
         }
 
     @Test
+    fun `reuses original event ID when a successful server write loses its HTTP response`() =
+        runTest {
+            val submitted = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            val queued = slot<com.parsfilo.astrology.core.data.local.QueuedEventEntity>()
+            coEvery { api.trackEvent(capture(submitted)) } throws IOException("response lost")
+            coJustRun { queuedEventDao.enqueueBounded(capture(queued), any(), any()) }
+
+            repository.track(AnalyticsEvents.DAILY_VIEWED, mapOf("sign" to "aries"))
+
+            assertThat(submitted.captured.eventId).isNotNull()
+            assertThat(queued.captured.id).isEqualTo(submitted.captured.eventId)
+            assertThat(queued.captured.payload).isEqualTo("{\"sign\":\"aries\"}")
+            coVerify(exactly = 1) { queuedEventDao.enqueueBounded(any(), any(), any()) }
+        }
+
+    @Test
+    fun `preserves event ID after a retryable HTTP response`() =
+        runTest {
+            val submitted = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            val queued = slot<com.parsfilo.astrology.core.data.local.QueuedEventEntity>()
+            coEvery { api.trackEvent(capture(submitted)) } returns Response.error(503, "retry".toResponseBody())
+            coJustRun { queuedEventDao.enqueueBounded(capture(queued), any(), any()) }
+
+            repository.track(AnalyticsEvents.WEEKLY_VIEWED)
+
+            assertThat(submitted.captured.eventId).isNotNull()
+            assertThat(queued.captured.id).isEqualTo(submitted.captured.eventId)
+        }
+
+    @Test
     fun `queues network failures without exposing payloads`() =
         runTest {
             coEvery { api.trackEvent(any()) } throws IOException("offline")
