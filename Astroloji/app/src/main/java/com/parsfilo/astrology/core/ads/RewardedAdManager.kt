@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -80,18 +81,23 @@ class RewardedAdManager
                     return false
                 }
             rewardedAd = null
+            val finished = AtomicBoolean(false)
+            val dismissOnce = {
+                if (finished.compareAndSet(false, true)) {
+                    preload()
+                    onDismissed()
+                }
+            }
             applyRewardSsvOptions(ad, request.ssvUserId, request.ssvCustomData)
             ad.fullScreenContentCallback =
                 object : FullScreenContentCallback() {
                     override fun onAdDismissedFullScreenContent() {
-                        preload()
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
                         Timber.w("Rewarded show failed: %s", error.message)
-                        preload()
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdImpression() {
@@ -103,8 +109,16 @@ class RewardedAdManager
                         }
                     }
                 }
-            ad.show(activity) { rewardItem -> onRewardEarned(rewardItem) }
-            return true
+            return try {
+                ad.show(activity) { rewardItem -> onRewardEarned(rewardItem) }
+                true
+            } catch (e: IllegalStateException) {
+                // Only the SDK's earned-reward callback may grant a reward.
+                // A synchronous SDK show failure must grant no reward.
+                Timber.w(e, "Rewarded SDK show threw")
+                dismissOnce()
+                false
+            }
         }
     }
 

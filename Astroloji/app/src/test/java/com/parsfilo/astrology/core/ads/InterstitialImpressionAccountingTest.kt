@@ -63,6 +63,31 @@ class InterstitialImpressionAccountingTest {
     }
 
     @Test
+    fun `synchronous SDK show failure never crashes consumes quota or dismisses twice`() {
+        // A framework/SDK RuntimeException can occur before the SDK invokes a
+        // FullScreenContentCallback. Do not permit a real SDK preload in this test.
+        every { consent.canRequestAds } returnsMany listOf(true, false)
+        val manager = manager()
+        val ad = preloadedAd(manager)
+        val callback = slot<FullScreenContentCallback>()
+        every { ad.fullScreenContentCallback = capture(callback) } just Runs
+        every { ad.show(activity) } throws IllegalStateException("synthetic SDK show failure")
+        var dismissed = 0
+
+        assertThat(manager.showIfAvailable(activity, "weekly_back") { dismissed++ }).isFalse()
+        assertThat(dismissed).isEqualTo(1)
+        coVerify(exactly = 0) { frequency.recordInterstitialShown(any()) }
+        verify(exactly = 1) { ad.show(activity) }
+
+        // If an SDK also delivers a late terminal callback, navigation must
+        // still be resumed exactly once.
+        callback.captured.onAdFailedToShowFullScreenContent(mockk<AdError>(relaxed = true))
+        callback.captured.onAdDismissedFullScreenContent()
+        assertThat(dismissed).isEqualTo(1)
+        coVerify(exactly = 0) { frequency.recordInterstitialShown(any()) }
+    }
+
+    @Test
     fun `real impression records daily cap once`() {
         every { consent.canRequestAds } returns true
         val manager = manager()

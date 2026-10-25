@@ -102,6 +102,47 @@ class RewardedAdSsvTest {
     }
 
     @Test
+    fun `synchronous SDK show exception dismisses once without granting reward`() {
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>()
+        every { consent.canRequestAds } returnsMany listOf(true, false)
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        val callback = slot<FullScreenContentCallback>()
+        every { ad.fullScreenContentCallback = capture(callback) } just Runs
+        every { ad.show(activity, any<OnUserEarnedRewardListener>()) } throws
+            IllegalStateException("synthetic SDK show failure")
+        RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
+            isAccessible = true
+            set(manager, ad)
+        }
+        var rewardCount = 0
+        var dismissedCount = 0
+
+        assertThat(
+            manager.showIfAvailable(
+                activity,
+                RewardedAdRequest("unlock_daily_full", "synthetic-user", "synthetic-challenge"),
+                onRewardEarned = { rewardCount++ },
+                onDismissed = { dismissedCount++ },
+            ),
+        ).isFalse()
+        assertThat(dismissedCount).isEqualTo(1)
+        assertThat(rewardCount).isEqualTo(0)
+
+        callback.captured.onAdFailedToShowFullScreenContent(mockk<AdError>(relaxed = true))
+        callback.captured.onAdDismissedFullScreenContent()
+        assertThat(dismissedCount).isEqualTo(1)
+        assertThat(rewardCount).isEqualTo(0)
+        verify(exactly = 1) { ad.show(activity, any<OnUserEarnedRewardListener>()) }
+    }
+
+    @Test
     fun `only an SDK earned-reward callback grants a reward`() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)

@@ -17,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -74,17 +75,22 @@ class InterstitialAdManager
                     return false
                 }
             interstitialAd = null
+            val finished = AtomicBoolean(false)
+            val dismissOnce = {
+                if (finished.compareAndSet(false, true)) {
+                    preload()
+                    onDismissed()
+                }
+            }
             ad.fullScreenContentCallback =
                 object : FullScreenContentCallback() {
                     override fun onAdDismissedFullScreenContent() {
-                        preload()
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
                         Timber.w("Interstitial show failed: %s", error.message)
-                        preload()
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdImpression() {
@@ -105,7 +111,15 @@ class InterstitialAdManager
                         }
                     }
                 }
-            ad.show(activity)
-            return true
+            return try {
+                ad.show(activity)
+                true
+            } catch (e: IllegalStateException) {
+                // A stale Activity can fail inside the SDK before it invokes
+                // FullScreenContentCallback. A failed show consumes no quota.
+                Timber.w(e, "Interstitial SDK show threw")
+                dismissOnce()
+                false
+            }
         }
     }
