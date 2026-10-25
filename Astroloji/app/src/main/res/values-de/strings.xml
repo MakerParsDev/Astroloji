@@ -201,7 +201,7 @@
     <string name="session_error_open_failed_after_register">Registrierung abgeschlossen, aber die Sitzung konnte nicht geöffnet werden.</string>
     <string name="notification_channel_daily_name">Tägliches Horoskop</string>
     <string name="notification_channel_daily_description">Tägliche astrologische Benachrichtigungen</string>
-    <string name="widget_daily_title">♈ Die heutige Energie</string>
+    <string name="widget_daily_title">%1$s Die heutige Energie</string>
     <string name="widget_daily_body">Die Sterne stehen im Einklang mit Ihnen.</string>
     <string name="widget_daily_energy">Energie: %1$d</string>
     <string name="daily_title">Tagesdeutung</string>

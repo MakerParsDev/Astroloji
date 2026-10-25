@@ -208,7 +208,7 @@
     <string name="session_error_open_failed_after_register">Cadastro concluído, mas não foi possível abrir a sessão.</string>
     <string name="notification_channel_daily_name">Horóscopo Diário</string>
     <string name="notification_channel_daily_description">Notificações astrológicas diárias</string>
-    <string name="widget_daily_title">♈ Energia de hoje</string>
+    <string name="widget_daily_title">%1$s Energia de hoje</string>
     <string name="widget_daily_body">As estrelas estão alinhadas com você.</string>
     <string name="widget_daily_energy">Energia: %1$d</string>
     <string name="daily_title">Leitura diária</string>
