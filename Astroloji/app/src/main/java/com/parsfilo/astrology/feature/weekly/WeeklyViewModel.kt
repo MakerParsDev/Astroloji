@@ -70,9 +70,19 @@ class WeeklyViewModel
                 }
                 WeeklyUiEvent.UnlockWithReward -> {
                     viewModelScope.launch {
+                        if (!adEligibilityChecker.canShowRewarded()) {
+                            setState { copy(canUnlockWithReward = false) }
+                            return@launch
+                        }
                         val identifier = TimeUtils.weekIdentifier()
                         when (val prepareResult = contentRepository.prepareRewardUnlock("weekly", identifier)) {
-                            is AppResult.Success -> sendEffect { WeeklyUiEffect.ShowRewardAd(prepareResult.data) }
+                            is AppResult.Success -> {
+                                if (adEligibilityChecker.canShowRewarded()) {
+                                    sendEffect { WeeklyUiEffect.ShowRewardAd(prepareResult.data) }
+                                } else {
+                                    setState { copy(canUnlockWithReward = false) }
+                                }
+                            }
                             is AppResult.Error -> setState { copy(error = prepareResult.exception.message) }
                             AppResult.Loading -> Unit
                         }

@@ -104,9 +104,19 @@ class DailyViewModel
 
         private fun prepareRewardUnlock() {
             viewModelScope.launch {
+                if (!adEligibilityChecker.canShowRewarded()) {
+                    setState { copy(canUnlockWithReward = false) }
+                    return@launch
+                }
                 val identifier = TimeUtils.dateIdentifier()
                 when (val result = contentRepository.prepareRewardUnlock("daily", identifier)) {
-                    is AppResult.Success -> sendEffect { DailyUiEffect.ShowRewardAd(result.data) }
+                    is AppResult.Success -> {
+                        if (adEligibilityChecker.canShowRewarded()) {
+                            sendEffect { DailyUiEffect.ShowRewardAd(result.data) }
+                        } else {
+                            setState { copy(canUnlockWithReward = false) }
+                        }
+                    }
                     is AppResult.Error -> setState { copy(error = result.exception.message) }
                     AppResult.Loading -> Unit
                 }

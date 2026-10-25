@@ -216,6 +216,56 @@ class DailyViewModelTest {
         }
 
     @Test
+    fun `consent or premium loss after screen load prevents reward prepare`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returnsMany listOf(true, false)
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.canUnlockWithReward).isTrue()
+
+            viewModel.onEvent(DailyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.canUnlockWithReward).isFalse()
+            coVerify(exactly = 0) { contentRepository.prepareRewardUnlock("daily", any()) }
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+        }
+
+    @Test
+    fun `consent or premium loss during challenge preparation prevents reward effect`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returnsMany listOf(true, true, false)
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            coEvery { contentRepository.prepareRewardUnlock("daily", any()) } returns
+                AppResult.Success(dailyRewardChallenge())
+
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.canUnlockWithReward).isTrue()
+
+            viewModel.onEvent(DailyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.canUnlockWithReward).isFalse()
+            coVerify(exactly = 1) { contentRepository.prepareRewardUnlock("daily", any()) }
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+        }
+
+    @Test
     fun `prepares SSV challenge before ad and claims only after reward callback`() =
         runTest {
             val locked = lockedDailyHoroscope()
