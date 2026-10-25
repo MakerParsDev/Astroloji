@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -17,12 +19,24 @@ import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
+import kotlinx.coroutines.flow.map
 import timber.log.Timber
 
 @Composable
 fun AdaptiveBannerAd(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val activity = context.findActivity() ?: return
+    val entryPoint = remember(context.applicationContext) { adsEntryPoint(context) }
+    val bannerAllowedFlow =
+        remember(entryPoint) {
+            bannerEligibilityFlow(
+                entryPoint.userPreferencesRepository().preferences.map { it.isPremium },
+                entryPoint.consentManager().canRequestAdsFlow,
+            )
+        }
+    // Fail closed while the current premium/UMP state is still unknown.
+    val canShowBanner by bannerAllowedFlow.collectAsState(initial = false)
+    if (!canShowBanner) return
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val adWidth = maxWidth.value.toInt().coerceAtLeast(320)
