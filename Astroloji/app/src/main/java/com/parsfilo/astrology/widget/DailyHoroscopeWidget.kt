@@ -5,20 +5,30 @@ package com.parsfilo.astrology.widget
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.Preferences
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.ImageProvider
+import androidx.glance.LocalContext
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
+import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
+import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
+import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
 import androidx.room.Room
 import com.parsfilo.astrology.MainActivity
 import com.parsfilo.astrology.R
@@ -30,9 +40,13 @@ import com.parsfilo.astrology.core.data.local.MIGRATION_3_4
 import com.parsfilo.astrology.core.data.preferences.PreferencesKeys
 import com.parsfilo.astrology.core.data.preferences.userPreferencesDataStore
 import com.parsfilo.astrology.core.util.TimeUtils
+import com.parsfilo.astrology.ui.theme.MoonMist
+import com.parsfilo.astrology.ui.theme.SoftGold
+import com.parsfilo.astrology.ui.theme.Starlight
 import kotlinx.coroutines.flow.first
 
 private const val FALLBACK_ENERGY_SCORE = 85
+private const val LARGE_WIDGET_FONT_SCALE = 1.5f
 
 class DailyHoroscopeWidget : GlanceAppWidget() {
     override suspend fun provideGlance(
@@ -110,17 +124,50 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
         body: String,
         energy: String?,
     ) {
+        // Glance has limited widget real estate: keep the primary text and
+        // the energy label visible instead of letting 2x system font scale
+        // push the bottom information outside the fixed 2x2 card.
+        val largeFont = LocalContext.current.resources.configuration.fontScale >= LARGE_WIDGET_FONT_SCALE
+        val labelSpacing = if (largeFont) 4.dp else 6.dp
         Column(
             modifier =
                 GlanceModifier
                     .fillMaxSize()
-                    .background(GlanceTheme.colors.widgetBackground)
-                    .padding(12.dp)
-                    .clickable(actionStartActivity<MainActivity>()),
+                    .background(ImageProvider(R.drawable.widget_premium_background))
+                    .cornerRadius(18.dp)
+                    .clickable(actionStartActivity<MainActivity>())
+                    .padding(14.dp),
+            verticalAlignment = Alignment.Vertical.CenterVertically,
         ) {
-            Text(title)
-            Text(body)
-            energy?.let { Text(it) }
+            Text(
+                title,
+                style =
+                    TextStyle(
+                        color = ColorProvider(SoftGold),
+                        fontSize = if (largeFont) 10.sp else 16.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                maxLines = 2,
+            )
+            Spacer(GlanceModifier.height(labelSpacing))
+            Text(
+                body,
+                style = TextStyle(color = ColorProvider(Starlight), fontSize = if (largeFont) 10.sp else 13.sp),
+                maxLines = 3,
+            )
+            energy?.let {
+                Spacer(GlanceModifier.height(labelSpacing))
+                Text(
+                    it,
+                    style =
+                        TextStyle(
+                            color = ColorProvider(MoonMist),
+                            fontSize = if (largeFont) 9.sp else 12.sp,
+                            fontWeight = FontWeight.Medium,
+                        ),
+                    maxLines = 1,
+                )
+            }
         }
     }
 
