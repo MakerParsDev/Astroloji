@@ -35,6 +35,8 @@ sealed interface FriendsUiEvent {
 
     data object GenerateInvite : FriendsUiEvent
 
+    data object ShareInvite : FriendsUiEvent
+
     data class RedeemCodeChanged(
         val value: String,
     ) : FriendsUiEvent
@@ -70,6 +72,7 @@ class FriendsViewModel
             when (event) {
                 FriendsUiEvent.ScreenViewed -> Unit
                 FriendsUiEvent.GenerateInvite -> generateInvite()
+                FriendsUiEvent.ShareInvite -> shareExistingInvite()
                 is FriendsUiEvent.RedeemCodeChanged ->
                     setState { copy(redeemCodeInput = event.value.uppercase(), error = null, infoMessage = null) }
                 FriendsUiEvent.RedeemCode -> redeemCode()
@@ -98,7 +101,15 @@ class FriendsViewModel
             }
         }
 
+        private fun shareExistingInvite() {
+            if (state.value.isGeneratingInvite) return
+            state.value.inviteCode
+                ?.takeIf { it.isNotBlank() }
+                ?.let { code -> sendEffect { FriendsUiEffect.ShareInvite(code) } }
+        }
+
         private fun generateInvite() {
+            if (state.value.isGeneratingInvite || !state.value.inviteCode.isNullOrBlank()) return
             viewModelScope.launch {
                 setState { copy(isGeneratingInvite = true, error = null) }
                 when (val result = friendsRepository.createInvite()) {

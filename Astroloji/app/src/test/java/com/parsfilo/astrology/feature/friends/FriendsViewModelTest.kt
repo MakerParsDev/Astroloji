@@ -16,6 +16,7 @@ import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
@@ -77,6 +78,42 @@ class FriendsViewModelTest {
 
             assertThat(viewModel.state.value.inviteCode).isEqualTo("ABCDEFGH")
             coVerify(exactly = 1) { analyticsRepository.track(AnalyticsEvents.FRIEND_INVITED, emptyMap()) }
+        }
+
+    @Test
+    fun sharingAnExistingCodeReusesItWithoutContactingInviteApiAgain() =
+        runTest {
+            stubDependencies()
+            coEvery { friendsRepository.createInvite() } returns
+                AppResult.Success(InviteCodeResponse(code = "EXISTING1", expiresAt = "2026-10-29T00:00:00.000Z"))
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(FriendsUiEvent.GenerateInvite)
+            advanceUntilIdle()
+            assertThat(viewModel.effects.first()).isEqualTo(FriendsUiEffect.ShareInvite("EXISTING1"))
+
+            viewModel.onEvent(FriendsUiEvent.ShareInvite)
+            advanceUntilIdle()
+
+            assertThat(viewModel.effects.first()).isEqualTo(FriendsUiEffect.ShareInvite("EXISTING1"))
+            assertThat(viewModel.state.value.inviteCode).isEqualTo("EXISTING1")
+            coVerify(exactly = 1) { friendsRepository.createInvite() }
+            coVerify(exactly = 1) { analyticsRepository.track(AnalyticsEvents.FRIEND_INVITED, emptyMap()) }
+        }
+
+    @Test
+    fun sharingBeforeCodeExistsMakesNoBackendRequest() =
+        runTest {
+            stubDependencies()
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(FriendsUiEvent.ShareInvite)
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.inviteCode).isNull()
+            coVerify(exactly = 0) { friendsRepository.createInvite() }
         }
 
     @Test

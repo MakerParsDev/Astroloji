@@ -107,7 +107,9 @@ private fun InviteSection(
                 stringResource(
                     if (code == null) R.string.friends_generate_invite_cta else R.string.friends_share_cta,
                 ),
-            onClick = { onEvent(FriendsUiEvent.GenerateInvite) },
+            onClick = {
+                onEvent(if (code.isNullOrBlank()) FriendsUiEvent.GenerateInvite else FriendsUiEvent.ShareInvite)
+            },
             enabled = !uiState.isGeneratingInvite,
             modifier = Modifier.fillMaxWidth(),
         )
