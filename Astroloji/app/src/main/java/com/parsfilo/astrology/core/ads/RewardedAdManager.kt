@@ -82,41 +82,63 @@ class RewardedAdManager
                 }
             rewardedAd = null
             val finished = AtomicBoolean(false)
+            val rewardDelivered = AtomicBoolean(false)
+            val impressionRecorded = AtomicBoolean(false)
             val dismissOnce = {
                 if (finished.compareAndSet(false, true)) {
                     preload()
                     onDismissed()
                 }
             }
-            applyRewardSsvOptions(ad, request.ssvUserId, request.ssvCustomData)
-            ad.fullScreenContentCallback =
-                object : FullScreenContentCallback() {
-                    override fun onAdDismissedFullScreenContent() {
-                        dismissOnce()
-                    }
+            val ssvConfigured =
+                try {
+                    applyRewardSsvOptions(ad, request.ssvUserId, request.ssvCustomData)
+                    true
+                } catch (e: IllegalStateException) {
+                    // Never show a rewarded ad with missing verification options.
+                    Timber.w(e, "Rewarded SSV options could not be configured")
+                    false
+                }
+            if (ssvConfigured) {
+                ad.fullScreenContentCallback =
+                    object : FullScreenContentCallback() {
+                        override fun onAdDismissedFullScreenContent() {
+                            dismissOnce()
+                        }
 
-                    override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
-                        Timber.w("Rewarded show failed: %s", error.message)
-                        dismissOnce()
-                    }
+                        override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                            Timber.w("Rewarded show failed: %s", error.message)
+                            dismissOnce()
+                        }
 
-                    override fun onAdImpression() {
-                        scope.launch {
-                            analyticsRepository.track(
-                                AnalyticsEvents.AD_SHOWN,
-                                mapOf("format" to "rewarded", "placement" to request.placement),
-                            )
+                        override fun onAdImpression() {
+                            if (finished.get() || !impressionRecorded.compareAndSet(false, true)) return
+                            scope.launch {
+                                analyticsRepository.track(
+                                    AnalyticsEvents.AD_SHOWN,
+                                    mapOf("format" to "rewarded", "placement" to request.placement),
+                                )
+                            }
                         }
                     }
+            }
+            return if (ssvConfigured) {
+                try {
+                    ad.show(activity) { rewardItem ->
+                        // Ignore duplicate or late callbacks after dismissal.
+                        if (!finished.get() && rewardDelivered.compareAndSet(false, true)) {
+                            onRewardEarned(rewardItem)
+                        }
+                    }
+                    true
+                } catch (e: IllegalStateException) {
+                    // Synchronous show failure cannot earn a reward.
+                    Timber.w(e, "Rewarded SDK show threw")
+                    dismissOnce()
+                    false
                 }
-            return try {
-                ad.show(activity) { rewardItem -> onRewardEarned(rewardItem) }
-                true
-            } catch (e: IllegalStateException) {
-                // Only the SDK's earned-reward callback may grant a reward.
-                // A synchronous SDK show failure must grant no reward.
-                Timber.w(e, "Rewarded SDK show threw")
-                dismissOnce()
+            } else {
+                preload()
                 false
             }
         }

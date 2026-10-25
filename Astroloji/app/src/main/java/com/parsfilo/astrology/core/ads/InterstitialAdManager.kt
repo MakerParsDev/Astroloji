@@ -76,6 +76,7 @@ class InterstitialAdManager
                 }
             interstitialAd = null
             val finished = AtomicBoolean(false)
+            val impressionRecorded = AtomicBoolean(false)
             val dismissOnce = {
                 if (finished.compareAndSet(false, true)) {
                     preload()
@@ -94,6 +95,9 @@ class InterstitialAdManager
                     }
 
                     override fun onAdImpression() {
+                        // Duplicate or late SDK callbacks must not consume additional
+                        // quota or record fictitious impressions after failed display.
+                        if (finished.get() || !impressionRecorded.compareAndSet(false, true)) return
                         // Start immediately, before dismiss/navigation can perform another
                         // eligibility check. The manager mutex holds until count persistence.
                         scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -115,11 +119,14 @@ class InterstitialAdManager
                 ad.show(activity)
                 true
             } catch (e: IllegalStateException) {
-                // A stale Activity can fail inside the SDK before it invokes
-                // FullScreenContentCallback. A failed show consumes no quota.
+                // false means the caller navigates itself. Do not invoke
+                // onDismissed too: Daily/Weekly/Monthly already navigate on false.
+                // If the SDK called onDismissed synchronously before throwing,
+                // the callback owns navigation; report handled (true) instead.
                 Timber.w(e, "Interstitial SDK show threw")
-                dismissOnce()
-                false
+                val callbackAlreadyHandled = !finished.compareAndSet(false, true)
+                if (!callbackAlreadyHandled) preload()
+                callbackAlreadyHandled
             }
         }
     }
