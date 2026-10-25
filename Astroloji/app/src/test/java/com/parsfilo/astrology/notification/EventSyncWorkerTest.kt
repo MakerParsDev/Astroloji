@@ -88,6 +88,42 @@ class EventSyncWorkerTest {
         }
 
     @Test
+    fun `partial batch retry sends only the unacknowledged event on next run`() =
+        runTest {
+            val first = event(id = "delivered-first", payload = "{}").copy(type = "daily_viewed")
+            val second = event(id = "retry-second", payload = "{}").copy(type = "weekly_viewed")
+            // The second run simulates the queue after the first acknowledged row
+            // was deleted. A server-side timeout before acknowledgment remains
+            // an at-least-once delivery case, not a deduplication guarantee.
+            coEvery { queuedEventDao.getBatch(50) } returnsMany
+                listOf(listOf(first, second), listOf(second))
+            coEvery {
+                api.trackEvent(match { it.eventType == "daily_viewed" })
+            } returns Response.success(TrackEventResponse(ok = true))
+            coEvery {
+                api.trackEvent(match { it.eventType == "weekly_viewed" })
+            } returnsMany
+                listOf(
+                    Response.error(503, "unavailable".toResponseBody()),
+                    Response.success(TrackEventResponse(ok = true)),
+                )
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Retry::class.java)
+            coVerify(exactly = 1) { queuedEventDao.delete(first.id) }
+            coVerify(exactly = 0) { queuedEventDao.delete(second.id) }
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            coVerify(exactly = 1) {
+                api.trackEvent(match { it.eventType == "daily_viewed" })
+            }
+            coVerify(exactly = 2) {
+                api.trackEvent(match { it.eventType == "weekly_viewed" })
+            }
+            coVerify(exactly = 1) { queuedEventDao.delete(first.id) }
+            coVerify(exactly = 1) { queuedEventDao.delete(second.id) }
+        }
+
+    @Test
     fun `deletes successfully delivered events`() =
         runTest {
             val delivered = event(id = "delivered", payload = "{}")
