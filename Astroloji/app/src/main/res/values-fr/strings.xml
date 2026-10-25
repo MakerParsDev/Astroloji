@@ -384,4 +384,12 @@
     <string name="settings_birth_data_delete_dialog_body">Le profil de naissance enregistré sera supprimé définitivement du serveur. Votre compte, les autres données et les lectures précédentes restent.</string>
     <string name="settings_birth_data_delete_confirm">Supprimer le profil</string>
     <string name="settings_birth_data_delete_progress">Suppression du profil de naissance…</string>
+    <string name="settings_mood_delete_title">Supprimer l’historique d’humeur</string>
+    <string name="settings_mood_delete_description">Supprimez du serveur vos humeurs enregistrées et les événements associés sans supprimer votre compte ni votre profil natal. Les événements déjà collectés par Firebase Analytics ne sont pas supprimés.</string>
+    <string name="settings_mood_delete_button">Supprimer l’historique d’humeur</string>
+    <string name="settings_mood_delete_success">Historique d’humeur supprimé. Votre compte reste actif.</string>
+    <string name="settings_mood_delete_dialog_title">Supprimer toutes les humeurs enregistrées ?</string>
+    <string name="settings_mood_delete_dialog_body">Les humeurs enregistrées et leurs événements seront supprimés de notre serveur. Votre compte et votre profil natal restent intacts. Les événements déjà collectés par Firebase Analytics ne sont pas supprimés.</string>
+    <string name="settings_mood_delete_confirm">Supprimer l’historique d’humeur</string>
+    <string name="settings_mood_delete_progress">Suppression de l’historique d’humeur…</string>
 </resources>

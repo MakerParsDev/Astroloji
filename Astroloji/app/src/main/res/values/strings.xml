@@ -376,4 +376,12 @@
     <string name="settings_birth_data_delete_dialog_body">This permanently removes your saved birth profile from the server. Your account stays active; other stored data and previous readings remain.</string>
     <string name="settings_birth_data_delete_confirm">Delete birth profile</string>
     <string name="settings_birth_data_delete_progress">Deleting birth profile…</string>
+    <string name="settings_mood_delete_title">Delete mood check-in history</string>
+    <string name="settings_mood_delete_description">Remove all stored mood check-ins and associated mood event records from our server without deleting your account or birth profile. This cannot erase events already collected by Firebase Analytics.</string>
+    <string name="settings_mood_delete_button">Delete mood history</string>
+    <string name="settings_mood_delete_success">Stored mood history removed. Your account remains active.</string>
+    <string name="settings_mood_delete_dialog_title">Delete all mood check-ins?</string>
+    <string name="settings_mood_delete_dialog_body">This removes all stored mood entries and mood event records from our server. Your account and birth profile remain. Previously collected Firebase Analytics events are not removed.</string>
+    <string name="settings_mood_delete_confirm">Delete mood history</string>
+    <string name="settings_mood_delete_progress">Deleting mood history…</string>
 </resources>

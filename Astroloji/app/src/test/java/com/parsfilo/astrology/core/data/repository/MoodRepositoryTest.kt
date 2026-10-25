@@ -1,6 +1,8 @@
 package com.parsfilo.astrology.core.data.repository
 
+import android.database.sqlite.SQLiteException
 import com.google.common.truth.Truth.assertThat
+import com.parsfilo.astrology.core.data.local.QueuedEventDao
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.MoodInsight
 import com.parsfilo.astrology.core.data.remote.MoodInsightResponse
@@ -10,6 +12,8 @@ import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.DispatchersProvider
 import io.mockk.coEvery
+import io.mockk.coJustRun
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -22,11 +26,13 @@ import retrofit2.Response
 class MoodRepositoryTest {
     private val api = mockk<AstrologyApi>()
     private val sessionRepository = mockk<SessionRepository>()
+    private val queuedEventDao = mockk<QueuedEventDao>()
     private val dispatcher = UnconfinedTestDispatcher()
     private val repository =
         MoodRepository(
             api = api,
             sessionRepository = sessionRepository,
+            queuedEventDao = queuedEventDao,
             requestExecutor = AuthenticatedRequestExecutor(),
             dispatchers =
                 DispatchersProvider(
@@ -58,6 +64,41 @@ class MoodRepositoryTest {
 
             assertThat(result).isInstanceOf(AppResult.Success::class.java)
             assertThat((result as AppResult.Success).data.insight).isEqualTo(MoodInsight("communication", 4, 3))
+        }
+
+    @Test
+    fun `mood history deletion succeeds on authorized HTTP success`() =
+        runTest {
+            coEvery { api.deleteMoodHistory() } returns Response.success(Unit)
+            coJustRun { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED) }
+
+            val result = repository.deleteMoodHistory()
+
+            assertThat(result).isInstanceOf(AppResult.Success::class.java)
+            coVerify(exactly = 1) { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED) }
+        }
+
+    @Test
+    fun `failed local queue cleanup reports retryable deletion instead of success`() =
+        runTest {
+            coEvery { api.deleteMoodHistory() } returns Response.success(Unit)
+            coEvery { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED) } throws
+                SQLiteException("synthetic SQLite failure")
+
+            val result = repository.deleteMoodHistory()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+        }
+
+    @Test
+    fun `mood history deletion reports failure and does not claim data removed`() =
+        runTest {
+            coEvery { api.deleteMoodHistory() } returns Response.error(503, "offline".toResponseBody())
+
+            val result = repository.deleteMoodHistory()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            coVerify(exactly = 0) { queuedEventDao.deleteByType(any()) }
         }
 
     @Test

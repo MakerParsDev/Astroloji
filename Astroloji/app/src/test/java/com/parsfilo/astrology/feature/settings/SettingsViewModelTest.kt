@@ -6,6 +6,7 @@ import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.BillingManager
 import com.parsfilo.astrology.core.data.repository.BirthDataRepository
 import com.parsfilo.astrology.core.data.repository.FavoritesRepository
+import com.parsfilo.astrology.core.data.repository.MoodRepository
 import com.parsfilo.astrology.core.data.repository.SessionRepository
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.domain.model.UserProfile
@@ -34,6 +35,7 @@ class SettingsViewModelTest {
     private val favoritesRepository = mockk<FavoritesRepository>()
     private val billingManager = mockk<BillingManager>()
     private val birthDataRepository = mockk<BirthDataRepository>()
+    private val moodRepository = mockk<MoodRepository>()
 
     @Before
     fun setUp() {
@@ -114,6 +116,66 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `mood history deletion requires explicit confirmation and preserves account`() =
+        runTest {
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(SettingsUiEvent.ConfirmMoodDeletion)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { moodRepository.deleteMoodHistory() }
+
+            viewModel.onEvent(SettingsUiEvent.RequestMoodDeletion)
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.showDeleteMoodConfirmation).isTrue()
+            viewModel.onEvent(SettingsUiEvent.DismissMoodDeletion)
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.showDeleteMoodConfirmation).isFalse()
+            coVerify(exactly = 0) { moodRepository.deleteMoodHistory() }
+            coVerify(exactly = 0) { sessionRepository.deleteAccount() }
+        }
+
+    @Test
+    fun `confirmed mood history deletion reports success without deleting birth data or account`() =
+        runTest {
+            coEvery { moodRepository.deleteMoodHistory() } returns AppResult.Success(Unit)
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(SettingsUiEvent.RequestMoodDeletion)
+            advanceUntilIdle()
+            viewModel.onEvent(SettingsUiEvent.ConfirmMoodDeletion)
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.moodHistoryDeleted).isTrue()
+            assertThat(viewModel.state.value.showDeleteMoodConfirmation).isFalse()
+            assertThat(viewModel.state.value.isDeletingMoodHistory).isFalse()
+            coVerify(exactly = 1) { moodRepository.deleteMoodHistory() }
+            coVerify(exactly = 0) { birthDataRepository.deleteBirthData() }
+            coVerify(exactly = 0) { sessionRepository.deleteAccount() }
+        }
+
+    @Test
+    fun `failed mood history deletion preserves confirmation and never claims success`() =
+        runTest {
+            coEvery { moodRepository.deleteMoodHistory() } returns
+                AppResult.Error(AppException.NetworkException("Synthetic deletion failure"))
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(SettingsUiEvent.RequestMoodDeletion)
+            advanceUntilIdle()
+            viewModel.onEvent(SettingsUiEvent.ConfirmMoodDeletion)
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.showDeleteMoodConfirmation).isTrue()
+            assertThat(viewModel.state.value.moodHistoryDeleted).isFalse()
+            assertThat(viewModel.state.value.moodDeletionError).isEqualTo("Synthetic deletion failure")
+            assertThat(viewModel.state.value.isDeletingMoodHistory).isFalse()
+            coVerify(exactly = 0) { sessionRepository.deleteAccount() }
+        }
+
+    @Test
     fun `account deletion confirmation can be opened and dismissed`() =
         runTest {
             val viewModel = createViewModel()
@@ -169,6 +231,7 @@ class SettingsViewModelTest {
             favoritesRepository = favoritesRepository,
             billingManager = billingManager,
             birthDataRepository = birthDataRepository,
+            moodRepository = moodRepository,
         )
 }
 

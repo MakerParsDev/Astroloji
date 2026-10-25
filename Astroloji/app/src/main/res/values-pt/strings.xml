@@ -384,4 +384,12 @@
     <string name="settings_birth_data_delete_dialog_body">O perfil de nascimento salvo será removido permanentemente do servidor. Sua conta, outros dados e leituras anteriores serão mantidos.</string>
     <string name="settings_birth_data_delete_confirm">Excluir perfil</string>
     <string name="settings_birth_data_delete_progress">Excluindo perfil de nascimento…</string>
+    <string name="settings_mood_delete_title">Excluir histórico de humor</string>
+    <string name="settings_mood_delete_description">Remova do servidor todos os registros de humor e seus eventos associados sem excluir a conta ou o perfil natal. Eventos já coletados pelo Firebase Analytics não são apagados.</string>
+    <string name="settings_mood_delete_button">Excluir histórico de humor</string>
+    <string name="settings_mood_delete_success">Histórico de humor excluído. Sua conta continua ativa.</string>
+    <string name="settings_mood_delete_dialog_title">Excluir todos os registros de humor?</string>
+    <string name="settings_mood_delete_dialog_body">Os registros de humor e eventos associados serão removidos do nosso servidor. A conta e o perfil natal permanecem. Eventos já coletados pelo Firebase Analytics não são apagados.</string>
+    <string name="settings_mood_delete_confirm">Excluir histórico de humor</string>
+    <string name="settings_mood_delete_progress">Excluindo histórico de humor…</string>
 </resources>

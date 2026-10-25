@@ -600,6 +600,9 @@ interface AstrologyApi {
         @Body body: MoodLogRequest,
     ): Response<MoodLogResponse>
 
+    @DELETE("api/v1/mood/logs")
+    suspend fun deleteMoodHistory(): Response<Unit>
+
     @GET("api/v1/mood/insight")
     suspend fun getMoodInsight(): Response<MoodInsightResponse>
 

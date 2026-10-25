@@ -384,4 +384,12 @@
     <string name="settings_birth_data_delete_dialog_body">El perfil de nacimiento guardado se eliminará definitivamente del servidor. Tu cuenta, otros datos y lecturas anteriores se conservarán.</string>
     <string name="settings_birth_data_delete_confirm">Eliminar perfil</string>
     <string name="settings_birth_data_delete_progress">Eliminando perfil de nacimiento…</string>
+    <string name="settings_mood_delete_title">Eliminar historial de estado de ánimo</string>
+    <string name="settings_mood_delete_description">Elimina del servidor todos tus registros de ánimo y sus eventos asociados sin borrar tu cuenta ni tu perfil natal. Los eventos ya recogidos por Firebase Analytics no se eliminan.</string>
+    <string name="settings_mood_delete_button">Eliminar historial de ánimo</string>
+    <string name="settings_mood_delete_success">Historial de ánimo eliminado. Tu cuenta sigue activa.</string>
+    <string name="settings_mood_delete_dialog_title">¿Eliminar todos los registros de ánimo?</string>
+    <string name="settings_mood_delete_dialog_body">Se borrarán del servidor los registros de ánimo y sus eventos asociados. Tu cuenta y perfil natal se conservarán. Los eventos ya recogidos por Firebase Analytics no se eliminan.</string>
+    <string name="settings_mood_delete_confirm">Eliminar historial de ánimo</string>
+    <string name="settings_mood_delete_progress">Eliminando historial de ánimo…</string>
 </resources>

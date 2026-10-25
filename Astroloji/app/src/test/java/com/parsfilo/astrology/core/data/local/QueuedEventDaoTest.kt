@@ -73,6 +73,18 @@ class QueuedEventDaoTest {
             assertThat(dao.getBatch(10)).isEmpty()
         }
 
+    @Test
+    fun `mood history deletion removes only pending mood analytics events`() =
+        runTest {
+            dao.upsert(event(id = "mood-pending-1", createdAt = 100L).copy(type = "mood_logged"))
+            dao.upsert(event(id = "mood-pending-2", createdAt = 200L).copy(type = "mood_logged"))
+            dao.upsert(event(id = "other-event", createdAt = 300L))
+
+            dao.deleteByType("mood_logged")
+
+            assertThat(dao.getBatch(10).map { it.id }).containsExactly("other-event")
+        }
+
     private fun event(
         id: String,
         createdAt: Long,

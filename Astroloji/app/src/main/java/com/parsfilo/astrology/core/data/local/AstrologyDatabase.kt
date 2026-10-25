@@ -259,6 +259,9 @@ abstract class QueuedEventDao {
     @Query("DELETE FROM queued_events WHERE id = :id")
     abstract suspend fun delete(id: String)
 
+    @Query("DELETE FROM queued_events WHERE type = :eventType")
+    abstract suspend fun deleteByType(eventType: String)
+
     @Transaction
     open suspend fun enqueueBounded(
         entity: QueuedEventEntity,

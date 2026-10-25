@@ -376,4 +376,12 @@
     <string name="settings_birth_data_delete_dialog_body">Ihr gespeichertes Geburtsprofil wird dauerhaft vom Server entfernt. Ihr Konto, andere Daten und frühere Deutungen bleiben erhalten.</string>
     <string name="settings_birth_data_delete_confirm">Geburtsprofil löschen</string>
     <string name="settings_birth_data_delete_progress">Geburtsprofil wird gelöscht…</string>
+    <string name="settings_mood_delete_title">Stimmungsverlauf löschen</string>
+    <string name="settings_mood_delete_description">Alle gespeicherten Stimmungseinträge und zugehörigen Ereignisse von unserem Server entfernen, ohne Konto oder Geburtsprofil zu löschen. Bereits in Firebase Analytics erfasste Ereignisse werden nicht gelöscht.</string>
+    <string name="settings_mood_delete_button">Stimmungsverlauf löschen</string>
+    <string name="settings_mood_delete_success">Stimmungsverlauf gelöscht. Ihr Konto bleibt bestehen.</string>
+    <string name="settings_mood_delete_dialog_title">Alle Stimmungseinträge löschen?</string>
+    <string name="settings_mood_delete_dialog_body">Alle gespeicherten Stimmungseinträge und zugehörigen Ereignisse werden von unserem Server gelöscht. Konto und Geburtsprofil bleiben erhalten. Frühere Firebase-Analytics-Ereignisse bleiben bestehen.</string>
+    <string name="settings_mood_delete_confirm">Stimmungsverlauf löschen</string>
+    <string name="settings_mood_delete_progress">Stimmungsverlauf wird gelöscht…</string>
 </resources>

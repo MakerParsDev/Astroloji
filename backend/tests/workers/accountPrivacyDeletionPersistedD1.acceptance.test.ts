@@ -50,6 +50,85 @@ function makeMiniflare(directory: string) {
 }
 
 describe('privacy deletion — isolated persistent local D1 and synthetic accounts', () => {
+  it('deletes only a requested mood date or all mood history without deleting other user data', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'astro-scoped-mood-d1-'));
+    let runtime = makeMiniflare(dir);
+    try {
+      let db = await runtime.getD1Database('DB');
+      await installLocalSchema(db);
+      for (const userId of [A, B]) {
+        await db.prepare(
+          'INSERT INTO users (id, firebase_uid, sign, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind(userId, 'firebase-' + userId, 'aries', '2026-10-26', '2026-10-26').run();
+        await db.prepare(
+          'INSERT INTO user_birth_data (user_id, time_certainty, encrypted_payload, encryption_iv, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(userId, 'unknown', 'encrypted-test', 'synthetic-iv', '2026-10-26', '2026-10-26').run();
+        for (const date of ['2026-10-24', '2026-10-25']) {
+          await db.prepare(
+            'INSERT INTO mood_logs (id, user_id, date, mood, domain, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+          ).bind(userId + date, userId, date, 'low', 'emotions', '2026-10-26').run();
+        }
+        for (const eventType of ['mood_logged', 'app_open']) {
+          await db.prepare(
+            'INSERT INTO user_events (id, user_id, event_type, meta, created_at) VALUES (?, ?, ?, ?, ?)'
+          ).bind(userId + eventType, userId, eventType, '{}', '2026-10-26').run();
+        }
+      }
+      const env = createTestEnv({ DB: db });
+      const app = createApp();
+      const headersA = { authorization: 'Bearer ' + await signAppJwt(env, {
+        userId: A, firebaseUid: 'firebase-' + A, isPremium: false
+      }) };
+      const count = async (table: string, userId: string, clause = '') =>
+        (await db.prepare('SELECT COUNT(*) AS n FROM ' + table + ' WHERE user_id = ? ' + clause)
+          .bind(userId).first<{ n: number }>())?.n;
+
+      expect((await app.request('/api/v1/mood/logs', { method: 'DELETE' }, env)).status).toBe(401);
+      for (const date of ['2026-02-30', '2026-13-01', 'not-a-date']) {
+        expect((await app.request('/api/v1/mood/logs/' + date, {
+          method: 'DELETE', headers: headersA
+        }, env)).status).toBe(400);
+      }
+      expect(await count('mood_logs', A)).toBe(2);
+
+      expect((await app.request('/api/v1/mood/logs/2026-10-24', {
+        method: 'DELETE', headers: headersA
+      }, env)).status).toBe(200);
+      expect(await count('mood_logs', A)).toBe(1);
+      expect(await count('mood_logs', B)).toBe(2);
+      // Date-specific removal cannot identify the original date of a legacy
+      // analytics event, so the event is not erroneously attributed to it.
+      expect(await count('user_events', A)).toBe(2);
+
+      for (let i = 0; i < 2; i += 1) {
+        const deleted = await app.request('/api/v1/mood/logs', {
+          method: 'DELETE', headers: headersA
+        }, env);
+        expect(deleted.status).toBe(200);
+        await expect(deleted.json()).resolves.toEqual({ ok: true });
+      }
+      expect(await count('mood_logs', A)).toBe(0);
+      expect(await count('mood_logs', B)).toBe(2);
+      expect(await count('user_events', A, "AND event_type = 'mood_logged'")).toBe(0);
+      expect(await count('user_events', A, "AND event_type = 'app_open'")).toBe(1);
+      expect(await count('user_events', B)).toBe(2);
+      for (const userId of [A, B]) {
+        expect((await db.prepare('SELECT COUNT(*) AS n FROM users WHERE id = ?')
+          .bind(userId).first<{ n: number }>())?.n).toBe(1);
+        expect(await count('user_birth_data', userId)).toBe(1);
+      }
+
+      await runtime.dispose();
+      runtime = makeMiniflare(dir);
+      db = await runtime.getD1Database('DB');
+      expect(await count('mood_logs', A)).toBe(0);
+      expect(await count('mood_logs', B)).toBe(2);
+    } finally {
+      await runtime.dispose();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('preserves all D1 rows on an interrupted delete, then completes durable retry without a JWT', async () => {
     deleteFirebaseUserMock.mockReset().mockResolvedValue(undefined);
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);

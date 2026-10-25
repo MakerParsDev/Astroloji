@@ -401,6 +401,32 @@ fun SettingsScreen(
 
             AstrologyCard {
                 Text(
+                    text = stringResource(R.string.settings_mood_delete_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.settings_mood_delete_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(
+                    onClick = { viewModel.onEvent(SettingsUiEvent.RequestMoodDeletion) },
+                    enabled = !uiState.isDeletingMoodHistory && !uiState.isDeletingAccount,
+                ) {
+                    Text(stringResource(R.string.settings_mood_delete_button))
+                }
+                if (uiState.moodHistoryDeleted) {
+                    Text(
+                        text = stringResource(R.string.settings_mood_delete_success),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
+            AstrologyCard {
+                Text(
                     text = stringResource(R.string.settings_account_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
@@ -475,6 +501,53 @@ fun SettingsScreen(
                 TextButton(
                     onClick = { viewModel.onEvent(SettingsUiEvent.DismissBirthDataDeletion) },
                     enabled = !uiState.isDeletingBirthData,
+                ) {
+                    Text(stringResource(R.string.settings_delete_dialog_cancel))
+                }
+            },
+        )
+    }
+
+    if (uiState.showDeleteMoodConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isDeletingMoodHistory) {
+                    viewModel.onEvent(SettingsUiEvent.DismissMoodDeletion)
+                }
+            },
+            title = { Text(stringResource(R.string.settings_mood_delete_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.settings_mood_delete_dialog_body))
+                    uiState.moodDeletionError?.let { error ->
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.onEvent(SettingsUiEvent.ConfirmMoodDeletion) },
+                    enabled = !uiState.isDeletingMoodHistory,
+                ) {
+                    Text(
+                        stringResource(
+                            if (uiState.isDeletingMoodHistory) {
+                                R.string.settings_mood_delete_progress
+                            } else {
+                                R.string.settings_mood_delete_confirm
+                            },
+                        ),
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.onEvent(SettingsUiEvent.DismissMoodDeletion) },
+                    enabled = !uiState.isDeletingMoodHistory,
                 ) {
                     Text(stringResource(R.string.settings_delete_dialog_cancel))
                 }
