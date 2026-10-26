@@ -4,8 +4,10 @@ import android.os.Bundle
 import com.google.common.truth.Truth.assertThat
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.parsfilo.astrology.core.data.local.QueuedEventDao
+import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventResponse
+import com.parsfilo.astrology.core.domain.model.UserPreferences
 import io.mockk.coEvery
 import io.mockk.coJustRun
 import io.mockk.coVerify
@@ -28,13 +30,33 @@ class AnalyticsRepositoryTest {
     private val firebaseAnalytics = mockk<FirebaseAnalytics>(relaxed = true)
     private val api = mockk<AstrologyApi>()
     private val queuedEventDao = mockk<QueuedEventDao>(relaxed = true)
+    private val preferencesRepository = mockk<UserPreferencesRepository>()
+    private val syncGate = MoodAnalyticsSyncGate()
     private val repository =
         AnalyticsRepository(
             firebaseAnalytics = firebaseAnalytics,
             api = api,
             queuedEventDao = queuedEventDao,
+            preferencesRepository = preferencesRepository,
+            syncGate = syncGate,
             json = Json,
         )
+
+    init {
+        coEvery { preferencesRepository.current() } returns UserPreferences(userId = "owner-A")
+    }
+
+    @Test
+    fun `does not send unowned events under a future login`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(userId = null)
+
+            repository.track(AnalyticsEvents.DAILY_VIEWED)
+            repository.enqueue(AnalyticsEvents.APP_OPEN)
+
+            coVerify(exactly = 0) { api.trackEvent(any()) }
+            coVerify(exactly = 0) { queuedEventDao.enqueueBounded(any(), any(), any()) }
+        }
 
     @Test
     fun `does not queue permanently rejected client events`() =
@@ -66,6 +88,40 @@ class AnalyticsRepositoryTest {
                     },
                 )
             }
+        }
+
+    @Test
+    fun `reuses original event ID when a successful server write loses its HTTP response`() =
+        runTest {
+            val submitted = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            val queued = slot<com.parsfilo.astrology.core.data.local.QueuedEventEntity>()
+            coEvery { api.trackEvent(capture(submitted)) } throws IOException("response lost")
+            coJustRun { queuedEventDao.enqueueBounded(capture(queued), any(), any()) }
+
+            repository.track(AnalyticsEvents.DAILY_VIEWED, mapOf("sign" to "aries"))
+
+            assertThat(submitted.captured.eventId).isNotNull()
+            assertThat(submitted.captured.ownerUserId).isEqualTo("owner-A")
+            assertThat(queued.captured.ownerUserId).isEqualTo("owner-A")
+            assertThat(queued.captured.id).isEqualTo(submitted.captured.eventId)
+            assertThat(queued.captured.payload).isEqualTo("{\"sign\":\"aries\"}")
+            coVerify(exactly = 1) { queuedEventDao.enqueueBounded(any(), any(), any()) }
+        }
+
+    @Test
+    fun `preserves event ID after a retryable HTTP response`() =
+        runTest {
+            val submitted = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            val queued = slot<com.parsfilo.astrology.core.data.local.QueuedEventEntity>()
+            coEvery { api.trackEvent(capture(submitted)) } returns Response.error(503, "retry".toResponseBody())
+            coJustRun { queuedEventDao.enqueueBounded(capture(queued), any(), any()) }
+
+            repository.track(AnalyticsEvents.WEEKLY_VIEWED)
+
+            assertThat(submitted.captured.eventId).isNotNull()
+            assertThat(submitted.captured.ownerUserId).isEqualTo("owner-A")
+            assertThat(queued.captured.ownerUserId).isEqualTo("owner-A")
+            assertThat(queued.captured.id).isEqualTo(submitted.captured.eventId)
         }
 
     @Test

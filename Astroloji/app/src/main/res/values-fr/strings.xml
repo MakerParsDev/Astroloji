@@ -102,6 +102,8 @@
     <string name="premium_catalog_loading">Les informations de prix sécurisées se chargent depuis Google Play. Aucun achat ne peut encore commencer.</string>
     <string name="premium_billing_disclosure">%1$s facturé %2$s. Renouvellement automatique sauf annulation dans Google Play avant la date de renouvellement.</string>
     <string name="premium_billing_disclosure_trial">Essai gratuit de %1$d jours, puis %2$s facturé %3$s. Renouvellement automatique sauf annulation dans Google Play avant la date de renouvellement.</string>
+    <string name="premium_billing_disclosure_intro">Tarif de lancement : %1$s pour les %2$d premières périodes de facturation %3$s, puis %4$s facturé %5$s. Renouvellement automatique sauf annulation préalable sur Google Play.</string>
+    <string name="premium_billing_disclosure_trial_intro">Essai gratuit de %1$d jours, puis tarif de lancement %2$s pour les %3$d premières périodes %4$s, ensuite %5$s facturé %6$s. Renouvellement automatique sauf annulation préalable sur Google Play.</string>
     <string name="premium_period_monthly">mensuel</string>
     <string name="premium_period_weekly">hebdomadaire</string>
     <string name="premium_period_yearly">annuel</string>
@@ -254,6 +256,11 @@
         <item quantity="other">+%1$d crédits ont été ajoutés à votre solde.</item>
     </plurals>
     <string name="home_mood_title">Comment vous sentez-vous aujourd\'hui ?</string>
+    <string name="home_mood_option_great">Très bien</string>
+    <string name="home_mood_option_good">Bien</string>
+    <string name="home_mood_option_neutral">Neutre</string>
+    <string name="home_mood_option_low">Mal</string>
+    <string name="home_mood_option_stressed">Stressé</string>
     <string name="home_mood_logged">Enregistré : %1$s Merci de nous avoir tenus informés.</string>
     <string name="home_mood_insight">Dans %1$d de vos %2$d derniers enregistrements d\'humeur basse concernant %3$s, votre thème montrait un transit correspondant.</string>
     <string name="streak_milestone_3">3 jours de suite. Votre rituel a commencé.</string>
@@ -377,4 +384,12 @@
     <string name="settings_birth_data_delete_dialog_body">Le profil de naissance enregistré sera supprimé définitivement du serveur. Votre compte, les autres données et les lectures précédentes restent.</string>
     <string name="settings_birth_data_delete_confirm">Supprimer le profil</string>
     <string name="settings_birth_data_delete_progress">Suppression du profil de naissance…</string>
+    <string name="settings_mood_delete_title">Supprimer l’historique d’humeur</string>
+    <string name="settings_mood_delete_description">Supprimez du serveur vos humeurs enregistrées et les événements associés sans supprimer votre compte ni votre profil natal. Les événements déjà collectés par Firebase Analytics ne sont pas supprimés.</string>
+    <string name="settings_mood_delete_button">Supprimer l’historique d’humeur</string>
+    <string name="settings_mood_delete_success">Historique d’humeur supprimé. Votre compte reste actif.</string>
+    <string name="settings_mood_delete_dialog_title">Supprimer toutes les humeurs enregistrées ?</string>
+    <string name="settings_mood_delete_dialog_body">Les humeurs enregistrées et leurs événements seront supprimés de notre serveur. Votre compte et votre profil natal restent intacts. Les événements déjà collectés par Firebase Analytics ne sont pas supprimés.</string>
+    <string name="settings_mood_delete_confirm">Supprimer l’historique d’humeur</string>
+    <string name="settings_mood_delete_progress">Suppression de l’historique d’humeur…</string>
 </resources>

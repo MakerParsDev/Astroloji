@@ -58,6 +58,61 @@ class PremiumPlanSelectionTest {
     }
 
     @Test
+    fun paidOnlyMonthlyAndWeeklyPlansRemainDistinctRadioSelections() {
+        // Mirrors the currently published Play catalogue shape: monthly + weekly,
+        // no yearly product and no introductory/free-trial offer. All terms below
+        // are synthetic test data, not a live BillingClient query.
+        val monthly =
+            PremiumPlanUi(
+                planId = "monthly",
+                productId = "premium_monthly",
+                basePlanId = "monthly",
+                billingPeriod = "P1M",
+                title = "Monthly",
+                price = "TRY 394.99",
+                offerToken = "synthetic-monthly",
+            )
+        val weekly =
+            PremiumPlanUi(
+                planId = "weekly",
+                productId = "premium_weekly",
+                basePlanId = "weekly",
+                billingPeriod = "P1W",
+                title = "Weekly",
+                price = "TRY 129.99",
+                offerToken = "synthetic-weekly",
+            )
+        var planChanges = 0
+        composeRule.setContent {
+            var selected by remember { mutableStateOf("monthly") }
+            MaterialTheme {
+                PremiumPlanSelector(
+                    plans = listOf(monthly, weekly),
+                    selectedPlanId = selected,
+                    variant = PaywallVariant.MONTHLY_FIRST,
+                    onSelect = {
+                        planChanges++
+                        selected = it
+                    },
+                )
+            }
+        }
+
+        val monthlyNode = composeRule.onNodeWithTag("premium-plan-monthly")
+        val weeklyNode = composeRule.onNodeWithTag("premium-plan-weekly")
+        monthlyNode.assertIsSelected()
+        weeklyNode.assertIsNotSelected()
+        weeklyNode.performClick()
+        weeklyNode.assertIsSelected()
+        monthlyNode.assertIsNotSelected()
+        composeRule.runOnIdle { assertTrue("Exactly one plan-selection callback expected", planChanges == 1) }
+        monthlyNode.performClick()
+        monthlyNode.assertIsSelected()
+        weeklyNode.assertIsNotSelected()
+        composeRule.runOnIdle { assertTrue("No purchase action is wired to plan selection", planChanges == 2) }
+    }
+
+    @Test
     fun narrowPhoneWithLargeTextStacksOptionsAndPreservesSelectionSemantics() {
         val (monthly, yearly) = samplePlans()
         composeRule.setContent {

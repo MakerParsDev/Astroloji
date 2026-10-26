@@ -37,6 +37,7 @@ import com.parsfilo.astrology.core.data.local.DailyHoroscopeEntity
 import com.parsfilo.astrology.core.data.local.MIGRATION_1_2
 import com.parsfilo.astrology.core.data.local.MIGRATION_2_3
 import com.parsfilo.astrology.core.data.local.MIGRATION_3_4
+import com.parsfilo.astrology.core.data.local.MIGRATION_4_5
 import com.parsfilo.astrology.core.data.preferences.PreferencesKeys
 import com.parsfilo.astrology.core.data.preferences.userPreferencesDataStore
 import com.parsfilo.astrology.core.util.TimeUtils
@@ -79,6 +80,7 @@ class DailyHoroscopeWidget : GlanceAppWidget() {
                 ).addMigrations(MIGRATION_1_2)
                 .addMigrations(MIGRATION_2_3)
                 .addMigrations(MIGRATION_3_4)
+                .addMigrations(MIGRATION_4_5)
                 .build()
 
         return try {

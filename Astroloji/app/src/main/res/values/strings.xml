@@ -98,6 +98,8 @@
     <string name="premium_catalog_loading">Secure price information is loading from Google Play. No purchase can start yet.</string>
     <string name="premium_billing_disclosure">%1$s billed %2$s. Renews automatically unless canceled in Google Play before the renewal date.</string>
     <string name="premium_billing_disclosure_trial">%1$d-day free trial, then %2$s billed %3$s. Renews automatically unless canceled in Google Play before the renewal date.</string>
+    <string name="premium_billing_disclosure_intro">Introductory: %1$s for the first %2$d %3$s billing cycle(s), then %4$s billed %5$s. Renews automatically unless canceled in Google Play before renewal.</string>
+    <string name="premium_billing_disclosure_trial_intro">%1$d-day free trial, then introductory %2$s for the first %3$d %4$s billing cycle(s), followed by %5$s billed %6$s. Renews automatically unless canceled in Google Play before renewal.</string>
     <string name="premium_period_monthly">monthly</string>
     <string name="premium_period_weekly">weekly</string>
     <string name="premium_period_yearly">yearly</string>
@@ -246,6 +248,11 @@
         <item quantity="other">+%1$d credits added to your balance.</item>
     </plurals>
     <string name="home_mood_title">How are you feeling today?</string>
+    <string name="home_mood_option_great">Great</string>
+    <string name="home_mood_option_good">Good</string>
+    <string name="home_mood_option_neutral">Neutral</string>
+    <string name="home_mood_option_low">Low</string>
+    <string name="home_mood_option_stressed">Stressed</string>
     <string name="home_mood_logged">Logged: %1$s Thanks for checking in.</string>
     <string name="home_mood_insight" tools:ignore="PluralsCandidate">In %1$d of your last %2$d low-mood check-ins about %3$s, your chart showed a matching transit.</string>
     <string name="streak_milestone_3">3 days in a row. Your ritual has started.</string>
@@ -369,4 +376,12 @@
     <string name="settings_birth_data_delete_dialog_body">This permanently removes your saved birth profile from the server. Your account stays active; other stored data and previous readings remain.</string>
     <string name="settings_birth_data_delete_confirm">Delete birth profile</string>
     <string name="settings_birth_data_delete_progress">Deleting birth profile…</string>
+    <string name="settings_mood_delete_title">Delete mood check-in history</string>
+    <string name="settings_mood_delete_description">Remove all stored mood check-ins and associated mood event records from our server without deleting your account or birth profile. This cannot erase events already collected by Firebase Analytics.</string>
+    <string name="settings_mood_delete_button">Delete mood history</string>
+    <string name="settings_mood_delete_success">Stored mood history removed. Your account remains active.</string>
+    <string name="settings_mood_delete_dialog_title">Delete all mood check-ins?</string>
+    <string name="settings_mood_delete_dialog_body">This removes all stored mood entries and mood event records from our server. Your account and birth profile remain. Previously collected Firebase Analytics events are not removed.</string>
+    <string name="settings_mood_delete_confirm">Delete mood history</string>
+    <string name="settings_mood_delete_progress">Deleting mood history…</string>
 </resources>

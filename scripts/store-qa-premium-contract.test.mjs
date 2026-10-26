@@ -18,12 +18,29 @@ test('premium catalogue uses store QA seam only for store QA builds', () => {
 });
 
 test('purchase and restore fail closed before BillingClient interaction', () => {
+  const credits = methodBody(billing, 'fun launchCreditPurchase(', 'fun launchPurchase(');
   const purchase = methodBody(billing, 'fun launchPurchase(', 'suspend fun restorePurchases()');
   const restore = methodBody(billing, 'suspend fun restorePurchases()', 'override fun onPurchasesUpdated(');
+  const launcher = methodBody(
+    billing,
+    'private suspend fun launchBillingFlowOnMain(',
+    'private fun handleImmediateBillingLaunchResult(',
+  );
 
-  assert.match(purchase, /if \(BuildConfig\.STORE_SCREENSHOT_QA\)[\s\S]*?return/);
-  assert.ok(purchase.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < purchase.indexOf('ensureReady()'));
-  assert.ok(purchase.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < purchase.indexOf('billingClient.launchBillingFlow'));
+  // Premium and credit entrypoints must reject screenshot-QA builds before
+  // either BillingClient initialization or their shared SDK launcher.
+  for (const entrypoint of [credits, purchase]) {
+    assert.match(entrypoint, /if \(BuildConfig\.STORE_SCREENSHOT_QA\)[\s\S]*?return/);
+    assert.ok(entrypoint.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < entrypoint.indexOf('ensureReady()'));
+    assert.ok(entrypoint.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < entrypoint.indexOf('launchBillingFlowOnMain('));
+    assert.ok(!entrypoint.includes('billingClient.launchBillingFlow'));
+  }
+
+  // The actual SDK call was moved to this private main-thread helper.
+  // Two guarded callers and this declaration are the only references.
+  assert.equal((billing.match(/launchBillingFlowOnMain\(/g) ?? []).length, 3);
+  assert.match(launcher, /withContext\(Dispatchers\.Main\.immediate\)/);
+  assert.match(launcher, /billingClient\.launchBillingFlow\(/);
 
   assert.match(restore, /if \(BuildConfig\.STORE_SCREENSHOT_QA\)[\s\S]*?return/);
   assert.ok(restore.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < restore.indexOf('ensureReady()'));

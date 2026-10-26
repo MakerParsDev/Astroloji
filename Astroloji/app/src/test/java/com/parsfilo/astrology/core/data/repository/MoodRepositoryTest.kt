@@ -1,18 +1,27 @@
 package com.parsfilo.astrology.core.data.repository
 
+import android.database.sqlite.SQLiteException
 import com.google.common.truth.Truth.assertThat
+import com.parsfilo.astrology.core.data.local.QueuedEventDao
+import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.MoodInsight
 import com.parsfilo.astrology.core.data.remote.MoodInsightResponse
 import com.parsfilo.astrology.core.data.remote.MoodLogResponse
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
+import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.DispatchersProvider
 import io.mockk.coEvery
+import io.mockk.coJustRun
+import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Test
@@ -22,11 +31,17 @@ import retrofit2.Response
 class MoodRepositoryTest {
     private val api = mockk<AstrologyApi>()
     private val sessionRepository = mockk<SessionRepository>()
+    private val queuedEventDao = mockk<QueuedEventDao>()
+    private val preferencesRepository = mockk<UserPreferencesRepository>()
+    private val syncGate = MoodAnalyticsSyncGate()
     private val dispatcher = UnconfinedTestDispatcher()
     private val repository =
         MoodRepository(
             api = api,
             sessionRepository = sessionRepository,
+            queuedEventDao = queuedEventDao,
+            preferencesRepository = preferencesRepository,
+            syncGate = syncGate,
             requestExecutor = AuthenticatedRequestExecutor(),
             dispatchers =
                 DispatchersProvider(
@@ -35,6 +50,10 @@ class MoodRepositoryTest {
                     default = dispatcher,
                 ),
         )
+
+    init {
+        coEvery { preferencesRepository.current() } returns UserPreferences(userId = "owner-A")
+    }
 
     @Test
     fun `logging a mood returns the stored entry`() =
@@ -58,6 +77,68 @@ class MoodRepositoryTest {
 
             assertThat(result).isInstanceOf(AppResult.Success::class.java)
             assertThat((result as AppResult.Success).data.insight).isEqualTo(MoodInsight("communication", 4, 3))
+        }
+
+    @Test
+    fun `mood history deletion succeeds on authorized HTTP success`() =
+        runTest {
+            coEvery { api.deleteMoodHistory() } returns Response.success(Unit)
+            coJustRun { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, "owner-A") }
+
+            val result = repository.deleteMoodHistory()
+
+            assertThat(result).isInstanceOf(AppResult.Success::class.java)
+            coVerify(exactly = 1) { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, "owner-A") }
+        }
+
+    @Test
+    fun `pending analytics delivery blocks remote deletion until in-flight write settles`() =
+        runTest {
+            val entered = CompletableDeferred<Unit>()
+            val resume = CompletableDeferred<Unit>()
+            coEvery { api.deleteMoodHistory() } returns Response.success(Unit)
+            coJustRun { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, "owner-A") }
+
+            val inFlight =
+                async {
+                    syncGate.withLock {
+                        entered.complete(Unit)
+                        resume.await()
+                    }
+                }
+            entered.await()
+            val delete = async { repository.deleteMoodHistory() }
+            runCurrent()
+
+            coVerify(exactly = 0) { api.deleteMoodHistory() }
+            resume.complete(Unit)
+            assertThat(delete.await()).isInstanceOf(AppResult.Success::class.java)
+            coVerify(exactly = 1) { api.deleteMoodHistory() }
+            coVerify(exactly = 1) { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, "owner-A") }
+            inFlight.await()
+        }
+
+    @Test
+    fun `failed local queue cleanup reports retryable deletion instead of success`() =
+        runTest {
+            coEvery { api.deleteMoodHistory() } returns Response.success(Unit)
+            coEvery { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, "owner-A") } throws
+                SQLiteException("synthetic SQLite failure")
+
+            val result = repository.deleteMoodHistory()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+        }
+
+    @Test
+    fun `mood history deletion reports failure and does not claim data removed`() =
+        runTest {
+            coEvery { api.deleteMoodHistory() } returns Response.error(503, "offline".toResponseBody())
+
+            val result = repository.deleteMoodHistory()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            coVerify(exactly = 0) { queuedEventDao.deleteByType(any(), any()) }
         }
 
     @Test

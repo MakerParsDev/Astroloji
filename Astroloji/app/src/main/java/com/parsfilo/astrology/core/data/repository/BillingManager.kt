@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -86,7 +87,7 @@ private val CREDIT_PRODUCT_AMOUNTS =
         PRODUCT_CREDITS_LARGE to CREDITS_LARGE_AMOUNT,
     )
 
-private enum class PendingBillingFlow { NONE, PREMIUM, CREDITS }
+internal enum class PendingBillingFlow { NONE, PREMIUM, CREDITS }
 
 data class PremiumPlanUi(
     val planId: String,
@@ -102,6 +103,8 @@ data class PremiumPlanUi(
     val offerDescription: String? = null,
     val billingPeriod: String? = null,
     val displayPriority: Int = Int.MAX_VALUE,
+    val introductoryPrice: String? = null,
+    val introductoryCycles: Int = 0,
 )
 
 data class CreditPackUi(
@@ -121,6 +124,13 @@ internal data class PricingPhaseSummary(
     val priceAmountMicros: Long,
     val formattedPrice: String,
     val billingPeriod: String?,
+    val recurrenceMode: Int =
+        if (priceAmountMicros == 0L) {
+            ProductDetails.RecurrenceMode.NON_RECURRING
+        } else {
+            ProductDetails.RecurrenceMode.INFINITE_RECURRING
+        },
+    val billingCycleCount: Int = 0,
 )
 
 internal data class DisplayPricingSummary(
@@ -182,6 +192,8 @@ class BillingManager
         private val _creditPurchaseState = MutableStateFlow<AppResult<CreditPurchaseResult>?>(null)
         val creditPurchaseState: StateFlow<AppResult<CreditPurchaseResult>?> = _creditPurchaseState.asStateFlow()
         private val creditCatalog = mutableMapOf<String, ProductDetails>()
+
+        @Volatile
         private var pendingFlow: PendingBillingFlow = PendingBillingFlow.NONE
 
         private val billingClient: BillingClient =
@@ -322,13 +334,8 @@ class BillingManager
                         .setProductDetails(detail)
                         .build()
                 pendingFlow = PendingBillingFlow.CREDITS
-                billingClient.launchBillingFlow(
-                    activity,
-                    BillingFlowParams
-                        .newBuilder()
-                        .setProductDetailsParamsList(listOf(params))
-                        .build(),
-                )
+                val launchResult = launchBillingFlowOnMain(activity, params)
+                handleImmediateBillingLaunchResult(PendingBillingFlow.CREDITS, launchResult)
             }
         }
 
@@ -382,13 +389,8 @@ class BillingManager
                         .setOfferToken(offerToken)
                         .build()
                 pendingFlow = PendingBillingFlow.PREMIUM
-                billingClient.launchBillingFlow(
-                    activity,
-                    BillingFlowParams
-                        .newBuilder()
-                        .setProductDetailsParamsList(listOf(params))
-                        .build(),
-                )
+                val launchResult = launchBillingFlowOnMain(activity, params)
+                handleImmediateBillingLaunchResult(PendingBillingFlow.PREMIUM, launchResult)
             }
         }
 
@@ -423,11 +425,17 @@ class BillingManager
                     .also { _purchaseState.value = it }
             }
             val purchase =
-                purchases.second.firstOrNull()
+                selectPurchaseForVerification(purchases.second)
                     ?: return AppResult
                         .Error(
                             AppException.BillingException(
-                                stringsProvider.get(R.string.billing_restore_missing_purchase),
+                                stringsProvider.get(
+                                    if (hasPendingPremiumPurchase(purchases.second)) {
+                                        R.string.billing_payment_pending
+                                    } else {
+                                        R.string.billing_restore_missing_purchase
+                                    },
+                                ),
                             ),
                         ).also { _purchaseState.value = it }
             return verifyPurchase(purchase, restore = true)
@@ -438,32 +446,35 @@ class BillingManager
             billingResult: BillingResult,
             purchases: MutableList<Purchase>?,
         ) {
-            val flow = pendingFlow
+            val initialFlow = pendingFlow
             pendingFlow = PendingBillingFlow.NONE
+            val flow =
+                if (billingResult.responseCode == BillingResponseCode.OK) {
+                    resolveSuccessfulPurchaseFlow(initialFlow, purchases.orEmpty().map { it.products })
+                } else {
+                    initialFlow
+                }
             when (billingResult.responseCode) {
                 BillingResponseCode.OK -> {
-                    val creditPurchase =
-                        if (flow == PendingBillingFlow.CREDITS) {
-                            selectCreditPurchaseForVerification(purchases.orEmpty())
-                        } else {
-                            null
+                    when (flow) {
+                        PendingBillingFlow.CREDITS -> {
+                            val purchase = selectCreditPurchaseForVerification(purchases.orEmpty())
+                            if (purchase == null) {
+                                applyPurchaseFlowResult(flow, missingPurchaseError(flow, purchases.orEmpty()))
+                            } else {
+                                scope.launch { _creditPurchaseState.value = verifyCreditPurchase(purchase) }
+                            }
                         }
-                    if (creditPurchase != null) {
-                        scope.launch { _creditPurchaseState.value = verifyCreditPurchase(creditPurchase) }
-                        return
-                    }
-                    val purchase = selectPurchaseForVerification(purchases.orEmpty())
-                    if (purchase == null) {
-                        _purchaseState.value =
-                            AppResult.Error(
-                                AppException.BillingException(
-                                    stringsProvider.get(R.string.billing_purchase_failed),
-                                ),
-                            )
-                        return
-                    }
-                    scope.launch {
-                        _purchaseState.value = verifyPurchase(purchase, restore = false)
+                        PendingBillingFlow.PREMIUM -> {
+                            val purchase = selectPurchaseForVerification(purchases.orEmpty())
+                            if (purchase == null) {
+                                applyPurchaseFlowResult(flow, missingPurchaseError(flow, purchases.orEmpty()))
+                            } else {
+                                scope.launch { _purchaseState.value = verifyPurchase(purchase, restore = false) }
+                            }
+                        }
+                        PendingBillingFlow.NONE ->
+                            Timber.w("Ignoring unrecognized Billing purchase callback without an active flow")
                     }
                 }
                 BillingResponseCode.USER_CANCELED -> {
@@ -490,15 +501,69 @@ class BillingManager
             }
         }
 
+        private suspend fun launchBillingFlowOnMain(
+            activity: Activity,
+            product: BillingFlowParams.ProductDetailsParams,
+        ): BillingResult =
+            withContext(Dispatchers.Main.immediate) {
+                billingClient.launchBillingFlow(
+                    activity,
+                    BillingFlowParams
+                        .newBuilder()
+                        .setProductDetailsParamsList(listOf(product))
+                        .build(),
+                )
+            }
+
+        private fun handleImmediateBillingLaunchResult(
+            flow: PendingBillingFlow,
+            launchResult: BillingResult,
+        ) {
+            if (launchResult.responseCode == BillingResponseCode.OK) return
+            if (pendingFlow == flow) pendingFlow = PendingBillingFlow.NONE
+            applyPurchaseFlowResult(
+                flow,
+                AppResult.Error(
+                    AppException.BillingException(
+                        launchResult.debugMessage.ifBlank {
+                            stringsProvider.get(R.string.billing_purchase_failed)
+                        },
+                    ),
+                ),
+            )
+        }
+
         private fun applyPurchaseFlowResult(
             flow: PendingBillingFlow,
             result: AppResult<Nothing>,
         ) {
-            if (flow == PendingBillingFlow.CREDITS) {
-                _creditPurchaseState.value = result
-            } else {
-                _purchaseState.value = result
+            when (flow) {
+                PendingBillingFlow.CREDITS -> _creditPurchaseState.value = result
+                PendingBillingFlow.PREMIUM -> _purchaseState.value = result
+                PendingBillingFlow.NONE -> Timber.w("Ignoring Billing result without an active purchase flow")
             }
+        }
+
+        private fun missingPurchaseError(
+            flow: PendingBillingFlow,
+            purchases: List<Purchase>,
+        ): AppResult.Error {
+            val hasPending =
+                purchases.any { purchase ->
+                    purchase.purchaseState == Purchase.PurchaseState.PENDING &&
+                        when (flow) {
+                            PendingBillingFlow.CREDITS -> resolveRecognizedCreditProductId(purchase.products) != null
+                            PendingBillingFlow.PREMIUM -> resolveRecognizedProductId(purchase.products) != null
+                            PendingBillingFlow.NONE -> false
+                        }
+                }
+            return AppResult.Error(
+                AppException.BillingException(
+                    stringsProvider.get(
+                        if (hasPending) R.string.billing_payment_pending else R.string.billing_purchase_failed,
+                    ),
+                ),
+            )
         }
 
         private suspend fun verifyCreditPurchase(purchase: Purchase): AppResult<CreditPurchaseResult> {
@@ -536,20 +601,6 @@ class BillingManager
             if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
                 return AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_payment_pending)))
             }
-            if (!purchase.isAcknowledged) {
-                val ackResult =
-                    suspendCancellableCoroutine { continuation ->
-                        billingClient.acknowledgePurchase(
-                            AcknowledgePurchaseParams
-                                .newBuilder()
-                                .setPurchaseToken(purchase.purchaseToken)
-                                .build(),
-                        ) { continuation.resume(it) }
-                    }
-                if (ackResult.responseCode != BillingResponseCode.OK) {
-                    return AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_acknowledge_failed)))
-                }
-            }
             val productId =
                 resolveRecognizedProductId(purchase.products)
                     ?: return AppResult.Error(
@@ -571,6 +622,21 @@ class BillingManager
                         ),
                     )
                 }
+            if (response !is AppResult.Success) return response
+            if (!purchase.isAcknowledged) {
+                val ackResult =
+                    suspendCancellableCoroutine { continuation ->
+                        billingClient.acknowledgePurchase(
+                            AcknowledgePurchaseParams
+                                .newBuilder()
+                                .setPurchaseToken(purchase.purchaseToken)
+                                .build(),
+                        ) { continuation.resume(it) }
+                    }
+                if (ackResult.responseCode != BillingResponseCode.OK) {
+                    return AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_acknowledge_failed)))
+                }
+            }
             return response
         }
 
@@ -717,6 +783,24 @@ internal fun resolveRecognizedCreditProductId(products: List<String>): String? {
     return if (recognizedProducts.size == 1) recognizedProducts.single() else null
 }
 
+/**
+ * Route only to the category the user started. In the absence of an active flow, accept an
+ * unambiguous recognized product family; never let an unknown/credit callback modify Premium.
+ */
+internal fun resolveSuccessfulPurchaseFlow(
+    activeFlow: PendingBillingFlow,
+    productLists: List<List<String>>,
+): PendingBillingFlow {
+    if (activeFlow != PendingBillingFlow.NONE) return activeFlow
+    val hasPremium = productLists.any { resolveRecognizedProductId(it) != null }
+    val hasCredits = productLists.any { resolveRecognizedCreditProductId(it) != null }
+    return when {
+        hasPremium && !hasCredits -> PendingBillingFlow.PREMIUM
+        hasCredits && !hasPremium -> PendingBillingFlow.CREDITS
+        else -> PendingBillingFlow.NONE
+    }
+}
+
 internal fun isSuccessfulBillingSetup(responseCode: Int): Boolean = responseCode == BillingResponseCode.OK
 
 internal fun defaultPremiumPlan(
@@ -741,7 +825,13 @@ internal fun resolveCatalogueLoadResult(
         )
     }
 
-private fun selectPurchaseForVerification(purchases: List<Purchase>): Purchase? =
+internal fun hasPendingPremiumPurchase(purchases: List<Purchase>): Boolean =
+    purchases.any {
+        it.purchaseState == Purchase.PurchaseState.PENDING &&
+            resolveRecognizedProductId(it.products) != null
+    }
+
+internal fun selectPurchaseForVerification(purchases: List<Purchase>): Purchase? =
     purchases
         .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
         .sortedBy { resolveRecognizedProductId(it.products) }
@@ -803,9 +893,12 @@ private fun buildPremiumPlans(productDetailsList: List<ProductDetails>): List<Pr
                             priceAmountMicros = phase.priceAmountMicros,
                             formattedPrice = phase.formattedPrice,
                             billingPeriod = phase.billingPeriod,
+                            recurrenceMode = phase.recurrenceMode,
+                            billingCycleCount = phase.billingCycleCount,
                         )
                     }
                 val displayPricing = resolveDisplayPricing(phases)
+                val introductoryPhase = resolveIntroductoryPricing(phases)
                 listOf(
                     PremiumPlanUi(
                         planId = buildPlanId(detail.productId, selectedOffer.basePlanId, selectedOffer.offerId),
@@ -821,6 +914,8 @@ private fun buildPremiumPlans(productDetailsList: List<ProductDetails>): List<Pr
                         offerDescription = detail.description,
                         billingPeriod = displayPricing?.billingPeriod,
                         displayPriority = defaultDisplayPriority(detail.productId),
+                        introductoryPrice = introductoryPhase?.formattedPrice,
+                        introductoryCycles = introductoryPhase?.let { introductoryCycleCount(it) } ?: 0,
                     ),
                 )
             }
@@ -831,18 +926,47 @@ internal fun selectPreferredOfferIndex(hasFreeTrial: List<Boolean>): Int =
         ?: hasFreeTrial.indices.firstOrNull()
         ?: -1
 
+/**
+ * The amount shown as the renewal price must be the indefinitely recurring phase,
+ * never a finite discounted introductory payment. Unsupported pricing schedules
+ * fail closed until the paywall can disclose every charge accurately.
+ */
 internal fun resolveDisplayPricing(phases: List<PricingPhaseSummary>): DisplayPricingSummary? {
-    val paidPhase =
-        phases.firstOrNull { it.priceAmountMicros > 0L }
-            ?: phases.firstOrNull()
-    return paidPhase?.let {
+    val renewal = phases.lastOrNull()
+    val prior = phases.dropLast(1)
+    val paidIntro = prior.filter { it.priceAmountMicros > 0L }
+    val validRenewal =
+        renewal != null &&
+            renewal.recurrenceMode == ProductDetails.RecurrenceMode.INFINITE_RECURRING &&
+            renewal.priceAmountMicros > 0L &&
+            renewal.formattedPrice.isNotBlank()
+    val validIntro =
+        paidIntro.size <= 1 &&
+            prior.none { it.recurrenceMode == ProductDetails.RecurrenceMode.INFINITE_RECURRING } &&
+            paidIntro.all {
+                it.billingPeriod == renewal?.billingPeriod && introductoryCycleCount(it) > 0
+            }
+    return renewal?.takeIf { validRenewal && validIntro }?.let {
         DisplayPricingSummary(
-            priceAmountMicros = if (it.priceAmountMicros > 0L) it.priceAmountMicros else null,
+            priceAmountMicros = it.priceAmountMicros,
             formattedPrice = it.formattedPrice,
             billingPeriod = it.billingPeriod,
         )
     }
 }
+
+internal fun resolveIntroductoryPricing(phases: List<PricingPhaseSummary>): PricingPhaseSummary? =
+    phases
+        .dropLast(1)
+        .singleOrNull { it.priceAmountMicros > 0L }
+        ?.takeIf { resolveDisplayPricing(phases) != null }
+
+private fun introductoryCycleCount(phase: PricingPhaseSummary): Int =
+    when (phase.recurrenceMode) {
+        ProductDetails.RecurrenceMode.FINITE_RECURRING -> phase.billingCycleCount
+        ProductDetails.RecurrenceMode.NON_RECURRING -> 1
+        else -> 0
+    }
 
 internal fun extractTrialDays(phases: List<PricingPhaseSummary>): Int? =
     phases

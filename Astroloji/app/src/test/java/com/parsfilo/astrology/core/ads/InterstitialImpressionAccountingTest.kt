@@ -63,6 +63,56 @@ class InterstitialImpressionAccountingTest {
     }
 
     @Test
+    fun `synchronous SDK show failure never crashes consumes quota or dismisses twice`() {
+        // A framework/SDK RuntimeException can occur before the SDK invokes a
+        // FullScreenContentCallback. Do not permit a real SDK preload in this test.
+        every { consent.canRequestAds } returnsMany listOf(true, false)
+        val manager = manager()
+        val ad = preloadedAd(manager)
+        val callback = slot<FullScreenContentCallback>()
+        every { ad.fullScreenContentCallback = capture(callback) } just Runs
+        every { ad.show(activity) } throws IllegalStateException("synthetic SDK show failure")
+        var dismissed = 0
+
+        assertThat(manager.showIfAvailable(activity, "weekly_back") { dismissed++ }).isFalse()
+        // The caller (Monthly/Weekly BackHandler) owns navigation when false.
+        assertThat(dismissed).isEqualTo(0)
+        coVerify(exactly = 0) { frequency.recordInterstitialShown(any()) }
+        verify(exactly = 1) { ad.show(activity) }
+
+        // If an SDK also delivers a late terminal callback, navigation must
+        // still be resumed exactly once.
+        callback.captured.onAdFailedToShowFullScreenContent(mockk<AdError>(relaxed = true))
+        callback.captured.onAdDismissedFullScreenContent()
+        callback.captured.onAdImpression()
+        assertThat(dismissed).isEqualTo(0)
+        coVerify(exactly = 0) { frequency.recordInterstitialShown(any()) }
+    }
+
+    @Test
+    fun `synchronous SDK callback followed by show exception leaves navigation to callback only`() {
+        every { consent.canRequestAds } returnsMany listOf(true, false)
+        val manager = manager()
+        val ad = preloadedAd(manager)
+        val callback = slot<FullScreenContentCallback>()
+        every { ad.fullScreenContentCallback = capture(callback) } just Runs
+        every { ad.show(activity) } answers {
+            callback.captured.onAdFailedToShowFullScreenContent(mockk<AdError>(relaxed = true))
+            error("SDK throws after callback")
+        }
+        var dismissals = 0
+
+        // 'true' means the terminal callback already handled navigation, not
+        // that this malformed SDK ad was successfully displayed.
+        assertThat(manager.showIfAvailable(activity, "monthly_back") { dismissals++ }).isTrue()
+        assertThat(dismissals).isEqualTo(1)
+        callback.captured.onAdDismissedFullScreenContent()
+        callback.captured.onAdImpression()
+        assertThat(dismissals).isEqualTo(1)
+        coVerify(exactly = 0) { frequency.recordInterstitialShown(any()) }
+    }
+
+    @Test
     fun `real impression records daily cap once`() {
         every { consent.canRequestAds } returns true
         val manager = manager()
@@ -74,7 +124,12 @@ class InterstitialImpressionAccountingTest {
         assertThat(manager.showIfAvailable(activity, "monthly_back")).isTrue()
         coVerify(exactly = 0) { frequency.recordInterstitialShown(any()) }
         callback.captured.onAdImpression()
+        callback.captured.onAdImpression()
         coVerify(exactly = 1, timeout = 3000) { frequency.recordInterstitialShown(any()) }
+        every { consent.canRequestAds } returns false
+        callback.captured.onAdDismissedFullScreenContent()
+        callback.captured.onAdImpression()
+        coVerify(exactly = 1) { frequency.recordInterstitialShown(any()) }
     }
 
     @Test

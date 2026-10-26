@@ -6,8 +6,11 @@ import androidx.work.WorkerParameters
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.core.data.local.QueuedEventDao
 import com.parsfilo.astrology.core.data.local.QueuedEventEntity
+import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventResponse
+import com.parsfilo.astrology.core.data.repository.MoodAnalyticsSyncGate
+import com.parsfilo.astrology.core.domain.model.UserPreferences
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -29,8 +32,11 @@ class EventSyncWorkerTest {
     private val workerParameters = mockk<WorkerParameters>(relaxed = true)
     private val queuedEventDao = mockk<QueuedEventDao>(relaxed = true)
     private val api = mockk<AstrologyApi>()
+    private val preferencesRepository = mockk<UserPreferencesRepository>()
+    private val syncGate = MoodAnalyticsSyncGate()
 
     init {
+        coEvery { preferencesRepository.current() } returns UserPreferences(userId = "owner-A")
         every { context.applicationContext } returns context
     }
 
@@ -88,6 +94,62 @@ class EventSyncWorkerTest {
         }
 
     @Test
+    fun `partial batch retry sends only the unacknowledged event on next run`() =
+        runTest {
+            val first = event(id = "delivered-first", payload = "{}").copy(type = "daily_viewed")
+            val second = event(id = "retry-second", payload = "{}").copy(type = "weekly_viewed")
+            // The second run simulates the queue after the first acknowledged row
+            // was deleted. A server-side timeout before acknowledgment remains
+            // an at-least-once delivery case, not a deduplication guarantee.
+            coEvery { queuedEventDao.getBatch(50) } returnsMany
+                listOf(listOf(first, second), listOf(second))
+            coEvery {
+                api.trackEvent(match { it.eventType == "daily_viewed" })
+            } returns Response.success(TrackEventResponse(ok = true))
+            coEvery {
+                api.trackEvent(match { it.eventType == "weekly_viewed" })
+            } returnsMany
+                listOf(
+                    Response.error(503, "unavailable".toResponseBody()),
+                    Response.success(TrackEventResponse(ok = true)),
+                )
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Retry::class.java)
+            coVerify(exactly = 1) { queuedEventDao.delete(first.id) }
+            coVerify(exactly = 0) { queuedEventDao.delete(second.id) }
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            coVerify(exactly = 1) {
+                api.trackEvent(match { it.eventType == "daily_viewed" })
+            }
+            coVerify(exactly = 2) {
+                api.trackEvent(match { it.eventType == "weekly_viewed" })
+            }
+            coVerify(exactly = 1) { queuedEventDao.delete(first.id) }
+            coVerify(exactly = 1) { queuedEventDao.delete(second.id) }
+        }
+
+    @Test
+    fun `retries a queued event using the same durable event ID`() =
+        runTest {
+            val item = event(id = "01234567-89ab-4cde-8f01-23456789abcd", payload = "{}")
+            val requests = mutableListOf<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            coEvery { queuedEventDao.getBatch(50) } returns listOf(item)
+            coEvery { api.trackEvent(capture(requests)) } returnsMany
+                listOf(
+                    Response.error(503, "retry".toResponseBody()),
+                    Response.success(TrackEventResponse(ok = true)),
+                )
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Retry::class.java)
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            assertThat(requests).hasSize(2)
+            assertThat(requests[0].eventId).isEqualTo(item.id)
+            assertThat(requests[1].eventId).isEqualTo(item.id)
+            coVerify(exactly = 1) { queuedEventDao.delete(item.id) }
+        }
+
+    @Test
     fun `deletes successfully delivered events`() =
         runTest {
             val delivered = event(id = "delivered", payload = "{}")
@@ -134,12 +196,56 @@ class EventSyncWorkerTest {
             assertThat(submitted.captured.meta).containsExactly("sign", "aries")
         }
 
+    @Test
+    fun `drops a legacy event without an account owner before network submission`() =
+        runTest {
+            val legacy = event("legacy-unknown", "{}").copy(ownerUserId = "")
+            coEvery { queuedEventDao.getBatch(50) } returns listOf(legacy)
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            coVerify(exactly = 1) { queuedEventDao.delete(legacy.id) }
+            coVerify(exactly = 0) { api.trackEvent(any()) }
+        }
+
+    @Test
+    fun `never posts a previous account event under a new login`() =
+        runTest {
+            val old = event("account-A-event", "{}")
+            coEvery { queuedEventDao.getBatch(50) } returns listOf(old)
+            coEvery { preferencesRepository.current() } returns UserPreferences(userId = "owner-B")
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            coVerify(exactly = 1) { queuedEventDao.delete(old.id) }
+            coVerify(exactly = 0) { api.trackEvent(any()) }
+        }
+
+    @Test
+    fun `rechecks account between queued events when login changes mid batch`() =
+        runTest {
+            val first = event("owner-A-first", "{}")
+            val second = event("owner-A-second", "{}")
+            coEvery { queuedEventDao.getBatch(50) } returns listOf(first, second)
+            coEvery { preferencesRepository.current() } returnsMany
+                listOf(UserPreferences(userId = "owner-A"), UserPreferences(userId = "owner-B"))
+            coEvery { api.trackEvent(any()) } returns Response.success(TrackEventResponse(ok = true))
+            val sent = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            coEvery { api.trackEvent(capture(sent)) } returns Response.success(TrackEventResponse(ok = true))
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            coVerify(exactly = 1) { api.trackEvent(any()) }
+            assertThat(sent.captured.ownerUserId).isEqualTo("owner-A")
+            coVerify(exactly = 1) { queuedEventDao.delete(first.id) }
+            coVerify(exactly = 1) { queuedEventDao.delete(second.id) }
+        }
+
     private fun createWorker(): EventSyncWorker =
         EventSyncWorker(
             appContext = context,
             workerParams = workerParameters,
             queuedEventDao = queuedEventDao,
             api = api,
+            preferencesRepository = preferencesRepository,
+            syncGate = syncGate,
         )
 
     private fun event(
@@ -151,5 +257,6 @@ class EventSyncWorkerTest {
             type = "app_open",
             payload = payload,
             createdAt = 1L,
+            ownerUserId = "owner-A",
         )
 }
