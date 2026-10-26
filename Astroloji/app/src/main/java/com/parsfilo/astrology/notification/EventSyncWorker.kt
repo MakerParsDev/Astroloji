@@ -8,6 +8,7 @@ import com.parsfilo.astrology.core.data.local.QueuedEventDao
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventRequest
+import com.parsfilo.astrology.core.data.repository.ANALYTICS_EVENT_RETENTION_MILLIS
 import com.parsfilo.astrology.core.data.repository.MoodAnalyticsSyncGate
 import com.parsfilo.astrology.core.data.repository.sanitizeAnalyticsMeta
 import dagger.assisted.Assisted
@@ -36,6 +37,10 @@ class EventSyncWorker
                 // Hold the same gate as account-preserving mood deletion through
                 // the whole network-write + queue-removal batch.
                 syncGate.withLock {
+                    // A queue can sit offline for longer than the 30-day policy
+                    // without any new enqueue operation to trigger its cleanup.
+                    // Prune before reading so old events are never replayed.
+                    queuedEventDao.deleteOlderThan(System.currentTimeMillis() - ANALYTICS_EVENT_RETENTION_MILLIS)
                     // A full batch does not mean the backlog is empty. Drain
                     // a few more while online, but cap event attempts per
                     // scheduled run rather than looping through an unlimited queue.
