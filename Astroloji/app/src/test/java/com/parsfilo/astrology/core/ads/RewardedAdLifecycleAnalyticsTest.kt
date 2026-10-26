@@ -22,7 +22,7 @@ import org.junit.Test
 class RewardedAdLifecycleAnalyticsTest {
     private class Fixture {
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         val analytics = mockk<AnalyticsRepository>(relaxed = true)
         val ad = mockk<RewardedAd>(relaxed = true)
         val callback = slot<FullScreenContentCallback>()
@@ -43,6 +43,10 @@ class RewardedAdLifecycleAnalyticsTest {
             RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
                 isAccessible = true
                 set(manager, ad)
+            }
+            RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+                isAccessible = true
+                setLong(manager, consent.consentRevision)
             }
         }
 

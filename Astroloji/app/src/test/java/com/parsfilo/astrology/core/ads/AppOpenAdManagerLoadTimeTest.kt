@@ -19,7 +19,7 @@ class AppOpenAdManagerLoadTimeTest {
     @Test
     fun loadedAdUsesMonotonicTimeAndExpiresExactlyAtFourHours() {
         val context = mockk<Context>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returns true
         val ad = mockk<AppOpenAd>(relaxed = true)
         val callback = slot<AppOpenAd.AppOpenAdLoadCallback>()

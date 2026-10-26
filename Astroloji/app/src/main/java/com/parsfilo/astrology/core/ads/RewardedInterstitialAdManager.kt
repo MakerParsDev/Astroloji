@@ -32,8 +32,16 @@ class RewardedInterstitialAdManager
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
         private var rewardedInterstitialAd: RewardedInterstitialAd? = null
+        private var loadedConsentRevision = Long.MIN_VALUE
+
+        private fun discardAdFromEarlierConsentRevision() {
+            if (loadedConsentRevision == consentManager.consentRevision) return
+            rewardedInterstitialAd = null
+        }
 
         fun preload() {
+            discardAdFromEarlierConsentRevision()
+            val loadRevision = consentManager.consentRevision
             if (isLoading || rewardedInterstitialAd != null || !consentManager.canRequestAds) return
             isLoading = true
             RewardedInterstitialAd.load(
@@ -44,11 +52,12 @@ class RewardedInterstitialAdManager
                     override fun onAdLoaded(ad: RewardedInterstitialAd) {
                         isLoading = false
                         // Never cache a callback that arrived after permission was revoked.
-                        if (!consentManager.canRequestAds) {
+                        if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             rewardedInterstitialAd = null
                             return
                         }
                         rewardedInterstitialAd = ad
+                        loadedConsentRevision = loadRevision
                         Timber.d("Rewarded interstitial ad loaded")
                     }
 
@@ -66,6 +75,7 @@ class RewardedInterstitialAdManager
             placement: String,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            discardAdFromEarlierConsentRevision()
             // Consent may be revoked while a previously loaded ad is cached.
             val consentAllowed = consentManager.canRequestAds
             val ad =

@@ -21,7 +21,7 @@ import org.junit.Test
 class RewardedInterstitialAdLifecycleTest {
     private class Fixture {
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         val analytics = mockk<AnalyticsRepository>(relaxed = true)
         val ad = mockk<RewardedInterstitialAd>(relaxed = true)
         val callback = slot<FullScreenContentCallback>()
@@ -39,6 +39,10 @@ class RewardedInterstitialAdLifecycleTest {
             RewardedInterstitialAdManager::class.java.getDeclaredField("rewardedInterstitialAd").apply {
                 isAccessible = true
                 set(manager, ad)
+            }
+            RewardedInterstitialAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+                isAccessible = true
+                setLong(manager, consent.consentRevision)
             }
         }
 
