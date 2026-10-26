@@ -45,8 +45,13 @@ class InterstitialAdManager
                 AdRequest.Builder().build(),
                 object : InterstitialAdLoadCallback() {
                     override fun onAdLoaded(ad: InterstitialAd) {
-                        interstitialAd = ad
                         isLoading = false
+                        // Discard an in-flight load if the consent state changed.
+                        if (!consentManager.canRequestAds) {
+                            interstitialAd = null
+                            return
+                        }
+                        interstitialAd = ad
                         loadRetryGate.recordSuccess()
                         Timber.d("Interstitial ad loaded")
                     }

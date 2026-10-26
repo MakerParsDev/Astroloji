@@ -50,8 +50,13 @@ class RewardedAdManager
                 AdRequest.Builder().build(),
                 object : RewardedAdLoadCallback() {
                     override fun onAdLoaded(ad: RewardedAd) {
-                        rewardedAd = ad
                         isLoading = false
+                        // Consent can be revoked while the SDK is loading this creative.
+                        if (!consentManager.canRequestAds) {
+                            rewardedAd = null
+                            return
+                        }
+                        rewardedAd = ad
                         loadRetryGate.recordSuccess()
                         Timber.d("Rewarded ad loaded")
                     }
