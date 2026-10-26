@@ -69,7 +69,14 @@ class AppOpenAdManager
             placement: String = "app_open",
             onDismissed: () -> Unit = {},
         ): Boolean {
-            if (activity.isFinishing || activity.isDestroyed || !activity.hasWindowFocus() || !consentManager.canRequestAds) {
+            if (!consentManager.canRequestAds) {
+                // Cached creative belongs to the prior consent state. Do not
+                // reuse it if consent is later restored.
+                appOpenAd = null
+                loadElapsedRealtimeMs = 0L
+                return false
+            }
+            if (activity.isFinishing || activity.isDestroyed || !activity.hasWindowFocus()) {
                 preload()
                 return false
             }

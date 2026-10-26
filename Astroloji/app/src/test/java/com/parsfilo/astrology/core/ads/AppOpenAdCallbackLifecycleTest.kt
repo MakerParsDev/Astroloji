@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.os.SystemClock
 import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.appopen.AppOpenAd
 import com.google.common.truth.Truth.assertThat
@@ -57,10 +58,22 @@ class AppOpenAdCallbackLifecycleTest {
 
     private fun withFixture(block: (Fixture) -> Unit) {
         mockkStatic(SystemClock::class)
+        mockkStatic(AppOpenAd::class)
         try {
             every { SystemClock.elapsedRealtime() } returns 10_001L
+            // A restored consent state may start a fresh preload. Do not
+            // launch the real Google SDK in this deterministic JVM test.
+            every {
+                AppOpenAd.load(
+                    any<Context>(),
+                    any<String>(),
+                    any<AdRequest>(),
+                    any<AppOpenAd.AppOpenAdLoadCallback>(),
+                )
+            } just Runs
             block(Fixture())
         } finally {
+            unmockkStatic(AppOpenAd::class)
             unmockkStatic(SystemClock::class)
         }
     }
@@ -140,6 +153,9 @@ class AppOpenAdCallbackLifecycleTest {
         withFixture { f ->
             every { f.consent.canRequestAds } returns false
 
+            assertThat(f.manager.showIfAvailable(f.activity)).isFalse()
+            // A later consent grant must never resurrect the old loaded ad.
+            every { f.consent.canRequestAds } returns true
             assertThat(f.manager.showIfAvailable(f.activity)).isFalse()
             verify(exactly = 0) { f.ad.show(any()) }
             coVerify(exactly = 0) { f.analytics.track(any(), any()) }
