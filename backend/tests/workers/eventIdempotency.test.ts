@@ -95,6 +95,36 @@ describe('event delivery idempotency', () => {
     expect(stored.size).toBe(2);
   });
 
+  it('refuses an event from a previous account when the request uses a new account JWT', async () => {
+    const { env, stored } = createEventTestEnv();
+    const event = {
+      event_type: 'mood_logged',
+      event_id: EVENT_ID,
+      owner_user_id: 'user-1',
+      meta: { mood: 'private' }
+    };
+
+    // The same device may have a queued event created by account user-1
+    // after its auth interceptor has switched to user-2 credentials.
+    const rejected = await post(env, 'user-2', event);
+    expect(rejected.status).toBe(403);
+    expect(stored.size).toBe(0);
+
+    const originalOwner = await post(env, 'user-1', event);
+    expect(originalOwner.status).toBe(200);
+    expect(stored.size).toBe(1);
+    expect([...stored.values()][0]).toMatchObject({ userId: 'user-1', meta: '{}' });
+  });
+
+  it('rejects an empty owner while allowing legacy requests without the field', async () => {
+    const { env, stored } = createEventTestEnv();
+    const response = await post(env, 'user-1', {
+      event_type: 'daily_viewed', event_id: EVENT_ID, owner_user_id: ' '
+    });
+    expect(response.status).toBe(400);
+    expect(stored.size).toBe(0);
+  });
+
   it('still accepts multiple events from an old client with no event_id', async () => {
     const { env, stored } = createEventTestEnv();
     const legacy = { event_type: 'weekly_viewed', meta: { sign: 'leo' } };

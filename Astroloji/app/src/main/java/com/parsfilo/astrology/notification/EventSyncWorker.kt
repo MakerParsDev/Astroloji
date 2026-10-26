@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.parsfilo.astrology.core.data.local.QueuedEventDao
+import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventRequest
 import com.parsfilo.astrology.core.data.repository.sanitizeAnalyticsMeta
@@ -26,12 +27,21 @@ class EventSyncWorker
         @Assisted workerParams: WorkerParameters,
         private val queuedEventDao: QueuedEventDao,
         private val api: AstrologyApi,
+        private val preferencesRepository: UserPreferencesRepository,
     ) : CoroutineWorker(appContext, workerParams) {
         override suspend fun doWork(): Result =
             withContext(Dispatchers.IO) {
                 val queued = queuedEventDao.getBatch(SYNC_BATCH_SIZE)
                 if (queued.isEmpty()) return@withContext Result.success()
                 queued.forEach { event ->
+                    // The row was created for a specific authenticated account.
+                    // Empty legacy owners or rows from a prior account must
+                    // never be replayed under this device's current JWT.
+                    val currentOwner = preferencesRepository.current().userId
+                    if (event.ownerUserId.isBlank() || event.ownerUserId != currentOwner) {
+                        queuedEventDao.delete(event.id)
+                        return@forEach
+                    }
                     val meta =
                         runCatching {
                             Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), event.payload)
@@ -48,6 +58,7 @@ class EventSyncWorker
                                     eventType = event.type,
                                     meta = sanitizeAnalyticsMeta(event.type, meta),
                                     eventId = event.id,
+                                    ownerUserId = event.ownerUserId,
                                 ),
                             )
                         } catch (exception: CancellationException) {

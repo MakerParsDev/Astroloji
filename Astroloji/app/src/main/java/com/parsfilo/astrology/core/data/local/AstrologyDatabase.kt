@@ -1,5 +1,6 @@
 package com.parsfilo.astrology.core.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
@@ -125,6 +126,7 @@ data class QueuedEventEntity(
     val type: String,
     val payload: String,
     val createdAt: Long,
+    @ColumnInfo(defaultValue = "''") val ownerUserId: String = "",
 )
 
 @Dao
@@ -289,7 +291,7 @@ abstract class QueuedEventDao {
         FavoriteSignEntity::class,
         QueuedEventEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class AstrologyDatabase : RoomDatabase() {

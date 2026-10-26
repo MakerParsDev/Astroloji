@@ -181,6 +181,11 @@ export function createApp(options: CreateAppOptions = {}) {
   apiRoutes.post('/events/track', async (c) => {
     const body = validateTrackEventBody(await c.req.json());
     const userId = c.get('auth').userId;
+    // The authentication header may change after an Android queue was read.
+    // Refuse cross-account attribution even when a request races a session switch.
+    if (body.owner_user_id && body.owner_user_id !== userId) {
+      return c.json({ error: { code: 'EVENT_OWNER_MISMATCH', message: 'Event owner does not match this account.' } }, 403);
+    }
     // User-scoped, length-delimited key prevents one account from suppressing
     // another's event when the two clients happen to send the same UUID.
     // Legacy apps without event_id retain their original append-only behavior.

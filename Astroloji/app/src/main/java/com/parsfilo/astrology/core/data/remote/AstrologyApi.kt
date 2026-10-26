@@ -333,6 +333,7 @@ data class TrackEventRequest(
     @SerialName("event_type") val eventType: String,
     val meta: Map<String, String> = emptyMap(),
     @SerialName("event_id") val eventId: String? = null,
+    @SerialName("owner_user_id") val ownerUserId: String? = null,
 )
 
 @Serializable

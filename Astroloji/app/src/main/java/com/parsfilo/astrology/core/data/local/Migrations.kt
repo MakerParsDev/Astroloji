@@ -71,3 +71,16 @@ val MIGRATION_3_4 =
             db.execSQL("ALTER TABLE `user_profile` ADD COLUMN `subscriptionState` TEXT NOT NULL DEFAULT 'none'")
         }
     }
+
+private const val OWNER_SCOPED_QUEUE_SCHEMA_VERSION = 5
+
+// The historical offline queue contains no account owner. We cannot
+// safely attribute those events to a later Firebase/App JWT session.
+// Retire only that analytics queue, preserving user profiles and all caches.
+val MIGRATION_4_5 =
+    object : Migration(4, OWNER_SCOPED_QUEUE_SCHEMA_VERSION) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `queued_events` ADD COLUMN `ownerUserId` TEXT NOT NULL DEFAULT ''")
+            db.execSQL("DELETE FROM `queued_events`")
+        }
+    }

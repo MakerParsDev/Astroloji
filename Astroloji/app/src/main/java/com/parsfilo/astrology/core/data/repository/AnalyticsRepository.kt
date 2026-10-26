@@ -4,6 +4,7 @@ import android.os.Bundle
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.parsfilo.astrology.core.data.local.QueuedEventDao
 import com.parsfilo.astrology.core.data.local.QueuedEventEntity
+import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventRequest
 import com.parsfilo.astrology.notification.AnalyticsDeliveryDisposition
@@ -97,6 +98,7 @@ class AnalyticsRepository
         private val firebaseAnalytics: FirebaseAnalytics,
         private val api: AstrologyApi,
         private val queuedEventDao: QueuedEventDao,
+        private val preferencesRepository: UserPreferencesRepository,
         private val json: Json,
     ) {
         suspend fun enqueue(
@@ -105,7 +107,10 @@ class AnalyticsRepository
         ) = withContext(Dispatchers.IO) {
             val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
             logFirebaseEvent(eventType, safeMeta)
-            queueEvent(eventType, safeMeta)
+            // Unattributed onboarding events stay in Firebase Analytics only.
+            // They must not be delivered as a future account's backend events.
+            val ownerId = preferencesRepository.current().userId?.takeIf { it.isNotBlank() }
+            if (ownerId != null) queueEvent(eventType, safeMeta, ownerUserId = ownerId)
         }
 
         suspend fun track(
@@ -114,22 +119,33 @@ class AnalyticsRepository
         ) = withContext(Dispatchers.IO) {
             val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
             logFirebaseEvent(eventType, safeMeta)
-            // The same event identity survives a response-lost / retry path.
+            // Pin the event to its owner before the first attempt. An app JWT
+            // refresh must not silently reattribute an old owner's event.
+            val ownerId =
+                preferencesRepository.current().userId?.takeIf { it.isNotBlank() }
+                    ?: return@withContext
             val eventId = UUID.randomUUID().toString()
             try {
                 val response =
-                    api.trackEvent(TrackEventRequest(eventType = eventType, meta = safeMeta, eventId = eventId))
+                    api.trackEvent(
+                        TrackEventRequest(
+                            eventType = eventType,
+                            meta = safeMeta,
+                            eventId = eventId,
+                            ownerUserId = ownerId,
+                        ),
+                    )
                 when (classifyAnalyticsResponse(response.code())) {
                     AnalyticsDeliveryDisposition.DELIVERED -> Unit
                     AnalyticsDeliveryDisposition.PERMANENT_FAILURE ->
                         Timber.w("Dropping permanently rejected analytics event: %s (%d)", eventType, response.code())
-                    AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, safeMeta, eventId)
+                    AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, safeMeta, eventId, ownerId)
                 }
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: IOException) {
                 Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
-                queueEvent(eventType, safeMeta, eventId)
+                queueEvent(eventType, safeMeta, eventId, ownerId)
             }
         }
 
@@ -149,6 +165,7 @@ class AnalyticsRepository
             eventType: String,
             meta: Map<String, String>,
             eventId: String = UUID.randomUUID().toString(),
+            ownerUserId: String,
         ) {
             val createdAt = System.currentTimeMillis()
             queuedEventDao.enqueueBounded(
@@ -158,6 +175,7 @@ class AnalyticsRepository
                         type = eventType,
                         payload = json.encodeToString(MapSerializer(String.serializer(), String.serializer()), meta),
                         createdAt = createdAt,
+                        ownerUserId = ownerUserId,
                     ),
                 maxSize = MAX_QUEUED_EVENTS,
                 minCreatedAt = createdAt - EVENT_RETENTION_MILLIS,

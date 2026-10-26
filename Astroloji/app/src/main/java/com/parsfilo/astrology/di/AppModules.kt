@@ -14,6 +14,7 @@ import com.parsfilo.astrology.core.data.local.DailyDao
 import com.parsfilo.astrology.core.data.local.FavoriteSignDao
 import com.parsfilo.astrology.core.data.local.MIGRATION_2_3
 import com.parsfilo.astrology.core.data.local.MIGRATION_3_4
+import com.parsfilo.astrology.core.data.local.MIGRATION_4_5
 import com.parsfilo.astrology.core.data.local.MonthlyDao
 import com.parsfilo.astrology.core.data.local.PersonalityDao
 import com.parsfilo.astrology.core.data.local.QueuedEventDao
@@ -112,6 +113,7 @@ object AppModules {
                 com.parsfilo.astrology.core.data.local.MIGRATION_1_2,
                 MIGRATION_2_3,
                 MIGRATION_3_4,
+                MIGRATION_4_5,
             ).build()
 
     @Provides fun provideUserProfileDao(database: AstrologyDatabase): UserProfileDao = database.userProfileDao()
