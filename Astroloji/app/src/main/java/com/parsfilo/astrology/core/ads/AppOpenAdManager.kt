@@ -44,8 +44,15 @@ class AppOpenAdManager
                 AdRequest.Builder().build(),
                 object : AppOpenAd.AppOpenAdLoadCallback() {
                     override fun onAdLoaded(ad: AppOpenAd) {
-                        appOpenAd = ad
                         isLoading = false
+                        // A request may finish after UMP consent was revoked.
+                        // Never retain the pre-revocation creative for a later grant.
+                        if (!consentManager.canRequestAds) {
+                            appOpenAd = null
+                            loadElapsedRealtimeMs = 0L
+                            return
+                        }
+                        appOpenAd = ad
                         loadRetryGate.recordSuccess()
                         loadElapsedRealtimeMs = SystemClock.elapsedRealtime()
                         Timber.d("App open ad loaded")

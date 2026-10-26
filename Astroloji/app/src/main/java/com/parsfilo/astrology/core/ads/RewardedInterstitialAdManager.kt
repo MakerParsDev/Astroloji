@@ -42,8 +42,13 @@ class RewardedInterstitialAdManager
                 AdRequest.Builder().build(),
                 object : RewardedInterstitialAdLoadCallback() {
                     override fun onAdLoaded(ad: RewardedInterstitialAd) {
-                        rewardedInterstitialAd = ad
                         isLoading = false
+                        // Never cache a callback that arrived after permission was revoked.
+                        if (!consentManager.canRequestAds) {
+                            rewardedInterstitialAd = null
+                            return
+                        }
+                        rewardedInterstitialAd = ad
                         Timber.d("Rewarded interstitial ad loaded")
                     }
 
