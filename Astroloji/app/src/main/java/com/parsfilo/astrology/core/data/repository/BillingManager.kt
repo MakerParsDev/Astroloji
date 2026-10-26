@@ -494,6 +494,7 @@ class BillingManager
                         AppResult.Error(
                             AppException.BillingException(
                                 billingResult.debugMessage.ifBlank { stringsProvider.get(R.string.billing_purchase_failed) },
+                                reason = billingFailureReasonFromResponseCode(billingResult.responseCode),
                             ),
                         ),
                     )
@@ -528,6 +529,7 @@ class BillingManager
                         launchResult.debugMessage.ifBlank {
                             stringsProvider.get(R.string.billing_purchase_failed)
                         },
+                        reason = billingFailureReasonFromResponseCode(launchResult.responseCode),
                     ),
                 ),
             )
@@ -800,6 +802,23 @@ internal fun resolveSuccessfulPurchaseFlow(
         else -> PendingBillingFlow.NONE
     }
 }
+
+// Only fixed, low-cardinality SDK codes reach analytics; never forward debugMessage.
+internal fun billingFailureReasonFromResponseCode(responseCode: Int): BillingFailureReason =
+    when (responseCode) {
+        BillingResponseCode.USER_CANCELED -> BillingFailureReason.USER_CANCELLED
+        BillingResponseCode.NETWORK_ERROR -> BillingFailureReason.NETWORK_ERROR
+        BillingResponseCode.SERVICE_DISCONNECTED -> BillingFailureReason.SERVICE_DISCONNECTED
+        BillingResponseCode.SERVICE_UNAVAILABLE -> BillingFailureReason.SERVICE_UNAVAILABLE
+        BillingResponseCode.BILLING_UNAVAILABLE -> BillingFailureReason.BILLING_UNAVAILABLE
+        BillingResponseCode.ITEM_UNAVAILABLE -> BillingFailureReason.ITEM_UNAVAILABLE
+        BillingResponseCode.ITEM_ALREADY_OWNED -> BillingFailureReason.ITEM_ALREADY_OWNED
+        BillingResponseCode.ITEM_NOT_OWNED -> BillingFailureReason.ITEM_NOT_OWNED
+        BillingResponseCode.FEATURE_NOT_SUPPORTED -> BillingFailureReason.FEATURE_NOT_SUPPORTED
+        BillingResponseCode.DEVELOPER_ERROR -> BillingFailureReason.DEVELOPER_ERROR
+        BillingResponseCode.ERROR -> BillingFailureReason.BILLING_ERROR
+        else -> BillingFailureReason.UNKNOWN
+    }
 
 internal fun isSuccessfulBillingSetup(responseCode: Int): Boolean = responseCode == BillingResponseCode.OK
 
