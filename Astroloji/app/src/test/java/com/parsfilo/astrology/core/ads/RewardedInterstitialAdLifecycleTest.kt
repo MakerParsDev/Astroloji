@@ -96,7 +96,7 @@ class RewardedInterstitialAdLifecycleTest {
     }
 
     @Test
-    fun `synchronous SDK failure dismisses exactly once despite late callbacks`() {
+    fun `synchronous SDK failure returns false and ignores late callbacks`() {
         val fixture = Fixture()
         every {
             fixture.ad.show(fixture.activity, any<OnUserEarnedRewardListener>())
@@ -105,6 +105,28 @@ class RewardedInterstitialAdLifecycleTest {
 
         assertThat(fixture.manager.showIfAvailable(fixture.activity, "weekly_back") { dismissed++ }).isFalse()
         fixture.callback.captured.onAdFailedToShowFullScreenContent(mockk<AdError>(relaxed = true))
+        fixture.callback.captured.onAdDismissedFullScreenContent()
+        fixture.callback.captured.onAdImpression()
+
+        // A false return delegates fallback navigation to the caller.
+        // A late SDK callback must not notify that same caller again.
+        assertThat(dismissed).isEqualTo(0)
+        coVerify(exactly = 0) { fixture.analytics.track(any(), any()) }
+    }
+
+    @Test
+    fun `terminal callback before synchronous show exception is handled once`() {
+        val fixture = Fixture()
+        every {
+            fixture.ad.show(fixture.activity, any<OnUserEarnedRewardListener>())
+        } answers {
+            fixture.callback.captured.onAdFailedToShowFullScreenContent(mockk<AdError>(relaxed = true))
+            error("synthetic SDK exception after callback")
+        }
+        var dismissed = 0
+
+        // true means the callback already owns navigation.
+        assertThat(fixture.manager.showIfAvailable(fixture.activity, "monthly_back") { dismissed++ }).isTrue()
         fixture.callback.captured.onAdDismissedFullScreenContent()
         fixture.callback.captured.onAdImpression()
 
