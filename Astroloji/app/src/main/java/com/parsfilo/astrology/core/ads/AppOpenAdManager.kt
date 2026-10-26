@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -60,6 +61,9 @@ class AppOpenAdManager
             )
         }
 
+        // Google Mobile Ads is an external SDK; a runtime exception during show
+        // must not crash startup or double-notify navigation after a callback.
+        @Suppress("TooGenericExceptionCaught", "ReturnCount")
         fun showIfAvailable(
             activity: Activity,
             placement: String = "app_open",
@@ -77,22 +81,30 @@ class AppOpenAdManager
             val ad = appOpenAd ?: return false
             isShowing = true
             appOpenAd = null
+            val finished = AtomicBoolean(false)
+            val impressionRecorded = AtomicBoolean(false)
+            val dismissOnce = {
+                if (finished.compareAndSet(false, true)) {
+                    isShowing = false
+                    preload()
+                    onDismissed()
+                }
+            }
             ad.fullScreenContentCallback =
                 object : FullScreenContentCallback() {
                     override fun onAdDismissedFullScreenContent() {
-                        isShowing = false
-                        preload()
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
-                        isShowing = false
-                        preload()
                         Timber.w("App open show failed: %s", error.message)
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdImpression() {
+                        // An SDK can deliver duplicate or late impression callbacks.
+                        // Only a real first impression should be sent to analytics.
+                        if (finished.get() || !impressionRecorded.compareAndSet(false, true)) return
                         scope.launch {
                             analyticsRepository.track(
                                 AnalyticsEvents.AD_SHOWN,
@@ -101,16 +113,17 @@ class AppOpenAdManager
                         }
                     }
                 }
-            runCatching {
+            return try {
                 ad.show(activity)
-            }.onFailure {
-                isShowing = false
-                Timber.e(it, "App open ad show crashed")
-                preload()
-                onDismissed()
-                return false
+                true
+            } catch (exception: RuntimeException) {
+                Timber.e(exception, "App open ad show failed")
+                // A broken SDK may invoke a terminal callback and THEN throw.
+                // Report it as handled if the callback already resumed the UI.
+                val callbackAlreadyHandled = finished.get()
+                dismissOnce()
+                callbackAlreadyHandled
             }
-            return true
         }
 
         private fun isAdAvailable(): Boolean =
