@@ -36,4 +36,7 @@ internal fun isPremiumOfferReady(
     plan != null &&
         plan.price.isNotBlank() &&
         plan.price != "..." &&
-        !plan.offerToken.isNullOrBlank()
+        !plan.offerToken.isNullOrBlank() &&
+        // Never offer checkout when an actual Play trial cannot be described
+        // truthfully (e.g. a month-long period we cannot express in days).
+        (!plan.hasFreeTrial || (plan.trialDays != null && plan.trialDays > 0))
