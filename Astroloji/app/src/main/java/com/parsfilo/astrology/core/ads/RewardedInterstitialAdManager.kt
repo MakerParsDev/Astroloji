@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -58,26 +59,37 @@ class RewardedInterstitialAdManager
             placement: String,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            // Consent may be revoked while a previously loaded ad is cached.
+            val consentAllowed = consentManager.canRequestAds
             val ad =
-                rewardedInterstitialAd ?: run {
+                rewardedInterstitialAd.takeIf { consentAllowed } ?: run {
+                    if (!consentAllowed) rewardedInterstitialAd = null
                     preload()
                     return false
                 }
             rewardedInterstitialAd = null
+            val finished = AtomicBoolean(false)
+            val rewardLogged = AtomicBoolean(false)
+            val impressionRecorded = AtomicBoolean(false)
+            val dismissOnce = {
+                if (finished.compareAndSet(false, true)) {
+                    preload()
+                    onDismissed()
+                }
+            }
             ad.fullScreenContentCallback =
                 object : FullScreenContentCallback() {
                     override fun onAdDismissedFullScreenContent() {
-                        preload()
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
                         Timber.w("Rewarded interstitial show failed: %s", error.message)
-                        preload()
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdImpression() {
+                        if (finished.get() || !impressionRecorded.compareAndSet(false, true)) return
                         scope.launch {
                             analyticsRepository.track(
                                 AnalyticsEvents.AD_SHOWN,
@@ -86,9 +98,19 @@ class RewardedInterstitialAdManager
                         }
                     }
                 }
-            ad.show(activity) { rewardItem ->
-                Timber.d("Rewarded interstitial reward earned: %s %s", rewardItem.amount, rewardItem.type)
+            return try {
+                ad.show(activity) { rewardItem ->
+                    // This unused format does not grant entitlements. Avoid
+                    // misleading duplicate/late SDK reward event logging.
+                    if (!finished.get() && rewardLogged.compareAndSet(false, true)) {
+                        Timber.d("Rewarded interstitial reward earned: %s %s", rewardItem.amount, rewardItem.type)
+                    }
+                }
+                true
+            } catch (e: IllegalStateException) {
+                Timber.w(e, "Rewarded interstitial SDK show threw")
+                dismissOnce()
+                false
             }
-            return true
         }
     }
