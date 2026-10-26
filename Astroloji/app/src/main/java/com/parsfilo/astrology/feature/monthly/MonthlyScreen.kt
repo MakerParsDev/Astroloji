@@ -1,7 +1,6 @@
 package com.parsfilo.astrology.feature.monthly
 
 import android.app.Activity
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,7 +18,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -29,7 +27,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.ads.AdaptiveBannerAd
-import com.parsfilo.astrology.core.ads.adsEntryPoint
+import com.parsfilo.astrology.core.ads.InterstitialBackHandler
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
@@ -39,7 +37,6 @@ import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.core.util.localizedReadingMonth
 import com.parsfilo.astrology.core.util.localizedReadingRange
 import com.parsfilo.astrology.core.util.readingCalendarDays
-import kotlinx.coroutines.launch
 
 @Composable
 fun MonthlyScreen(
@@ -52,31 +49,12 @@ fun MonthlyScreen(
     val uiState by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity
-    val adsEntryPoint = adsEntryPoint(context)
-    val scope = rememberCoroutineScope()
 
-    BackHandler(enabled = activity != null) {
-        val hostActivity = activity ?: return@BackHandler
-        scope.launch {
-            val flags = adsEntryPoint.remoteConfigRepository().fetchFlags()
-            val canShowInterstitial =
-                adsEntryPoint.adEligibilityChecker().canShowInterstitial() &&
-                    adsEntryPoint.adFrequencyManager().canShowInterstitial(flags)
-            if (!canShowInterstitial) {
-                onNavigateBack()
-                return@launch
-            }
-            val shown =
-                adsEntryPoint.interstitialAdManager().showIfAvailable(
-                    activity = hostActivity,
-                    placement = "monthly_back",
-                    onDismissed = onNavigateBack,
-                )
-            if (!shown) {
-                onNavigateBack()
-            }
-        }
-    }
+    InterstitialBackHandler(
+        activity = activity,
+        placement = "monthly_back",
+        onNavigateBack = onNavigateBack,
+    )
 
     if (uiState.isLoading && uiState.monthly == null) {
         LoadingState()
