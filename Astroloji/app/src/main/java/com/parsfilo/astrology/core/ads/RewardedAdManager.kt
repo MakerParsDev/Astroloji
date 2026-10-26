@@ -81,15 +81,8 @@ class RewardedAdManager
                     return false
                 }
             rewardedAd = null
-            val finished = AtomicBoolean(false)
-            val rewardDelivered = AtomicBoolean(false)
-            val impressionRecorded = AtomicBoolean(false)
-            val dismissOnce = {
-                if (finished.compareAndSet(false, true)) {
-                    preload()
-                    onDismissed()
-                }
-            }
+            val attempt = RewardedAdAttemptState()
+            val telemetry = RewardedAdLifecycleTelemetry(scope, analyticsRepository, request.placement)
             val ssvConfigured =
                 try {
                     applyRewardSsvOptions(ad, request.ssvUserId, request.ssvCustomData)
@@ -100,54 +93,135 @@ class RewardedAdManager
                     false
                 }
             if (ssvConfigured) {
-                ad.fullScreenContentCallback =
-                    object : FullScreenContentCallback() {
-                        override fun onAdDismissedFullScreenContent() {
-                            dismissOnce()
-                        }
-
-                        override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
-                            Timber.w("Rewarded show failed: %s", error.message)
-                            dismissOnce()
-                        }
-
-                        override fun onAdImpression() {
-                            if (finished.get() || !impressionRecorded.compareAndSet(false, true)) return
-                            scope.launch {
-                                analyticsRepository.track(
-                                    AnalyticsEvents.AD_SHOWN,
-                                    mapOf("format" to "rewarded", "placement" to request.placement),
-                                )
-                            }
-                        }
-                    }
+                bindFullScreenCallbacks(
+                    ad,
+                    telemetry,
+                    attempt.finished,
+                    attempt.rewardDelivered,
+                    onDismissed,
+                )
             }
             return if (ssvConfigured) {
-                try {
-                    ad.show(activity) { rewardItem ->
-                        // Ignore duplicate or late callbacks after dismissal.
-                        if (!finished.get() && rewardDelivered.compareAndSet(false, true)) {
-                            onRewardEarned(rewardItem)
-                        }
-                    }
-                    true
-                } catch (e: IllegalStateException) {
-                    Timber.w(e, "Rewarded SDK show threw")
-                    // A false return makes the caller report unavailable.
-                    // Do not also call onDismissed, or process a late SDK
-                    // callback as a second completion. A terminal callback
-                    // that already ran owns dismissal, while an earned reward
-                    // callback owns the pending server-verification path.
-                    val callbackAlreadyHandled = !finished.compareAndSet(false, true)
-                    if (!callbackAlreadyHandled) preload()
-                    callbackAlreadyHandled || rewardDelivered.get()
-                }
+                showPreparedRewardedAd(ad, activity, attempt, telemetry, onRewardEarned)
             } else {
                 preload()
                 false
             }
         }
+
+        private fun showPreparedRewardedAd(
+            ad: RewardedAd,
+            activity: Activity,
+            attempt: RewardedAdAttemptState,
+            telemetry: RewardedAdLifecycleTelemetry,
+            onRewardEarned: (RewardItem) -> Unit,
+        ): Boolean =
+            try {
+                ad.show(activity) { rewardItem ->
+                    // Ignore duplicate or late callbacks after dismissal.
+                    if (!attempt.finished.get() && attempt.rewardDelivered.compareAndSet(false, true)) {
+                        // SDK callback, NOT an SSV-verified entitlement.
+                        telemetry.earned()
+                        onRewardEarned(rewardItem)
+                    }
+                }
+                true
+            } catch (e: IllegalStateException) {
+                Timber.w(e, "Rewarded SDK show threw")
+                // When a callback already handled dismissal, the caller must not repeat it.
+                val callbackAlreadyHandled = !attempt.finished.compareAndSet(false, true)
+                if (!callbackAlreadyHandled) {
+                    if (!attempt.rewardDelivered.get()) telemetry.failed("show_exception")
+                    preload()
+                }
+                callbackAlreadyHandled || attempt.rewardDelivered.get()
+            }
+
+        private fun bindFullScreenCallbacks(
+            ad: RewardedAd,
+            telemetry: RewardedAdLifecycleTelemetry,
+            finished: AtomicBoolean,
+            rewardDelivered: AtomicBoolean,
+            onDismissed: () -> Unit,
+        ) {
+            val dismissOnce: (String) -> Unit = { reason ->
+                if (finished.compareAndSet(false, true)) {
+                    if (!rewardDelivered.get()) telemetry.failed(reason)
+                    preload()
+                    onDismissed()
+                }
+            }
+            ad.fullScreenContentCallback =
+                object : FullScreenContentCallback() {
+                    override fun onAdShowedFullScreenContent() {
+                        telemetry.shown(!finished.get())
+                    }
+
+                    override fun onAdDismissedFullScreenContent() {
+                        dismissOnce("dismissed_without_reward")
+                    }
+
+                    override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                        Timber.w("Rewarded show failed: %s", error.message)
+                        dismissOnce("show_failed")
+                    }
+
+                    override fun onAdImpression() {
+                        telemetry.impression(!finished.get())
+                    }
+                }
+        }
     }
+
+internal class RewardedAdAttemptState {
+    val finished = AtomicBoolean(false)
+    val rewardDelivered = AtomicBoolean(false)
+}
+
+// Best-effort SDK UI callbacks, never SSV-verified entitlements.
+// Log only static metadata: no AdMob user ID, challenge ID, or transaction token.
+internal class RewardedAdLifecycleTelemetry(
+    private val scope: CoroutineScope,
+    private val analyticsRepository: AnalyticsRepository,
+    placement: String,
+) {
+    private val metadata = mapOf("format" to "rewarded", "placement" to placement)
+    private val started = AtomicBoolean(false)
+    private val terminal = AtomicBoolean(false)
+    private val impressionRecorded = AtomicBoolean(false)
+
+    fun shown(active: Boolean) {
+        if (active && started.compareAndSet(false, true)) {
+            record(AnalyticsEvents.REWARDED_AD_STARTED)
+        }
+    }
+
+    fun impression(active: Boolean) {
+        if (active && impressionRecorded.compareAndSet(false, true)) {
+            record(AnalyticsEvents.AD_SHOWN)
+        }
+    }
+
+    fun earned() {
+        if (terminal.compareAndSet(false, true)) {
+            record(AnalyticsEvents.REWARDED_AD_COMPLETED, "sdk_reward_callback")
+        }
+    }
+
+    fun failed(reason: String) {
+        if (terminal.compareAndSet(false, true)) {
+            record(AnalyticsEvents.REWARDED_AD_FAILED, reason)
+        }
+    }
+
+    private fun record(
+        event: String,
+        reason: String? = null,
+    ) {
+        val safeMeta = if (reason == null) metadata else metadata + ("reason" to reason)
+        scope.launch { analyticsRepository.track(event, safeMeta) }
+    }
+}
 
 internal fun applyRewardSsvOptions(
     ad: RewardedAd,
