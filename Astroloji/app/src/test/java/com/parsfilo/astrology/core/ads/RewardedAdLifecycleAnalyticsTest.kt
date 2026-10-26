@@ -140,6 +140,21 @@ class RewardedAdLifecycleAnalyticsTest {
     }
 
     @Test
+    fun `repeated SDK impressions are counted once and never after dismissal`() {
+        val f = Fixture()
+        assertThat(f.show()).isTrue()
+
+        f.callback.captured.onAdImpression()
+        f.callback.captured.onAdImpression()
+        f.callback.captured.onAdDismissedFullScreenContent()
+        f.callback.captured.onAdImpression()
+
+        coVerify(exactly = 1, timeout = 3000) {
+            f.analytics.track(AnalyticsEvents.AD_SHOWN, f.meta)
+        }
+    }
+
+    @Test
     fun `revoked consent causes no ad display or lifecycle analytics`() {
         val f = Fixture()
         every { f.consent.canRequestAds } returns false
