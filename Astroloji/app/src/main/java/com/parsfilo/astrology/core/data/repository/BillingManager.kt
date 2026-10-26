@@ -880,23 +880,24 @@ private fun buildPremiumPlans(productDetailsList: List<ProductDetails>): List<Pr
                     ),
                 )
             } else {
-                val selectedOfferIndex =
-                    selectPreferredOfferIndex(
-                        offers.map { offer ->
-                            offer.pricingPhases.pricingPhaseList.any { phase -> phase.priceAmountMicros == 0L }
-                        },
-                    )
-                val selectedOffer = offers.getOrNull(selectedOfferIndex).takeIf { selectedOfferIndex >= 0 } ?: offers.first()
-                val phases =
-                    selectedOffer.pricingPhases.pricingPhaseList.map { phase ->
-                        PricingPhaseSummary(
-                            priceAmountMicros = phase.priceAmountMicros,
-                            formattedPrice = phase.formattedPrice,
-                            billingPeriod = phase.billingPeriod,
-                            recurrenceMode = phase.recurrenceMode,
-                            billingCycleCount = phase.billingCycleCount,
-                        )
+                val phaseLists =
+                    offers.map { offer ->
+                        offer.pricingPhases.pricingPhaseList.map { phase ->
+                            PricingPhaseSummary(
+                                priceAmountMicros = phase.priceAmountMicros,
+                                formattedPrice = phase.formattedPrice,
+                                billingPeriod = phase.billingPeriod,
+                                recurrenceMode = phase.recurrenceMode,
+                                billingCycleCount = phase.billingCycleCount,
+                            )
+                        }
                     }
+                // Google Play may return several eligible offers for a product.
+                // Prefer a describable trial, but never hide a usable paid base
+                // plan behind an unsupported introductory schedule.
+                val selectedOfferIndex = selectPreferredDisclosableOfferIndex(phaseLists).takeIf { it >= 0 } ?: 0
+                val selectedOffer = offers[selectedOfferIndex]
+                val phases = phaseLists[selectedOfferIndex]
                 val displayPricing = resolveDisplayPricing(phases)
                 val introductoryPhase = resolveIntroductoryPricing(phases)
                 listOf(
@@ -921,10 +922,12 @@ private fun buildPremiumPlans(productDetailsList: List<ProductDetails>): List<Pr
             }
         }.sortedBy { it.displayPriority }
 
-internal fun selectPreferredOfferIndex(hasFreeTrial: List<Boolean>): Int =
-    hasFreeTrial.indexOfFirst { it }.takeIf { it >= 0 }
-        ?: hasFreeTrial.indices.firstOrNull()
-        ?: -1
+internal fun selectPreferredDisclosableOfferIndex(phaseLists: List<List<PricingPhaseSummary>>): Int {
+    val eligibleIndices = phaseLists.indices.filter { resolveDisplayPricing(phaseLists[it]) != null }
+    return eligibleIndices.firstOrNull { index ->
+        phaseLists[index].any { it.priceAmountMicros == 0L }
+    } ?: eligibleIndices.firstOrNull() ?: -1
+}
 
 /**
  * The amount shown as the renewal price must be the indefinitely recurring phase,
@@ -946,13 +949,30 @@ internal fun resolveDisplayPricing(phases: List<PricingPhaseSummary>): DisplayPr
             paidIntro.all {
                 it.billingPeriod == renewal?.billingPeriod && introductoryCycleCount(it) > 0
             }
-    return renewal?.takeIf { validRenewal && validIntro }?.let {
+    return renewal?.takeIf { validRenewal && validIntro && isDisclosableFreeTrial(prior) }?.let {
         DisplayPricingSummary(
             priceAmountMicros = it.priceAmountMicros,
             formattedPrice = it.formattedPrice,
             billingPeriod = it.billingPeriod,
         )
     }
+}
+
+/** The paywall describes one initial, exact-length trial, never a chain or a delayed free phase. */
+private fun isDisclosableFreeTrial(priorPhases: List<PricingPhaseSummary>): Boolean {
+    val freePhases = priorPhases.filter { it.priceAmountMicros == 0L }
+    val trial = freePhases.singleOrNull()
+    return freePhases.isEmpty() ||
+        (
+            trial != null &&
+                priorPhases.firstOrNull() == trial &&
+                (billingPeriodDays(trial.billingPeriod) ?: 0) > 0 &&
+                when (trial.recurrenceMode) {
+                    ProductDetails.RecurrenceMode.NON_RECURRING -> true
+                    ProductDetails.RecurrenceMode.FINITE_RECURRING -> trial.billingCycleCount == 1
+                    else -> false
+                }
+        )
 }
 
 internal fun resolveIntroductoryPricing(phases: List<PricingPhaseSummary>): PricingPhaseSummary? =
