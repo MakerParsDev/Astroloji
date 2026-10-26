@@ -28,7 +28,7 @@ describe('app routes', () => {
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
     expect(html).toContain(heading);
     expect(html).toContain('info@parsfilo.com');
-    expect(html).toContain(path === '/privacy' ? '22 October 2026' : '5 August 2026');
+    expect(html).toContain(path === '/privacy' ? '26 October 2026' : '5 August 2026');
   });
 
   it('serves public account deletion instructions', async () => {
@@ -43,7 +43,7 @@ describe('app routes', () => {
     expect(html).toContain('Account and Data Deletion');
     expect(html).toContain('Google Play');
     expect(html).toContain('info@parsfilo.com');
-    expect(html).toContain('22 October 2026');
+    expect(html).toContain('26 October 2026');
     expect(html).toContain('şifreli kaydedilmiş doğum profili');
   });
 
@@ -52,8 +52,9 @@ describe('app routes', () => {
       path: '/privacy',
       expected: [
         "Google Play'de dağıtılmış eski uygulama",
-        "Firebase Analytics'e geçmişte gönderilmiş",
+        "Firebase Analytics'e geçmişte",
         'sürümlerde bu seçenek bulunmayabilir',
+        'Ruh hâli geçmişinin hesaba dokunmadan silinmesi',
         'mailto:info@parsfilo.com?subject=Astroloji%20veri%20silme%20talebi'
       ]
     },
@@ -63,6 +64,8 @@ describe('app routes', () => {
         'Hesabı koruyarak belirli verilerin silinmesi',
         'Hesabı ve verileri sil',
         'Older distributed versions',
+        'Eski sürümlerde bu seçenekler görünmeyebilir',
+        'app-owned mood event history',
         'subject=Astroloji%20belirli%20veri%20silme%20talebi'
       ]
     }
@@ -236,12 +239,14 @@ describe('app routes', () => {
     expect(html).toContain('Kaydedilen doğum profili (isteğe bağlı)');
     expect(html).toContain('İsteğe bağlı ruh hâli kayıtları');
     expect(html).toContain('mood_logged');
-    expect(html).toContain("Firebase Analytics'e geçmişte gönderilmiş");
+    expect(html).toContain("Firebase Analytics'e geçmişte");
     expect(html).toContain('Older distributed app versions may send');
     expect(html).toContain('earlier Firebase Analytics events');
     expect(html).toContain('older distributed versions may lack the control');
+    expect(html).toContain('can remove account-linked mood check-ins');
+    expect(html).toContain('does not delete historical Firebase Analytics events');
     expect(html).toContain('Optional mood check-ins');
-    expect(html).toContain('until account deletion, for mood-pattern insights');
+    expect(html).toContain('until account deletion or account-preserving mood-history deletion');
     expect(html).toContain('AI sohbet mesajları');
     expect(html).toContain('doğum profilinden hesaplanan harita özeti');
     expect(html).toContain('Sun, Moon, Venus and Mars signs/degrees');

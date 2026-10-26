@@ -1,6 +1,6 @@
 const SUPPORT_EMAIL = 'info@parsfilo.com';
 const LAST_UPDATED = '5 August 2026';
-const PRIVACY_UPDATED = '22 October 2026';
+const PRIVACY_UPDATED = '26 October 2026';
 
 function escapeHtml(value: string): string {
   return value
@@ -84,8 +84,12 @@ Android uygulamasının kişisel veri işleme uygulamalarını açıklar. Gizlil
     sürümleri <em>mood_logged</em> analitik olayında seçilen ruh hâli kategorisini Firebase Analytics'e
     ve uygulama API'sine gönderebilir. Yeni uygulama kodunda bu kategori analitik olaydan çıkarılmıştır;
     eski istemcilerden sunucuya gelen olayların kategori metadata'sı da kayıttan önce temizlenir.
-    Hesap silindiğinde uygulama veritabanındaki hesapla ilişkili ruh hâli kayıtları silinir;
-    Firebase Analytics'e geçmişte gönderilmiş olayların saklanması ayrı hizmet koşullarına tabidir.</li>
+    Hesap silindiğinde uygulama veritabanındaki hesapla ilişkili ruh hâli kayıtları silinir.
+    Ruh hâli geçmişinin hesaba dokunmadan silinmesi, bu özelliği sunan yeni uygulama
+    sürümlerinde Ayarlar ekranından ayrıca başlatılabilir; işlem uygulamanın
+    veritabanındaki kayıtları ve bu hesaba ait <em>mood_logged</em> olaylarını siler.
+    Eski Play sürümlerinde bu seçenek bulunmayabilir. Firebase Analytics'e geçmişte
+    gönderilmiş olayların saklanması ayrı hizmet koşullarına tabidir.</li>
   <li><strong>Satın alma ve abonelik verileri:</strong> ürün kimliği, Google Play satın alma belirteci,
     abonelik durumu ve geçerlilik tarihleri. Ödeme kartı bilgilerini ParsFilo toplamaz; ödeme Google Play
     tarafından işlenir.</li>
@@ -156,8 +160,10 @@ aynı sorunun tekrar gösterilmemesi için cihazda tutulur; uygulama verileri te
 kaldırıldığında silinir. Kaydedilmiş doğum profili ise kullanıcı tarafından silinene veya hesap
 silme talebi tamamlanana kadar sunucu veritabanında şifreli olarak saklanır. AI sohbet mesajları,
 isteğe bağlı danışmanlık isteğinin işlenmesi için harici hizmet sağlayıcılarına iletilebilir.
-İsteğe bağlı ruh hâli kayıtları, sunucu tarafında hesapla ilişkilendirilerek hesap silinene
-kadar tutulabilir; bu kayıtları cihazdaki günlük geri bildirim tercihleriyle karıştırmamak gerekir.
+İsteğe bağlı ruh hâli kayıtları, sunucu tarafında hesapla ilişkilendirilerek
+hesap silinene veya uyumlu yeni uygulama sürümündeki ruh hâli geçmişi silme işlemi
+tamamlanana kadar tutulabilir; bu kayıtları cihazdaki günlük geri bildirim
+tercihleriyle karıştırmamak gerekir.
 Diğer cihaz tercihleri ve önbellek de aynı şekilde yerel veri temizliğiyle silinebilir. Sunucu tarafındaki hesap ve ilişkili verileri uygulamadaki Ayarlar ekranından silebilir veya
 <a href="/delete-account">hesap ve veri silme sayfasındaki</a> adımları izleyebilirsiniz. Uygulamaya erişemiyorsanız
 <a href="mailto:${SUPPORT_EMAIL}?subject=Astroloji%20veri%20silme%20talebi">${SUPPORT_EMAIL}</a> adresine yazabilirsiniz. Kimliğinizi ve hesabın size ait olduğunu doğrulamak için
@@ -169,8 +175,9 @@ sağlayıcı güvenlik kontrollerinden yararlanırız. Hiçbir elektronik sistem
 <ul>
   <li>Bildirim iznini ve bildirim tercihlerini cihaz veya uygulama ayarlarından değiştirebilirsiniz.</li>
   <li>Uygulamadaki gizlilik seçeneklerinden reklam onay tercihlerinizi yönetebilirsiniz.</li>
-  <li>Bu özelliği sunan uygulama sürümünde isteğe bağlı kaydedilmiş doğum profilini hesabınızı
-silmeden kaldırabilirsiniz. Eski sürümlerde veya başka veriler için belirli verilerin silinmesi
+  <li>Bu seçenekleri sunan yeni uygulama sürümlerinde kaydedilmiş doğum profilini
+ve ruh hâli geçmişini hesabınızı silmeden ayrı ayrı kaldırabilirsiniz.
+Eski sürümlerde veya başka veriler için belirli verilerin silinmesi
 talebinizi ${SUPPORT_EMAIL} adresine iletebilirsiniz; talebin kapsamı kimlik doğrulaması
 ve geçerli saklama yükümlülükleri çerçevesinde değerlendirilir.</li>
   <li>Kişisel Rehber özelliğini kullanmama, seçili doğum tarihini ve sonucu ekrandaki temizleme düğmesiyle anında
@@ -192,12 +199,16 @@ preferences, time-zone and notification settings, Firebase installation IDs, tra
 daily feedback categories, subscription records, and diagnostic/device/ad data needed to operate, secure,
 improve and monetize the app. Optional mood check-ins (for example, good, low or stressed) are
 associated with the account and stored with the date and optional life domain in the backend
-until account deletion, for mood-pattern insights. Older distributed app versions may send the
+until account deletion or account-preserving mood-history deletion in compatible newer
+versions, for mood-pattern insights. Older distributed app versions may send the
 selected mood category with the <code>mood_logged</code> event to Firebase Analytics and the app API.
 In newer client code that event no longer includes the category, and the backend removes metadata
 from legacy mood events before storage. Account deletion removes account-linked mood records from
 our application database; earlier Firebase Analytics events are subject to the service's separate
-retention terms. Optional birth-profile details (date, time and birth city) are stored encrypted
+retention terms. Compatible newer app versions can remove account-linked mood check-ins
+and app-owned mood events without deleting the account; older distributed versions may lack
+the option. This does not delete historical Firebase Analytics events.
+Optional birth-profile details (date, time and birth city) are stored encrypted
 for natal-chart and consultation features. Account deletion also removes this stored profile.
 Account-preserving deletion of only the saved birth profile is available in app versions offering
 that option; older distributed versions may lack the control. Users can contact our support
@@ -254,9 +265,12 @@ ayrıca yönetmeniz veya iptal etmeniz gerekir. Google Play'in yasal ve finansal
 kurallarına tabidir.</p>
 
 <h2>Hesabı koruyarak belirli verilerin silinmesi</h2>
-<p>Hesabınızı silmeden yalnızca kayıtlı doğum profilinizi silme seçeneği, bu özelliği sunan yeni
-uygulama sürümlerinde <strong>Profil / Ayarlar</strong> ekranında bulunur. Eski sürümlerde bu
-seçenek görünmeyebilir. Kayıtlı doğum profiliniz veya diğer belirli veri kategorileri hakkında
+<p>Hesabınızı koruyarak kaydedilmiş doğum profilinizi veya ruh hâli geçmişinizi ayrı
+işlemlerle silme seçenekleri, bunları destekleyen yeni uygulama sürümlerinde
+<strong>Profil / Ayarlar</strong> ekranında bulunur. Ruh hâli geçmişini silme, uygulama
+veritabanındaki hesaba bağlı ruh hâli kayıtlarıyla uygulamaya ait <em>mood_logged</em>
+analitik olaylarını kapsar; daha önce Firebase Analytics'e iletilmiş verileri silmez.
+Eski sürümlerde bu seçenekler görünmeyebilir. Kayıtlı doğum profiliniz veya diğer belirli veri kategorileri hakkında
 hesabınızı silmeden inceleme ve silme talebinde bulunmak için
 <a href="mailto:${SUPPORT_EMAIL}?subject=Astroloji%20belirli%20veri%20silme%20talebi">${SUPPORT_EMAIL}</a>
 adresine hangi verilerin söz konusu olduğunu belirterek yazabilirsiniz. Bu yol, uygulamanın tüm
@@ -283,8 +297,10 @@ category, and other local app data. Personal Guidance birth dates are not retain
 Deleting the Astroloji account does not automatically cancel an active Google Play subscription; manage it
 separately in Google Play. Compatible newer app versions may offer a separate, account-preserving
 deletion action for the saved birth profile under Profile / Settings. Older distributed versions
-may not have this action. To request review or deletion of specific data without deleting your
-account, describe the data concerned in an email to
+may not have this action. Compatible newer versions can also erase account-linked mood
+check-ins and app-owned mood event history without deleting the account; previously delivered
+Firebase Analytics events remain subject to separate retention terms. To request review
+or deletion of specific data without deleting your account, describe the data concerned in an email to
 <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. Other data categories do not necessarily have
 individual self-service deletion controls; requests are assessed subject to identity verification
 and applicable retention obligations.</p>`
