@@ -532,6 +532,10 @@ export interface NotificationRequest {
 export interface TrackEventRequest {
   event_type: UserEventType;
   meta?: Record<string, unknown>;
+  /** Stable UUID for retry deduplication; absent on already-distributed Android versions. */
+  event_id?: string;
+  /** Account that originally produced the event; verified against auth JWT. */
+  owner_user_id?: string;
 }
 
 export interface RewardPrepareRequest {

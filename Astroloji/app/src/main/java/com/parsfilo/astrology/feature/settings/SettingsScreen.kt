@@ -5,13 +5,17 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -26,13 +30,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,7 +52,6 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
-import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "FunctionNaming", "LongParameterList")
@@ -83,7 +88,6 @@ fun SettingsScreen(
     val consentManager = adsEntryPoint(context).consentManager()
     val privacyOptionsRequired by consentManager.privacyOptionsRequired.collectAsStateWithLifecycle()
     val activity = context as? Activity
-    val coroutineScope = rememberCoroutineScope()
     val appLanguage =
         com.parsfilo.astrology.core.util.TimeUtils
             .normalizeLanguageTag(configuration.locales[0].language)
@@ -267,39 +271,12 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.onEvent(SettingsUiEvent.ChangeNotificationEnabled(it)) },
                     )
                 }
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    listOf(7, 8, 9, 20, 21).forEach { hour ->
-                        val selected = uiState.notificationHour == hour
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color =
-                                if (selected) {
-                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)
-                                },
-                            border =
-                                BorderStroke(
-                                    1.dp,
-                                    if (selected) {
-                                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
-                                    } else {
-                                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
-                                    },
-                                ),
-                            onClick = { viewModel.onEvent(SettingsUiEvent.ChangeNotificationHour(hour)) },
-                        ) {
-                            Text(
-                                text = String.format(Locale.ROOT, "%02d:00", hour),
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-                    }
-                }
+                ReminderHourOptions(
+                    selectedHour = uiState.notificationHour,
+                    onSelectHour = { hour ->
+                        viewModel.onEvent(SettingsUiEvent.ChangeNotificationHour(hour))
+                    },
+                )
             }
 
             AstrologyCard {
@@ -378,25 +355,17 @@ fun SettingsScreen(
                 )
                 SettingsAboutRow(stringResource(R.string.settings_privacy), "↗")
                 if (privacyOptionsRequired && activity != null) {
-                    OutlinedButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                val error = consentManager.showPrivacyOptionsForm(activity)
-                                if (error != null) {
-                                    val toast =
-                                        Toast.makeText(
-                                            context,
-                                            R.string.settings_privacy_options_error,
-                                            Toast.LENGTH_LONG,
-                                        )
-                                    toast.show()
-                                }
-                            }
+                    PrivacyOptionsButton(
+                        onShowForm = { consentManager.showPrivacyOptionsForm(activity) == null },
+                        onFormError = {
+                            Toast
+                                .makeText(
+                                    context,
+                                    R.string.settings_privacy_options_error,
+                                    Toast.LENGTH_LONG,
+                                ).show()
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.settings_manage_ad_privacy))
-                    }
+                    )
                 }
                 SettingsAboutRow(stringResource(R.string.settings_contact), "↗")
                 OutlinedButton(onClick = { viewModel.onEvent(SettingsUiEvent.RestorePurchase) }) {
@@ -424,6 +393,32 @@ fun SettingsScreen(
                 if (uiState.birthDataDeleted) {
                     Text(
                         text = stringResource(R.string.settings_birth_data_delete_success),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+
+            AstrologyCard {
+                Text(
+                    text = stringResource(R.string.settings_mood_delete_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = stringResource(R.string.settings_mood_delete_description),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(
+                    onClick = { viewModel.onEvent(SettingsUiEvent.RequestMoodDeletion) },
+                    enabled = !uiState.isDeletingMoodHistory && !uiState.isDeletingAccount,
+                ) {
+                    Text(stringResource(R.string.settings_mood_delete_button))
+                }
+                if (uiState.moodHistoryDeleted) {
+                    Text(
+                        text = stringResource(R.string.settings_mood_delete_success),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                     )
@@ -513,6 +508,53 @@ fun SettingsScreen(
         )
     }
 
+    if (uiState.showDeleteMoodConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!uiState.isDeletingMoodHistory) {
+                    viewModel.onEvent(SettingsUiEvent.DismissMoodDeletion)
+                }
+            },
+            title = { Text(stringResource(R.string.settings_mood_delete_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.settings_mood_delete_dialog_body))
+                    uiState.moodDeletionError?.let { error ->
+                        Text(
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.onEvent(SettingsUiEvent.ConfirmMoodDeletion) },
+                    enabled = !uiState.isDeletingMoodHistory,
+                ) {
+                    Text(
+                        stringResource(
+                            if (uiState.isDeletingMoodHistory) {
+                                R.string.settings_mood_delete_progress
+                            } else {
+                                R.string.settings_mood_delete_confirm
+                            },
+                        ),
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.onEvent(SettingsUiEvent.DismissMoodDeletion) },
+                    enabled = !uiState.isDeletingMoodHistory,
+                ) {
+                    Text(stringResource(R.string.settings_delete_dialog_cancel))
+                }
+            },
+        )
+    }
+
     if (uiState.showDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = {
@@ -566,57 +608,112 @@ fun SettingsScreen(
     }
 }
 
+private const val SETTINGS_MAX_SINGLE_ROW_OPTIONS = 3
+private const val SETTINGS_LARGE_TEXT_SCALE = 1.5f
+private const val MAX_REMINDER_HOUR = 23
+
+@Suppress("FunctionNaming")
 @Composable
-private fun SettingsSegmentRow(
+internal fun SettingsSegmentRow(
     title: String,
     options: List<Pair<String, String>>,
     selected: String,
     onSelect: (String) -> Unit,
 ) {
+    val frame =
+        Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
+                RoundedCornerShape(18.dp),
+            ).padding(6.dp)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
         )
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
-                        RoundedCornerShape(18.dp),
-                    ).padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            options.forEach { (key, label) ->
-                val isSelected = key == selected
-                Surface(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    color =
-                        if (isSelected) {
-                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.22f)
-                        } else {
-                            androidx.compose.ui.graphics.Color.Transparent
-                        },
-                    onClick = { onSelect(key) },
+        if (options.size > SETTINGS_MAX_SINGLE_ROW_OPTIONS) {
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val narrow = maxWidth < 380.dp
+                val largeText = LocalDensity.current.fontScale >= SETTINGS_LARGE_TEXT_SCALE
+                FlowRow(
+                    modifier = frame,
+                    maxItemsInEachRow = if (narrow || largeText) 1 else 2,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Text(
-                        text = label,
-                        modifier = Modifier.padding(vertical = 12.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color =
-                            if (isSelected) {
-                                MaterialTheme.colorScheme.secondary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
+                    options.forEach { (key, label) ->
+                        SettingsSegmentChoice(
+                            key = key,
+                            label = label,
+                            selected = key == selected,
+                            modifier = Modifier.weight(1f),
+                            onSelect = onSelect,
+                        )
+                    }
+                }
+            }
+        } else {
+            Row(
+                modifier = frame,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                options.forEach { (key, label) ->
+                    SettingsSegmentChoice(
+                        key = key,
+                        label = label,
+                        selected = key == selected,
+                        modifier = Modifier.weight(1f),
+                        onSelect = onSelect,
                     )
                 }
             }
         }
+    }
+}
+
+@Suppress("FunctionNaming")
+@Composable
+private fun SettingsSegmentChoice(
+    key: String,
+    label: String,
+    selected: Boolean,
+    modifier: Modifier,
+    onSelect: (String) -> Unit,
+) {
+    Surface(
+        modifier =
+            modifier.selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                onClick = { onSelect(key) },
+            ),
+        shape = RoundedCornerShape(14.dp),
+        color =
+            if (selected) {
+                MaterialTheme.colorScheme.secondary.copy(alpha = 0.22f)
+            } else {
+                androidx.compose.ui.graphics.Color.Transparent
+            },
+    ) {
+        Text(
+            text = label,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = 48.dp)
+                    .padding(horizontal = 8.dp, vertical = 12.dp),
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color =
+                if (selected) {
+                    MaterialTheme.colorScheme.secondary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+        )
     }
 }
 
@@ -632,5 +729,64 @@ private fun SettingsAboutRow(
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyLarge)
         Text(text = trailing, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+@Suppress("FunctionNaming")
+internal fun ReminderHourOptions(
+    selectedHour: Int,
+    onSelectHour: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FlowRow(
+        modifier = modifier.fillMaxWidth().selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        val presetHours = listOf(7, 8, 9, 20, 21)
+        // Earlier versions can store any valid hour. Keep that selection visible
+        // without silently changing or persisting a different reminder time.
+        val displayedHours =
+            if (selectedHour in 0..MAX_REMINDER_HOUR && selectedHour !in presetHours) {
+                presetHours + selectedHour
+            } else {
+                presetHours
+            }
+        displayedHours.forEach { hour ->
+            val selected = selectedHour == hour
+            Surface(
+                modifier =
+                    Modifier
+                        .defaultMinSize(minHeight = 48.dp)
+                        .selectable(
+                            selected = selected,
+                            role = Role.RadioButton,
+                            onClick = { onSelectHour(hour) },
+                        ),
+                shape = RoundedCornerShape(16.dp),
+                color =
+                    if (selected) {
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f)
+                    },
+                border =
+                    BorderStroke(
+                        1.dp,
+                        if (selected) {
+                            MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
+                        } else {
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+                        },
+                    ),
+            ) {
+                Text(
+                    text = String.format(Locale.ROOT, "%02d:00", hour),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
     }
 }

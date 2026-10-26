@@ -6,6 +6,7 @@ import com.parsfilo.astrology.core.data.remote.UpdateUserRequest
 import com.parsfilo.astrology.core.data.repository.BillingManager
 import com.parsfilo.astrology.core.data.repository.BirthDataRepository
 import com.parsfilo.astrology.core.data.repository.FavoritesRepository
+import com.parsfilo.astrology.core.data.repository.MoodRepository
 import com.parsfilo.astrology.core.data.repository.SessionRepository
 import com.parsfilo.astrology.core.domain.model.UserProfile
 import com.parsfilo.astrology.core.ui.MviViewModel
@@ -26,6 +27,10 @@ data class SettingsUiState(
     val isDeletingBirthData: Boolean = false,
     val birthDataDeleted: Boolean = false,
     val birthDataDeletionError: String? = null,
+    val showDeleteMoodConfirmation: Boolean = false,
+    val isDeletingMoodHistory: Boolean = false,
+    val moodHistoryDeleted: Boolean = false,
+    val moodDeletionError: String? = null,
     val showDeleteConfirmation: Boolean = false,
     val isDeletingAccount: Boolean = false,
     val error: String? = null,
@@ -64,6 +69,12 @@ sealed interface SettingsUiEvent {
 
     data object ConfirmBirthDataDeletion : SettingsUiEvent
 
+    data object RequestMoodDeletion : SettingsUiEvent
+
+    data object DismissMoodDeletion : SettingsUiEvent
+
+    data object ConfirmMoodDeletion : SettingsUiEvent
+
     data object RequestAccountDeletion : SettingsUiEvent
 
     data object DismissAccountDeletion : SettingsUiEvent
@@ -84,6 +95,7 @@ class SettingsViewModel
         private val favoritesRepository: FavoritesRepository,
         private val billingManager: BillingManager,
         private val birthDataRepository: BirthDataRepository,
+        private val moodRepository: MoodRepository,
     ) : MviViewModel<SettingsUiState, SettingsUiEvent, SettingsEffect>(SettingsUiState()) {
         init {
             viewModelScope.launch {
@@ -156,6 +168,10 @@ class SettingsViewModel
                 SettingsUiEvent.DismissBirthDataDeletion,
                 SettingsUiEvent.ConfirmBirthDataDeletion,
                 -> handleBirthDataAction(event)
+                SettingsUiEvent.RequestMoodDeletion,
+                SettingsUiEvent.DismissMoodDeletion,
+                SettingsUiEvent.ConfirmMoodDeletion,
+                -> handleMoodAction(event)
                 SettingsUiEvent.RequestAccountDeletion -> {
                     setState { copy(showDeleteConfirmation = true, error = null) }
                 }
@@ -221,6 +237,62 @@ class SettingsViewModel
                             isDeletingBirthData = false,
                             showDeleteBirthDataConfirmation = true,
                             birthDataDeletionError = result.exception.message,
+                        )
+                    }
+                }
+                AppResult.Loading -> Unit
+            }
+        }
+
+        private suspend fun handleMoodAction(event: SettingsUiEvent) {
+            when (event) {
+                SettingsUiEvent.RequestMoodDeletion -> {
+                    if (!state.value.isDeletingMoodHistory && !state.value.isDeletingAccount) {
+                        setState {
+                            copy(
+                                showDeleteMoodConfirmation = true,
+                                moodHistoryDeleted = false,
+                                moodDeletionError = null,
+                            )
+                        }
+                    }
+                }
+                SettingsUiEvent.DismissMoodDeletion -> {
+                    if (!state.value.isDeletingMoodHistory) {
+                        setState { copy(showDeleteMoodConfirmation = false, moodDeletionError = null) }
+                    }
+                }
+                SettingsUiEvent.ConfirmMoodDeletion -> {
+                    if (state.value.showDeleteMoodConfirmation &&
+                        !state.value.isDeletingMoodHistory &&
+                        !state.value.isDeletingAccount
+                    ) {
+                        deleteMoodHistory()
+                    }
+                }
+                else -> Unit
+            }
+        }
+
+        private suspend fun deleteMoodHistory() {
+            setState { copy(isDeletingMoodHistory = true, moodDeletionError = null) }
+            when (val result = moodRepository.deleteMoodHistory()) {
+                is AppResult.Success -> {
+                    setState {
+                        copy(
+                            isDeletingMoodHistory = false,
+                            showDeleteMoodConfirmation = false,
+                            moodHistoryDeleted = true,
+                            moodDeletionError = null,
+                        )
+                    }
+                }
+                is AppResult.Error -> {
+                    setState {
+                        copy(
+                            isDeletingMoodHistory = false,
+                            showDeleteMoodConfirmation = true,
+                            moodDeletionError = result.exception.message,
                         )
                     }
                 }

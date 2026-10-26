@@ -127,7 +127,29 @@ class PremiumViewModelTest {
 
             assertThat(viewModel.state.value.plans).containsExactly(weeklyPlan, monthlyPlan).inOrder()
             assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
+            // Live Play catalogue has only monthly and weekly base plans. A merchandising
+            // trial flag must never invent a free trial that those plans do not offer.
+            assertThat(viewModel.state.value.trialDays).isEqualTo(0)
             assertThat(viewModel.state.value.isLoading).isFalse()
+        }
+
+    @Test
+    fun `weekly selection without a Play trial never inherits remote trial marketing copy`() =
+        runTest {
+            // The Remote Config fixture advertises seven trial days, while the current
+            // Play catalogue contains only paid monthly and weekly base plans.
+            stubDependencies(catalogueResult = success(listOf(monthlyPlan, weeklyPlan)))
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(monthlyPlan.planId)
+            assertThat(viewModel.state.value.trialDays).isEqualTo(0)
+
+            viewModel.onEvent(PremiumUiEvent.SelectPlan(weeklyPlan.planId))
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(weeklyPlan.planId)
+            assertThat(viewModel.state.value.trialDays).isEqualTo(0)
         }
 
     @Test

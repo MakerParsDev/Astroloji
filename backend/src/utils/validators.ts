@@ -108,7 +108,9 @@ export const creditsSpendSchema = z.object({
 
 export const trackEventSchema = z.object({
   event_type: eventTypeSchema,
-  meta: z.record(z.string(), z.unknown()).optional().default({})
+  meta: z.record(z.string(), z.unknown()).optional().default({}),
+  event_id: z.uuid().optional(),
+  owner_user_id: z.string().trim().min(1).max(256).optional()
 });
 
 const dailyRewardIdentifierSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);

@@ -4,10 +4,13 @@ package com.parsfilo.astrology.feature.premium
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
@@ -19,7 +22,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -29,6 +35,8 @@ import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import com.parsfilo.astrology.core.ui.components.AstrologyCard
 import com.parsfilo.astrology.core.ui.components.PremiumGoldButton
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
+
+private const val STACKED_PLAN_FONT_SCALE = 1.5f
 
 @Composable
 internal fun PremiumHero() {
@@ -84,30 +92,55 @@ internal fun PremiumOfferCard(
 }
 
 @Composable
-private fun PremiumPlanSelector(
+internal fun PremiumPlanSelector(
     plans: List<PremiumPlanUi>,
     selectedPlanId: String,
     variant: PaywallVariant,
     onSelect: (String) -> Unit,
 ) {
-    val yearlySavingsPercent = premiumYearlySavingsPercent(plans)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        plans.forEach { plan ->
-            val isYearly = premiumBillingCadence(plan) == PremiumBillingCadence.YEARLY
-            PremiumPlanOption(
-                model =
-                    PremiumPlanOptionModel(
-                        plan = plan,
-                        selected = plan.planId == selectedPlanId,
-                        variant = variant,
-                        savingsPercent = yearlySavingsPercent.takeIf { isYearly },
-                    ),
-                onClick = { onSelect(plan.planId) },
-                modifier = Modifier.weight(1f),
+    val savingsPercent = premiumYearlySavingsPercent(plans)
+    val optionModels =
+        plans.map { plan ->
+            PremiumPlanOptionModel(
+                plan = plan,
+                selected = plan.planId == selectedPlanId,
+                variant = variant,
+                savingsPercent =
+                    savingsPercent.takeIf {
+                        premiumBillingCadence(plan) == PremiumBillingCadence.YEARLY
+                    },
             )
+        }
+    val fontScale = LocalDensity.current.fontScale
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        // Prefer complete localized prices and plan labels over cramped cards.
+        val stackPlans = maxWidth < 280.dp || fontScale >= STACKED_PLAN_FONT_SCALE
+        if (stackPlans) {
+            Column(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                optionModels.forEach { model ->
+                    PremiumPlanOption(
+                        model = model,
+                        onClick = { onSelect(model.plan.planId) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth().selectableGroup(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                optionModels.forEach { model ->
+                    PremiumPlanOption(
+                        model = model,
+                        onClick = { onSelect(model.plan.planId) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         }
     }
 }
@@ -127,8 +160,6 @@ private fun PremiumPlanOption(
 ) {
     val plan = model.plan
     val selected = model.selected
-    val variant = model.variant
-    val savingsPercent = model.savingsPercent
     val containerColor =
         if (selected) {
             MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
@@ -143,43 +174,51 @@ private fun PremiumPlanOption(
         }
 
     Surface(
-        modifier = modifier,
+        modifier =
+            modifier
+                .testTag("premium-plan-${plan.planId}")
+                .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         shape = RoundedCornerShape(22.dp),
         color = containerColor,
         border = BorderStroke(1.dp, borderColor),
-        onClick = onClick,
     ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+        PremiumPlanDetails(model)
+    }
+}
+
+@Composable
+private fun PremiumPlanDetails(model: PremiumPlanOptionModel) {
+    val plan = model.plan
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = premiumCadenceLabel(plan),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text =
+                (plan.introductoryPrice ?: plan.price).takeIf { isPremiumOfferReady(plan) }
+                    ?: stringResource(R.string.premium_price_loading),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        if (isRecommendedPremiumPlan(plan, model.variant)) {
+            PremiumRecommendedChip()
+        }
+        if (model.savingsPercent != null) {
             Text(
-                text = premiumCadenceLabel(plan),
-                style = MaterialTheme.typography.titleMedium,
+                text = stringResource(R.string.premium_yearly_savings, model.savingsPercent),
+                style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
             )
-            Text(
-                text =
-                    plan.price.takeIf { isPremiumOfferReady(plan) }
-                        ?: stringResource(R.string.premium_price_loading),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            if (isRecommendedPremiumPlan(plan, variant)) {
-                PremiumRecommendedChip()
-            }
-            if (savingsPercent != null) {
-                Text(
-                    text = stringResource(R.string.premium_yearly_savings, savingsPercent),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
         }
     }
 }
@@ -211,7 +250,9 @@ private fun PremiumOfferSummary(
     purchaseReady: Boolean,
 ) {
     Text(
-        text = selected.price.takeIf { purchaseReady } ?: stringResource(R.string.premium_price_loading),
+        text =
+            (selected.introductoryPrice ?: selected.price).takeIf { purchaseReady }
+                ?: stringResource(R.string.premium_price_loading),
         style = MaterialTheme.typography.headlineLarge,
         fontWeight = FontWeight.Bold,
     )
@@ -240,7 +281,7 @@ private fun premiumCtaLabel(
         !purchaseReady -> stringResource(R.string.premium_price_loading)
         selected.hasFreeTrial && uiState.trialDays > 0 ->
             stringResource(R.string.premium_start_trial_cta, uiState.trialDays)
-        else -> stringResource(R.string.premium_continue_with_price, selected.price)
+        else -> stringResource(R.string.premium_continue_with_price, selected.introductoryPrice ?: selected.price)
     }
 
 @Composable
@@ -270,14 +311,35 @@ private fun premiumBillingDisclosureText(
     selected: PremiumPlanUi,
 ): String {
     val period = premiumPeriodLabel(selected)
-    return if (selected.hasFreeTrial && uiState.trialDays > 0) {
-        stringResource(
-            R.string.premium_billing_disclosure_trial,
-            uiState.trialDays,
-            selected.price,
-            period,
-        )
-    } else {
-        stringResource(R.string.premium_billing_disclosure, selected.price, period)
+    val intro = selected.introductoryPrice
+    val hasTrial = selected.hasFreeTrial && uiState.trialDays > 0
+    return when {
+        intro != null && hasTrial ->
+            stringResource(
+                R.string.premium_billing_disclosure_trial_intro,
+                uiState.trialDays,
+                intro,
+                selected.introductoryCycles,
+                period,
+                selected.price,
+                period,
+            )
+        intro != null ->
+            stringResource(
+                R.string.premium_billing_disclosure_intro,
+                intro,
+                selected.introductoryCycles,
+                period,
+                selected.price,
+                period,
+            )
+        hasTrial ->
+            stringResource(
+                R.string.premium_billing_disclosure_trial,
+                uiState.trialDays,
+                selected.price,
+                period,
+            )
+        else -> stringResource(R.string.premium_billing_disclosure, selected.price, period)
     }
 }

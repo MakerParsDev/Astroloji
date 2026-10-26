@@ -5,6 +5,7 @@ package com.parsfilo.astrology.feature.daily
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.domain.model.DailyHoroscope
@@ -28,8 +31,10 @@ import com.parsfilo.astrology.core.ui.components.PremiumSectionHeader
 import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
 import java.time.LocalDate
+import java.util.Locale
 
 private const val SCORE_MAX = 100
+private const val STACKED_SCORE_FONT_SCALE = 1.5f
 
 private fun dailyDisplayDate(
     language: String,
@@ -57,62 +62,107 @@ internal fun DailyPremiumSummary(
         )
         PremiumHeroCard(
             symbol = sign.symbol,
-            eyebrow = signName,
-            title = horoscope.short,
-            subtitle = sign.localizedDateRange(horoscope.language),
+            eyebrow =
+                sign
+                    .localizedDateRange(horoscope.language)
+                    .uppercase(Locale.forLanguageTag(TimeUtils.normalizeLanguageTag(horoscope.language))),
+            title = signName,
+            supportingText = horoscope.short,
         )
-        PremiumGlassCard {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                PremiumMetricRing(
-                    value = horoscope.energy,
-                    label = stringResource(R.string.home_energy_label),
-                )
+        DailyScoresCard(horoscope = horoscope)
+    }
+}
+
+/** An isolated card boundary allows testing the real score layout at enlarged font sizes. */
+@Composable
+internal fun DailyScoresCard(horoscope: DailyHoroscope) {
+    val sign = ZodiacSign.fromKey(horoscope.sign)
+    PremiumGlassCard {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // The ring and score labels cannot share a narrow line at enlarged system text.
+            val stacked = maxWidth < 260.dp || LocalDensity.current.fontScale >= STACKED_SCORE_FONT_SCALE
+            if (stacked) {
                 Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
-                    DailyScoreRow(
-                        label = stringResource(R.string.compatibility_love_score),
-                        value = horoscope.loveScore,
-                        language = horoscope.language,
-                        accent = MaterialTheme.colorScheme.secondary,
+                    PremiumMetricRing(
+                        value = horoscope.energy,
+                        label = stringResource(R.string.home_energy_label),
                     )
-                    DailyScoreRow(
-                        label = stringResource(R.string.compatibility_work_score),
-                        value = horoscope.careerScore,
-                        language = horoscope.language,
-                        accent = MaterialTheme.colorScheme.tertiary,
-                    )
-                    DailyScoreRow(
-                        label = stringResource(R.string.home_money_label),
-                        value = horoscope.moneyScore,
-                        language = horoscope.language,
-                        accent = MaterialTheme.colorScheme.primary,
-                    )
-                    DailyScoreRow(
-                        label = stringResource(R.string.home_health_label),
-                        value = horoscope.healthScore,
-                        language = horoscope.language,
+                    DailyScoreRows(
+                        horoscope = horoscope,
                         accent = sign.element.color,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PremiumMetricRing(
+                        value = horoscope.energy,
+                        label = stringResource(R.string.home_energy_label),
+                    )
+                    DailyScoreRows(
+                        horoscope = horoscope,
+                        accent = sign.element.color,
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                PremiumPill(
-                    text = "${stringResource(R.string.home_lucky_number_title)} · ${horoscope.luckyNumber}",
-                )
-                PremiumPill(
-                    text = "${stringResource(R.string.home_lucky_color_title)} · ${horoscope.luckyColor}",
-                )
-            }
         }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            PremiumPill(
+                text = "${stringResource(R.string.home_lucky_number_title)} · ${horoscope.luckyNumber}",
+            )
+            PremiumPill(
+                text = "${stringResource(R.string.home_lucky_color_title)} · ${horoscope.luckyColor}",
+            )
+        }
+    }
+}
+
+@Composable
+private fun DailyScoreRows(
+    horoscope: DailyHoroscope,
+    accent: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        DailyScoreRow(
+            label = stringResource(R.string.compatibility_love_score),
+            value = horoscope.loveScore,
+            language = horoscope.language,
+            accent = MaterialTheme.colorScheme.secondary,
+        )
+        DailyScoreRow(
+            label = stringResource(R.string.compatibility_work_score),
+            value = horoscope.careerScore,
+            language = horoscope.language,
+            accent = MaterialTheme.colorScheme.tertiary,
+        )
+        DailyScoreRow(
+            label = stringResource(R.string.home_money_label),
+            value = horoscope.moneyScore,
+            language = horoscope.language,
+            accent = MaterialTheme.colorScheme.primary,
+        )
+        DailyScoreRow(
+            label = stringResource(R.string.home_health_label),
+            value = horoscope.healthScore,
+            language = horoscope.language,
+            accent = accent,
+        )
     }
 }
 
@@ -126,9 +176,11 @@ private fun DailyScoreRow(
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
+                modifier = Modifier.weight(1f),
                 text = label.uppercase(),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -136,6 +188,9 @@ private fun DailyScoreRow(
             Text(
                 text = TimeUtils.formatPercentage(value, language),
                 style = MaterialTheme.typography.labelLarge,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                softWrap = false,
             )
         }
         Box(

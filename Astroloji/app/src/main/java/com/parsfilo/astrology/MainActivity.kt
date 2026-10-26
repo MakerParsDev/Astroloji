@@ -7,9 +7,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.parsfilo.astrology.core.ads.AdEligibilityChecker
@@ -87,6 +89,12 @@ class MainActivity : AppCompatActivity() {
                     "system" -> isSystemInDarkTheme()
                     else -> true
                 }
+            SideEffect {
+                // Edge-to-edge initializes system bars from the OS theme. The app can use
+                // a different theme and change it without restarting the Activity.
+                val controller = WindowCompat.getInsetsController(window, window.decorView)
+                controller.isAppearanceLightStatusBars = shouldUseDarkStatusBarIcons(darkTheme)
+            }
             AstrolojiTheme(darkTheme = darkTheme) {
                 AstrologyAppRoot(
                     deepLink = pendingDeepLink,
@@ -205,6 +213,10 @@ private fun Intent?.toAppDeepLink(): AppDeepLink? {
     return parseAppDeepLink(intent.data)
 }
 
+// #161: Keep app-open disabled until a real loading-screen-only flow exists.
+// A 4h warm-resume gate cannot reuse a 4h-old cached ad; do not issue dead preloads.
+private const val APP_OPEN_DELIVERY_ENABLED = false
+
 internal data class AdPreloadPolicy(
     val isPremium: Boolean,
     val canShowRewarded: Boolean,
@@ -220,7 +232,7 @@ internal data class AdPreloadPlan(
 
 internal fun resolveAdPreloadPlan(policy: AdPreloadPolicy): AdPreloadPlan =
     AdPreloadPlan(
-        preloadAppOpen = !policy.isPremium,
+        preloadAppOpen = !policy.isPremium && APP_OPEN_DELIVERY_ENABLED,
         preloadInterstitial = !policy.isPremium,
         preloadRewarded = !policy.isPremium && policy.canShowRewarded,
         preloadRewardedInterstitial = false,
@@ -246,6 +258,10 @@ internal data class AppOpenAdPolicy(
 )
 
 internal fun shouldShowAppOpenAd(
+    policy: AppOpenAdPolicy,
+): Boolean = APP_OPEN_DELIVERY_ENABLED && isAppOpenSessionEligible(policy)
+
+internal fun isAppOpenSessionEligible(
     policy: AppOpenAdPolicy,
 ): Boolean {
     val isEligibleSession =

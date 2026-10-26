@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createApp } from '@/index';
 import { signAppJwt } from '@/utils/jwt';
-import { createTestEnv } from '../helpers/env';
+import { createTestEnv, FREE_AUTH_ENTITLEMENT, isAuthEntitlementQuery } from '../helpers/env';
 
 interface UserRow {
   streak_count: number;
@@ -24,8 +24,8 @@ function createStreakDb(user: UserRow) {
           return statement;
         },
         async first() {
-          if (normalized.startsWith('SELECT 1 AS ok FROM users')) {
-            return { ok: 1 };
+          if (isAuthEntitlementQuery(normalized)) {
+            return FREE_AUTH_ENTITLEMENT;
           }
           if (normalized.startsWith('SELECT streak_count, last_streak_date, streak_milestone_claimed, utc_offset')) {
             return { ...user };

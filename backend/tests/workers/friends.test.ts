@@ -46,9 +46,9 @@ function createFriendsDb(seed: FriendsDbSeed = {}) {
           return statement;
         },
         async first() {
-          if (normalized.startsWith('SELECT 1 AS ok FROM users')) {
+          if (normalized.startsWith('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
             const userId = statement.bindings[0] as string;
-            return users.some((user) => user.id === userId) ? { ok: 1 } : null;
+            return users.some((user) => user.id === userId) ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null;
           }
           if (normalized.startsWith('SELECT * FROM invite_codes WHERE code')) {
             const code = statement.bindings[0] as string;

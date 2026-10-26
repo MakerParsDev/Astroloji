@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { getSubscriptionStatusMock, verifySubscriptionPurchaseMock } = vi.hoisted(() => ({
@@ -16,6 +17,8 @@ vi.mock('@/services/playBilling', async () => {
   };
 });
 
+const { Miniflare, convertV4MiniflareOptions } = createRequire(import.meta.url)('miniflare') as typeof import('miniflare');
+
 import { createApp } from '@/index';
 import type { GooglePlaySubscription } from '@/types';
 import type { SubscriptionRouteDependencies } from '@/workers/subscription';
@@ -25,15 +28,18 @@ import { createRateLimiterNamespace, createTestEnv } from '../helpers/env';
 interface RecordingDbOptions {
   pendingRows?: Array<{ purchase_token: string; user_id: string }>;
   subscriptionOwner?: string | null;
+  failBatchAtIndex?: number;
 }
 
 function createRecordingDb(options: RecordingDbOptions = {}) {
   const writes: Array<{ sql: string; bindings: unknown[] }> = [];
   const reads: Array<{ sql: string; bindings: unknown[] }> = [];
+  let batchCalls = 0;
 
   return {
     writes,
     reads,
+    getBatchCalls: () => batchCalls,
     db: {
       prepare(sql: string) {
         let bindings: unknown[] = [];
@@ -44,8 +50,8 @@ function createRecordingDb(options: RecordingDbOptions = {}) {
           },
           async first() {
             reads.push({ sql, bindings });
-            if (sql.includes('SELECT 1 AS ok FROM users')) {
-              return { ok: 1 };
+            if (sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
+              return { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null };
             }
             if (sql.includes('SELECT user_id FROM subscriptions')) {
               const owner = options.subscriptionOwner === undefined ? 'user-1' : options.subscriptionOwner;
@@ -62,13 +68,26 @@ function createRecordingDb(options: RecordingDbOptions = {}) {
           },
           async run() {
             writes.push({ sql, bindings });
-            return { success: true, meta: {} };
+            return { success: true, meta: { changes: 1 } };
           }
         };
         return statement;
       },
-      async batch() {
-        return [];
+      async batch(statements: D1PreparedStatement[]) {
+        batchCalls += 1;
+        const originalWrites = writes.length;
+        try {
+          const results = [];
+          for (const [index, statement] of statements.entries()) {
+            if (index === options.failBatchAtIndex) throw new Error('Injected subscription batch failure');
+            results.push(await statement.run());
+          }
+          return results;
+        } catch (error) {
+          // Simulate D1 transactional rollback for the recording fake.
+          writes.length = originalWrites;
+          throw error;
+        }
       }
     } as unknown as D1Database
   };
@@ -318,6 +337,102 @@ async function authenticatedSubscriptionRequest(
 }
 
 describe('subscription worker', () => {
+  it('rolls back a failed renewal event against real local D1', async () => {
+    const runtime = new Miniflare(convertV4MiniflareOptions({
+      modules: true,
+      script: 'export default {fetch(){return new Response("local-qa")}}',
+      compatibilityDate: '2026-04-05',
+      d1Databases: { DB: 'astrology-subscription-atomicity' }
+    }));
+    try {
+      const db = await runtime.getD1Database('DB');
+      await db.exec([
+        'CREATE TABLE users (id TEXT PRIMARY KEY, is_premium INTEGER NOT NULL DEFAULT 0, subscription_state TEXT, premium_expires_at TEXT, last_seen_at TEXT);',
+        'CREATE TABLE subscriptions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, purchase_token TEXT NOT NULL UNIQUE, product_id TEXT NOT NULL, status TEXT NOT NULL, starts_at TEXT NOT NULL, expires_at TEXT NOT NULL, auto_renewing INTEGER NOT NULL, cancel_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);',
+        'CREATE TABLE subscription_events (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, purchase_token TEXT NOT NULL, event_type TEXT NOT NULL, payload TEXT, created_at TEXT NOT NULL);',
+        "INSERT INTO users (id) VALUES ('user-1');"
+      ].join('\n'));
+      const env = createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' });
+      const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
+      const request = (path: 'verify' | 'restore') => createApp().request(
+        `/api/v1/subscriptions/${path}`,
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ purchase_token: 'weekly-purchase-token', product_id: 'premium_weekly' })
+        },
+        env
+      );
+
+      verifySubscriptionPurchaseMock.mockResolvedValue(activeWeeklySubscription());
+      expect((await request('verify')).status).toBe(200);
+      expect((await db.prepare('SELECT is_premium FROM users WHERE id = ?').bind('user-1').first<{ is_premium: number }>())?.is_premium).toBe(1);
+      expect((await db.prepare('SELECT COUNT(*) AS n FROM subscription_events').first<{ n: number }>())?.n).toBe(1);
+
+      // Even when the preflight owner read races and returns stale null, the
+      // transactional ownership guard must not transfer this token to another user.
+      await db.prepare('INSERT INTO users (id) VALUES (?)').bind('user-2').run();
+      const staleDb = {
+        prepare(sql: string) {
+          if (sql.includes('SELECT user_id FROM subscriptions WHERE purchase_token')) {
+            return { bind: () => ({ first: async () => null }) };
+          }
+          return db.prepare(sql);
+        },
+        batch: (statements: D1PreparedStatement[]) => db.batch(statements)
+      } as unknown as D1Database;
+      const staleEnv = createTestEnv({ DB: staleDb, PACKAGE_NAME: 'com.parsfilo.astrology' });
+      const otherJwt = await signAppJwt(staleEnv, { userId: 'user-2', isPremium: false });
+      const otherResponse = await createApp().request(
+        '/api/v1/subscriptions/restore',
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${otherJwt}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ purchase_token: 'weekly-purchase-token', product_id: 'premium_weekly' })
+        },
+        staleEnv
+      );
+      expect(otherResponse.status).toBe(409);
+      expect((await db.prepare('SELECT user_id FROM subscriptions').first<{ user_id: string }>())?.user_id).toBe('user-1');
+      expect((await db.prepare('SELECT is_premium FROM users WHERE id = ?').bind('user-2').first<{ is_premium: number }>())?.is_premium).toBe(0);
+      expect((await db.prepare('SELECT COUNT(*) AS n FROM subscription_events').first<{ n: number }>())?.n).toBe(1);
+
+      await db.exec("CREATE TRIGGER abort_event BEFORE INSERT ON subscription_events BEGIN SELECT RAISE(ABORT, 'injected event failure'); END;");
+      verifySubscriptionPurchaseMock.mockResolvedValue({ ...activeWeeklySubscription(), status: 'expired' });
+      expect((await request('restore')).status).toBe(500);
+      expect((await db.prepare('SELECT status FROM subscriptions').first<{ status: string }>())?.status).toBe('active');
+      expect((await db.prepare('SELECT is_premium FROM users WHERE id = ?').bind('user-1').first<{ is_premium: number }>())?.is_premium).toBe(1);
+      expect((await db.prepare('SELECT COUNT(*) AS n FROM subscription_events').first<{ n: number }>())?.n).toBe(1);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it.each(['/api/v1/subscriptions/verify', '/api/v1/subscriptions/restore'] as const)(
+    '%s rolls back all writes when the final event insert fails',
+    async (path) => {
+      const { db, writes, getBatchCalls } = createRecordingDb({ failBatchAtIndex: 2 });
+      const env = createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' });
+      const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
+      verifySubscriptionPurchaseMock.mockResolvedValue(activeWeeklySubscription());
+
+      const response = await createApp().request(
+        path,
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ purchase_token: 'weekly-purchase-token', product_id: 'premium_weekly' })
+        },
+        env
+      );
+
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'INTERNAL_ERROR' } });
+      expect(getBatchCalls()).toBe(1);
+      expect(writes).toHaveLength(0);
+    }
+  );
+
   it.each([
     ['denied', async () => ({ allowed: false, remaining: 0, retryAfterSeconds: 6 }), 429, 'RATE_LIMITED'],
     ['unavailable', async () => { throw new Error('rate limiter unavailable'); }, 503, 'RATE_LIMIT_UNAVAILABLE']

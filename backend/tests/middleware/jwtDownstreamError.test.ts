@@ -11,7 +11,7 @@ describe('jwtAuthMiddleware exception boundary', () => {
       prepare() {
         return {
           bind() {
-            return { first: async () => ({ ok: 1 }) };
+            return { first: async () => ({ is_premium: 0, subscription_state: 'none', premium_expires_at: null }) };
           }
         };
       }

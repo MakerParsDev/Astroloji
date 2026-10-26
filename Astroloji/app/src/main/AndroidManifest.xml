@@ -36,6 +36,21 @@
                 android:value="true" />
         </service>
 
+        <!-- The horoscope widget uses only direct actionStartActivity, not Glance lazy
+             collections. Malformed/stale trampoline intents lack their target Intent
+             and crash inside Glance 1.1.1; these internal activities are not needed
+             for the widget's regular launch action. Keep both disabled together. -->
+        <activity
+            android:name="androidx.glance.appwidget.action.InvisibleActionTrampolineActivity"
+            android:enabled="false"
+            tools:node="merge"
+            tools:replace="android:enabled" />
+        <activity
+            android:name="androidx.glance.appwidget.action.ActionTrampolineActivity"
+            android:enabled="false"
+            tools:node="merge"
+            tools:replace="android:enabled" />
+
         <receiver
             android:name=".widget.DailyHoroscopeWidgetReceiver"
             android:exported="true">

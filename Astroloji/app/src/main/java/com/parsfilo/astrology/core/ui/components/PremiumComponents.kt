@@ -27,15 +27,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.ui.theme.CosmicPurple
 import com.parsfilo.astrology.ui.theme.Midnight800
 import com.parsfilo.astrology.ui.theme.Midnight900
@@ -114,12 +117,12 @@ fun PremiumHeroCard(
     symbol: String,
     eyebrow: String,
     title: String,
-    modifier: Modifier = Modifier,
     subtitle: String? = null,
+    supportingText: String? = null,
 ) {
     Box(
         modifier =
-            modifier
+            Modifier
                 .fillMaxWidth()
                 .clip(PremiumShape)
                 .background(
@@ -131,50 +134,83 @@ fun PremiumHeroCard(
                     PremiumShape,
                 ).padding(22.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(82.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(WarmGold.copy(alpha = 0.28f), CosmicPurple.copy(alpha = 0.18f)),
-                            ),
-                        ).border(1.dp, WarmGold.copy(alpha = 0.46f), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = symbol,
-                    style = MaterialTheme.typography.displayMedium,
-                    color = SoftGold,
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = eyebrow.uppercase(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = WarmGold,
-                )
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Starlight,
-                )
-                subtitle?.takeIf(String::isNotBlank)?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Starlight.copy(alpha = 0.72f),
-                    )
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Reflow at large system text sizes so the title keeps the full card width.
+            val largeText = LocalDensity.current.fontScale >= 1.5f
+            val symbolContent: @Composable () -> Unit = {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(82.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(WarmGold.copy(alpha = 0.28f), CosmicPurple.copy(alpha = 0.18f)),
+                                ),
+                            ).border(1.dp, WarmGold.copy(alpha = 0.46f), CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val zodiacSign = remember(symbol) { ZodiacSign.entries.firstOrNull { it.symbol == symbol } }
+                    if (zodiacSign != null) {
+                        ZodiacIcon(sign = zodiacSign, modifier = Modifier.size(48.dp), tint = SoftGold)
+                    } else {
+                        Text(
+                            text = symbol,
+                            style = MaterialTheme.typography.displayMedium,
+                            color = SoftGold,
+                        )
+                    }
                 }
+            }
+            val detailContent: @Composable (Modifier) -> Unit = { detailModifier ->
+                Column(
+                    modifier = detailModifier,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = eyebrow.uppercase(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = WarmGold,
+                    )
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Starlight,
+                    )
+                    subtitle?.takeIf(String::isNotBlank)?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Starlight.copy(alpha = 0.72f),
+                        )
+                    }
+                }
+            }
+            if (largeText) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    symbolContent()
+                    detailContent(Modifier.fillMaxWidth())
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    symbolContent()
+                    detailContent(Modifier.weight(1f))
+                }
+            }
+            supportingText?.takeIf(String::isNotBlank)?.let {
+                Text(
+                    text = it,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Starlight.copy(alpha = 0.90f),
+                )
             }
         }
     }

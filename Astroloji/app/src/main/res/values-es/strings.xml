@@ -53,7 +53,6 @@
     <string name="onboarding_birthdate_placeholder">Aún no hay fecha seleccionada</string>
     <string name="onboarding_birthdate_action">Seleccionar fecha de nacimiento</string>
     <string name="onboarding_detected_sign_label">Signo sugerido</string>
-    <string name="onboarding_detected_sign_value">%1$s %2$s</string>
     <string name="onboarding_show_manual_selection">Elegir otro signo manualmente</string>
     <string name="onboarding_hide_manual_selection">Usar el signo sugerido</string>
     <string name="onboarding_manual_selection_title">Selección manual de signo</string>
@@ -103,6 +102,8 @@
     <string name="premium_catalog_loading">La información segura de precios se está cargando desde Google Play. Aún no se puede iniciar ninguna compra.</string>
     <string name="premium_billing_disclosure">%1$s facturado %2$s. Se renueva automáticamente salvo que se cancele en Google Play antes de la fecha de renovación.</string>
     <string name="premium_billing_disclosure_trial">%1$d días de prueba gratis, luego %2$s facturado %3$s. Se renueva automáticamente salvo que se cancele en Google Play antes de la fecha de renovación.</string>
+    <string name="premium_billing_disclosure_intro">Precio inicial: %1$s durante los primeros %2$d períodos de facturación %3$s; después %4$s facturado %5$s. Se renueva automáticamente salvo cancelación previa en Google Play.</string>
+    <string name="premium_billing_disclosure_trial_intro">Prueba gratuita de %1$d días; después %2$s durante los primeros %3$d períodos %4$s, y luego %5$s facturado %6$s. Se renueva automáticamente salvo cancelación previa en Google Play.</string>
     <string name="premium_period_monthly">mensualmente</string>
     <string name="premium_period_weekly">semanalmente</string>
     <string name="premium_period_yearly">anualmente</string>
@@ -209,7 +210,7 @@
     <string name="session_error_open_failed_after_register">Registro completado, pero no se pudo abrir la sesión.</string>
     <string name="notification_channel_daily_name">Horóscopo Diario</string>
     <string name="notification_channel_daily_description">Notificaciones astrológicas diarias</string>
-    <string name="widget_daily_title">♈ Energía de hoy</string>
+    <string name="widget_daily_title">%1$s Energía de hoy</string>
     <string name="widget_daily_body">Las estrellas están alineadas contigo.</string>
     <string name="widget_daily_energy">Energía: %1$d</string>
     <string name="daily_title">Lectura diaria</string>
@@ -238,7 +239,6 @@
     <string name="weekly_premium_locked">Esta sección se desbloquea con premium.</string>
     <string name="weekly_warning">Cuidado: %1$s</string>
     <string name="monthly_label_month">Mes: %1$s</string>
-    <string name="monthly_range_label">%1$s - %2$s</string>
     <string name="monthly_premium_locked">Los detalles mensuales se desbloquean con premium.</string>
     <string name="monthly_calendar_title">Vista de calendario</string>
     <string name="favorites_add">Añadir a favoritos</string>
@@ -256,6 +256,11 @@
         <item quantity="other">+%1$d créditos añadidos a tu saldo.</item>
     </plurals>
     <string name="home_mood_title">¿Cómo te sientes hoy?</string>
+    <string name="home_mood_option_great">Muy bien</string>
+    <string name="home_mood_option_good">Bien</string>
+    <string name="home_mood_option_neutral">Neutral</string>
+    <string name="home_mood_option_low">Decaído</string>
+    <string name="home_mood_option_stressed">Estresado</string>
     <string name="home_mood_logged">Registrado: %1$s Gracias por contarnos cómo estás.</string>
     <string name="home_mood_insight">En %1$d de tus últimos %2$d registros de ánimo bajo sobre %3$s, tu carta mostró un tránsito coincidente.</string>
     <string name="streak_milestone_3">3 días seguidos. Tu ritual ha comenzado.</string>
@@ -379,4 +384,12 @@
     <string name="settings_birth_data_delete_dialog_body">El perfil de nacimiento guardado se eliminará definitivamente del servidor. Tu cuenta, otros datos y lecturas anteriores se conservarán.</string>
     <string name="settings_birth_data_delete_confirm">Eliminar perfil</string>
     <string name="settings_birth_data_delete_progress">Eliminando perfil de nacimiento…</string>
+    <string name="settings_mood_delete_title">Eliminar historial de estado de ánimo</string>
+    <string name="settings_mood_delete_description">Elimina del servidor todos tus registros de ánimo y sus eventos asociados sin borrar tu cuenta ni tu perfil natal. Los eventos ya recogidos por Firebase Analytics no se eliminan.</string>
+    <string name="settings_mood_delete_button">Eliminar historial de ánimo</string>
+    <string name="settings_mood_delete_success">Historial de ánimo eliminado. Tu cuenta sigue activa.</string>
+    <string name="settings_mood_delete_dialog_title">¿Eliminar todos los registros de ánimo?</string>
+    <string name="settings_mood_delete_dialog_body">Se borrarán del servidor los registros de ánimo y sus eventos asociados. Tu cuenta y perfil natal se conservarán. Los eventos ya recogidos por Firebase Analytics no se eliminan.</string>
+    <string name="settings_mood_delete_confirm">Eliminar historial de ánimo</string>
+    <string name="settings_mood_delete_progress">Eliminando historial de ánimo…</string>
 </resources>

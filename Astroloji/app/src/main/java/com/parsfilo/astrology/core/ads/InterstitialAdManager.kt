@@ -11,10 +11,13 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,13 +28,16 @@ class InterstitialAdManager
         @param:ApplicationContext private val context: Context,
         private val consentManager: GoogleMobileAdsConsentManager,
         private val analyticsRepository: AnalyticsRepository,
+        private val adFrequencyManager: AdFrequencyManager,
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
+        private val loadRetryGate = AdLoadRetryGate()
         private var interstitialAd: InterstitialAd? = null
 
         fun preload() {
-            if (isLoading || interstitialAd != null || !consentManager.canRequestAds) return
+            val canStartPreload = !isLoading && interstitialAd == null && consentManager.canRequestAds
+            if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
             InterstitialAd.load(
                 context,
@@ -41,12 +47,14 @@ class InterstitialAdManager
                     override fun onAdLoaded(ad: InterstitialAd) {
                         interstitialAd = ad
                         isLoading = false
+                        loadRetryGate.recordSuccess()
                         Timber.d("Interstitial ad loaded")
                     }
 
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         interstitialAd = null
                         isLoading = false
+                        loadRetryGate.recordFailure()
                         Timber.w("Interstitial ad failed: %s", error.message)
                     }
                 },
@@ -58,27 +66,48 @@ class InterstitialAdManager
             placement: String,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            // Consent may change after the interstitial was preloaded.
+            val consentAllowed = consentManager.canRequestAds
             val ad =
-                interstitialAd ?: run {
+                interstitialAd.takeIf { consentAllowed } ?: run {
+                    if (!consentAllowed) interstitialAd = null
                     preload()
                     return false
                 }
             interstitialAd = null
+            val finished = AtomicBoolean(false)
+            val impressionRecorded = AtomicBoolean(false)
+            val dismissOnce = {
+                if (finished.compareAndSet(false, true)) {
+                    preload()
+                    onDismissed()
+                }
+            }
             ad.fullScreenContentCallback =
                 object : FullScreenContentCallback() {
                     override fun onAdDismissedFullScreenContent() {
-                        preload()
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
                         Timber.w("Interstitial show failed: %s", error.message)
-                        preload()
-                        onDismissed()
+                        dismissOnce()
                     }
 
                     override fun onAdImpression() {
-                        scope.launch {
+                        // Duplicate or late SDK callbacks must not consume additional
+                        // quota or record fictitious impressions after failed display.
+                        if (finished.get() || !impressionRecorded.compareAndSet(false, true)) return
+                        // Start immediately, before dismiss/navigation can perform another
+                        // eligibility check. The manager mutex holds until count persistence.
+                        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                            // Only a confirmed SDK impression consumes the daily cap/cooldown.
+                            // A show() attempt can fail and must not consume the quota.
+                            try {
+                                adFrequencyManager.recordInterstitialShown()
+                            } catch (e: IOException) {
+                                Timber.w(e, "Failed to persist interstitial impression")
+                            }
                             analyticsRepository.track(
                                 AnalyticsEvents.AD_SHOWN,
                                 mapOf("format" to "interstitial", "placement" to placement),
@@ -86,7 +115,18 @@ class InterstitialAdManager
                         }
                     }
                 }
-            ad.show(activity)
-            return true
+            return try {
+                ad.show(activity)
+                true
+            } catch (e: IllegalStateException) {
+                // false means the caller navigates itself. Do not invoke
+                // onDismissed too: Daily/Weekly/Monthly already navigate on false.
+                // If the SDK called onDismissed synchronously before throwing,
+                // the callback owns navigation; report handled (true) instead.
+                Timber.w(e, "Interstitial SDK show threw")
+                val callbackAlreadyHandled = !finished.compareAndSet(false, true)
+                if (!callbackAlreadyHandled) preload()
+                callbackAlreadyHandled
+            }
         }
     }

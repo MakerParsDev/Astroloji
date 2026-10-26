@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -36,10 +37,12 @@ class RewardedAdManager
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
+        private val loadRetryGate = AdLoadRetryGate()
         private var rewardedAd: RewardedAd? = null
 
         fun preload() {
-            if (isLoading || rewardedAd != null || !consentManager.canRequestAds) return
+            val canStartPreload = !isLoading && rewardedAd == null && consentManager.canRequestAds
+            if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
             RewardedAd.load(
                 context,
@@ -49,12 +52,14 @@ class RewardedAdManager
                     override fun onAdLoaded(ad: RewardedAd) {
                         rewardedAd = ad
                         isLoading = false
+                        loadRetryGate.recordSuccess()
                         Timber.d("Rewarded ad loaded")
                     }
 
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         rewardedAd = null
                         isLoading = false
+                        loadRetryGate.recordFailure()
                         Timber.w("Rewarded ad failed: %s", error.message)
                     }
                 },
@@ -67,37 +72,75 @@ class RewardedAdManager
             onRewardEarned: (RewardItem) -> Unit,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            // Consent can change after preload. Never show an old ad if revoked.
+            val consentAllowed = consentManager.canRequestAds
             val ad =
-                rewardedAd ?: run {
+                rewardedAd.takeIf { consentAllowed } ?: run {
+                    if (!consentAllowed) rewardedAd = null
                     preload()
                     return false
                 }
             rewardedAd = null
-            applyRewardSsvOptions(ad, request.ssvUserId, request.ssvCustomData)
-            ad.fullScreenContentCallback =
-                object : FullScreenContentCallback() {
-                    override fun onAdDismissedFullScreenContent() {
-                        preload()
-                        onDismissed()
-                    }
+            val finished = AtomicBoolean(false)
+            val rewardDelivered = AtomicBoolean(false)
+            val impressionRecorded = AtomicBoolean(false)
+            val dismissOnce = {
+                if (finished.compareAndSet(false, true)) {
+                    preload()
+                    onDismissed()
+                }
+            }
+            val ssvConfigured =
+                try {
+                    applyRewardSsvOptions(ad, request.ssvUserId, request.ssvCustomData)
+                    true
+                } catch (e: IllegalStateException) {
+                    // Never show a rewarded ad with missing verification options.
+                    Timber.w(e, "Rewarded SSV options could not be configured")
+                    false
+                }
+            if (ssvConfigured) {
+                ad.fullScreenContentCallback =
+                    object : FullScreenContentCallback() {
+                        override fun onAdDismissedFullScreenContent() {
+                            dismissOnce()
+                        }
 
-                    override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
-                        Timber.w("Rewarded show failed: %s", error.message)
-                        preload()
-                        onDismissed()
-                    }
+                        override fun onAdFailedToShowFullScreenContent(error: com.google.android.gms.ads.AdError) {
+                            Timber.w("Rewarded show failed: %s", error.message)
+                            dismissOnce()
+                        }
 
-                    override fun onAdImpression() {
-                        scope.launch {
-                            analyticsRepository.track(
-                                AnalyticsEvents.AD_SHOWN,
-                                mapOf("format" to "rewarded", "placement" to request.placement),
-                            )
+                        override fun onAdImpression() {
+                            if (finished.get() || !impressionRecorded.compareAndSet(false, true)) return
+                            scope.launch {
+                                analyticsRepository.track(
+                                    AnalyticsEvents.AD_SHOWN,
+                                    mapOf("format" to "rewarded", "placement" to request.placement),
+                                )
+                            }
                         }
                     }
+            }
+            return if (ssvConfigured) {
+                try {
+                    ad.show(activity) { rewardItem ->
+                        // Ignore duplicate or late callbacks after dismissal.
+                        if (!finished.get() && rewardDelivered.compareAndSet(false, true)) {
+                            onRewardEarned(rewardItem)
+                        }
+                    }
+                    true
+                } catch (e: IllegalStateException) {
+                    // Synchronous show failure cannot earn a reward.
+                    Timber.w(e, "Rewarded SDK show threw")
+                    dismissOnce()
+                    false
                 }
-            ad.show(activity) { rewardItem -> onRewardEarned(rewardItem) }
-            return true
+            } else {
+                preload()
+                false
+            }
         }
     }
 

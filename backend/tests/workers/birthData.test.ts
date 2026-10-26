@@ -28,8 +28,8 @@ function createBirthDataDb(seed: StoredBirthDataRow[] = []) {
           return statement;
         },
         async first() {
-          if (normalized.startsWith('SELECT 1 AS ok')) {
-            return { ok: 1 };
+          if (normalized.startsWith('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
+            return { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null };
           }
           if (normalized.includes('FROM user_birth_data')) {
             const userId = statement.bindings[0] as string;

@@ -36,8 +36,10 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
 import com.parsfilo.astrology.core.util.ZodiacSign
+import com.parsfilo.astrology.core.util.localizedReadingMonth
+import com.parsfilo.astrology.core.util.localizedReadingRange
+import com.parsfilo.astrology.core.util.readingCalendarDays
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 @Composable
 fun MonthlyScreen(
@@ -70,9 +72,7 @@ fun MonthlyScreen(
                     placement = "monthly_back",
                     onDismissed = onNavigateBack,
                 )
-            if (shown) {
-                adsEntryPoint.adFrequencyManager().recordInterstitialShown()
-            } else {
+            if (!shown) {
                 onNavigateBack()
             }
         }
@@ -106,13 +106,17 @@ fun MonthlyScreen(
                     PremiumHeroCard(
                         symbol = monthlySign.symbol,
                         eyebrow = monthlySign.localizedName(monthly.language),
-                        title = stringResource(R.string.monthly_label_month, monthly.month),
+                        title =
+                            stringResource(
+                                R.string.monthly_label_month,
+                                localizedReadingMonth(monthly.month, monthly.language),
+                            ),
                         subtitle =
-                            if (monthly.monthStart != null && monthly.monthEnd != null) {
-                                stringResource(R.string.monthly_range_label, monthly.monthStart, monthly.monthEnd)
-                            } else {
-                                monthly.month
-                            },
+                            localizedReadingRange(
+                                monthly.monthStart,
+                                monthly.monthEnd,
+                                monthly.language,
+                            ) ?: localizedReadingMonth(monthly.month, monthly.language),
                     )
 
                     MonthlySectionCard(
@@ -140,34 +144,29 @@ fun MonthlyScreen(
                         onOpenPremium = onOpenPremium,
                     )
 
-                    AstrologyCard {
-                        Text(
-                            text = stringResource(R.string.monthly_calendar_title),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        val dayRange =
-                            if (monthly.monthStart != null && monthly.monthEnd != null) {
-                                val start = LocalDate.parse(monthly.monthStart)
-                                val end = LocalDate.parse(monthly.monthEnd)
-                                start.dayOfMonth..end.dayOfMonth
-                            } else {
-                                1..30
-                            }
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            dayRange.forEach { day ->
-                                Text(
-                                    text = day.toString(),
-                                    modifier =
-                                        Modifier
-                                            .background(
-                                                MaterialTheme.colorScheme.surfaceVariant,
-                                                CircleShape,
-                                            ).padding(horizontal = 10.dp, vertical = 8.dp),
-                                )
+                    val dayRange = readingCalendarDays(monthly.monthStart, monthly.monthEnd)
+                    if (dayRange.isNotEmpty()) {
+                        AstrologyCard {
+                            Text(
+                                text = stringResource(R.string.monthly_calendar_title),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                dayRange.forEach { day ->
+                                    Text(
+                                        text = day.toString(),
+                                        modifier =
+                                            Modifier
+                                                .background(
+                                                    MaterialTheme.colorScheme.surfaceVariant,
+                                                    CircleShape,
+                                                ).padding(horizontal = 10.dp, vertical = 8.dp),
+                                    )
+                                }
                             }
                         }
                     }

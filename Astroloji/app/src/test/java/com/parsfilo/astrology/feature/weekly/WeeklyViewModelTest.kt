@@ -106,6 +106,55 @@ class WeeklyViewModelTest {
         }
 
     @Test
+    fun `revoked reward eligibility before or after prepare cannot expose an ad`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+            coEvery { contentRepository.prepareRewardUnlock("weekly", any()) } returns
+                AppResult.Success(
+                    RewardChallenge(
+                        challengeId = "challenge",
+                        customData = "data",
+                        userId = "user",
+                        rewardType = "weekly",
+                        identifier = "2026-W43",
+                        expiresAt = "2026-10-26T00:00:00Z",
+                    ),
+                )
+
+            // Exercise both revocation before prepare and during its network response.
+            for (lostDuringPrepare in listOf(false, true)) {
+                coEvery { adEligibilityChecker.canShowRewarded() } returnsMany
+                    if (lostDuringPrepare) listOf(true, true, false) else listOf(true, false)
+                val viewModel =
+                    WeeklyViewModel(
+                        savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                        contentRepository = contentRepository,
+                        preferencesRepository = preferencesRepository,
+                        analyticsRepository = analyticsRepository,
+                        remoteConfigRepository = remoteConfigRepository,
+                        adEligibilityChecker = adEligibilityChecker,
+                    )
+                advanceUntilIdle()
+                assertThat(viewModel.state.value.canUnlockWithReward).isTrue()
+
+                viewModel.onEvent(WeeklyUiEvent.UnlockWithReward)
+                advanceUntilIdle()
+
+                assertThat(viewModel.state.value.canUnlockWithReward).isFalse()
+                coVerify(exactly = if (lostDuringPrepare) 1 else 0) {
+                    contentRepository.prepareRewardUnlock("weekly", any())
+                }
+                coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+            }
+        }
+
+    @Test
     fun `weekly reward uses prepared challenge before verified claim`() =
         runTest {
             val locked = weekly(love = null, career = null, money = null)

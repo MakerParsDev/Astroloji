@@ -36,6 +36,8 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
 import com.parsfilo.astrology.core.util.ZodiacSign
+import com.parsfilo.astrology.core.util.localizedReadingRange
+import com.parsfilo.astrology.core.util.localizedReadingWeek
 import kotlinx.coroutines.launch
 
 @Composable
@@ -64,6 +66,11 @@ fun WeeklyScreen(
                             viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable(unavailableMessage))
                             return@collect
                         }
+                    // A previously prepared challenge does not bypass a fresh premium/UMP decision.
+                    if (!adsEntryPoint(context).adEligibilityChecker().canShowRewarded()) {
+                        viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable(unavailableMessage))
+                        return@collect
+                    }
                     val shown =
                         rewardedAdManager.showIfAvailable(
                             activity = hostActivity,
@@ -102,9 +109,7 @@ fun WeeklyScreen(
                     placement = "weekly_back",
                     onDismissed = onNavigateBack,
                 )
-            if (shown) {
-                adsEntryPoint.adFrequencyManager().recordInterstitialShown()
-            } else {
+            if (!shown) {
                 onNavigateBack()
             }
         }
@@ -149,8 +154,8 @@ fun WeeklyScreen(
                     PremiumHeroCard(
                         symbol = weeklySign.symbol,
                         eyebrow = weeklySign.localizedName(weekly.language),
-                        title = stringResource(R.string.weekly_label_week, weekly.week),
-                        subtitle = "${weekly.weekStart} - ${weekly.weekEnd}",
+                        title = stringResource(R.string.weekly_label_week, localizedReadingWeek(weekly.week)),
+                        subtitle = localizedReadingRange(weekly.weekStart, weekly.weekEnd, weekly.language),
                     )
 
                     // The API intentionally hides the best day for free users.

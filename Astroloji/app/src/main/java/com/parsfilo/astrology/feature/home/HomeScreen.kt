@@ -6,7 +6,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -30,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -321,8 +319,6 @@ private fun MilestoneCelebrationCard(
     }
 }
 
-private val MOOD_OPTIONS = listOf("great", "good", "neutral", "low", "stressed")
-
 @Composable
 private fun MoodCheckInCard(
     loggedMood: String?,
@@ -341,19 +337,7 @@ private fun MoodCheckInCard(
                 style = MaterialTheme.typography.bodyLarge,
             )
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MOOD_OPTIONS.forEach { mood ->
-                    Text(
-                        text = moodEmoji(mood),
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier =
-                            Modifier
-                                .clip(CircleShape)
-                                .clickable { onLogMood(mood) }
-                                .padding(6.dp),
-                    )
-                }
-            }
+            MoodSelectionOptions(onLogMood)
         }
         insight?.let {
             Text(
@@ -371,7 +355,7 @@ private fun MoodCheckInCard(
     }
 }
 
-private fun moodEmoji(mood: String): String =
+internal fun moodEmoji(mood: String): String =
     when (mood) {
         "great" -> "😄"
         "good" -> "🙂"

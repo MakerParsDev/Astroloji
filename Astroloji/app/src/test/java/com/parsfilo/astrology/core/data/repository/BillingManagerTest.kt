@@ -1,7 +1,10 @@
 package com.parsfilo.astrology.core.data.repository
 
 import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.Purchase
 import com.google.common.truth.Truth.assertThat
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.Test
 
 class BillingManagerTest {
@@ -44,6 +47,44 @@ class BillingManagerTest {
             displayPriority = 0,
         )
 
+    private fun purchase(
+        sku: String,
+        state: Int,
+    ): Purchase =
+        mockk {
+            every { purchaseState } returns state
+            every { products } returns listOf(sku)
+        }
+
+    @Test
+    fun `restore selects valid purchased subscription instead of first pending or unrelated item`() {
+        val pending = purchase("premium_weekly", Purchase.PurchaseState.PENDING)
+        val unknown = purchase("credits_small", Purchase.PurchaseState.PURCHASED)
+        val owned = purchase("premium_monthly", Purchase.PurchaseState.PURCHASED)
+
+        assertThat(selectPurchaseForVerification(listOf(pending, unknown, owned))).isSameInstanceAs(owned)
+        assertThat(hasPendingPremiumPurchase(listOf(pending, unknown, owned))).isTrue()
+    }
+
+    @Test
+    fun `restore does not accept only pending or unknown subscriptions`() {
+        val pending = purchase("premium_weekly", Purchase.PurchaseState.PENDING)
+        val unrelated = purchase("credits_small", Purchase.PurchaseState.PURCHASED)
+        assertThat(selectPurchaseForVerification(listOf(pending, unrelated))).isNull()
+        assertThat(hasPendingPremiumPurchase(listOf(pending, unrelated))).isTrue()
+        assertThat(hasPendingPremiumPurchase(listOf(unrelated))).isFalse()
+        assertThat(hasPendingPremiumPurchase(emptyList())).isFalse()
+    }
+
+    @Test
+    fun `purchase callback recognizes pending premium and excludes pending credit pack`() {
+        val pendingCredit = purchase("credits_large", Purchase.PurchaseState.PENDING)
+        val pendingPremium = purchase("premium_yearly", Purchase.PurchaseState.PENDING)
+        assertThat(hasPendingPremiumPurchase(listOf(pendingCredit))).isFalse()
+        assertThat(hasPendingPremiumPurchase(listOf(pendingCredit, pendingPremium))).isTrue()
+        assertThat(selectPurchaseForVerification(listOf(pendingCredit, pendingPremium))).isNull()
+    }
+
     @Test
     fun `billing setup is ready only for ok response codes`() {
         assertThat(isSuccessfulBillingSetup(BillingClient.BillingResponseCode.OK)).isTrue()
@@ -64,6 +105,37 @@ class BillingManagerTest {
         assertThat(resolveRecognizedCreditProductId(listOf("credits_medium", "credits_small"))).isNull()
         assertThat(resolveRecognizedCreditProductId(listOf("premium_monthly"))).isNull()
         assertThat(resolveRecognizedCreditProductId(listOf("unknown_sku"))).isNull()
+    }
+
+    @Test
+    fun `credit checkout callback never falls through into premium even when empty or malformed`() {
+        val active = PendingBillingFlow.CREDITS
+        assertThat(resolveSuccessfulPurchaseFlow(active, emptyList())).isEqualTo(active)
+        assertThat(resolveSuccessfulPurchaseFlow(active, listOf(listOf("unknown_sku")))).isEqualTo(active)
+        assertThat(resolveSuccessfulPurchaseFlow(active, listOf(listOf("premium_yearly")))).isEqualTo(active)
+    }
+
+    @Test
+    fun `premium checkout callback never becomes credit purchase`() {
+        val active = PendingBillingFlow.PREMIUM
+        assertThat(resolveSuccessfulPurchaseFlow(active, emptyList())).isEqualTo(active)
+        assertThat(resolveSuccessfulPurchaseFlow(active, listOf(listOf("credits_small")))).isEqualTo(active)
+    }
+
+    @Test
+    fun `unsolicited recognized purchase is routed only when product family is unambiguous`() {
+        val inactive = PendingBillingFlow.NONE
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("credits_small"))))
+            .isEqualTo(PendingBillingFlow.CREDITS)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("premium_monthly"))))
+            .isEqualTo(PendingBillingFlow.PREMIUM)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, emptyList())).isEqualTo(PendingBillingFlow.NONE)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("unknown_sku"))))
+            .isEqualTo(PendingBillingFlow.NONE)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("credits_large"), listOf("premium_yearly"))))
+            .isEqualTo(PendingBillingFlow.NONE)
+        assertThat(resolveSuccessfulPurchaseFlow(inactive, listOf(listOf("credits_small", "premium_monthly"))))
+            .isEqualTo(PendingBillingFlow.NONE)
     }
 
     @Test
@@ -94,6 +166,74 @@ class BillingManagerTest {
         assertThat(result?.priceAmountMicros).isEqualTo(89_000_000L)
         assertThat(result?.formattedPrice).isEqualTo("TRY 89.00")
         assertThat(result?.billingPeriod).isEqualTo("P1M")
+    }
+
+    @Test
+    fun `renewal amount is not replaced with a discounted introductory price`() {
+        val phases =
+            listOf(
+                PricingPhaseSummary(
+                    priceAmountMicros = 0L,
+                    formattedPrice = "Free",
+                    billingPeriod = "P7D",
+                ),
+                PricingPhaseSummary(
+                    priceAmountMicros = 49_000_000L,
+                    formattedPrice = "TRY 49.00",
+                    billingPeriod = "P1M",
+                    recurrenceMode = com.android.billingclient.api.ProductDetails.RecurrenceMode.FINITE_RECURRING,
+                    billingCycleCount = 2,
+                ),
+                PricingPhaseSummary(
+                    priceAmountMicros = 89_000_000L,
+                    formattedPrice = "TRY 89.00",
+                    billingPeriod = "P1M",
+                ),
+            )
+        assertThat(resolveDisplayPricing(phases)?.formattedPrice).isEqualTo("TRY 89.00")
+        assertThat(resolveDisplayPricing(phases)?.priceAmountMicros).isEqualTo(89_000_000L)
+        assertThat(resolveIntroductoryPricing(phases)?.formattedPrice).isEqualTo("TRY 49.00")
+        assertThat(resolveIntroductoryPricing(phases)?.billingCycleCount).isEqualTo(2)
+        assertThat(extractTrialDays(phases)).isEqualTo(7)
+    }
+
+    @Test
+    fun `one-time introductory payment is distinguished from auto-renewal`() {
+        val phases =
+            listOf(
+                PricingPhaseSummary(
+                    priceAmountMicros = 15_000_000L,
+                    formattedPrice = "TRY 15.00",
+                    billingPeriod = "P1W",
+                    recurrenceMode = com.android.billingclient.api.ProductDetails.RecurrenceMode.NON_RECURRING,
+                ),
+                PricingPhaseSummary(
+                    priceAmountMicros = 35_000_000L,
+                    formattedPrice = "TRY 35.00",
+                    billingPeriod = "P1W",
+                ),
+            )
+        assertThat(resolveDisplayPricing(phases)?.formattedPrice).isEqualTo("TRY 35.00")
+        assertThat(resolveIntroductoryPricing(phases)?.formattedPrice).isEqualTo("TRY 15.00")
+    }
+
+    @Test
+    fun `unrepresentable prices disable checkout instead of misrepresenting renewal`() {
+        val finite = com.android.billingclient.api.ProductDetails.RecurrenceMode.FINITE_RECURRING
+        val discount =
+            PricingPhaseSummary(
+                priceAmountMicros = 49_000_000L,
+                formattedPrice = "TRY 49.00",
+                billingPeriod = "P1M",
+                recurrenceMode = finite,
+                billingCycleCount = 2,
+            )
+        val monthly = PricingPhaseSummary(89_000_000L, "TRY 89.00", "P1M")
+        assertThat(resolveDisplayPricing(listOf(discount))).isNull()
+        assertThat(resolveDisplayPricing(listOf(discount, discount, monthly))).isNull()
+        assertThat(resolveDisplayPricing(listOf(discount.copy(billingCycleCount = 0), monthly))).isNull()
+        assertThat(resolveDisplayPricing(listOf(discount.copy(billingPeriod = "P1W"), monthly))).isNull()
+        assertThat(resolveIntroductoryPricing(listOf(discount.copy(billingPeriod = "P1W"), monthly))).isNull()
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.parsfilo.astrology.core.ads
 
 import android.app.Activity
 import android.content.Context
+import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.OnUserEarnedRewardListener
 import com.google.android.gms.ads.rewarded.RewardItem
@@ -23,7 +24,7 @@ class RewardedAdSsvTest {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
         val consent = mockk<GoogleMobileAdsConsentManager>()
-        every { consent.canRequestAds } returns false
+        every { consent.canRequestAds } returns true
         val analytics = mockk<AnalyticsRepository>(relaxed = true)
         val manager = RewardedAdManager(mockk<Context>(relaxed = true), consent, analytics)
         val callback = slot<FullScreenContentCallback>()
@@ -52,9 +53,97 @@ class RewardedAdSsvTest {
 
         assertThat(shown).isTrue()
         verify(exactly = 1) { ad.show(activity, any<OnUserEarnedRewardListener>()) }
+        // Prevent a fresh SDK load in this JVM-only lifecycle test.
+        every { consent.canRequestAds } returns false
         callback.captured.onAdDismissedFullScreenContent()
         assertThat(dismissalCount).isEqualTo(1)
         assertThat(rewardCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `failed to show an ad dismisses safely without granting any reward`() {
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>()
+        every { consent.canRequestAds } returns true
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        val callback = slot<FullScreenContentCallback>()
+        every { ad.fullScreenContentCallback = capture(callback) } just Runs
+        every { ad.show(activity, any<OnUserEarnedRewardListener>()) } just Runs
+        RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
+            isAccessible = true
+            set(manager, ad)
+        }
+        var rewardCount = 0
+        var dismissedCount = 0
+
+        assertThat(
+            manager.showIfAvailable(
+                activity = activity,
+                request = RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                onRewardEarned = { rewardCount++ },
+                onDismissed = { dismissedCount++ },
+            ),
+        ).isTrue()
+
+        // A show failure has no earned-reward callback, so it must never
+        // trigger a claim. Revoke consent to avoid a real SDK preload.
+        every { consent.canRequestAds } returns false
+        callback.captured.onAdFailedToShowFullScreenContent(mockk<AdError>(relaxed = true))
+
+        assertThat(dismissedCount).isEqualTo(1)
+        assertThat(rewardCount).isEqualTo(0)
+        verify(exactly = 1) { ad.show(activity, any<OnUserEarnedRewardListener>()) }
+    }
+
+    @Test
+    fun `synchronous SDK show exception dismisses once without granting reward`() {
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>()
+        every { consent.canRequestAds } returnsMany listOf(true, false)
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        val callback = slot<FullScreenContentCallback>()
+        val rewardListener = slot<OnUserEarnedRewardListener>()
+        every { ad.fullScreenContentCallback = capture(callback) } just Runs
+        every { ad.show(activity, capture(rewardListener)) } throws
+            IllegalStateException("synthetic SDK show failure")
+        RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
+            isAccessible = true
+            set(manager, ad)
+        }
+        var rewardCount = 0
+        var dismissedCount = 0
+
+        assertThat(
+            manager.showIfAvailable(
+                activity,
+                RewardedAdRequest("unlock_daily_full", "synthetic-user", "synthetic-challenge"),
+                onRewardEarned = { rewardCount++ },
+                onDismissed = { dismissedCount++ },
+            ),
+        ).isFalse()
+        assertThat(dismissedCount).isEqualTo(1)
+        assertThat(rewardCount).isEqualTo(0)
+
+        callback.captured.onAdFailedToShowFullScreenContent(mockk<AdError>(relaxed = true))
+        callback.captured.onAdDismissedFullScreenContent()
+        // Malformed late earned callbacks after a failed show cannot grant
+        // rewards or trigger a backend claim.
+        rewardListener.captured.onUserEarnedReward(mockk<RewardItem>(relaxed = true))
+        assertThat(dismissedCount).isEqualTo(1)
+        assertThat(rewardCount).isEqualTo(0)
+        verify(exactly = 1) { ad.show(activity, any<OnUserEarnedRewardListener>()) }
     }
 
     @Test
@@ -62,7 +151,7 @@ class RewardedAdSsvTest {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
         val consent = mockk<GoogleMobileAdsConsentManager>()
-        every { consent.canRequestAds } returns false
+        every { consent.canRequestAds } returns true
         val manager =
             RewardedAdManager(
                 mockk<Context>(relaxed = true),
@@ -89,9 +178,112 @@ class RewardedAdSsvTest {
         ).isTrue()
         assertThat(rewardCount).isEqualTo(0)
         rewardListener.captured.onUserEarnedReward(reward)
+        rewardListener.captured.onUserEarnedReward(reward)
         assertThat(rewardCount).isEqualTo(1)
+        // Simulate consent changing before the automatic next preload.
+        every { consent.canRequestAds } returns false
         callback.captured.onAdDismissedFullScreenContent()
+        rewardListener.captured.onUserEarnedReward(reward)
         assertThat(rewardCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `earned callback after dismissal without prior reward is rejected`() {
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>()
+        every { consent.canRequestAds } returnsMany listOf(true, false)
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        val callback = slot<FullScreenContentCallback>()
+        val rewardListener = slot<OnUserEarnedRewardListener>()
+        every { ad.fullScreenContentCallback = capture(callback) } just Runs
+        every { ad.show(activity, capture(rewardListener)) } just Runs
+        RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
+            isAccessible = true
+            set(manager, ad)
+        }
+        var rewards = 0
+
+        assertThat(
+            manager.showIfAvailable(
+                activity,
+                RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                onRewardEarned = { rewards++ },
+            ),
+        ).isTrue()
+        callback.captured.onAdDismissedFullScreenContent()
+        rewardListener.captured.onUserEarnedReward(mockk<RewardItem>(relaxed = true))
+        assertThat(rewards).isEqualTo(0)
+    }
+
+    @Test
+    fun `SSV configuration failure prevents ad showing or granting rewards`() {
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>()
+        every { consent.canRequestAds } returnsMany listOf(true, false)
+        every { ad.setServerSideVerificationOptions(any()) } throws
+            IllegalStateException("synthetic SSV configuration error")
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
+            isAccessible = true
+            set(manager, ad)
+        }
+        var rewards = 0
+
+        assertThat(
+            manager.showIfAvailable(
+                activity,
+                RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                onRewardEarned = { rewards++ },
+            ),
+        ).isFalse()
+        assertThat(rewards).isEqualTo(0)
+        verify(exactly = 0) { ad.show(any<Activity>(), any<OnUserEarnedRewardListener>()) }
+    }
+
+    @Test
+    fun revokedConsentDiscardsPreloadedAdWithoutRewardOrSsvSetup() {
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>()
+        every { consent.canRequestAds } returns false
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
+            isAccessible = true
+            set(manager, ad)
+        }
+        var rewardCount = 0
+
+        val shown =
+            manager.showIfAvailable(
+                activity,
+                RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                onRewardEarned = { rewardCount++ },
+            )
+
+        assertThat(shown).isFalse()
+        assertThat(rewardCount).isEqualTo(0)
+        verify(exactly = 0) { ad.show(any<Activity>(), any<OnUserEarnedRewardListener>()) }
+        verify(exactly = 0) { ad.setServerSideVerificationOptions(any()) }
+        val cachedAdField = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
+        cachedAdField.isAccessible = true
+        assertThat(cachedAdField.get(manager)).isNull()
     }
 
     @Test
