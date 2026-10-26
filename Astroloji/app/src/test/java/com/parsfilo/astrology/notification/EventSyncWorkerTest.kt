@@ -68,6 +68,43 @@ class EventSyncWorkerTest {
         }
 
     @Test
+    fun `drains fifty plus one queued events in a single successful run`() =
+        runTest {
+            val firstBatch = (1..50).map { event(id = "first-$it", payload = "{}") }
+            val last = event(id = "last", payload = "{}")
+            val sent = mutableListOf<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            coEvery { queuedEventDao.getBatch(50) } returnsMany listOf(firstBatch, listOf(last))
+            coEvery { api.trackEvent(capture(sent)) } returns Response.success(TrackEventResponse(ok = true))
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+
+            coVerify(exactly = 2) { queuedEventDao.getBatch(50) }
+            coVerify(exactly = 51) { api.trackEvent(any()) }
+            assertThat(sent.map { it.eventId }.toSet()).containsExactlyElementsIn(
+                (firstBatch + last).map { it.id },
+            )
+            assertThat(sent.map { it.ownerUserId }.distinct()).containsExactly("owner-A")
+            coVerify(exactly = 1) { queuedEventDao.delete(last.id) }
+        }
+
+    @Test
+    fun `bounded draining stops after three full batches in one run`() =
+        runTest {
+            val batches =
+                (1..4).map { batch ->
+                    (1..50).map { offset -> event("batch-$batch-item-$offset", "{}") }
+                }
+            coEvery { queuedEventDao.getBatch(50) } returnsMany batches
+            coEvery { api.trackEvent(any()) } returns Response.success(TrackEventResponse(ok = true))
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+
+            coVerify(exactly = 3) { queuedEventDao.getBatch(50) }
+            coVerify(exactly = 150) { api.trackEvent(any()) }
+            coVerify(exactly = 0) { queuedEventDao.delete(batches[3][0].id) }
+        }
+
+    @Test
     fun `retries transient server responses without deleting the event`() =
         runTest {
             val event = event(id = "retry", payload = "{}")
