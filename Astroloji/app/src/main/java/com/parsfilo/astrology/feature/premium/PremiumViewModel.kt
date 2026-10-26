@@ -272,6 +272,9 @@ class PremiumViewModel
 
         private fun handlePurchase(event: PremiumUiEvent.Purchase) {
             val selectedPlan = state.value.plans.firstOrNull { it.planId == state.value.selectedPlanId }
+            // UI disables checkout for unsupported offers. Guard the event
+            // handler too so a stale/bypassed click cannot launch Billing.
+            if (!isPremiumOfferReady(selectedPlan)) return
             billingManager.clearPurchaseState()
             billingAction = BillingAction.PURCHASE
             purchasedPlan = selectedPlan
@@ -309,7 +312,13 @@ class PremiumViewModel
             merchandisingTrialDays: Int,
         ): Int {
             if (selectedPlan?.hasFreeTrial == true) {
-                return selectedPlan.trialDays ?: merchandisingTrialDays
+                // Marketing defaults never override Google Play's term.
+                // An unparseable trial remains unavailable for checkout.
+                val playDays = selectedPlan.trialDays?.takeIf { it > 0 }
+                if (playDays == null) {
+                    Timber.w("Play offer contains a trial period that cannot be safely disclosed in days.")
+                }
+                return playDays ?: 0
             }
             if (merchandisingTrialDays > 0) {
                 Timber.w("Remote Config trial copy is enabled but the selected Play offer has no free trial.")

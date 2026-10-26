@@ -43,6 +43,16 @@ class PremiumOfferPresentationTest {
     }
 
     @Test
+    fun `free trial without an exact Play duration disables purchase`() {
+        val unrepresentable = monthlyPlan.copy(hasFreeTrial = true, trialDays = null)
+        assertThat(isPremiumOfferReady(unrepresentable)).isFalse()
+        assertThat(isPremiumOfferReady(unrepresentable.copy(trialDays = 0))).isFalse()
+        assertThat(isPremiumOfferReady(unrepresentable.copy(trialDays = -2))).isFalse()
+        assertThat(isPremiumOfferReady(unrepresentable.copy(trialDays = 7))).isTrue()
+        assertThat(isPremiumOfferReady(monthlyPlan)).isTrue()
+    }
+
+    @Test
     fun `real Play price and offer token enable the selected offer`() {
         assertThat(isPremiumOfferReady(monthlyPlan)).isTrue()
         assertThat(isPremiumOfferReady(weeklyPlan)).isTrue()

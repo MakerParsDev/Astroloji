@@ -153,6 +153,31 @@ class PremiumViewModelTest {
         }
 
     @Test
+    fun `unparseable Play trial does not inherit Remote Config days or launch checkout`() =
+        runTest {
+            val unsupportedTrial = yearlyPlanWithTrial.copy(trialDays = null)
+            stubDependencies(catalogueResult = success(listOf(unsupportedTrial, monthlyPlan)))
+            val viewModel = createViewModel()
+            val activity = mockk<Activity>()
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.selectedPlanId).isEqualTo(unsupportedTrial.planId)
+            assertThat(viewModel.state.value.trialDays).isEqualTo(0)
+            assertThat(isPremiumOfferReady(unsupportedTrial)).isFalse()
+
+            viewModel.onEvent(PremiumUiEvent.Purchase(activity))
+            advanceUntilIdle()
+
+            verify(exactly = 0) { billingManager.launchPurchase(any(), any()) }
+            coVerify(exactly = 0) {
+                analyticsRepository.track(AnalyticsEvents.PURCHASE_STARTED, any())
+            }
+            viewModel.onEvent(PremiumUiEvent.SelectPlan(monthlyPlan.planId))
+            advanceUntilIdle()
+            assertThat(isPremiumOfferReady(monthlyPlan)).isTrue()
+        }
+
+    @Test
     fun `default paywall variant recommends and pre-selects the yearly plan when available`() =
         runTest {
             stubDependencies(catalogueResult = success(listOf(yearlyPlanWithTrial, monthlyPlan, weeklyPlan)))
