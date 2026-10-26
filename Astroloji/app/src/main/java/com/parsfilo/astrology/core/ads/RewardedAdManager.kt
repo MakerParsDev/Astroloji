@@ -132,10 +132,15 @@ class RewardedAdManager
                     }
                     true
                 } catch (e: IllegalStateException) {
-                    // Synchronous show failure cannot earn a reward.
                     Timber.w(e, "Rewarded SDK show threw")
-                    dismissOnce()
-                    false
+                    // A false return makes the caller report unavailable.
+                    // Do not also call onDismissed, or process a late SDK
+                    // callback as a second completion. A terminal callback
+                    // that already ran owns dismissal, while an earned reward
+                    // callback owns the pending server-verification path.
+                    val callbackAlreadyHandled = !finished.compareAndSet(false, true)
+                    if (!callbackAlreadyHandled) preload()
+                    callbackAlreadyHandled || rewardDelivered.get()
                 }
             } else {
                 preload()
