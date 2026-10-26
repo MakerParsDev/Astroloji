@@ -9,6 +9,7 @@ import com.parsfilo.astrology.core.data.local.QueuedEventEntity
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventResponse
+import com.parsfilo.astrology.core.data.repository.MoodAnalyticsSyncGate
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -32,6 +33,7 @@ class EventSyncWorkerTest {
     private val queuedEventDao = mockk<QueuedEventDao>(relaxed = true)
     private val api = mockk<AstrologyApi>()
     private val preferencesRepository = mockk<UserPreferencesRepository>()
+    private val syncGate = MoodAnalyticsSyncGate()
 
     init {
         coEvery { preferencesRepository.current() } returns UserPreferences(userId = "owner-A")
@@ -243,6 +245,7 @@ class EventSyncWorkerTest {
             queuedEventDao = queuedEventDao,
             api = api,
             preferencesRepository = preferencesRepository,
+            syncGate = syncGate,
         )
 
     private fun event(

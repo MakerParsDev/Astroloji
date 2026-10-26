@@ -31,12 +31,14 @@ class AnalyticsRepositoryTest {
     private val api = mockk<AstrologyApi>()
     private val queuedEventDao = mockk<QueuedEventDao>(relaxed = true)
     private val preferencesRepository = mockk<UserPreferencesRepository>()
+    private val syncGate = MoodAnalyticsSyncGate()
     private val repository =
         AnalyticsRepository(
             firebaseAnalytics = firebaseAnalytics,
             api = api,
             queuedEventDao = queuedEventDao,
             preferencesRepository = preferencesRepository,
+            syncGate = syncGate,
             json = Json,
         )
 

@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.parsfilo.astrology.R
 import org.junit.Assert.assertEquals
@@ -41,7 +42,7 @@ class OnboardingBirthAccessibilityTest {
         }
         val option = composeRule.onNodeWithTag("city-suggestion-test-izmir")
         option.assertHasClickAction()
-        val minimum = 48 * composeRule.density.density
+        val minimum = with(composeRule.density) { 48.dp.roundToPx() }
         assertTrue(option.fetchSemanticsNode().boundsInRoot.height >= minimum)
         assertTrue(selections.isEmpty())
         option.performClick()

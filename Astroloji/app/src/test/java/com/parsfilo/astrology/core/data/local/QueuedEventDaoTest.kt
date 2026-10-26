@@ -78,11 +78,16 @@ class QueuedEventDaoTest {
         runTest {
             dao.upsert(event(id = "mood-pending-1", createdAt = 100L).copy(type = "mood_logged"))
             dao.upsert(event(id = "mood-pending-2", createdAt = 200L).copy(type = "mood_logged"))
+            dao.upsert(
+                event(id = "mood-other-owner", createdAt = 250L)
+                    .copy(type = "mood_logged", ownerUserId = "owner-B"),
+            )
             dao.upsert(event(id = "other-event", createdAt = 300L))
 
-            dao.deleteByType("mood_logged")
+            dao.deleteByType("mood_logged", "owner-A")
 
-            assertThat(dao.getBatch(10).map { it.id }).containsExactly("other-event")
+            assertThat(dao.getBatch(10).map { it.id })
+                .containsExactly("mood-other-owner", "other-event")
         }
 
     private fun event(
@@ -94,6 +99,7 @@ class QueuedEventDaoTest {
             type = "app_open",
             payload = "{}",
             createdAt = createdAt,
+            ownerUserId = "owner-A",
         )
 
     private companion object {

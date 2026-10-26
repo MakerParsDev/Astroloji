@@ -46,6 +46,37 @@ class PrivacyOptionsButtonTest {
     }
 
     @Test
+    fun thrownPrivacyFormFailureReportsErrorAndReenablesRetry() {
+        var calls = 0
+        var failures = 0
+        composeRule.setContent {
+            MaterialTheme {
+                PrivacyOptionsButton(
+                    onShowForm = {
+                        calls++
+                        error("synthetic consent UI failure")
+                    },
+                    onFormError = { failures++ },
+                )
+            }
+        }
+        val button = composeRule.onNodeWithTag("manage-ad-privacy")
+        button.performClick()
+        composeRule.waitForIdle()
+        button.assertIsEnabled()
+        composeRule.runOnIdle {
+            assertEquals(1, calls)
+            assertEquals(1, failures)
+        }
+        button.performClick()
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertEquals(2, calls)
+            assertEquals(2, failures)
+        }
+    }
+
+    @Test
     fun privacyFormFailureReportsErrorAndReenablesRetry() {
         var calls = 0
         var failures = 0

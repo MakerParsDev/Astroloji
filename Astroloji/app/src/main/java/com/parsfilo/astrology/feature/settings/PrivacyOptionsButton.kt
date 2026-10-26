@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import com.parsfilo.astrology.R
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /**
@@ -36,6 +37,10 @@ internal fun PrivacyOptionsButton(
             scope.launch {
                 try {
                     if (!onShowForm()) onFormError()
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (_: Exception) {
+                    onFormError()
                 } finally {
                     showing = false
                 }

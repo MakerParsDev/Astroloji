@@ -99,55 +99,74 @@ class AnalyticsRepository
         private val api: AstrologyApi,
         private val queuedEventDao: QueuedEventDao,
         private val preferencesRepository: UserPreferencesRepository,
+        private val syncGate: MoodAnalyticsSyncGate,
         private val json: Json,
     ) {
         suspend fun enqueue(
             eventType: String,
             meta: Map<String, String> = emptyMap(),
         ) = withContext(Dispatchers.IO) {
-            val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
-            logFirebaseEvent(eventType, safeMeta)
-            // Unattributed onboarding events stay in Firebase Analytics only.
-            // They must not be delivered as a future account's backend events.
-            val ownerId = preferencesRepository.current().userId?.takeIf { it.isNotBlank() }
-            if (ownerId != null) queueEvent(eventType, safeMeta, ownerUserId = ownerId)
+            withMoodGate(eventType) {
+                val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
+                logFirebaseEvent(eventType, safeMeta)
+                // Unattributed onboarding events stay in Firebase Analytics only.
+                // They must not be delivered as a future account's backend events.
+                val ownerId = preferencesRepository.current().userId?.takeIf { it.isNotBlank() }
+                if (ownerId != null) queueEvent(eventType, safeMeta, ownerUserId = ownerId)
+            }
         }
 
         suspend fun track(
             eventType: String,
             meta: Map<String, String> = emptyMap(),
         ) = withContext(Dispatchers.IO) {
-            val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
-            logFirebaseEvent(eventType, safeMeta)
-            // Pin the event to its owner before the first attempt. An app JWT
-            // refresh must not silently reattribute an old owner's event.
-            val ownerId =
-                preferencesRepository.current().userId?.takeIf { it.isNotBlank() }
-                    ?: return@withContext
-            val eventId = UUID.randomUUID().toString()
-            try {
-                val response =
-                    api.trackEvent(
-                        TrackEventRequest(
-                            eventType = eventType,
-                            meta = safeMeta,
-                            eventId = eventId,
-                            ownerUserId = ownerId,
-                        ),
-                    )
-                when (classifyAnalyticsResponse(response.code())) {
-                    AnalyticsDeliveryDisposition.DELIVERED -> Unit
-                    AnalyticsDeliveryDisposition.PERMANENT_FAILURE ->
-                        Timber.w("Dropping permanently rejected analytics event: %s (%d)", eventType, response.code())
-                    AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, safeMeta, eventId, ownerId)
+            withMoodGate(eventType) {
+                val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
+                logFirebaseEvent(eventType, safeMeta)
+                // Pin the event to its owner before the first attempt. An app JWT
+                // refresh must not silently reattribute an old owner's event.
+                val ownerId =
+                    preferencesRepository.current().userId?.takeIf { it.isNotBlank() }
+                        ?: return@withMoodGate
+                val eventId = UUID.randomUUID().toString()
+                try {
+                    val response =
+                        api.trackEvent(
+                            TrackEventRequest(
+                                eventType = eventType,
+                                meta = safeMeta,
+                                eventId = eventId,
+                                ownerUserId = ownerId,
+                            ),
+                        )
+                    when (classifyAnalyticsResponse(response.code())) {
+                        AnalyticsDeliveryDisposition.DELIVERED -> Unit
+                        AnalyticsDeliveryDisposition.PERMANENT_FAILURE ->
+                            Timber.w(
+                                "Dropping permanently rejected analytics event: %s (%d)",
+                                eventType,
+                                response.code(),
+                            )
+                        AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, safeMeta, eventId, ownerId)
+                    }
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: IOException) {
+                    Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
+                    queueEvent(eventType, safeMeta, eventId, ownerId)
                 }
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: IOException) {
-                Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
-                queueEvent(eventType, safeMeta, eventId, ownerId)
             }
         }
+
+        private suspend fun <T> withMoodGate(
+            eventType: String,
+            block: suspend () -> T,
+        ): T =
+            if (eventType == AnalyticsEvents.MOOD_LOGGED) {
+                syncGate.withLock(block)
+            } else {
+                block()
+            }
 
         private fun logFirebaseEvent(
             eventType: String,

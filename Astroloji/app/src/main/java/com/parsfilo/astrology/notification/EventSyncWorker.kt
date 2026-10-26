@@ -8,6 +8,7 @@ import com.parsfilo.astrology.core.data.local.QueuedEventDao
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventRequest
+import com.parsfilo.astrology.core.data.repository.MoodAnalyticsSyncGate
 import com.parsfilo.astrology.core.data.repository.sanitizeAnalyticsMeta
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -28,53 +29,58 @@ class EventSyncWorker
         private val queuedEventDao: QueuedEventDao,
         private val api: AstrologyApi,
         private val preferencesRepository: UserPreferencesRepository,
+        private val syncGate: MoodAnalyticsSyncGate,
     ) : CoroutineWorker(appContext, workerParams) {
         override suspend fun doWork(): Result =
             withContext(Dispatchers.IO) {
-                val queued = queuedEventDao.getBatch(SYNC_BATCH_SIZE)
-                if (queued.isEmpty()) return@withContext Result.success()
-                queued.forEach { event ->
-                    // The row was created for a specific authenticated account.
-                    // Empty legacy owners or rows from a prior account must
-                    // never be replayed under this device's current JWT.
-                    val currentOwner = preferencesRepository.current().userId
-                    if (event.ownerUserId.isBlank() || event.ownerUserId != currentOwner) {
-                        queuedEventDao.delete(event.id)
-                        return@forEach
-                    }
-                    val meta =
-                        runCatching {
-                            Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), event.payload)
-                        }.getOrNull()
-                    if (meta == null) {
-                        queuedEventDao.delete(event.id)
-                        return@forEach
-                    }
-
-                    val response =
-                        try {
-                            api.trackEvent(
-                                TrackEventRequest(
-                                    eventType = event.type,
-                                    meta = sanitizeAnalyticsMeta(event.type, meta),
-                                    eventId = event.id,
-                                    ownerUserId = event.ownerUserId,
-                                ),
-                            )
-                        } catch (exception: CancellationException) {
-                            throw exception
-                        } catch (_: IOException) {
-                            return@withContext Result.retry()
+                // Hold the same gate as account-preserving mood deletion through
+                // the whole network-write + queue-removal batch.
+                syncGate.withLock {
+                    val queued = queuedEventDao.getBatch(SYNC_BATCH_SIZE)
+                    if (queued.isEmpty()) return@withLock Result.success()
+                    queued.forEach { event ->
+                        // The row was created for a specific authenticated account.
+                        // Empty legacy owners or rows from a prior account must
+                        // never be replayed under this device's current JWT.
+                        val currentOwner = preferencesRepository.current().userId
+                        if (event.ownerUserId.isBlank() || event.ownerUserId != currentOwner) {
+                            queuedEventDao.delete(event.id)
+                            return@forEach
+                        }
+                        val meta =
+                            runCatching {
+                                Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), event.payload)
+                            }.getOrNull()
+                        if (meta == null) {
+                            queuedEventDao.delete(event.id)
+                            return@forEach
                         }
 
-                    when (classifyAnalyticsResponse(response.code())) {
-                        AnalyticsDeliveryDisposition.DELIVERED,
-                        AnalyticsDeliveryDisposition.PERMANENT_FAILURE,
-                        -> queuedEventDao.delete(event.id)
-                        AnalyticsDeliveryDisposition.RETRY -> return@withContext Result.retry()
+                        val response =
+                            try {
+                                api.trackEvent(
+                                    TrackEventRequest(
+                                        eventType = event.type,
+                                        meta = sanitizeAnalyticsMeta(event.type, meta),
+                                        eventId = event.id,
+                                        ownerUserId = event.ownerUserId,
+                                    ),
+                                )
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (_: IOException) {
+                                return@withLock Result.retry()
+                            }
+
+                        when (classifyAnalyticsResponse(response.code())) {
+                            AnalyticsDeliveryDisposition.DELIVERED,
+                            AnalyticsDeliveryDisposition.PERMANENT_FAILURE,
+                            -> queuedEventDao.delete(event.id)
+                            AnalyticsDeliveryDisposition.RETRY -> return@withLock Result.retry()
+                        }
                     }
+                    Result.success()
                 }
-                Result.success()
             }
 
         private companion object {

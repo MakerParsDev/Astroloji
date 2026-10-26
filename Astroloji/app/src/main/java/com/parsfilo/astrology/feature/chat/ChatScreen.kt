@@ -54,8 +54,19 @@ fun ChatScreen(
             ChatHeader(balance = uiState.balance)
             val chatListState = rememberLazyListState()
             LaunchedEffect(uiState.messages.size) {
-                if (uiState.messages.isNotEmpty()) {
-                    chatListState.animateScrollToItem(uiState.messages.lastIndex)
+                val count = uiState.messages.size
+                if (count > 0) {
+                    val userJustSent = uiState.messages.last().role == "user"
+                    // The new item may not yet have a layout; check the previous
+                    // bottom index, without dragging a reader away from history.
+                    val nearPreviousBottom =
+                        chatListState.layoutInfo.visibleItemsInfo
+                            .lastOrNull()
+                            ?.index
+                            ?.let { it >= count - 2 } ?: (count == 1)
+                    if (userJustSent || nearPreviousBottom) {
+                        chatListState.animateScrollToItem(count - 1)
+                    }
                 }
             }
             LazyColumn(
