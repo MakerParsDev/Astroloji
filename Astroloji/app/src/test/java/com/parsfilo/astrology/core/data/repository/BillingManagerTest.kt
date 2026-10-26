@@ -204,6 +204,22 @@ class BillingManagerTest {
     }
 
     @Test
+    fun `rejected free phase schedule never exposes a misleading paywall trial`() {
+        val free = PricingPhaseSummary(0L, "Free", "P7D")
+        val paid = PricingPhaseSummary(89_000_000L, "TRY 89.00", "P1M")
+        val unsupported = listOf(free, free.copy(billingPeriod = "P3D"), paid)
+        assertThat(extractTrialDays(unsupported)).isEqualTo(7)
+        assertThat(resolveDisclosableTrialDays(unsupported, resolveDisplayPricing(unsupported))).isNull()
+
+        val unknown = listOf(free.copy(billingPeriod = "P1M"), paid)
+        assertThat(resolveDisclosableTrialDays(unknown, resolveDisplayPricing(unknown))).isNull()
+
+        val supported = listOf(free, paid)
+        assertThat(resolveDisclosableTrialDays(supported, resolveDisplayPricing(supported))).isEqualTo(7)
+        assertThat(resolveDisclosableTrialDays(listOf(paid), resolveDisplayPricing(listOf(paid)))).isNull()
+    }
+
+    @Test
     fun `display price skips free trial phase and uses the first paid phase`() {
         val result =
             resolveDisplayPricing(

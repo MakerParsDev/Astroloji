@@ -899,6 +899,9 @@ private fun buildPremiumPlans(productDetailsList: List<ProductDetails>): List<Pr
                 val selectedOffer = offers[selectedOfferIndex]
                 val phases = phaseLists[selectedOfferIndex]
                 val displayPricing = resolveDisplayPricing(phases)
+                // Invalid phase sequences must not leak a misleading trial
+                // label into the paywall even though checkout is disabled.
+                val displayedTrialDays = resolveDisclosableTrialDays(phases, displayPricing)
                 val introductoryPhase = resolveIntroductoryPricing(phases)
                 listOf(
                     PremiumPlanUi(
@@ -910,8 +913,8 @@ private fun buildPremiumPlans(productDetailsList: List<ProductDetails>): List<Pr
                         title = detail.name,
                         price = displayPricing?.formattedPrice.orEmpty(),
                         priceAmountMicros = displayPricing?.priceAmountMicros,
-                        hasFreeTrial = phases.any { it.priceAmountMicros == 0L },
-                        trialDays = extractTrialDays(phases),
+                        hasFreeTrial = displayedTrialDays != null,
+                        trialDays = displayedTrialDays,
                         offerDescription = detail.description,
                         billingPeriod = displayPricing?.billingPeriod,
                         displayPriority = defaultDisplayPriority(detail.productId),
@@ -987,6 +990,15 @@ private fun introductoryCycleCount(phase: PricingPhaseSummary): Int =
         ProductDetails.RecurrenceMode.NON_RECURRING -> 1
         else -> 0
     }
+
+/**
+ * Never display trial days from a schedule rejected by renewal/phase validation.
+ * Invalid offers remain non-purchasable AND do not advertise an unsupported trial.
+ */
+internal fun resolveDisclosableTrialDays(
+    phases: List<PricingPhaseSummary>,
+    displayPricing: DisplayPricingSummary?,
+): Int? = displayPricing?.let { extractTrialDays(phases) }
 
 internal fun extractTrialDays(phases: List<PricingPhaseSummary>): Int? =
     phases
