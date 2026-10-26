@@ -147,10 +147,76 @@ class BillingManagerTest {
     }
 
     @Test
-    fun `preferred offer index prioritizes free trial offers`() {
-        assertThat(selectPreferredOfferIndex(listOf(false, true, false))).isEqualTo(1)
-        assertThat(selectPreferredOfferIndex(listOf(false, false))).isEqualTo(0)
-        assertThat(selectPreferredOfferIndex(emptyList())).isEqualTo(-1)
+    fun `preferred offer selects a describable trial ahead of paid base`() {
+        val paid = listOf(PricingPhaseSummary(89_000_000L, "TRY 89.00", "P1M"))
+        val trial =
+            listOf(
+                PricingPhaseSummary(0L, "Free", "P7D"),
+                paid.single(),
+            )
+        assertThat(selectPreferredDisclosableOfferIndex(listOf(paid, trial))).isEqualTo(1)
+        assertThat(selectPreferredDisclosableOfferIndex(listOf(trial, paid))).isEqualTo(0)
+        assertThat(selectPreferredDisclosableOfferIndex(listOf(paid))).isEqualTo(0)
+        assertThat(selectPreferredDisclosableOfferIndex(emptyList())).isEqualTo(-1)
+    }
+
+    @Test
+    fun `unsupported free trial falls back to a valid paid base offer`() {
+        val paid = listOf(PricingPhaseSummary(89_000_000L, "TRY 89.00", "P1M"))
+        val unsupportedTrial =
+            listOf(
+                PricingPhaseSummary(0L, "Free", "P1M"),
+                paid.single(),
+            )
+        assertThat(resolveDisplayPricing(unsupportedTrial)).isNull()
+        assertThat(selectPreferredDisclosableOfferIndex(listOf(unsupportedTrial, paid))).isEqualTo(1)
+        assertThat(selectPreferredDisclosableOfferIndex(listOf(unsupportedTrial))).isEqualTo(-1)
+    }
+
+    @Test
+    fun `multiple or late free phases fail closed and cannot displace a paid base offer`() {
+        val paid = PricingPhaseSummary(89_000_000L, "TRY 89.00", "P1M")
+        val free = PricingPhaseSummary(0L, "Free", "P7D")
+        val severalFree = listOf(free, free.copy(billingPeriod = "P3D"), paid)
+        val freeAfterPaid =
+            listOf(
+                paid.copy(
+                    recurrenceMode = com.android.billingclient.api.ProductDetails.RecurrenceMode.FINITE_RECURRING,
+                    billingCycleCount = 1,
+                ),
+                free,
+                paid,
+            )
+        val repeatingFree =
+            listOf(
+                free.copy(
+                    recurrenceMode = com.android.billingclient.api.ProductDetails.RecurrenceMode.FINITE_RECURRING,
+                    billingCycleCount = 3,
+                ),
+                paid,
+            )
+        listOf(severalFree, freeAfterPaid, repeatingFree).forEach { phases ->
+            assertThat(resolveDisplayPricing(phases)).isNull()
+            assertThat(selectPreferredDisclosableOfferIndex(listOf(phases, listOf(paid)))).isEqualTo(1)
+        }
+        val singleCycleTrial = repeatingFree.first().copy(billingCycleCount = 1)
+        assertThat(resolveDisplayPricing(listOf(singleCycleTrial, paid))?.formattedPrice).isEqualTo("TRY 89.00")
+    }
+
+    @Test
+    fun `rejected free phase schedule never exposes a misleading paywall trial`() {
+        val free = PricingPhaseSummary(0L, "Free", "P7D")
+        val paid = PricingPhaseSummary(89_000_000L, "TRY 89.00", "P1M")
+        val unsupported = listOf(free, free.copy(billingPeriod = "P3D"), paid)
+        assertThat(extractTrialDays(unsupported)).isEqualTo(7)
+        assertThat(resolveDisclosableTrialDays(unsupported, resolveDisplayPricing(unsupported))).isNull()
+
+        val unknown = listOf(free.copy(billingPeriod = "P1M"), paid)
+        assertThat(resolveDisclosableTrialDays(unknown, resolveDisplayPricing(unknown))).isNull()
+
+        val supported = listOf(free, paid)
+        assertThat(resolveDisclosableTrialDays(supported, resolveDisplayPricing(supported))).isEqualTo(7)
+        assertThat(resolveDisclosableTrialDays(listOf(paid), resolveDisplayPricing(listOf(paid)))).isNull()
     }
 
     @Test
