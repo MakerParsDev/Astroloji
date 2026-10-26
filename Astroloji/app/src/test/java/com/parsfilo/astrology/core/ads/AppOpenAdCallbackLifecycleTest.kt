@@ -24,7 +24,7 @@ import org.junit.Test
 class AppOpenAdCallbackLifecycleTest {
     private class Fixture {
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         val analytics = mockk<AnalyticsRepository>(relaxed = true)
         val ad = mockk<AppOpenAd>(relaxed = true)
         val callback = slot<FullScreenContentCallback>()
@@ -42,6 +42,10 @@ class AppOpenAdCallbackLifecycleTest {
             AppOpenAdManager::class.java.getDeclaredField("appOpenAd").apply {
                 isAccessible = true
                 set(manager, ad)
+            }
+            AppOpenAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+                isAccessible = true
+                setLong(manager, consent.consentRevision)
             }
             AppOpenAdManager::class.java.getDeclaredField("loadElapsedRealtimeMs").apply {
                 isAccessible = true

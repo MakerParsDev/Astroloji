@@ -21,7 +21,7 @@ import java.io.IOException
 
 class InterstitialImpressionAccountingTest {
     private val activity = mockk<Activity>(relaxed = true)
-    private val consent = mockk<GoogleMobileAdsConsentManager>()
+    private val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
     private val frequency = mockk<AdFrequencyManager>(relaxed = true)
     private val analytics = mockk<AnalyticsRepository>(relaxed = true)
 
@@ -38,6 +38,10 @@ class InterstitialImpressionAccountingTest {
         InterstitialAdManager::class.java.getDeclaredField("interstitialAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        InterstitialAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         return ad
     }

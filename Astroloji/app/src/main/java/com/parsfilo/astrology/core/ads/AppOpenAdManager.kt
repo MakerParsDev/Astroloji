@@ -33,8 +33,17 @@ class AppOpenAdManager
         private var isShowing = false
         private var loadElapsedRealtimeMs = 0L
         private var appOpenAd: AppOpenAd? = null
+        private var loadedConsentRevision = Long.MIN_VALUE
+
+        private fun discardAdFromEarlierConsentRevision() {
+            if (loadedConsentRevision == consentManager.consentRevision) return
+            appOpenAd = null
+            loadElapsedRealtimeMs = 0L
+        }
 
         fun preload() {
+            discardAdFromEarlierConsentRevision()
+            val loadRevision = consentManager.consentRevision
             val canStartPreload = !isLoading && !isAdAvailable() && consentManager.canRequestAds
             if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
@@ -47,12 +56,13 @@ class AppOpenAdManager
                         isLoading = false
                         // A request may finish after UMP consent was revoked.
                         // Never retain the pre-revocation creative for a later grant.
-                        if (!consentManager.canRequestAds) {
+                        if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             appOpenAd = null
                             loadElapsedRealtimeMs = 0L
                             return
                         }
                         appOpenAd = ad
+                        loadedConsentRevision = loadRevision
                         loadRetryGate.recordSuccess()
                         loadElapsedRealtimeMs = SystemClock.elapsedRealtime()
                         Timber.d("App open ad loaded")
@@ -76,6 +86,7 @@ class AppOpenAdManager
             placement: String = "app_open",
             onDismissed: () -> Unit = {},
         ): Boolean {
+            discardAdFromEarlierConsentRevision()
             if (!consentManager.canRequestAds) {
                 // Cached creative belongs to the prior consent state. Do not
                 // reuse it if consent is later restored.

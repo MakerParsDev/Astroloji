@@ -23,7 +23,7 @@ class RewardedAdSsvTest {
     fun `closing an ad without reward callback does not grant a reward`() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returns true
         val analytics = mockk<AnalyticsRepository>(relaxed = true)
         val manager = RewardedAdManager(mockk<Context>(relaxed = true), consent, analytics)
@@ -34,6 +34,10 @@ class RewardedAdSsvTest {
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         var rewardCount = 0
         var dismissalCount = 0
@@ -64,7 +68,7 @@ class RewardedAdSsvTest {
     fun `failed to show an ad dismisses safely without granting any reward`() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returns true
         val manager =
             RewardedAdManager(
@@ -78,6 +82,10 @@ class RewardedAdSsvTest {
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         var rewardCount = 0
         var dismissedCount = 0
@@ -105,7 +113,7 @@ class RewardedAdSsvTest {
     fun `synchronous SDK show exception leaves fallback to caller without earning reward`() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returnsMany listOf(true, false)
         val manager =
             RewardedAdManager(
@@ -121,6 +129,10 @@ class RewardedAdSsvTest {
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         var rewardCount = 0
         var dismissedCount = 0
@@ -150,7 +162,7 @@ class RewardedAdSsvTest {
     fun `terminal SDK callback before show exception owns dismissal exactly once`() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returnsMany listOf(true, false)
         val manager =
             RewardedAdManager(
@@ -167,6 +179,10 @@ class RewardedAdSsvTest {
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         var rewards = 0
         var dismissed = 0
@@ -188,7 +204,7 @@ class RewardedAdSsvTest {
     fun `earned callback before SDK show exception preserves pending SSV path`() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returnsMany listOf(true, false)
         val manager =
             RewardedAdManager(
@@ -206,6 +222,10 @@ class RewardedAdSsvTest {
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         var rewards = 0
         var dismissed = 0
@@ -230,7 +250,7 @@ class RewardedAdSsvTest {
     fun `only an SDK earned-reward callback grants a reward`() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returns true
         val manager =
             RewardedAdManager(
@@ -245,6 +265,10 @@ class RewardedAdSsvTest {
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         val reward = mockk<RewardItem>()
         var rewardCount = 0
@@ -271,7 +295,7 @@ class RewardedAdSsvTest {
     fun `earned callback after dismissal without prior reward is rejected`() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returnsMany listOf(true, false)
         val manager =
             RewardedAdManager(
@@ -286,6 +310,10 @@ class RewardedAdSsvTest {
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         var rewards = 0
 
@@ -305,7 +333,7 @@ class RewardedAdSsvTest {
     fun `SSV configuration failure prevents ad showing or granting rewards`() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returnsMany listOf(true, false)
         every { ad.setServerSideVerificationOptions(any()) } throws
             IllegalStateException("synthetic SSV configuration error")
@@ -318,6 +346,10 @@ class RewardedAdSsvTest {
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         var rewards = 0
 
@@ -336,7 +368,7 @@ class RewardedAdSsvTest {
     fun revokedConsentDiscardsPreloadedAdWithoutRewardOrSsvSetup() {
         val ad = mockk<RewardedAd>(relaxed = true)
         val activity = mockk<Activity>(relaxed = true)
-        val consent = mockk<GoogleMobileAdsConsentManager>()
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returns false
         val manager =
             RewardedAdManager(
@@ -347,6 +379,10 @@ class RewardedAdSsvTest {
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
             set(manager, ad)
+        }
+        RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision").apply {
+            isAccessible = true
+            setLong(manager, consent.consentRevision)
         }
         var rewardCount = 0
 

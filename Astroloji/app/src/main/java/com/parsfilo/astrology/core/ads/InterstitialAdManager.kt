@@ -34,8 +34,16 @@ class InterstitialAdManager
         private var isLoading = false
         private val loadRetryGate = AdLoadRetryGate()
         private var interstitialAd: InterstitialAd? = null
+        private var loadedConsentRevision = Long.MIN_VALUE
+
+        private fun discardAdFromEarlierConsentRevision() {
+            if (loadedConsentRevision == consentManager.consentRevision) return
+            interstitialAd = null
+        }
 
         fun preload() {
+            discardAdFromEarlierConsentRevision()
+            val loadRevision = consentManager.consentRevision
             val canStartPreload = !isLoading && interstitialAd == null && consentManager.canRequestAds
             if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
@@ -47,11 +55,12 @@ class InterstitialAdManager
                     override fun onAdLoaded(ad: InterstitialAd) {
                         isLoading = false
                         // Discard an in-flight load if the consent state changed.
-                        if (!consentManager.canRequestAds) {
+                        if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             interstitialAd = null
                             return
                         }
                         interstitialAd = ad
+                        loadedConsentRevision = loadRevision
                         loadRetryGate.recordSuccess()
                         Timber.d("Interstitial ad loaded")
                     }
@@ -71,6 +80,7 @@ class InterstitialAdManager
             placement: String,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            discardAdFromEarlierConsentRevision()
             // Consent may change after the interstitial was preloaded.
             val consentAllowed = consentManager.canRequestAds
             val ad =

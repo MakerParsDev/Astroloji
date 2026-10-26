@@ -39,8 +39,16 @@ class RewardedAdManager
         private var isLoading = false
         private val loadRetryGate = AdLoadRetryGate()
         private var rewardedAd: RewardedAd? = null
+        private var loadedConsentRevision = Long.MIN_VALUE
+
+        private fun discardAdFromEarlierConsentRevision() {
+            if (loadedConsentRevision == consentManager.consentRevision) return
+            rewardedAd = null
+        }
 
         fun preload() {
+            discardAdFromEarlierConsentRevision()
+            val loadRevision = consentManager.consentRevision
             val canStartPreload = !isLoading && rewardedAd == null && consentManager.canRequestAds
             if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
@@ -52,11 +60,12 @@ class RewardedAdManager
                     override fun onAdLoaded(ad: RewardedAd) {
                         isLoading = false
                         // Consent can be revoked while the SDK is loading this creative.
-                        if (!consentManager.canRequestAds) {
+                        if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             rewardedAd = null
                             return
                         }
                         rewardedAd = ad
+                        loadedConsentRevision = loadRevision
                         loadRetryGate.recordSuccess()
                         Timber.d("Rewarded ad loaded")
                     }
@@ -77,6 +86,7 @@ class RewardedAdManager
             onRewardEarned: (RewardItem) -> Unit,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            discardAdFromEarlierConsentRevision()
             // Consent can change after preload. Never show an old ad if revoked.
             val consentAllowed = consentManager.canRequestAds
             val ad =

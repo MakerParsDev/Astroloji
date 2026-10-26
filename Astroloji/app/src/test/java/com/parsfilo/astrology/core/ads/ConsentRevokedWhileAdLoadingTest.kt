@@ -26,7 +26,7 @@ import org.junit.Test
 class ConsentRevokedWhileAdLoadingTest {
     private val context = mockk<Context>(relaxed = true)
     private val analytics = mockk<AnalyticsRepository>(relaxed = true)
-    private val consent = mockk<GoogleMobileAdsConsentManager>()
+    private val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
 
     private fun cachedAd(
         manager: Any,
