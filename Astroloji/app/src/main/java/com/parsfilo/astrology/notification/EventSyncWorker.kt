@@ -36,48 +36,54 @@ class EventSyncWorker
                 // Hold the same gate as account-preserving mood deletion through
                 // the whole network-write + queue-removal batch.
                 syncGate.withLock {
-                    val queued = queuedEventDao.getBatch(SYNC_BATCH_SIZE)
-                    if (queued.isEmpty()) return@withLock Result.success()
-                    queued.forEach { event ->
-                        // The row was created for a specific authenticated account.
-                        // Empty legacy owners or rows from a prior account must
-                        // never be replayed under this device's current JWT.
-                        val currentOwner = preferencesRepository.current().userId
-                        if (event.ownerUserId.isBlank() || event.ownerUserId != currentOwner) {
-                            queuedEventDao.delete(event.id)
-                            return@forEach
-                        }
-                        val meta =
-                            runCatching {
-                                Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), event.payload)
-                            }.getOrNull()
-                        if (meta == null) {
-                            queuedEventDao.delete(event.id)
-                            return@forEach
-                        }
-
-                        val response =
-                            try {
-                                api.trackEvent(
-                                    TrackEventRequest(
-                                        eventType = event.type,
-                                        meta = sanitizeAnalyticsMeta(event.type, meta),
-                                        eventId = event.id,
-                                        ownerUserId = event.ownerUserId,
-                                    ),
-                                )
-                            } catch (exception: CancellationException) {
-                                throw exception
-                            } catch (_: IOException) {
-                                return@withLock Result.retry()
+                    // A full batch does not mean the backlog is empty. Drain
+                    // a few more while online, but cap event attempts per
+                    // scheduled run rather than looping through an unlimited queue.
+                    repeat(MAX_SYNC_BATCHES) {
+                        val queued = queuedEventDao.getBatch(SYNC_BATCH_SIZE)
+                        if (queued.isEmpty()) return@withLock Result.success()
+                        queued.forEach { event ->
+                            // The row was created for a specific authenticated account.
+                            // Empty legacy owners or rows from a prior account must
+                            // never be replayed under this device's current JWT.
+                            val currentOwner = preferencesRepository.current().userId
+                            if (event.ownerUserId.isBlank() || event.ownerUserId != currentOwner) {
+                                queuedEventDao.delete(event.id)
+                                return@forEach
+                            }
+                            val meta =
+                                runCatching {
+                                    Json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), event.payload)
+                                }.getOrNull()
+                            if (meta == null) {
+                                queuedEventDao.delete(event.id)
+                                return@forEach
                             }
 
-                        when (classifyAnalyticsResponse(response.code())) {
-                            AnalyticsDeliveryDisposition.DELIVERED,
-                            AnalyticsDeliveryDisposition.PERMANENT_FAILURE,
-                            -> queuedEventDao.delete(event.id)
-                            AnalyticsDeliveryDisposition.RETRY -> return@withLock Result.retry()
+                            val response =
+                                try {
+                                    api.trackEvent(
+                                        TrackEventRequest(
+                                            eventType = event.type,
+                                            meta = sanitizeAnalyticsMeta(event.type, meta),
+                                            eventId = event.id,
+                                            ownerUserId = event.ownerUserId,
+                                        ),
+                                    )
+                                } catch (exception: CancellationException) {
+                                    throw exception
+                                } catch (_: IOException) {
+                                    return@withLock Result.retry()
+                                }
+
+                            when (classifyAnalyticsResponse(response.code())) {
+                                AnalyticsDeliveryDisposition.DELIVERED,
+                                AnalyticsDeliveryDisposition.PERMANENT_FAILURE,
+                                -> queuedEventDao.delete(event.id)
+                                AnalyticsDeliveryDisposition.RETRY -> return@withLock Result.retry()
+                            }
                         }
+                        if (queued.size < SYNC_BATCH_SIZE) return@withLock Result.success()
                     }
                     Result.success()
                 }
@@ -85,5 +91,6 @@ class EventSyncWorker
 
         private companion object {
             const val SYNC_BATCH_SIZE = 50
+            const val MAX_SYNC_BATCHES = 3
         }
     }
