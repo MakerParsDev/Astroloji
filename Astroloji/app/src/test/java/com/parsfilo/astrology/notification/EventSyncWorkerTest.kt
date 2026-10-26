@@ -9,10 +9,12 @@ import com.parsfilo.astrology.core.data.local.QueuedEventEntity
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.TrackEventResponse
+import com.parsfilo.astrology.core.data.repository.ANALYTICS_EVENT_RETENTION_MILLIS
 import com.parsfilo.astrology.core.data.repository.MoodAnalyticsSyncGate
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -49,6 +51,51 @@ class EventSyncWorkerTest {
 
             assertThat(result).isInstanceOf(ListenableWorker.Result.Success::class.java)
             coVerify(exactly = 1) { queuedEventDao.getBatch(50) }
+        }
+
+    @Test
+    fun `prunes expired offline events before querying the queue for delivery`() =
+        runTest {
+            val now = System.currentTimeMillis()
+            val olderThanThirtyDays = now - ANALYTICS_EVENT_RETENTION_MILLIS - 1
+            val fresh = event(id = "fresh", payload = "{}").copy(createdAt = now - 1_000L)
+            // The mock acts like Room after its DELETE WHERE createdAt < cutoff:
+            // a stored 31-day-old event is deleted, not returned in getBatch.
+            val remaining =
+                mutableListOf(
+                    event(id = "expired", payload = "{}").copy(createdAt = olderThanThirtyDays),
+                    fresh,
+                )
+            coEvery { queuedEventDao.deleteOlderThan(any()) } coAnswers {
+                val cutoff = firstArg<Long>()
+                remaining.removeAll { it.createdAt < cutoff }
+                Unit
+            }
+            coEvery { queuedEventDao.getBatch(50) } coAnswers { remaining.take(50) }
+            coEvery { queuedEventDao.delete(any()) } coAnswers {
+                val id = firstArg<String>()
+                remaining.removeAll { it.id == id }
+                Unit
+            }
+            coEvery { api.trackEvent(any()) } returns Response.success(TrackEventResponse(ok = true))
+            val sent = mutableListOf<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            coEvery { api.trackEvent(capture(sent)) } returns Response.success(TrackEventResponse(ok = true))
+
+            assertThat(createWorker().doWork()).isInstanceOf(ListenableWorker.Result.Success::class.java)
+            assertThat(sent.map { it.eventId }).containsExactly("fresh")
+            assertThat(remaining).isEmpty()
+            coVerify(exactly = 1) {
+                queuedEventDao.deleteOlderThan(
+                    match {
+                        it in
+                            (now - ANALYTICS_EVENT_RETENTION_MILLIS - 10_000L)..now
+                    },
+                )
+            }
+            coVerifyOrder {
+                queuedEventDao.deleteOlderThan(any())
+                queuedEventDao.getBatch(50)
+            }
         }
 
     @Test

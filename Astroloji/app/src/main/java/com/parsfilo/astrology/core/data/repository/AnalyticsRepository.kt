@@ -91,6 +91,9 @@ internal fun sanitizeAnalyticsMeta(
         meta.filterKeys(ALLOWED_ANALYTICS_META_KEYS::contains)
     }
 
+// One retention policy for both insertion-time bounded queues and offline replay.
+internal const val ANALYTICS_EVENT_RETENTION_MILLIS = 30L * 24L * 60L * 60L * 1_000L
+
 @Singleton
 class AnalyticsRepository
     @Inject
@@ -197,12 +200,11 @@ class AnalyticsRepository
                         ownerUserId = ownerUserId,
                     ),
                 maxSize = MAX_QUEUED_EVENTS,
-                minCreatedAt = createdAt - EVENT_RETENTION_MILLIS,
+                minCreatedAt = createdAt - ANALYTICS_EVENT_RETENTION_MILLIS,
             )
         }
 
         private companion object {
             const val MAX_QUEUED_EVENTS = 500
-            const val EVENT_RETENTION_MILLIS = 30L * 24L * 60L * 60L * 1_000L
         }
     }
