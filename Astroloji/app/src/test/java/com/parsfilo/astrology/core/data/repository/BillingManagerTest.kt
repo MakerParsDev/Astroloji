@@ -3,6 +3,7 @@ package com.parsfilo.astrology.core.data.repository
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
 import com.google.common.truth.Truth.assertThat
+import com.parsfilo.astrology.core.util.BillingFailureReason
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Test
@@ -89,6 +90,36 @@ class BillingManagerTest {
     fun `billing setup is ready only for ok response codes`() {
         assertThat(isSuccessfulBillingSetup(BillingClient.BillingResponseCode.OK)).isTrue()
         assertThat(isSuccessfulBillingSetup(BillingClient.BillingResponseCode.SERVICE_DISCONNECTED)).isFalse()
+    }
+
+    @Test
+    fun `billing SDK failure codes become only fixed nonidentifying analytics categories`() {
+        val reasons =
+            mapOf(
+                BillingClient.BillingResponseCode.USER_CANCELED to BillingFailureReason.USER_CANCELLED,
+                BillingClient.BillingResponseCode.NETWORK_ERROR to BillingFailureReason.NETWORK_ERROR,
+                BillingClient.BillingResponseCode.SERVICE_DISCONNECTED to BillingFailureReason.SERVICE_DISCONNECTED,
+                BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE to BillingFailureReason.SERVICE_UNAVAILABLE,
+                BillingClient.BillingResponseCode.BILLING_UNAVAILABLE to BillingFailureReason.BILLING_UNAVAILABLE,
+                BillingClient.BillingResponseCode.ITEM_UNAVAILABLE to BillingFailureReason.ITEM_UNAVAILABLE,
+                BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED to BillingFailureReason.ITEM_ALREADY_OWNED,
+                BillingClient.BillingResponseCode.ITEM_NOT_OWNED to BillingFailureReason.ITEM_NOT_OWNED,
+                BillingClient.BillingResponseCode.FEATURE_NOT_SUPPORTED to BillingFailureReason.FEATURE_NOT_SUPPORTED,
+                BillingClient.BillingResponseCode.DEVELOPER_ERROR to BillingFailureReason.DEVELOPER_ERROR,
+                BillingClient.BillingResponseCode.ERROR to BillingFailureReason.BILLING_ERROR,
+            )
+        reasons.forEach { (code, expected) ->
+            assertThat(billingFailureReasonFromResponseCode(code)).isEqualTo(expected)
+            assertThat(expected.analyticsValue).matches("[a-z_]+")
+        }
+    }
+
+    @Test
+    fun `unexpected SDK statuses are unknown not dynamically logged`() {
+        assertThat(billingFailureReasonFromResponseCode(BillingClient.BillingResponseCode.OK))
+            .isEqualTo(BillingFailureReason.UNKNOWN)
+        assertThat(billingFailureReasonFromResponseCode(987654))
+            .isEqualTo(BillingFailureReason.UNKNOWN)
     }
 
     @Test
