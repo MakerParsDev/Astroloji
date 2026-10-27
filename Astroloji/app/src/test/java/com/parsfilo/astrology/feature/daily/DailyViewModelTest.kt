@@ -19,9 +19,11 @@ import io.mockk.coEvery
 import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -471,6 +473,47 @@ class DailyViewModelTest {
             coVerify(exactly = 0) {
                 analyticsRepository.track(AnalyticsEvents.SHARE_COMPLETED, any())
             }
+        }
+
+    @Test
+    fun `rapid daily unlock taps issue only one pending prepare and allow a later retry`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            val releaseFirst = CompletableDeferred<Unit>()
+            var preparations = 0
+            coEvery { contentRepository.prepareRewardUnlock("daily", any()) } coAnswers {
+                preparations += 1
+                if (preparations == 1) {
+                    releaseFirst.await()
+                    AppResult.Loading
+                } else {
+                    AppResult.Success(dailyRewardChallenge())
+                }
+            }
+            val model = createViewModel()
+            advanceUntilIdle()
+
+            model.onEvent(DailyUiEvent.UnlockWithReward)
+            model.onEvent(DailyUiEvent.UnlockWithReward)
+            runCurrent()
+            assertThat(preparations).isEqualTo(1)
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+
+            // Once the first request finishes without a challenge, retry is safe.
+            releaseFirst.complete(Unit)
+            advanceUntilIdle()
+            model.onEvent(DailyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+            assertThat(preparations).isEqualTo(2)
+            assertThat(model.effects.first()).isEqualTo(DailyUiEffect.ShowRewardAd(dailyRewardChallenge()))
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
         }
 
     private fun createViewModel(): DailyViewModel =

@@ -17,9 +17,11 @@ import io.mockk.coEvery
 import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -238,6 +240,63 @@ class WeeklyViewModelTest {
             viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable("Reklam hazır değil"))
 
             assertThat(viewModel.state.value.error).isEqualTo("Reklam hazır değil")
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+        }
+
+    @Test
+    fun `rapid weekly unlock taps do not create concurrent server challenges`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+            val challenge =
+                RewardChallenge(
+                    challengeId = "challenge-weekly",
+                    customData = "opaque-ssv",
+                    userId = "test-user",
+                    rewardType = "weekly",
+                    identifier = "2026-W43",
+                    expiresAt = "2026-10-26T00:00:00Z",
+                )
+            val releaseFirst = CompletableDeferred<Unit>()
+            var preparations = 0
+            coEvery { contentRepository.prepareRewardUnlock("weekly", any()) } coAnswers {
+                preparations += 1
+                if (preparations == 1) {
+                    releaseFirst.await()
+                    AppResult.Loading
+                } else {
+                    AppResult.Success(challenge)
+                }
+            }
+            val model =
+                WeeklyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            model.onEvent(WeeklyUiEvent.UnlockWithReward)
+            model.onEvent(WeeklyUiEvent.UnlockWithReward)
+            runCurrent()
+            assertThat(preparations).isEqualTo(1)
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+
+            releaseFirst.complete(Unit)
+            advanceUntilIdle()
+            model.onEvent(WeeklyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+            assertThat(preparations).isEqualTo(2)
+            assertThat(model.effects.first()).isEqualTo(WeeklyUiEffect.ShowRewardAd(challenge))
             coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
         }
 

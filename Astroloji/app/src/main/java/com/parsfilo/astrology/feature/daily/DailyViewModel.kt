@@ -15,6 +15,7 @@ import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.TimeUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 enum class DailyFeedback(
@@ -79,6 +80,10 @@ class DailyViewModel
     ) : MviViewModel<DailyUiState, DailyUiEvent, DailyUiEffect>(DailyUiState()) {
         private val signFromArgs: String? = savedStateHandle.get<String>("sign")
 
+        // Claim preparation is a network call; repeated taps must not mint
+        // multiple outstanding SSV challenges for a single user action.
+        private val preparingReward = AtomicBoolean(false)
+
         init {
             viewModelScope.launch {
                 load(signFromArgs ?: preferencesRepository.current().selectedSign, false)
@@ -103,23 +108,28 @@ class DailyViewModel
         }
 
         private fun prepareRewardUnlock() {
+            if (!preparingReward.compareAndSet(false, true)) return
             viewModelScope.launch {
-                setState { copy(error = null) }
-                if (!adEligibilityChecker.canShowRewarded()) {
-                    setState { copy(canUnlockWithReward = false) }
-                    return@launch
-                }
-                val identifier = TimeUtils.dateIdentifier()
-                when (val result = contentRepository.prepareRewardUnlock("daily", identifier)) {
-                    is AppResult.Success -> {
-                        if (adEligibilityChecker.canShowRewarded()) {
-                            sendEffect { DailyUiEffect.ShowRewardAd(result.data) }
-                        } else {
-                            setState { copy(canUnlockWithReward = false) }
-                        }
+                try {
+                    setState { copy(error = null) }
+                    if (!adEligibilityChecker.canShowRewarded()) {
+                        setState { copy(canUnlockWithReward = false) }
+                        return@launch
                     }
-                    is AppResult.Error -> setState { copy(error = result.exception.message) }
-                    AppResult.Loading -> Unit
+                    val identifier = TimeUtils.dateIdentifier()
+                    when (val result = contentRepository.prepareRewardUnlock("daily", identifier)) {
+                        is AppResult.Success -> {
+                            if (adEligibilityChecker.canShowRewarded()) {
+                                sendEffect { DailyUiEffect.ShowRewardAd(result.data) }
+                            } else {
+                                setState { copy(canUnlockWithReward = false) }
+                            }
+                        }
+                        is AppResult.Error -> setState { copy(error = result.exception.message) }
+                        AppResult.Loading -> Unit
+                    }
+                } finally {
+                    preparingReward.set(false)
                 }
             }
         }
