@@ -43,8 +43,15 @@ describe('app routes', () => {
     expect(html).toContain('Account and Data Deletion');
     expect(html).toContain('Google Play');
     expect(html).toContain('info@parsfilo.com');
-    expect(html).toContain('26 October 2026');
+    expect(html).toContain('27 October 2026');
     expect(html).toContain('şifreli kaydedilmiş doğum profili');
+    expect(html).toContain('uygulamayı yeniden yüklemeden');
+    expect(html).toContain('without reinstalling the app');
+    expect(html).toContain('anonim Firebase oturumu');
+    expect(html).toContain('No account is erased solely on an unverified email claim');
+    expect(html).toContain('giriş kodu, oturum/Firebase belirteci');
+    expect(html).toContain('Never email passwords, sign-in codes, session/Firebase');
+    expect(html).toContain('mailto:info@parsfilo.com?subject=Astroloji%20account%20deletion');
   });
 
   it.each([
