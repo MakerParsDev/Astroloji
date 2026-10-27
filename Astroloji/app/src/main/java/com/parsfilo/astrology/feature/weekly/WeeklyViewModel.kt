@@ -70,6 +70,7 @@ class WeeklyViewModel
                 }
                 WeeklyUiEvent.UnlockWithReward -> {
                     viewModelScope.launch {
+                        setState { copy(error = null) }
                         if (!adEligibilityChecker.canShowRewarded()) {
                             setState { copy(canUnlockWithReward = false) }
                             return@launch
