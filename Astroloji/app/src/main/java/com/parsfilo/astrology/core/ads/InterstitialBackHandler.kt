@@ -37,7 +37,7 @@ fun InterstitialBackHandler(
                 val eligible =
                     flags != null &&
                         entry.adEligibilityChecker().canShowInterstitial() &&
-                        entry.adFrequencyManager().canShowInterstitial(flags)
+                        entry.adFrequencyManager().canShowInterstitialOnBack(flags)
                 if (!eligible) {
                     backNavigation.complete(onNavigateBack)
                     return@launch
