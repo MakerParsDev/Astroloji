@@ -31,9 +31,12 @@ fun InterstitialBackHandler(
         scope.launch {
             try {
                 val entry = adsEntryPoint(hostActivity)
-                val flags = entry.remoteConfigRepository().fetchFlags()
+                // Use only already activated/default policy values here. Network
+                // fetches can delay BACK; missing policy means no ad, not a wait.
+                val flags = entry.remoteConfigRepository().cachedInterstitialFlagsOrNull()
                 val eligible =
-                    entry.adEligibilityChecker().canShowInterstitial() &&
+                    flags != null &&
+                        entry.adEligibilityChecker().canShowInterstitial() &&
                         entry.adFrequencyManager().canShowInterstitial(flags)
                 if (!eligible) {
                     backNavigation.complete(onNavigateBack)
