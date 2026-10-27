@@ -3,6 +3,7 @@ package com.parsfilo.astrology.feature.settings
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.remote.UpdateUserRequest
 import com.parsfilo.astrology.core.data.repository.BillingManager
 import com.parsfilo.astrology.core.data.repository.BirthDataRepository
 import com.parsfilo.astrology.core.data.repository.FavoritesRepository
@@ -15,10 +16,12 @@ import com.parsfilo.astrology.core.util.AppResult
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.Before
@@ -74,6 +77,71 @@ class SettingsViewModelTest {
                 .isEqualTo("Offline: server profile not synchronized.")
             coVerify(exactly = 1) { preferencesRepository.updateNotification(true, 8) }
             coVerify(exactly = 1) { sessionRepository.updateProfile(any()) }
+        }
+
+    @Test
+    fun `successful reminder sync does not clear an unrelated failed language sync`() =
+        runTest {
+            val failure = "Language could not be synchronized."
+            coEvery { preferencesRepository.updateLanguage("en") } returns Unit
+            coEvery { preferencesRepository.updateNotification(true, 8) } returns Unit
+            coEvery {
+                sessionRepository.updateProfile(match { it.language == "en" })
+            } returns AppResult.Error(AppException.NetworkException(failure))
+            coEvery {
+                sessionRepository.updateProfile(match { it.notificationHour == 8 })
+            } returns AppResult.Success(mockk<UserProfile>())
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(SettingsUiEvent.ChangeLanguage("en"))
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.error).isEqualTo(failure)
+
+            viewModel.onEvent(SettingsUiEvent.ChangeNotificationHour(8))
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.notificationHour).isEqualTo(8)
+            assertThat(viewModel.state.value.error).isEqualTo(failure)
+
+            coEvery {
+                sessionRepository.updateProfile(match { it.language == "en" })
+            } returns AppResult.Success(mockk<UserProfile>())
+            viewModel.onEvent(SettingsUiEvent.ChangeLanguage("en"))
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.error).isNull()
+        }
+
+    @Test
+    fun `rapid disable and hour selection cannot restore enabled notifications`() =
+        runTest {
+            val firstWriteGate = CompletableDeferred<Unit>()
+            val preferenceWrites = mutableListOf<Pair<Boolean, Int>>()
+            val remoteWrites = mutableListOf<UpdateUserRequest>()
+            coEvery { preferencesRepository.updateNotification(any(), any()) } coAnswers {
+                preferenceWrites.add(firstArg<Boolean>() to secondArg<Int>())
+                if (preferenceWrites.size == 1) firstWriteGate.await()
+            }
+            coEvery { sessionRepository.updateProfile(any()) } coAnswers {
+                remoteWrites.add(firstArg<UpdateUserRequest>())
+                AppResult.Success(mockk<UserProfile>())
+            }
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(SettingsUiEvent.ChangeNotificationEnabled(false))
+            runCurrent()
+            viewModel.onEvent(SettingsUiEvent.ChangeNotificationHour(8))
+            runCurrent()
+            assertThat(viewModel.state.value.notificationEnabled).isFalse()
+            assertThat(viewModel.state.value.notificationHour).isEqualTo(8)
+
+            firstWriteGate.complete(Unit)
+            advanceUntilIdle()
+
+            assertThat(preferenceWrites.last()).isEqualTo(false to 8)
+            assertThat(remoteWrites.last().notificationEnabled).isFalse()
+            assertThat(remoteWrites.last().notificationHour).isEqualTo(8)
+            assertThat(viewModel.state.value.notificationEnabled).isFalse()
         }
 
     @Test
