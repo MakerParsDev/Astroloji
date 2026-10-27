@@ -1,6 +1,7 @@
 # Google Play Policy Answer Set — Astroloji
 
-- **Effective date:** 2026-08-06
+- **Original effective date:** 2026-08-06
+- **Latest Play Console/source reconciliation:** 2026-10-27 (dated snapshot; reverify before changing forms or releasing)
 - **Package:** `com.parsfilo.astrology`
 - **Developer identity:** ParsFilo
 - **Canonical store configuration:** `Astroloji/play/store-config.json`
@@ -14,7 +15,8 @@
 - Privacy policy: https://astrology.parsfilo.com/privacy
 - Ads: Yes
 - Purchases: Google Play subscriptions and Google Play in-app products (consumable credit packs)
-- Data deletion request: Available in app
+- Data deletion request: Available in app (feature availability is version-dependent; older distributed clients can lack separate birth-profile or mood-history deletion UI)
+- Health information: Optional mood check-ins are conservatively disclosed in completed Play Data Safety as **collected and shared**, non-ephemeral, for app functionality, analytics and personalization; analytics sharing declared. Health Apps is **Other**, nonmedical astrology-derived patterns, not diagnosis or treatment. Final legal/provider-retention acceptance remains open under #113.
 - Optional date of birth: Collected for app functionality. Two distinct flows — see `docs/DATA_SAFETY_2026.md` row "Saved birth date/time and birth city coordinates": the stateless Personal Guidance Beta remains ephemeral (never persisted), while the separate, optional saved-birth-data flow (`PUT /users/me/birth-data`, enabling personalized daily content and Ascendant/house calculation) is **persisted, encrypted at rest**, and independently deletable
 - Approximate or precise location: Birth city coordinates are collected as part of the optional saved-birth-data flow above (encrypted at rest, never returned in plaintext); the app does not otherwise collect device/GPS location
 - AI-generated content: Yes — daily/weekly/monthly/personality/compatibility content, AI deep-reading, and AI chat consultation are LLM-generated; declare per Play's AI-generated content policy
@@ -34,7 +36,8 @@
 | Purchases | Google Play subscriptions and consumable in-app credit packs | BillingClient and backend verification | Subscription products remain `premium_monthly`/`monthly` and `premium_weekly`/`weekly`; credit products remain `credits_small`/`credits_medium`/`credits_large` |
 | Data: date of birth | Optional; ephemeral for the stateless Personal Guidance Beta, persisted (encrypted) for the separate saved-birth-data flow | Personal Guidance request (not persisted) vs. `PUT /users/me/birth-data` (AES-256-GCM in `user_birth_data`) | See `docs/DATA_SAFETY_2026.md` row "Saved birth date/time and birth city coordinates" for the exact persistence/deletion contract |
 | Data: approximate or precise location | Optional; birth city coordinates only, as part of the saved-birth-data flow | Same `user_birth_data` encrypted row as birth date/time | No device GPS/location permission is requested; never returned in plaintext after save |
-| Data: app interactions | Collected for analytics | Firebase Analytics and bounded event allowlist | No free-form or direct identifiers in event parameters |
+| Data: app interactions | Collected for analytics | Firebase Analytics and bounded event allowlist | New app builds do not send a mood category; older distributed 1105/1106 clients can still have transmitted one directly to Firebase |
+| Data: optional mood check-ins | **Health information**: collected YES, shared YES (conservative published answers), optional, non-ephemeral | Authenticated `mood_logs` persisted in D1; legacy Firebase SDK versions may retain category metadata | Current Data Safety and Health Apps **Other** declarations must be reconciled with all distributed versions, provider retention and the real scoped-deletion support workflow; do not infer legal sign-off or automatic provider erasure |
 | Data: crash logs and diagnostics | Collected for analytics and app stability | Firebase Crashlytics | Provider disclosure and retention reviewed |
 | Data: device or other IDs | Collected for app functionality, analytics, notifications, and advertising | Firebase Installation ID, FCM, Mobile Ads/UMP | Advertising and notification purposes remain declared |
 | Data: purchase history | Collected for app functionality, fraud prevention, and account management | Play purchase token, subscription state, and `credit_ledger` entries | Account-linked app records are removed on account deletion subject to provider or legal retention |
@@ -65,8 +68,8 @@
 1. Capture a read-only Play Console snapshot and compare every current answer with this document.
 2. Stop when page structure, current values, or engineering evidence differs from the approved state.
 3. Verify the website, privacy policy, and deletion URL return HTTPS 200.
-4. Verify a support message can be delivered to `info@parsfilo.com` before publishing the support identity.
+4. Verify real delivery and response from the `info@parsfilo.com` support recipient with a synthetic test, then verify a requester-identity check and scoped deletion fulfillment on disposable data. The address is already public; configured forwarding alone **does not** pass this pending operational gate. Do not claim this acceptance from MX/HTTP checks.
 5. Save account deletion and Data Safety answers only after the bounded browser action plan is approved for the exact current page state.
 6. Submit changes for review only after a second read-back shows the intended values.
 7. Verify the public Play page after approval and preserve evidence without account identities or secrets.
-8. Record production release `1102` as currently completed at 100% (`1.0`). Do not change rollout during policy or metadata work. A 10% cap applies only to a future/staged release after a separate stability and conversion approval.
+8. Verify actual production/internal version codes and rollout percentages in the authenticated Play Console before any release decision. **Dated 2026-10-27 read:** production `1.0.104` (`1105`) at 100%; internal `1.0.1107` (`1107`). New production rollout is **NO-GO / HOLD** under #110 (especially P0 #141); no new Play build, submission, or rollout is authorized by a documentation update.

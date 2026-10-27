@@ -33,6 +33,18 @@ test('real policy answer set is consistent with store config and engineering mat
   assert.deepEqual(validatePolicyAnswerSet(answerSet, storeConfig, matrix), []);
 });
 
+test('operator references conservatively disclosed mood data and a current release hold', () => {
+  assert.match(answerSet, /Health information: Optional mood check-ins/);
+  assert.match(answerSet, /shared YES \(conservative published answers\)/);
+  assert.match(answerSet, /1105\/1106 clients/);
+  assert.match(answerSet, /support recipient with a synthetic test/);
+  assert.match(answerSet, /NO-GO \/ HOLD/);
+  assert.match(matrix, /Optional mood check-in/);
+  assert.match(matrix, /mood_logs/);
+  assert.match(matrix, /Health info: Collected YES \/ Shared YES/);
+  assert.match(matrix, /old distributed 1105\/1106 SDK traffic/);
+});
+
 test('validator rejects support identity drift', () => {
   const drifted = answerSet.replace(storeConfig.support.email, 'wrong@example.com');
   const errors = validatePolicyAnswerSet(drifted, storeConfig, matrix);
