@@ -23,6 +23,7 @@ playServicesAppSet = "16.1.0"
 rules = "1.7.0"
 runner = "1.7.0"
 ump = "4.0.0"
+playHsdP = "2.2.0"
 coil = "3.6.3"
 coroutines = "1.11.0"
 appcompat = "1.8.0"
@@ -101,6 +102,7 @@ firebase-appcheck-debug = { group = "com.google.firebase", name = "firebase-appc
 
 # Google Play Services
 play-services-ads = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "playServicesAds" }
+google-play-hsdp = { group = "com.google.android.play", name = "hsdp", version.ref = "playHsdP" }
 play-services-appset = { group = "com.google.android.gms", name = "play-services-appset", version.ref = "playServicesAppSet" }
 play-billing-ktx = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "playBilling" }
 user-messaging-platform = { group = "com.google.android.ump", name = "user-messaging-platform", version.ref = "ump" }

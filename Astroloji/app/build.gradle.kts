@@ -462,6 +462,14 @@ dependencies {
     add("storeQaImplementation", libs.firebase.appcheck.debug)
 
     // ── Google Play Services ──────────────────────────────────────────────────
+    // Next-Gen GMA 1.6.0 cites HSDP 2.2.0 for IllegalStateException.
+    // Legacy GMA 25.5.0 compatibility is build-checked; field fix unverified.
+    // Constrain only the transitive HSDP version, preserving the Legacy GMA API.
+    constraints {
+        implementation(libs.google.play.hsdp) {
+            because("HSDP 2.2.0 Legacy GMA compatibility mitigation; field acceptance pending")
+        }
+    }
     implementation(libs.play.services.ads)
     implementation(libs.play.services.appset)
     implementation(libs.user.messaging.platform)
