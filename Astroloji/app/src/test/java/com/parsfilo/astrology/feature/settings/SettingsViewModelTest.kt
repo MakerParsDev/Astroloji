@@ -58,6 +58,25 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `offline reminder change keeps local hour and surfaces unsynced profile error`() =
+        runTest {
+            coEvery { preferencesRepository.updateNotification(true, 8) } returns Unit
+            coEvery { sessionRepository.updateProfile(any()) } returns
+                AppResult.Error(AppException.NetworkException("Offline: server profile not synchronized."))
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(SettingsUiEvent.ChangeNotificationHour(8))
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.notificationHour).isEqualTo(8)
+            assertThat(viewModel.state.value.error)
+                .isEqualTo("Offline: server profile not synchronized.")
+            coVerify(exactly = 1) { preferencesRepository.updateNotification(true, 8) }
+            coVerify(exactly = 1) { sessionRepository.updateProfile(any()) }
+        }
+
+    @Test
     fun `birth profile deletion requires explicit confirmation`() =
         runTest {
             val viewModel = createViewModel()

@@ -125,32 +125,34 @@ class SettingsViewModel
                     }
                     is SettingsUiEvent.ChangeLanguage -> {
                         preferencesRepository.updateLanguage(event.language)
-                        sessionRepository.updateProfile(UpdateUserRequest(language = event.language))
-                        setState { copy(language = event.language) }
+                        val syncError = syncProfileError(UpdateUserRequest(language = event.language))
+                        setState { copy(language = event.language, error = syncError) }
                     }
                     is SettingsUiEvent.ChangeSign -> {
-                        sessionRepository.updateProfile(UpdateUserRequest(sign = event.sign))
-                        setState { copy(profile = state.value.profile?.copy(sign = event.sign)) }
+                        val syncError = syncProfileError(UpdateUserRequest(sign = event.sign))
+                        setState { copy(profile = state.value.profile?.copy(sign = event.sign), error = syncError) }
                     }
                     is SettingsUiEvent.ChangeNotificationEnabled -> {
                         preferencesRepository.updateNotification(event.enabled, state.value.notificationHour)
-                        sessionRepository.updateProfile(
-                            UpdateUserRequest(
-                                notificationEnabled = event.enabled,
-                                notificationHour = state.value.notificationHour,
-                            ),
-                        )
-                        setState { copy(notificationEnabled = event.enabled) }
+                        val syncError =
+                            syncProfileError(
+                                UpdateUserRequest(
+                                    notificationEnabled = event.enabled,
+                                    notificationHour = state.value.notificationHour,
+                                ),
+                            )
+                        setState { copy(notificationEnabled = event.enabled, error = syncError) }
                     }
                     is SettingsUiEvent.ChangeNotificationHour -> {
                         preferencesRepository.updateNotification(state.value.notificationEnabled, event.hour)
-                        sessionRepository.updateProfile(
-                            UpdateUserRequest(
-                                notificationEnabled = state.value.notificationEnabled,
-                                notificationHour = event.hour,
-                            ),
-                        )
-                        setState { copy(notificationHour = event.hour) }
+                        val syncError =
+                            syncProfileError(
+                                UpdateUserRequest(
+                                    notificationEnabled = state.value.notificationEnabled,
+                                    notificationHour = event.hour,
+                                ),
+                            )
+                        setState { copy(notificationHour = event.hour, error = syncError) }
                     }
                     is SettingsUiEvent.RemoveFavorite -> {
                         favoritesRepository.remove(event.sign)
@@ -160,6 +162,11 @@ class SettingsViewModel
                     else -> handleAccountActions(event)
                 }
             }
+        }
+
+        private suspend fun syncProfileError(request: UpdateUserRequest): String? {
+            val result = sessionRepository.updateProfile(request)
+            return (result as? AppResult.Error)?.exception?.message
         }
 
         private suspend fun handleAccountActions(event: SettingsUiEvent) {
