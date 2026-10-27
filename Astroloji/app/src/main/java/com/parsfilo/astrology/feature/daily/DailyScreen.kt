@@ -14,12 +14,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -96,6 +101,15 @@ fun DailyScreen(
     if (uiState.isLoading && uiState.horoscope == null) {
         LoadingState()
         return
+    }
+
+    // Keep ad failure feedback visible even when the locked card is far above the
+    // inline retry section at the end of this long reading.
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(uiState.error, uiState.horoscope) {
+        if (uiState.horoscope != null) {
+            uiState.error?.let { snackbarHostState.showSnackbar(it, duration = SnackbarDuration.Long) }
+        }
     }
 
     PullToRefreshBox(
@@ -223,6 +237,10 @@ fun DailyScreen(
 
                 uiState.error?.let { ErrorState(message = it, onRetry = { viewModel.onEvent(DailyUiEvent.Refresh) }) }
             }
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp),
+            )
         }
     }
 }

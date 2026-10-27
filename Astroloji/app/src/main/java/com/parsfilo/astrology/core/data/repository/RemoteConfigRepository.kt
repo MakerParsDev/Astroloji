@@ -39,6 +39,27 @@ class RemoteConfigRepository
     constructor(
         private val remoteConfig: FirebaseRemoteConfig,
     ) {
+        /**
+         * BACK navigation must not wait on a fresh Remote Config network fetch.
+         * If setup/defaults have not completed, fail closed rather than showing an ad.
+         */
+        fun cachedInterstitialFlagsOrNull(): RemoteFlags? {
+            val requiredKeys =
+                listOf(
+                    RemoteConfigKeys.INTERSTITIAL_FREQUENCY,
+                    RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT,
+                    RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES,
+                )
+            if (requiredKeys.any { remoteConfig.getValue(it).source == FirebaseRemoteConfig.VALUE_SOURCE_STATIC }) {
+                return null
+            }
+            return RemoteFlags(
+                interstitialFrequency = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY).toInt(),
+                interstitialDailyLimit = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT).toInt(),
+                interstitialCooldownMinutes = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toInt(),
+            )
+        }
+
         suspend fun fetchFlags(): RemoteFlags =
             withContext(Dispatchers.IO) {
                 remoteConfig
