@@ -33,6 +33,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
 import retrofit2.Response
+import java.io.IOException
 import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -192,8 +193,15 @@ class ContentRepository
         ): AppResult<RewardChallenge> =
             withContext(dispatchers.io) {
                 val response =
-                    authenticatedRequest {
-                        api.prepareReward(RewardPrepareRequest(rewardType = rewardType, identifier = identifier))
+                    try {
+                        authenticatedRequest {
+                            api.prepareReward(RewardPrepareRequest(rewardType = rewardType, identifier = identifier))
+                        }
+                    } catch (e: IOException) {
+                        // Offline preflight must never crash the ViewModel or start an unverified ad.
+                        return@withContext AppResult.Error(
+                            AppException.NetworkException("Reward preparation is unavailable.", e),
+                        )
                     }
                 when {
                     response.isSuccessful -> {
@@ -223,17 +231,25 @@ class ContentRepository
         ): AppResult<Unit> =
             withContext(dispatchers.io) {
                 val outcome =
-                    pollRewardClaim(
-                        maxAttempts = REWARD_CLAIM_MAX_ATTEMPTS,
-                        delayMillis = REWARD_CLAIM_DELAY_MILLIS,
-                    ) {
-                        val response =
-                            authenticatedRequest {
-                                api.claimReward(RewardClaimRequest(challengeId = challengeId))
-                            }
-                        RewardClaimAttempt(
-                            statusCode = response.code(),
-                            errorCode = response.errorCode(),
+                    try {
+                        pollRewardClaim(
+                            maxAttempts = REWARD_CLAIM_MAX_ATTEMPTS,
+                            delayMillis = REWARD_CLAIM_DELAY_MILLIS,
+                        ) {
+                            val response =
+                                authenticatedRequest {
+                                    api.claimReward(RewardClaimRequest(challengeId = challengeId))
+                                }
+                            RewardClaimAttempt(
+                                statusCode = response.code(),
+                                errorCode = response.errorCode(),
+                            )
+                        }
+                    } catch (e: IOException) {
+                        // The backend may have already received a valid SSV. Never grant access
+                        // locally on a lost response; a later content reload checks server state.
+                        return@withContext AppResult.Error(
+                            AppException.NetworkException("Reward verification is temporarily unavailable.", e),
                         )
                     }
                 when (outcome) {
