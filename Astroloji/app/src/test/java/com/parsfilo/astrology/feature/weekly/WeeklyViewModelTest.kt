@@ -191,8 +191,12 @@ class WeeklyViewModelTest {
                 )
             advanceUntilIdle()
 
+            viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable("Önceki reklam hatası"))
+            assertThat(viewModel.state.value.error).isEqualTo("Önceki reklam hatası")
+
             viewModel.onEvent(WeeklyUiEvent.UnlockWithReward)
             advanceUntilIdle()
+            assertThat(viewModel.state.value.error).isNull()
             val effect = viewModel.effects.first()
 
             assertThat(effect).isEqualTo(WeeklyUiEffect.ShowRewardAd(challenge))

@@ -104,6 +104,7 @@ class DailyViewModel
 
         private fun prepareRewardUnlock() {
             viewModelScope.launch {
+                setState { copy(error = null) }
                 if (!adEligibilityChecker.canShowRewarded()) {
                     setState { copy(canUnlockWithReward = false) }
                     return@launch
