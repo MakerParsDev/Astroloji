@@ -162,11 +162,15 @@ class SessionRepository
         suspend fun updateProfile(request: UpdateUserRequest): AppResult<UserProfile> =
             withContext(dispatchers.io) {
                 val response =
-                    requestExecutor.execute(
-                        { api.updateUser(request) },
-                        ::refreshAfterUnauthorized,
-                        ::clearInvalidSession,
-                    )
+                    try {
+                        requestExecutor.execute(
+                            { api.updateUser(request) },
+                            ::refreshAfterUnauthorized,
+                            ::clearInvalidSession,
+                        )
+                    } catch (exception: IOException) {
+                        return@withContext profileUpdateNetworkError(exception)
+                    }
                 if (!response.isSuccessful) {
                     return@withContext AppResult.Error(
                         if (response.code() == 401) {
@@ -211,6 +215,14 @@ class SessionRepository
                 )
                 AppResult.Success(entity.toDomain())
             }
+
+        private fun profileUpdateNetworkError(exception: IOException): AppResult.Error =
+            AppResult.Error(
+                AppException.NetworkException(
+                    stringsProvider.get(R.string.session_error_profile_update_failed),
+                    exception,
+                ),
+            )
 
         suspend fun deleteAccount(): AppResult<Unit> =
             withContext(dispatchers.io) {

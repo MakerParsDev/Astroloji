@@ -13,6 +13,8 @@ import com.parsfilo.astrology.core.ui.MviViewModel
 import com.parsfilo.astrology.core.util.AppResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 
 data class SettingsUiState(
@@ -86,6 +88,12 @@ sealed interface SettingsEffect {
     data object AccountDeleted : SettingsEffect
 }
 
+private enum class ProfileSyncField {
+    LANGUAGE,
+    SIGN,
+    NOTIFICATION,
+}
+
 @HiltViewModel
 class SettingsViewModel
     @Inject
@@ -97,6 +105,9 @@ class SettingsViewModel
         private val birthDataRepository: BirthDataRepository,
         private val moodRepository: MoodRepository,
     ) : MviViewModel<SettingsUiState, SettingsUiEvent, SettingsEffect>(SettingsUiState()) {
+        private val profileSyncMutex = Mutex()
+        private val profileSyncErrors = linkedMapOf<ProfileSyncField, String>()
+
         init {
             viewModelScope.launch {
                 val prefs = preferencesRepository.current()
@@ -117,6 +128,18 @@ class SettingsViewModel
         }
 
         override fun onEvent(event: SettingsUiEvent) {
+            // Publish the latest user intent before any suspendable local or remote I/O.
+            when (event) {
+                is SettingsUiEvent.ChangeNotificationEnabled ->
+                    setState { copy(notificationEnabled = event.enabled) }
+                is SettingsUiEvent.ChangeNotificationHour ->
+                    setState { copy(notificationHour = event.hour) }
+                is SettingsUiEvent.ChangeLanguage ->
+                    setState { copy(language = event.language) }
+                is SettingsUiEvent.ChangeSign ->
+                    setState { copy(profile = profile?.copy(sign = event.sign)) }
+                else -> Unit
+            }
             viewModelScope.launch {
                 when (event) {
                     is SettingsUiEvent.ChangeTheme -> {
@@ -124,34 +147,19 @@ class SettingsViewModel
                         setState { copy(theme = event.theme) }
                     }
                     is SettingsUiEvent.ChangeLanguage -> {
-                        preferencesRepository.updateLanguage(event.language)
-                        sessionRepository.updateProfile(UpdateUserRequest(language = event.language))
-                        setState { copy(language = event.language) }
+                        profileSyncMutex.withLock {
+                            preferencesRepository.updateLanguage(event.language)
+                            recordProfileSyncResult(
+                                ProfileSyncField.LANGUAGE,
+                                sessionRepository.updateProfile(UpdateUserRequest(language = event.language)),
+                            )
+                        }
                     }
-                    is SettingsUiEvent.ChangeSign -> {
-                        sessionRepository.updateProfile(UpdateUserRequest(sign = event.sign))
-                        setState { copy(profile = state.value.profile?.copy(sign = event.sign)) }
-                    }
-                    is SettingsUiEvent.ChangeNotificationEnabled -> {
-                        preferencesRepository.updateNotification(event.enabled, state.value.notificationHour)
-                        sessionRepository.updateProfile(
-                            UpdateUserRequest(
-                                notificationEnabled = event.enabled,
-                                notificationHour = state.value.notificationHour,
-                            ),
-                        )
-                        setState { copy(notificationEnabled = event.enabled) }
-                    }
-                    is SettingsUiEvent.ChangeNotificationHour -> {
-                        preferencesRepository.updateNotification(state.value.notificationEnabled, event.hour)
-                        sessionRepository.updateProfile(
-                            UpdateUserRequest(
-                                notificationEnabled = state.value.notificationEnabled,
-                                notificationHour = event.hour,
-                            ),
-                        )
-                        setState { copy(notificationHour = event.hour) }
-                    }
+                    is SettingsUiEvent.ChangeSign ->
+                        syncProfile(ProfileSyncField.SIGN, UpdateUserRequest(sign = event.sign))
+                    is SettingsUiEvent.ChangeNotificationEnabled,
+                    is SettingsUiEvent.ChangeNotificationHour,
+                    -> syncProfile(ProfileSyncField.NOTIFICATION)
                     is SettingsUiEvent.RemoveFavorite -> {
                         favoritesRepository.remove(event.sign)
                         val favorites = favoritesRepository.getFavorites()
@@ -160,6 +168,38 @@ class SettingsViewModel
                     else -> handleAccountActions(event)
                 }
             }
+        }
+
+        private suspend fun syncProfile(
+            field: ProfileSyncField,
+            request: UpdateUserRequest? = null,
+        ) {
+            profileSyncMutex.withLock {
+                val currentRequest =
+                    if (field == ProfileSyncField.NOTIFICATION) {
+                        // Resolve the latest enabled/hour pair under the write lock.
+                        val enabled = state.value.notificationEnabled
+                        val hour = state.value.notificationHour
+                        preferencesRepository.updateNotification(enabled, hour)
+                        UpdateUserRequest(notificationEnabled = enabled, notificationHour = hour)
+                    } else {
+                        checkNotNull(request)
+                    }
+                recordProfileSyncResult(field, sessionRepository.updateProfile(currentRequest))
+            }
+        }
+
+        private fun recordProfileSyncResult(
+            field: ProfileSyncField,
+            result: AppResult<UserProfile>,
+        ) {
+            when (result) {
+                is AppResult.Success -> profileSyncErrors.remove(field)
+                is AppResult.Error -> profileSyncErrors[field] = result.exception.message.orEmpty()
+                AppResult.Loading -> return
+            }
+            // A successful update of a different field cannot clear an unsynced change.
+            setState { copy(error = profileSyncErrors.values.firstOrNull()) }
         }
 
         private suspend fun handleAccountActions(event: SettingsUiEvent) {

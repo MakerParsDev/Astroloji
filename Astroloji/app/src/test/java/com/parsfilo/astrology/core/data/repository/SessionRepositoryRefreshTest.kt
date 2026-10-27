@@ -13,6 +13,7 @@ import com.parsfilo.astrology.core.data.push.PushRegistrationManager
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.RegisterUserRequest
 import com.parsfilo.astrology.core.data.remote.RegisterUserResponse
+import com.parsfilo.astrology.core.data.remote.UpdateUserRequest
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.data.session.SessionRefreshCoordinator
 import com.parsfilo.astrology.core.data.session.SessionTokenStore
@@ -74,6 +75,41 @@ class SessionRepositoryRefreshTest {
             assertThat(tokenStore.current()).isEqualTo(activeToken)
             coVerify(exactly = 0) { preferencesRepository.clearSession() }
             coVerify(exactly = 0) { userProfileDao.clear() }
+        }
+
+    @Test
+    fun `offline profile update returns a network error without crashing or losing the session`() =
+        runTest {
+            val activeToken = jwt(exp = 4_000_000_000)
+            tokenStore.update(activeToken)
+            coEvery { api.updateUser(any()) } throws java.net.UnknownHostException("offline")
+            val repository = createRepository()
+
+            val result =
+                repository.updateProfile(
+                    UpdateUserRequest(notificationEnabled = true, notificationHour = 8),
+                )
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception)
+                .isInstanceOf(AppException.NetworkException::class.java)
+            assertThat(tokenStore.current()).isEqualTo(activeToken)
+            coVerify(exactly = 0) { preferencesRepository.clearSession() }
+            coVerify(exactly = 0) {
+                preferencesRepository.updateSession(
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                    any(),
+                )
+            }
+            coVerify(exactly = 0) { userProfileDao.upsert(any()) }
         }
 
     @Test
