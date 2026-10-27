@@ -5,13 +5,14 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
- * A cached banner must disappear as soon as the active entitlement or UMP
- * ad-request permission changes, without requiring navigation or refresh.
+ * Null removes the banner (premium or UMP disallowed). A new consent
+ * revision replaces an existing banner even if canRequestAds stays true:
+ * UMP privacy choices can change without toggling ad-request eligibility.
  */
-internal fun bannerEligibilityFlow(
+internal fun bannerPresentationRevisionFlow(
     premiumFlow: Flow<Boolean>,
-    consentFlow: Flow<Boolean>,
-): Flow<Boolean> =
-    combine(premiumFlow, consentFlow) { isPremium, canRequestAds ->
-        !isPremium && canRequestAds
+    consentFlow: Flow<AdConsentSnapshot>,
+): Flow<Long?> =
+    combine(premiumFlow, consentFlow) { isPremium, consent ->
+        consent.revision.takeIf { !isPremium && consent.canRequestAds }
     }.distinctUntilChanged()

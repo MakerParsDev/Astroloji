@@ -19,6 +19,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 
+/**
+ * Atomic UI projection of the last known UMP permission and refresh revision.
+ * Ads loaded under an older revision must not survive a consent form update.
+ */
+data class AdConsentSnapshot(
+    val canRequestAds: Boolean,
+    val revision: Long,
+)
+
 @Singleton
 class GoogleMobileAdsConsentManager
     @Inject
@@ -37,6 +46,10 @@ class GoogleMobileAdsConsentManager
 
         val canRequestAdsFlow: StateFlow<Boolean> = _canRequestAds.asStateFlow()
 
+        private val _consentSnapshotFlow =
+            MutableStateFlow(AdConsentSnapshot(_canRequestAds.value, consentEpochCounter.get()))
+        val consentSnapshotFlow: StateFlow<AdConsentSnapshot> = _consentSnapshotFlow.asStateFlow()
+
         private val _privacyOptionsRequired = MutableStateFlow(isPrivacyOptionsRequired)
         val privacyOptionsRequired: StateFlow<Boolean> = _privacyOptionsRequired.asStateFlow()
 
@@ -51,28 +64,31 @@ class GoogleMobileAdsConsentManager
                 consentInformation.privacyOptionsRequirementStatus ==
                     ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
 
+        /** Publish permission and version together for banner lifecycle decisions. */
+        private fun publishConsentUpdate() {
+            val revision = consentEpochCounter.incrementAndGet()
+            val allowed = consentInformation.canRequestAds()
+            _canRequestAds.value = allowed
+            _privacyOptionsRequired.value = isPrivacyOptionsRequired
+            _consentSnapshotFlow.value = AdConsentSnapshot(allowed, revision)
+        }
+
         suspend fun gatherConsent(activity: Activity) {
             suspendCancellableCoroutine { continuation ->
                 consentInformation.requestConsentInfoUpdate(
                     activity,
                     buildRequestParameters(activity),
                     {
-                        consentEpochCounter.incrementAndGet()
-                        _canRequestAds.value = consentInformation.canRequestAds()
-                        _privacyOptionsRequired.value = isPrivacyOptionsRequired
+                        publishConsentUpdate()
                         UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity) { formError ->
                             formError?.let { Timber.w("Consent form dismissed with error: %s", it.message) }
-                            consentEpochCounter.incrementAndGet()
-                            _canRequestAds.value = consentInformation.canRequestAds()
-                            _privacyOptionsRequired.value = isPrivacyOptionsRequired
+                            publishConsentUpdate()
                             if (continuation.isActive) continuation.resume(Unit)
                         }
                     },
                     { requestError ->
                         Timber.w("Consent info update failed: %s", requestError.message)
-                        consentEpochCounter.incrementAndGet()
-                        _canRequestAds.value = consentInformation.canRequestAds()
-                        _privacyOptionsRequired.value = isPrivacyOptionsRequired
+                        publishConsentUpdate()
                         if (continuation.isActive) continuation.resume(Unit)
                     },
                 )
@@ -82,9 +98,7 @@ class GoogleMobileAdsConsentManager
         suspend fun showPrivacyOptionsForm(activity: Activity): FormError? =
             suspendCancellableCoroutine { continuation ->
                 UserMessagingPlatform.showPrivacyOptionsForm(activity) { formError ->
-                    consentEpochCounter.incrementAndGet()
-                    _canRequestAds.value = consentInformation.canRequestAds()
-                    _privacyOptionsRequired.value = isPrivacyOptionsRequired
+                    publishConsentUpdate()
                     if (continuation.isActive) continuation.resume(formError)
                 }
             }
