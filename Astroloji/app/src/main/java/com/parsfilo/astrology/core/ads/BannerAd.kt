@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -27,16 +28,16 @@ fun AdaptiveBannerAd(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val activity = context.findActivity() ?: return
     val entryPoint = remember(context.applicationContext) { adsEntryPoint(context) }
-    val bannerAllowedFlow =
+    val bannerRevisionFlow =
         remember(entryPoint) {
-            bannerEligibilityFlow(
+            bannerPresentationRevisionFlow(
                 entryPoint.userPreferencesRepository().preferences.map { it.isPremium },
-                entryPoint.consentManager().canRequestAdsFlow,
+                entryPoint.consentManager().consentSnapshotFlow,
             )
         }
-    // Fail closed while the current premium/UMP state is still unknown.
-    val canShowBanner by bannerAllowedFlow.collectAsState(initial = false)
-    if (!canShowBanner) return
+    // Fail closed until the premium and UMP policy have both been observed.
+    val displayRevision by bannerRevisionFlow.collectAsState(initial = null)
+    val revision = displayRevision ?: return
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val adWidth = maxWidth.value.toInt().coerceAtLeast(320)
@@ -45,7 +46,7 @@ fun AdaptiveBannerAd(modifier: Modifier = Modifier) {
                 AdSize.getLargeAnchoredAdaptiveBannerAdSize(activity, adWidth)
             }
         val adView =
-            remember(adWidth) {
+            remember(adWidth, revision) {
                 AdView(activity).apply {
                     setAdUnitId(AdMobUnits.banner)
                     setAdSize(adSize)
@@ -63,17 +64,21 @@ fun AdaptiveBannerAd(modifier: Modifier = Modifier) {
                 }
             }
 
-        DisposableEffect(adView) {
-            onDispose { adView.destroy() }
-        }
+        // AndroidView.factory runs only when the node is created. Key the
+        // node to the AdView so consent or size changes dispose the old ad.
+        key(adView) {
+            DisposableEffect(adView) {
+                onDispose { adView.destroy() }
+            }
 
-        AndroidView(
-            factory = { adView },
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(adSize.height.dp),
-        )
+            AndroidView(
+                factory = { adView },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(adSize.height.dp),
+            )
+        }
     }
 }
 
