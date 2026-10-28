@@ -88,8 +88,8 @@ class StaleConsentLoadRetryTest {
         }
     }
 
-    @Test
-    fun rewardedFailureBackoffFromOldConsentCannotBlockNewRequest() {
+    /** Both cases first observe a real failure in the same UMP revision. */
+    private fun withRewardedLoadInBackoff(verifyCase: (RewardedAdManager, List<RewardedAdLoadCallback>) -> Unit) {
         configureConsent()
         val callbacks = mutableListOf<RewardedAdLoadCallback>()
         mockkStatic(RewardedAd::class)
@@ -99,42 +99,31 @@ class StaleConsentLoadRetryTest {
             every { RewardedAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
             val manager = RewardedAdManager(context, consent, analytics)
             manager.preload()
-            callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
+            callbacks.single().onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
             manager.preload()
             assertThat(callbacks).hasSize(1)
+            verifyCase(manager, callbacks)
+        } finally {
+            unmockkStatic(SystemClock::class)
+            unmockkStatic(RewardedAd::class)
+        }
+    }
 
+    @Test
+    fun rewardedFailureBackoffFromOldConsentCannotBlockNewRequest() =
+        withRewardedLoadInBackoff { manager, callbacks ->
             revision = 5L
             manager.preload()
             assertThat(callbacks).hasSize(2)
-        } finally {
-            unmockkStatic(SystemClock::class)
-            unmockkStatic(RewardedAd::class)
         }
-    }
 
     @Test
-    fun realRewardedLoadFailureStillUsesNormalBackoff() {
-        configureConsent()
-        val callbacks = mutableListOf<RewardedAdLoadCallback>()
-        mockkStatic(RewardedAd::class)
-        mockkStatic(SystemClock::class)
-        try {
-            every { SystemClock.elapsedRealtime() } returns 10_000L
-            every { RewardedAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
-            val manager = RewardedAdManager(context, consent, analytics)
-            manager.preload()
-            callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
-            manager.preload()
-            assertThat(callbacks).hasSize(1)
-
+    fun realRewardedLoadFailureStillUsesNormalBackoff() =
+        withRewardedLoadInBackoff { manager, callbacks ->
             every { SystemClock.elapsedRealtime() } returns 40_000L
             manager.preload()
             assertThat(callbacks).hasSize(2)
-        } finally {
-            unmockkStatic(SystemClock::class)
-            unmockkStatic(RewardedAd::class)
         }
-    }
 
     @Test
     fun obsoleteInterstitialFailureTriggersFreshLoadWithoutBackoff() {
