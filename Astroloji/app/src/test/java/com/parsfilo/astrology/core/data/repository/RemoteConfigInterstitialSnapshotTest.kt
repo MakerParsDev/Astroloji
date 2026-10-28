@@ -74,6 +74,23 @@ class RemoteConfigInterstitialSnapshotTest {
     }
 
     @Test
+    fun `out of range daily caps must never wrap into a positive show limit`() {
+        val value = mockk<FirebaseRemoteConfigValue>()
+        every { value.source } returns FirebaseRemoteConfig.VALUE_SOURCE_REMOTE
+        every { remoteConfig.getValue(any()) } returns value
+        every { remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY) } returns 5L
+        every { remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES) } returns 30L
+        for (invalidCap in listOf(-4_294_967_295L, 4_294_967_297L)) {
+            every { remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT) } returns invalidCap
+
+            val flags = RemoteConfigRepository(remoteConfig).cachedInterstitialFlagsOrNull()
+
+            assertThat(flags).isNotNull()
+            assertThat(flags!!.interstitialDailyLimit).isEqualTo(0)
+        }
+    }
+
+    @Test
     fun `missing cooldown prevents interstitial even when daily cap is present`() {
         val defaultValue = mockk<FirebaseRemoteConfigValue>()
         val staticValue = mockk<FirebaseRemoteConfigValue>()
