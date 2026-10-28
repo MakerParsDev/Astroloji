@@ -80,12 +80,16 @@ class RewardedAdManager
             )
         }
 
+        @Suppress("ReturnCount")
         fun showIfAvailable(
             activity: Activity,
             request: RewardedAdRequest,
             onRewardEarned: (RewardItem) -> Unit,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            // Never play an ad that cannot be attributed to a valid SSV claim.
+            // Keep the cached creative available for a later valid request.
+            if (request.ssvUserId.isBlank() || request.ssvCustomData.isBlank()) return false
             discardAdFromEarlierConsentRevision()
             // Consent can change after preload. Never show an old ad if revoked.
             val consentAllowed = consentManager.canRequestAds

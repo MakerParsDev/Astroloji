@@ -403,6 +403,79 @@ class RewardedAdSsvTest {
     }
 
     @Test
+    fun `invalid SSV identifiers cannot start an ad or grant a reward`() {
+        val invalidRequests =
+            listOf(
+                RewardedAdRequest("unlock_daily_full", "", "challenge"),
+                RewardedAdRequest("unlock_daily_full", "  ", "challenge"),
+                RewardedAdRequest("unlock_daily_full", "user", ""),
+                RewardedAdRequest("unlock_daily_full", "user", "  "),
+            )
+        for (request in invalidRequests) {
+            val ad = mockk<RewardedAd>(relaxed = true)
+            val activity = mockk<Activity>(relaxed = true)
+            val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
+            every { consent.canRequestAds } returns true
+            val manager =
+                RewardedAdManager(
+                    mockk<Context>(relaxed = true),
+                    consent,
+                    mockk<AnalyticsRepository>(relaxed = true),
+                )
+            val cachedAd = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
+            cachedAd.isAccessible = true
+            cachedAd.set(manager, ad)
+            var earned = 0
+
+            assertThat(manager.showIfAvailable(activity, request, onRewardEarned = { earned++ })).isFalse()
+
+            assertThat(earned).isEqualTo(0)
+            assertThat(cachedAd.get(manager)).isSameInstanceAs(ad)
+            verify(exactly = 0) { ad.setServerSideVerificationOptions(any()) }
+            verify(exactly = 0) { ad.show(any<Activity>(), any<OnUserEarnedRewardListener>()) }
+        }
+    }
+
+    @Test
+    fun `invalid SSV request leaves a cached ad reusable for a valid challenge`() {
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
+        every { consent.canRequestAds } returns true
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        val cachedAd = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
+        cachedAd.isAccessible = true
+        cachedAd.set(manager, ad)
+        val loadedRevision = RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision")
+        loadedRevision.isAccessible = true
+        loadedRevision.setLong(manager, consent.consentRevision)
+
+        assertThat(
+            manager.showIfAvailable(
+                activity,
+                RewardedAdRequest("unlock_weekly_full", "user", " "),
+                onRewardEarned = {},
+            ),
+        ).isFalse()
+        assertThat(cachedAd.get(manager)).isSameInstanceAs(ad)
+
+        assertThat(
+            manager.showIfAvailable(
+                activity,
+                RewardedAdRequest("unlock_weekly_full", "user", "challenge"),
+                onRewardEarned = {},
+            ),
+        ).isTrue()
+        verify(exactly = 1) { ad.setServerSideVerificationOptions(any()) }
+        verify(exactly = 1) { ad.show(any<Activity>(), any<OnUserEarnedRewardListener>()) }
+    }
+
+    @Test
     fun `applies backend user and challenge to the rewarded ad`() {
         val ad = mockk<RewardedAd>()
         val options = slot<ServerSideVerificationOptions>()
