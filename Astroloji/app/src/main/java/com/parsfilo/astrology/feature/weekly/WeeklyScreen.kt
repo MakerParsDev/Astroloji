@@ -39,6 +39,7 @@ import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
+import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.core.util.localizedReadingRange
 import com.parsfilo.astrology.core.util.localizedReadingWeek
@@ -81,6 +82,7 @@ fun WeeklyScreen(
                                     placement = "unlock_weekly_full",
                                     ssvUserId = effect.challenge.userId,
                                     ssvCustomData = effect.challenge.customData,
+                                    expiresAtMillis = TimeUtils.parseIsoMillis(effect.challenge.expiresAt) ?: 0L,
                                 ),
                             onRewardEarned = {
                                 viewModel.onEvent(WeeklyUiEvent.RewardEarned(effect.challenge.challengeId))

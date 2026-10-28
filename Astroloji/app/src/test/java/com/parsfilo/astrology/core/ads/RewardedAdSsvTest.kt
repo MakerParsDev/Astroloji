@@ -50,6 +50,7 @@ class RewardedAdSsvTest {
                         placement = "unlock_daily_full",
                         ssvUserId = "test-user",
                         ssvCustomData = "test-challenge",
+                        expiresAtMillis = Long.MAX_VALUE,
                     ),
                 onRewardEarned = { rewardCount++ },
                 onDismissed = { dismissalCount++ },
@@ -93,7 +94,13 @@ class RewardedAdSsvTest {
         assertThat(
             manager.showIfAvailable(
                 activity = activity,
-                request = RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                request =
+                    RewardedAdRequest(
+                        placement = "unlock_daily_full",
+                        ssvUserId = "test-user",
+                        ssvCustomData = "test-challenge",
+                        expiresAtMillis = Long.MAX_VALUE,
+                    ),
                 onRewardEarned = { rewardCount++ },
                 onDismissed = { dismissedCount++ },
             ),
@@ -140,7 +147,12 @@ class RewardedAdSsvTest {
         assertThat(
             manager.showIfAvailable(
                 activity,
-                RewardedAdRequest("unlock_daily_full", "synthetic-user", "synthetic-challenge"),
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "synthetic-user",
+                    "synthetic-challenge",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
                 onRewardEarned = { rewardCount++ },
                 onDismissed = { dismissedCount++ },
             ),
@@ -190,7 +202,12 @@ class RewardedAdSsvTest {
         assertThat(
             manager.showIfAvailable(
                 activity,
-                RewardedAdRequest("unlock_weekly_full", "test-user", "test-challenge"),
+                RewardedAdRequest(
+                    "unlock_weekly_full",
+                    "test-user",
+                    "test-challenge",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
                 onRewardEarned = { rewards++ },
                 onDismissed = { dismissed++ },
             ),
@@ -233,7 +250,12 @@ class RewardedAdSsvTest {
         assertThat(
             manager.showIfAvailable(
                 activity,
-                RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "test-user",
+                    "test-challenge",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
                 onRewardEarned = { rewards++ },
                 onDismissed = { dismissed++ },
             ),
@@ -276,7 +298,13 @@ class RewardedAdSsvTest {
         assertThat(
             manager.showIfAvailable(
                 activity = activity,
-                request = RewardedAdRequest("unlock_weekly_full", "test-user", "test-challenge"),
+                request =
+                    RewardedAdRequest(
+                        placement = "unlock_weekly_full",
+                        ssvUserId = "test-user",
+                        ssvCustomData = "test-challenge",
+                        expiresAtMillis = Long.MAX_VALUE,
+                    ),
                 onRewardEarned = { rewardCount++ },
             ),
         ).isTrue()
@@ -320,7 +348,12 @@ class RewardedAdSsvTest {
         assertThat(
             manager.showIfAvailable(
                 activity,
-                RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "test-user",
+                    "test-challenge",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
                 onRewardEarned = { rewards++ },
             ),
         ).isTrue()
@@ -356,7 +389,12 @@ class RewardedAdSsvTest {
         assertThat(
             manager.showIfAvailable(
                 activity,
-                RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "test-user",
+                    "test-challenge",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
                 onRewardEarned = { rewards++ },
             ),
         ).isFalse()
@@ -389,7 +427,12 @@ class RewardedAdSsvTest {
         val shown =
             manager.showIfAvailable(
                 activity,
-                RewardedAdRequest("unlock_daily_full", "test-user", "test-challenge"),
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "test-user",
+                    "test-challenge",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
                 onRewardEarned = { rewardCount++ },
             )
 
@@ -403,13 +446,109 @@ class RewardedAdSsvTest {
     }
 
     @Test
+    fun `an expired or nearly expired SSV challenge never starts a cached rewarded ad`() {
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
+        every { consent.canRequestAds } returns true
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val cached = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
+        cached.isAccessible = true
+        cached.set(manager, ad)
+        val expiryTimes =
+            listOf(
+                0L,
+                System.currentTimeMillis() - 1_000L,
+                System.currentTimeMillis() + 15_000L,
+            )
+        var earned = 0
+        for (expiry in expiryTimes) {
+            val shown =
+                manager.showIfAvailable(
+                    activity,
+                    RewardedAdRequest(
+                        "unlock_daily_full",
+                        "user",
+                        "challenge",
+                        expiresAtMillis = expiry,
+                    ),
+                    onRewardEarned = { earned++ },
+                )
+            assertThat(shown).isFalse()
+            assertThat(cached.get(manager)).isSameInstanceAs(ad)
+        }
+        assertThat(earned).isEqualTo(0)
+        verify(exactly = 0) { ad.show(any<Activity>(), any<OnUserEarnedRewardListener>()) }
+    }
+
+    @Test
+    fun `a valid newly prepared SSV challenge may use the cached rewarded ad`() {
+        val activity = mockk<Activity>(relaxed = true)
+        val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
+        every { consent.canRequestAds } returns true
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                mockk<AnalyticsRepository>(relaxed = true),
+            )
+        val ad = mockk<RewardedAd>(relaxed = true)
+        val cached = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
+        cached.isAccessible = true
+        cached.set(manager, ad)
+        val loadedRevision = RewardedAdManager::class.java.getDeclaredField("loadedConsentRevision")
+        loadedRevision.isAccessible = true
+        loadedRevision.setLong(manager, consent.consentRevision)
+
+        val shown =
+            manager.showIfAvailable(
+                activity,
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "user",
+                    "challenge",
+                    expiresAtMillis = System.currentTimeMillis() + 600_000L,
+                ),
+                onRewardEarned = {},
+            )
+
+        assertThat(shown).isTrue()
+        verify(exactly = 1) { ad.show(any<Activity>(), any<OnUserEarnedRewardListener>()) }
+    }
+
+    @Test
     fun `invalid SSV identifiers cannot start an ad or grant a reward`() {
         val invalidRequests =
             listOf(
-                RewardedAdRequest("unlock_daily_full", "", "challenge"),
-                RewardedAdRequest("unlock_daily_full", "  ", "challenge"),
-                RewardedAdRequest("unlock_daily_full", "user", ""),
-                RewardedAdRequest("unlock_daily_full", "user", "  "),
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "",
+                    "challenge",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "  ",
+                    "challenge",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "user",
+                    "",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
+                RewardedAdRequest(
+                    "unlock_daily_full",
+                    "user",
+                    "  ",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
             )
         for (request in invalidRequests) {
             val ad = mockk<RewardedAd>(relaxed = true)
@@ -458,7 +597,12 @@ class RewardedAdSsvTest {
         assertThat(
             manager.showIfAvailable(
                 activity,
-                RewardedAdRequest("unlock_weekly_full", "user", " "),
+                RewardedAdRequest(
+                    "unlock_weekly_full",
+                    "user",
+                    " ",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
                 onRewardEarned = {},
             ),
         ).isFalse()
@@ -467,7 +611,12 @@ class RewardedAdSsvTest {
         assertThat(
             manager.showIfAvailable(
                 activity,
-                RewardedAdRequest("unlock_weekly_full", "user", "challenge"),
+                RewardedAdRequest(
+                    "unlock_weekly_full",
+                    "user",
+                    "challenge",
+                    expiresAtMillis = Long.MAX_VALUE,
+                ),
                 onRewardEarned = {},
             ),
         ).isTrue()

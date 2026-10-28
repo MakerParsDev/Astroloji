@@ -42,6 +42,7 @@ import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.HoroscopeCardRenderer
+import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.navigation.dailyShareLandingUrl
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +86,7 @@ fun DailyScreen(
                                     placement = "unlock_daily_full",
                                     ssvUserId = effect.challenge.userId,
                                     ssvCustomData = effect.challenge.customData,
+                                    expiresAtMillis = TimeUtils.parseIsoMillis(effect.challenge.expiresAt) ?: 0L,
                                 ),
                             onRewardEarned = {
                                 viewModel.onEvent(DailyUiEvent.RewardEarned(effect.challenge.challengeId))
