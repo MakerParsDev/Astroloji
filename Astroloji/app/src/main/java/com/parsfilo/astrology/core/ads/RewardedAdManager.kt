@@ -62,6 +62,8 @@ class RewardedAdManager
                         // Consent can be revoked while the SDK is loading this creative.
                         if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             rewardedAd = null
+                            // A stale creative cannot satisfy the current consent snapshot.
+                            if (consentManager.canRequestAds) preload()
                             return
                         }
                         rewardedAd = ad
@@ -73,6 +75,12 @@ class RewardedAdManager
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         rewardedAd = null
                         isLoading = false
+                        // A failed request from before a privacy update must not
+                        // impose backoff on a new consent revision.
+                        if (consentManager.consentRevision != loadRevision) {
+                            if (consentManager.canRequestAds) preload()
+                            return
+                        }
                         loadRetryGate.recordFailure()
                         Timber.w("Rewarded ad failed: %s", error.message)
                     }

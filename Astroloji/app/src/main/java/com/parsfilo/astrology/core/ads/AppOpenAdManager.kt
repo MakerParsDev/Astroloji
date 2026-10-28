@@ -59,6 +59,8 @@ class AppOpenAdManager
                         if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             appOpenAd = null
                             loadElapsedRealtimeMs = 0L
+                            // Retry under the latest UMP decision, not the obsolete load.
+                            if (consentManager.canRequestAds) preload()
                             return
                         }
                         appOpenAd = ad
@@ -71,6 +73,12 @@ class AppOpenAdManager
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         appOpenAd = null
                         isLoading = false
+                        // A failed request from before a privacy update must not
+                        // impose backoff on a new consent revision.
+                        if (consentManager.consentRevision != loadRevision) {
+                            if (consentManager.canRequestAds) preload()
+                            return
+                        }
                         loadRetryGate.recordFailure()
                         Timber.w("App open ad failed: %s", error.message)
                     }

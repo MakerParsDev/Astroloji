@@ -57,6 +57,8 @@ class InterstitialAdManager
                         // Discard an in-flight load if the consent state changed.
                         if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             interstitialAd = null
+                            // A stale creative cannot satisfy the current consent snapshot.
+                            if (consentManager.canRequestAds) preload()
                             return
                         }
                         interstitialAd = ad
@@ -68,6 +70,12 @@ class InterstitialAdManager
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         interstitialAd = null
                         isLoading = false
+                        // A failed request from before a privacy update must not
+                        // impose backoff on a new consent revision.
+                        if (consentManager.consentRevision != loadRevision) {
+                            if (consentManager.canRequestAds) preload()
+                            return
+                        }
                         loadRetryGate.recordFailure()
                         Timber.w("Interstitial ad failed: %s", error.message)
                     }
