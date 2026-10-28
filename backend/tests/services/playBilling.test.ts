@@ -66,6 +66,49 @@ describe('play billing subscription normalization', () => {
       })
     ).toBe(false);
   });
+  it('rejects a valid subscription token when Play line items belong to another product', async () => {
+    createGoogleAccessTokenMock.mockResolvedValue('google-access-token');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({
+        subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+        startTime: '2026-10-01T00:00:00.000Z',
+        lineItems: [{ productId: 'premium_monthly', expiryTime: '2099-10-01T00:00:00.000Z' }]
+      })
+    );
+
+    const subscription = await getSubscriptionStatus(
+      createTestEnv(),
+      'purchase-token',
+      'premium_weekly',
+      'com.parsfilo.astrology'
+    );
+
+    expect(subscription).toBeNull();
+  });
+
+  it('selects the exact requested product from multiple valid Play line items', async () => {
+    createGoogleAccessTokenMock.mockResolvedValue('google-access-token');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      Response.json({
+        subscriptionState: 'SUBSCRIPTION_STATE_ACTIVE',
+        lineItems: [
+          { productId: 'premium_monthly', expiryTime: '2099-10-01T00:00:00.000Z' },
+          { productId: 'premium_weekly', expiryTime: '2099-11-01T00:00:00.000Z' }
+        ]
+      })
+    );
+
+    const subscription = await getSubscriptionStatus(
+      createTestEnv(),
+      'purchase-token',
+      'premium_weekly',
+      'com.parsfilo.astrology'
+    );
+
+    expect(subscription?.productId).toBe('premium_weekly');
+    expect(subscription?.expiresAt).toBe('2099-11-01T00:00:00.000Z');
+  });
+
   it('bounds Google Play API calls with a fifteen-second AbortSignal', async () => {
     createGoogleAccessTokenMock.mockResolvedValue('google-access-token');
     const signal = new AbortController().signal;

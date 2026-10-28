@@ -51,7 +51,8 @@ function normalizeSubscription(
   productId: string,
   raw: GooglePlaySubscriptionResponse
 ): GooglePlaySubscription | null {
-  const lineItem = raw.lineItems?.find((item) => item.productId === productId) ?? raw.lineItems?.[0];
+  // Never accept a different product from a valid Play token as proof of the requested SKU.
+  const lineItem = raw.lineItems?.find((item) => item.productId === productId);
   if (!lineItem?.expiryTime) {
     return null;
   }
