@@ -54,9 +54,11 @@ class RemoteConfigRepository
                 return null
             }
             return RemoteFlags(
-                interstitialFrequency = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY).toInt(),
+                interstitialFrequency =
+                    remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY).toSafeFrequency(),
                 interstitialDailyLimit = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT).toInt(),
-                interstitialCooldownMinutes = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toInt(),
+                interstitialCooldownMinutes =
+                    remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toSafeCooldownMinutes(),
             )
         }
 
@@ -93,9 +95,11 @@ class RemoteConfigRepository
                 RemoteFlags(
                     showPremiumBanner = remoteConfig.getBoolean(RemoteConfigKeys.SHOW_PREMIUM_BANNER),
                     showBannerAds = remoteConfig.getBoolean(RemoteConfigKeys.SHOW_BANNER_ADS),
-                    interstitialFrequency = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY).toInt(),
+                    interstitialFrequency =
+                        remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY).toSafeFrequency(),
                     interstitialDailyLimit = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT).toInt(),
-                    interstitialCooldownMinutes = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toInt(),
+                    interstitialCooldownMinutes =
+                        remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toSafeCooldownMinutes(),
                     premiumTrialDays = remoteConfig.getLong(RemoteConfigKeys.PREMIUM_TRIAL_DAYS).toInt(),
                     rewardedDailyUnlockLimit = remoteConfig.getLong(RemoteConfigKeys.REWARDED_DAILY_UNLOCK_LIMIT).toInt(),
                     appOpenMinBackgroundMs = remoteConfig.getLong(RemoteConfigKeys.APP_OPEN_MIN_BACKGROUND_MS),
@@ -106,3 +110,9 @@ class RemoteConfigRepository
                 )
             }
     }
+
+// Never let Long -> Int wrapping weaken the interstitial pacing policy.
+// Invalid frequency disables the format; invalid cooldown blocks premature reuse.
+private fun Long.toSafeFrequency(): Int = if (this in 0L..Int.MAX_VALUE.toLong()) toInt() else 0
+
+private fun Long.toSafeCooldownMinutes(): Int = if (this in 0L..Int.MAX_VALUE.toLong()) toInt() else Int.MAX_VALUE
