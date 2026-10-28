@@ -60,6 +60,7 @@ class AdFrequencyManager
             // Day rollover cannot bypass a cooldown; convert before multiplying.
             val cooldownMs = flags.interstitialCooldownMinutes.coerceAtLeast(0).toLong() * MILLIS_PER_MINUTE
             return dailyLimit > 0 &&
+                countToday >= 0 &&
                 countToday < dailyLimit &&
                 nowMs - preferences.lastInterstitialShown >= cooldownMs
         }
@@ -85,7 +86,9 @@ class AdFrequencyManager
                 val today = nowMs.toDateKey()
                 val nextCount =
                     if (preferences.interstitialCountDate == today) {
-                        preferences.interstitialCountToday + 1
+                        // Corrupted or saturated counters must never wrap and reopen the daily quota.
+                        val previousCount = preferences.interstitialCountToday
+                        if (previousCount in 0 until Int.MAX_VALUE) previousCount + 1 else Int.MAX_VALUE
                     } else {
                         1
                     }
