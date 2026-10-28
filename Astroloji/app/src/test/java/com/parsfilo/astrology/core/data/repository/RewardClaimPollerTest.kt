@@ -59,6 +59,33 @@ class RewardClaimPollerTest {
         }
 
     @Test
+    fun `terminal expired and missing challenges permit safe fresh preparation`() =
+        runTest {
+            val terminalResponses =
+                listOf(
+                    RewardClaimAttempt(410, "REWARD_CHALLENGE_EXPIRED"),
+                    RewardClaimAttempt(410, "REWARD_ENTITLEMENT_EXPIRED"),
+                    RewardClaimAttempt(404, "REWARD_CHALLENGE_NOT_FOUND"),
+                )
+            for (attempt in terminalResponses) {
+                var calls = 0
+                val outcome =
+                    pollRewardClaim(maxAttempts = 3, delayMillis = 1, delayFn = {}) {
+                        calls++
+                        attempt
+                    }
+                assertThat(outcome).isEqualTo(RewardClaimPollOutcome.EXPIRED)
+                assertThat(calls).isEqualTo(1)
+            }
+
+            assertThat(
+                pollRewardClaim(maxAttempts = 3, delayMillis = 1, delayFn = {}) {
+                    RewardClaimAttempt(404, "OTHER_NOT_FOUND")
+                },
+            ).isEqualTo(RewardClaimPollOutcome.FAILED)
+        }
+
+    @Test
     fun `does not retry unauthorized or permanent failures`() =
         runTest {
             assertThat(

@@ -194,6 +194,12 @@ fun DailyScreen(
                             } else {
                                 null
                             },
+                        rewardLabel =
+                            if (uiState.pendingRewardChallengeId != null) {
+                                stringResource(R.string.common_retry)
+                            } else {
+                                stringResource(R.string.reward_unlock_daily)
+                            },
                     )
                     DailySectionCard(
                         title = stringResource(R.string.daily_section_love),
@@ -237,7 +243,20 @@ fun DailyScreen(
                     AdaptiveBannerAd(modifier = Modifier.padding(top = 4.dp))
                 }
 
-                uiState.error?.let { ErrorState(message = it, onRetry = { viewModel.onEvent(DailyUiEvent.Refresh) }) }
+                uiState.error?.let {
+                    ErrorState(
+                        message = it,
+                        onRetry = {
+                            viewModel.onEvent(
+                                if (uiState.pendingRewardChallengeId != null) {
+                                    DailyUiEvent.RetryRewardVerification
+                                } else {
+                                    DailyUiEvent.Refresh
+                                },
+                            )
+                        },
+                    )
+                }
             }
             SnackbarHost(
                 hostState = snackbarHostState,
@@ -248,12 +267,14 @@ fun DailyScreen(
 }
 
 @Composable
+@Suppress("FunctionNaming", "LongParameterList")
 private fun DailySectionCard(
     title: String,
     body: String,
     locked: Boolean,
     onOpenPremium: () -> Unit,
     rewardAction: (() -> Unit)? = null,
+    rewardLabel: String = "",
 ) {
     AstrologyCard {
         Text(
@@ -266,7 +287,7 @@ private fun DailySectionCard(
             Button(onClick = onOpenPremium) { Text(stringResource(R.string.common_open_premium)) }
             rewardAction?.let { unlockWithReward ->
                 OutlinedButton(onClick = unlockWithReward) {
-                    Text(stringResource(R.string.reward_unlock_daily))
+                    Text(rewardLabel)
                 }
             }
         }
