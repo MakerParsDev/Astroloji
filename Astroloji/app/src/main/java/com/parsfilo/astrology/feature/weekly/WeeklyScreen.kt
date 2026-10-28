@@ -143,6 +143,12 @@ fun WeeklyScreen(
                         } else {
                             null
                         }
+                    val rewardLabel =
+                        if (uiState.pendingRewardChallengeId != null) {
+                            stringResource(R.string.common_retry)
+                        } else {
+                            stringResource(R.string.reward_unlock_weekly)
+                        }
 
                     val weeklySign = ZodiacSign.fromKey(weekly.sign)
                     PremiumHeroCard(
@@ -180,6 +186,7 @@ fun WeeklyScreen(
                         locked = weekly.love == null,
                         onOpenPremium = onOpenPremium,
                         rewardAction = rewardAction.takeIf { rewardSection == WeeklyPremiumSection.LOVE },
+                        rewardLabel = rewardLabel,
                     )
                     WeeklySectionCard(
                         title = stringResource(R.string.weekly_tab_career),
@@ -187,6 +194,7 @@ fun WeeklyScreen(
                         locked = weekly.career == null,
                         onOpenPremium = onOpenPremium,
                         rewardAction = rewardAction.takeIf { rewardSection == WeeklyPremiumSection.CAREER },
+                        rewardLabel = rewardLabel,
                     )
                     WeeklySectionCard(
                         title = stringResource(R.string.weekly_tab_money),
@@ -194,6 +202,7 @@ fun WeeklyScreen(
                         locked = weekly.money == null,
                         onOpenPremium = onOpenPremium,
                         rewardAction = rewardAction.takeIf { rewardSection == WeeklyPremiumSection.MONEY },
+                        rewardLabel = rewardLabel,
                     )
                     weekly.warning?.let {
                         AstrologyCard {
@@ -209,7 +218,20 @@ fun WeeklyScreen(
                     AdaptiveBannerAd(modifier = Modifier.padding(top = 4.dp))
                 }
 
-                uiState.error?.let { ErrorState(message = it, onRetry = { viewModel.onEvent(WeeklyUiEvent.Refresh) }) }
+                uiState.error?.let {
+                    ErrorState(
+                        message = it,
+                        onRetry = {
+                            viewModel.onEvent(
+                                if (uiState.pendingRewardChallengeId != null) {
+                                    WeeklyUiEvent.RetryRewardVerification
+                                } else {
+                                    WeeklyUiEvent.Refresh
+                                },
+                            )
+                        },
+                    )
+                }
             }
             SnackbarHost(
                 hostState = snackbarHostState,
@@ -220,12 +242,14 @@ fun WeeklyScreen(
 }
 
 @Composable
+@Suppress("FunctionNaming", "LongParameterList")
 private fun WeeklySectionCard(
     title: String,
     body: String,
     locked: Boolean,
     onOpenPremium: () -> Unit,
     rewardAction: (() -> Unit)? = null,
+    rewardLabel: String = "",
 ) {
     AstrologyCard {
         Text(text = title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -234,7 +258,7 @@ private fun WeeklySectionCard(
             Button(onClick = onOpenPremium) { Text(stringResource(R.string.common_open_premium)) }
             rewardAction?.let { unlockWithReward ->
                 OutlinedButton(onClick = unlockWithReward) {
-                    Text(stringResource(R.string.reward_unlock_weekly))
+                    Text(rewardLabel)
                 }
             }
         }

@@ -25,12 +25,15 @@ data class WeeklyUiState(
     val error: String? = null,
     val showBannerAd: Boolean = false,
     val canUnlockWithReward: Boolean = false,
+    val pendingRewardChallengeId: String? = null,
 )
 
 sealed interface WeeklyUiEvent {
     data object Refresh : WeeklyUiEvent
 
     data object UnlockWithReward : WeeklyUiEvent
+
+    data object RetryRewardVerification : WeeklyUiEvent
 
     data class RewardAdUnavailable(
         val message: String,
@@ -51,13 +54,15 @@ sealed interface WeeklyUiEffect {
 class WeeklyViewModel
     @Inject
     constructor(
-        savedStateHandle: SavedStateHandle,
+        private val savedStateHandle: SavedStateHandle,
         private val contentRepository: ContentRepository,
         private val preferencesRepository: UserPreferencesRepository,
         private val analyticsRepository: AnalyticsRepository,
         private val remoteConfigRepository: RemoteConfigRepository,
         private val adEligibilityChecker: AdEligibilityChecker,
-    ) : MviViewModel<WeeklyUiState, WeeklyUiEvent, WeeklyUiEffect>(WeeklyUiState()) {
+    ) : MviViewModel<WeeklyUiState, WeeklyUiEvent, WeeklyUiEffect>(
+            WeeklyUiState(pendingRewardChallengeId = savedStateHandle["pendingRewardChallengeId"]),
+        ) {
         private val signFromArgs: String? = savedStateHandle.get<String>("sign")
         private val preparingReward = AtomicBoolean(false)
         private val claimingReward = AtomicBoolean(false)
@@ -73,6 +78,9 @@ class WeeklyViewModel
                     viewModelScope.launch { load(true) }
                 }
                 WeeklyUiEvent.UnlockWithReward -> prepareRewardUnlock()
+                WeeklyUiEvent.RetryRewardVerification -> {
+                    state.value.pendingRewardChallengeId?.let(::claimRewardUnlock)
+                }
                 is WeeklyUiEvent.RewardAdUnavailable -> {
                     setState { copy(error = event.message) }
                 }
@@ -81,6 +89,12 @@ class WeeklyViewModel
         }
 
         private fun prepareRewardUnlock() {
+            // If an SDK reward was already earned, verify it instead of
+            // asking the user to watch a second ad for the same content.
+            state.value.pendingRewardChallengeId?.let {
+                claimRewardUnlock(it)
+                return
+            }
             if (!preparingReward.compareAndSet(false, true)) return
             viewModelScope.launch {
                 try {
@@ -108,14 +122,21 @@ class WeeklyViewModel
         }
 
         private fun claimRewardUnlock(challengeId: String) {
-            // A late/duplicate SDK reward event must not re-claim a completed SSV challenge.
-            if (challengeId == claimedChallengeId) return
-            if (!claimingReward.compareAndSet(false, true)) return
+            if (challengeId == claimedChallengeId || !claimingReward.compareAndSet(false, true)) return
+            // Do not replace an earned, unverified challenge with a different one.
+            if (state.value.pendingRewardChallengeId?.let { it != challengeId } == true) {
+                claimingReward.set(false)
+                return
+            }
+            savedStateHandle["pendingRewardChallengeId"] = challengeId
+            setState { copy(pendingRewardChallengeId = challengeId, error = null) }
             viewModelScope.launch {
                 try {
                     when (val result = contentRepository.claimRewardUnlock(challengeId)) {
                         is AppResult.Success -> {
                             claimedChallengeId = challengeId
+                            savedStateHandle.remove<String>("pendingRewardChallengeId")
+                            setState { copy(pendingRewardChallengeId = null) }
                             load(true)
                         }
                         is AppResult.Error -> setState { copy(error = result.exception.message) }

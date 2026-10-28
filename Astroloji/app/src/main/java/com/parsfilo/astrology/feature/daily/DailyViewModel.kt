@@ -38,6 +38,7 @@ data class DailyUiState(
     val isRefreshing: Boolean = false,
     val showBannerAd: Boolean = false,
     val canUnlockWithReward: Boolean = false,
+    val pendingRewardChallengeId: String? = null,
     val feedback: DailyFeedback? = null,
 )
 
@@ -45,6 +46,8 @@ sealed interface DailyUiEvent {
     data object Refresh : DailyUiEvent
 
     data object UnlockWithReward : DailyUiEvent
+
+    data object RetryRewardVerification : DailyUiEvent
 
     data class RewardAdUnavailable(
         val message: String,
@@ -71,13 +74,15 @@ sealed interface DailyUiEffect {
 class DailyViewModel
     @Inject
     constructor(
-        savedStateHandle: SavedStateHandle,
+        private val savedStateHandle: SavedStateHandle,
         private val contentRepository: ContentRepository,
         private val preferencesRepository: UserPreferencesRepository,
         private val analyticsRepository: AnalyticsRepository,
         private val remoteConfigRepository: RemoteConfigRepository,
         private val adEligibilityChecker: AdEligibilityChecker,
-    ) : MviViewModel<DailyUiState, DailyUiEvent, DailyUiEffect>(DailyUiState()) {
+    ) : MviViewModel<DailyUiState, DailyUiEvent, DailyUiEffect>(
+            DailyUiState(pendingRewardChallengeId = savedStateHandle["pendingRewardChallengeId"]),
+        ) {
         private val signFromArgs: String? = savedStateHandle.get<String>("sign")
 
         // Claim preparation is a network call; repeated taps must not mint
@@ -96,6 +101,9 @@ class DailyViewModel
             when (event) {
                 DailyUiEvent.Refresh -> refresh()
                 DailyUiEvent.UnlockWithReward -> prepareRewardUnlock()
+                DailyUiEvent.RetryRewardVerification -> {
+                    state.value.pendingRewardChallengeId?.let(::claimRewardUnlock)
+                }
                 is DailyUiEvent.RewardAdUnavailable -> setState { copy(error = event.message) }
                 is DailyUiEvent.RewardEarned -> claimRewardUnlock(event.challengeId)
                 is DailyUiEvent.SubmitFeedback -> submitFeedback(event.feedback)
@@ -110,6 +118,12 @@ class DailyViewModel
         }
 
         private fun prepareRewardUnlock() {
+            // If an SDK reward was already earned, verify it instead of
+            // asking the user to watch a second ad for the same content.
+            state.value.pendingRewardChallengeId?.let {
+                claimRewardUnlock(it)
+                return
+            }
             if (!preparingReward.compareAndSet(false, true)) return
             viewModelScope.launch {
                 try {
@@ -137,14 +151,21 @@ class DailyViewModel
         }
 
         private fun claimRewardUnlock(challengeId: String) {
-            // A late/duplicate SDK reward event must not re-claim a completed SSV challenge.
-            if (challengeId == claimedChallengeId) return
-            if (!claimingReward.compareAndSet(false, true)) return
+            if (challengeId == claimedChallengeId || !claimingReward.compareAndSet(false, true)) return
+            // Do not replace an earned, unverified challenge with a different one.
+            if (state.value.pendingRewardChallengeId?.let { it != challengeId } == true) {
+                claimingReward.set(false)
+                return
+            }
+            savedStateHandle["pendingRewardChallengeId"] = challengeId
+            setState { copy(pendingRewardChallengeId = challengeId, error = null) }
             viewModelScope.launch {
                 try {
                     when (val result = contentRepository.claimRewardUnlock(challengeId)) {
                         is AppResult.Success -> {
                             claimedChallengeId = challengeId
+                            savedStateHandle.remove<String>("pendingRewardChallengeId")
+                            setState { copy(pendingRewardChallengeId = null) }
                             load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
                         }
                         is AppResult.Error -> setState { copy(error = result.exception.message) }

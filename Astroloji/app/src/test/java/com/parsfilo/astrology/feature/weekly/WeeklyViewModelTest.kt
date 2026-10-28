@@ -377,6 +377,71 @@ class WeeklyViewModelTest {
             coVerify(exactly = 1) { contentRepository.claimRewardUnlock("claimed-challenge") }
         }
 
+    @Test
+    fun `weekly earned challenge survives saved state and retries without a second ad`() =
+        runTest {
+            val saved = SavedStateHandle(mapOf("sign" to "aries"))
+            var claims = 0
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } coAnswers {
+                AppResult.Success(
+                    weekly(
+                        love = if (claims >= 2) "Verified love" else null,
+                        career = null,
+                        money = null,
+                    ),
+                )
+            }
+            coEvery { contentRepository.claimRewardUnlock("earned-weekly") } coAnswers {
+                claims++
+                if (claims == 1) {
+                    AppResult.Error(AppException.NetworkException("SSV still pending"))
+                } else {
+                    AppResult.Success(Unit)
+                }
+            }
+
+            fun newModel() =
+                WeeklyViewModel(
+                    savedStateHandle = saved,
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            val first = newModel()
+            advanceUntilIdle()
+            first.onEvent(WeeklyUiEvent.RewardEarned("earned-weekly"))
+            advanceUntilIdle()
+            assertThat(claims).isEqualTo(1)
+            assertThat(
+                first.state.value.weekly
+                    ?.love,
+            ).isNull()
+            assertThat(saved.get<String>("pendingRewardChallengeId")).isEqualTo("earned-weekly")
+
+            // Recreated ViewModel can verify the earned reward without an SDK event.
+            val recreated = newModel()
+            advanceUntilIdle()
+            assertThat(recreated.state.value.pendingRewardChallengeId).isEqualTo("earned-weekly")
+            recreated.onEvent(WeeklyUiEvent.RetryRewardVerification)
+            advanceUntilIdle()
+
+            assertThat(claims).isEqualTo(2)
+            assertThat(recreated.state.value.pendingRewardChallengeId).isNull()
+            assertThat(
+                recreated.state.value.weekly
+                    ?.love,
+            ).isEqualTo("Verified love")
+            coVerify(exactly = 0) { contentRepository.prepareRewardUnlock(any(), any()) }
+        }
+
     private fun weekly(
         love: String?,
         career: String?,
