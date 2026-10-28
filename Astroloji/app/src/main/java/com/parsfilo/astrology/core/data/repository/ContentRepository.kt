@@ -43,16 +43,23 @@ import javax.inject.Singleton
  * Never ask someone to watch an ad whose SSV challenge cannot be verified.
  * The challenge must refer to the reward type/period that the user requested.
  */
+private const val MIN_REWARD_CHALLENGE_LIFETIME_MS = 60_000L
+
 private fun RewardChallengeResponse.isValidFor(
     requestedRewardType: String,
     requestedIdentifier: String,
-): Boolean =
-    challengeId.isNotBlank() &&
-        customData.isNotBlank() &&
+    nowMs: Long = System.currentTimeMillis(),
+): Boolean {
+    // Backend verifies SSV custom_data against the stored challenge id.
+    // A near-expiry challenge can expire while the user watches the ad.
+    val expiresAtMs = TimeUtils.parseIsoMillis(expiresAt) ?: return false
+    return challengeId.isNotBlank() &&
+        customData == challengeId &&
         userId.isNotBlank() &&
-        expiresAt.isNotBlank() &&
+        expiresAtMs - nowMs >= MIN_REWARD_CHALLENGE_LIFETIME_MS &&
         rewardType == requestedRewardType &&
         identifier == requestedIdentifier
+}
 
 @Singleton
 @Suppress("LongParameterList")

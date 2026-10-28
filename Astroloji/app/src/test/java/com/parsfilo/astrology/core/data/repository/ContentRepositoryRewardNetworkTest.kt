@@ -23,17 +23,18 @@ import kotlinx.serialization.json.Json
 import org.junit.Test
 import retrofit2.Response
 import java.io.IOException
+import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ContentRepositoryRewardNetworkTest {
     private fun challenge(): RewardChallengeResponse =
         RewardChallengeResponse(
             challengeId = "challenge-1",
-            customData = "opaque-ssv",
+            customData = "challenge-1",
             userId = "user-1",
             rewardType = "daily",
             identifier = "2026-10-28",
-            expiresAt = "2026-10-28T23:59:59Z",
+            expiresAt = Instant.now().plusSeconds(600).toString(),
         )
 
     private val api = mockk<AstrologyApi>()
@@ -63,7 +64,7 @@ class ContentRepositoryRewardNetworkTest {
 
             assertThat(outcome).isInstanceOf(AppResult.Success::class.java)
             val challenge = (outcome as AppResult.Success).data
-            assertThat(challenge.customData).isEqualTo("opaque-ssv")
+            assertThat(challenge.customData).isEqualTo("challenge-1")
             assertThat(challenge.challengeId).isEqualTo("challenge-1")
         }
 
@@ -75,8 +76,10 @@ class ContentRepositoryRewardNetworkTest {
                 listOf(
                     original.copy(challengeId = ""),
                     original.copy(customData = " "),
+                    original.copy(customData = "wrong-challenge"),
                     original.copy(userId = ""),
                     original.copy(expiresAt = ""),
+                    original.copy(expiresAt = "not-an-instant"),
                 )
             for (variant in variants) {
                 coEvery { api.prepareReward(any()) } returns Response.success(variant)
@@ -86,6 +89,24 @@ class ContentRepositoryRewardNetworkTest {
                 assertThat(outcome).isInstanceOf(AppResult.Error::class.java)
                 assertThat((outcome as AppResult.Error).exception.message)
                     .contains("invalid")
+            }
+        }
+
+    @Test
+    fun `expired or nearly expired challenge is rejected before ad playback`() =
+        runTest {
+            val original = challenge()
+            val expiryValues =
+                listOf(
+                    Instant.now().minusSeconds(1).toString(),
+                    Instant.now().plusSeconds(15).toString(),
+                )
+            for (expiry in expiryValues) {
+                coEvery { api.prepareReward(any()) } returns Response.success(original.copy(expiresAt = expiry))
+
+                val outcome = repository.prepareRewardUnlock("daily", "2026-10-28")
+
+                assertThat(outcome).isInstanceOf(AppResult.Error::class.java)
             }
         }
 
