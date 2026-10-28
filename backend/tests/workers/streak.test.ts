@@ -71,6 +71,7 @@ function createStreakDb(user: UserRow) {
 
 describe('streak worker', () => {
   it('starts a first-time streak with no reward', async () => {
+    const fixedNow = new Date('2026-08-11T12:00:00.000Z');
     const { db } = createStreakDb({
       streak_count: 0,
       last_streak_date: null,
@@ -80,7 +81,7 @@ describe('streak worker', () => {
     const env = createTestEnv({ DB: db });
     const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
 
-    const response = await createApp().request(
+    const response = await createApp({ streak: { now: () => new Date(fixedNow) } }).request(
       '/api/v1/streak/checkin',
       { method: 'POST', headers: { authorization: `Bearer ${jwt}` } },
       env
@@ -89,7 +90,7 @@ describe('streak worker', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       streak_count: 1,
-      last_streak_date: expect.any(String),
+      last_streak_date: '2026-08-11',
       milestone_achieved: null,
       credits_granted: 0,
       balance: 0
