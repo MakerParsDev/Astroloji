@@ -89,6 +89,21 @@ class RewardedInterstitialLoadRetryTest {
         }
 
     @Test
+    fun previousRevisionFailureBackoffCannotBlockNewConsent() =
+        withSdkMocks { manager ->
+            manager.preload()
+            callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
+            manager.preload()
+            assertThat(callbacks).hasSize(1)
+
+            // This is NOT a stale callback: the failure belonged to revision 1.
+            // Revision 2 must not inherit its cooldown.
+            revision = 2L
+            manager.preload()
+            assertThat(callbacks).hasSize(2)
+        }
+
+    @Test
     fun obsoleteConsentFailureDoesNotBackoffNewlyAllowedRequest() =
         withSdkMocks { manager ->
             manager.preload()

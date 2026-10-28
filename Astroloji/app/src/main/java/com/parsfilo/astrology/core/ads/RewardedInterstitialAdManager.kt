@@ -32,6 +32,7 @@ class RewardedInterstitialAdManager
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
         private val loadRetryGate = AdLoadRetryGate()
+        private var retryConsentRevision = Long.MIN_VALUE
         private var rewardedInterstitialAd: RewardedInterstitialAd? = null
         private var loadedConsentRevision = Long.MIN_VALUE
 
@@ -43,6 +44,12 @@ class RewardedInterstitialAdManager
         fun preload() {
             discardAdFromEarlierConsentRevision()
             val loadRevision = consentManager.consentRevision
+            // A real failure under an older permission revision must not block
+            // the next authorized load; preserve same-revision backoff.
+            if (retryConsentRevision != loadRevision) {
+                retryConsentRevision = loadRevision
+                loadRetryGate.recordSuccess()
+            }
             if (isLoading || rewardedInterstitialAd != null || !consentManager.canRequestAds) return
             if (!loadRetryGate.canLoad()) return
             isLoading = true
