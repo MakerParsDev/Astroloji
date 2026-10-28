@@ -347,6 +347,36 @@ class WeeklyViewModelTest {
             coVerify(exactly = 2) { contentRepository.claimRewardUnlock("same-challenge") }
         }
 
+    @Test
+    fun `successful weekly reward claim ignores a late duplicate callback`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+            coEvery { contentRepository.claimRewardUnlock("claimed-challenge") } returns AppResult.Success(Unit)
+            val model =
+                WeeklyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            model.onEvent(WeeklyUiEvent.RewardEarned("claimed-challenge"))
+            advanceUntilIdle()
+            model.onEvent(WeeklyUiEvent.RewardEarned("claimed-challenge"))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { contentRepository.claimRewardUnlock("claimed-challenge") }
+        }
+
     private fun weekly(
         love: String?,
         career: String?,

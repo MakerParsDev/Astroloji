@@ -554,6 +554,28 @@ class DailyViewModelTest {
             coVerify(exactly = 2) { contentRepository.claimRewardUnlock("same-challenge") }
         }
 
+    @Test
+    fun `successful daily reward claim ignores a late duplicate callback`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            coEvery { contentRepository.claimRewardUnlock("claimed-challenge") } returns AppResult.Success(Unit)
+            val model = createViewModel()
+            advanceUntilIdle()
+
+            model.onEvent(DailyUiEvent.RewardEarned("claimed-challenge"))
+            advanceUntilIdle()
+            model.onEvent(DailyUiEvent.RewardEarned("claimed-challenge"))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { contentRepository.claimRewardUnlock("claimed-challenge") }
+        }
+
     private fun createViewModel(): DailyViewModel =
         DailyViewModel(
             savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),

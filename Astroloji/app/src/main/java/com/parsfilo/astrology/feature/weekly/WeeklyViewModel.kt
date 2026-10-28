@@ -61,6 +61,7 @@ class WeeklyViewModel
         private val signFromArgs: String? = savedStateHandle.get<String>("sign")
         private val preparingReward = AtomicBoolean(false)
         private val claimingReward = AtomicBoolean(false)
+        private var claimedChallengeId: String? = null
 
         init {
             viewModelScope.launch { load(false) }
@@ -107,11 +108,16 @@ class WeeklyViewModel
         }
 
         private fun claimRewardUnlock(challengeId: String) {
+            // A late/duplicate SDK reward event must not re-claim a completed SSV challenge.
+            if (challengeId == claimedChallengeId) return
             if (!claimingReward.compareAndSet(false, true)) return
             viewModelScope.launch {
                 try {
                     when (val result = contentRepository.claimRewardUnlock(challengeId)) {
-                        is AppResult.Success -> load(true)
+                        is AppResult.Success -> {
+                            claimedChallengeId = challengeId
+                            load(true)
+                        }
                         is AppResult.Error -> setState { copy(error = result.exception.message) }
                         AppResult.Loading -> Unit
                     }

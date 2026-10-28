@@ -84,6 +84,7 @@ class DailyViewModel
         // multiple outstanding SSV challenges for a single user action.
         private val preparingReward = AtomicBoolean(false)
         private val claimingReward = AtomicBoolean(false)
+        private var claimedChallengeId: String? = null
 
         init {
             viewModelScope.launch {
@@ -136,11 +137,16 @@ class DailyViewModel
         }
 
         private fun claimRewardUnlock(challengeId: String) {
+            // A late/duplicate SDK reward event must not re-claim a completed SSV challenge.
+            if (challengeId == claimedChallengeId) return
             if (!claimingReward.compareAndSet(false, true)) return
             viewModelScope.launch {
                 try {
                     when (val result = contentRepository.claimRewardUnlock(challengeId)) {
-                        is AppResult.Success -> load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
+                        is AppResult.Success -> {
+                            claimedChallengeId = challengeId
+                            load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
+                        }
                         is AppResult.Error -> setState { copy(error = result.exception.message) }
                         AppResult.Loading -> Unit
                     }
