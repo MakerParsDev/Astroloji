@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isValidRewardIdentifier,
   normalizeCompatibilityPair,
   sanitizeNotificationData,
   validateContentBackfillBody,
   validateCreditsSpendBody,
   validateCreditsVerifyBody,
   validateRegisterBody,
+  validateRewardPrepareBody,
   validateSubscriptionBody,
   validateUpdateUserBody,
   validateLanguage,
@@ -15,6 +17,36 @@ import {
 } from '@/utils/validators';
 
 describe('validators', () => {
+  it.each([
+    ['daily', '2026-02-30'],
+    ['daily', '2023-02-29'],
+    ['daily', '2026-13-01'],
+    ['daily', '2026-00-10'],
+    ['daily', '2026-01-00'],
+    ['weekly', '2021-W53'],
+    ['weekly', '2026-W00'],
+    ['weekly', '2026-W54'],
+    ['weekly', '0000-W01']
+  ] as const)('rejects impossible %s reward period %s', (rewardType, identifier) => {
+    expect(isValidRewardIdentifier(rewardType, identifier)).toBe(false);
+    expect(() => validateRewardPrepareBody({ reward_type: rewardType, identifier })).toThrow();
+  });
+
+  it.each([
+    ['daily', '2024-02-29'],
+    ['daily', '2026-02-28'],
+    ['weekly', '2020-W53'],
+    ['weekly', '2021-W52'],
+    ['weekly', '2026-W53'],
+    ['weekly', '2026-W01']
+  ] as const)('accepts genuine %s reward period %s', (rewardType, identifier) => {
+    expect(isValidRewardIdentifier(rewardType, identifier)).toBe(true);
+    expect(validateRewardPrepareBody({ reward_type: rewardType, identifier })).toEqual({
+      reward_type: rewardType,
+      identifier
+    });
+  });
+
   it('normalizes compatibility pairs alphabetically', () => {
     expect(normalizeCompatibilityPair('leo', 'aries')).toEqual({
       normalizedSign1: 'aries',
