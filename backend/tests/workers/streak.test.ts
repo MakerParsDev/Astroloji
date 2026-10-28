@@ -96,36 +96,11 @@ describe('streak worker', () => {
     });
   });
 
-  it('is idempotent when checking in twice on the same local day', async () => {
-    const fixedNow = new Date('2026-03-15T12:00:00.000Z');
-    const today = fixedNow.toISOString().slice(0, 10);
-    const { db } = createStreakDb({
-      streak_count: 5,
-      last_streak_date: today,
-      streak_milestone_claimed: 3,
-      utc_offset: 0
-    });
-    const env = createTestEnv({ DB: db });
-    const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
-
-    const response = await createApp({ streak: { now: () => new Date(fixedNow) } }).request(
-      '/api/v1/streak/checkin',
-      { method: 'POST', headers: { authorization: `Bearer ${jwt}` } },
-      env
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      streak_count: 5,
-      last_streak_date: today,
-      milestone_achieved: 3,
-      credits_granted: 0,
-      balance: 0
-    });
-  });
-
-  it('stays idempotent across a UTC midnight boundary when the clock is pinned', async () => {
-    const fixedNow = new Date('2026-03-15T23:59:59.900Z');
+  it.each([
+    ['normal local-day check-in', '2026-03-15T12:00:00.000Z'],
+    ['UTC midnight edge', '2026-03-15T23:59:59.900Z']
+  ])('is idempotent for %s with a pinned clock', async (_scenario, timestamp) => {
+    const fixedNow = new Date(timestamp);
     const today = fixedNow.toISOString().slice(0, 10);
     const { db } = createStreakDb({
       streak_count: 5,
