@@ -360,6 +360,53 @@ describe('rewarded access SSV routes', () => {
     });
   });
 
+  it('keeps an abandoned ad challenge unclaimed and permits a fresh attempt after expiry', async () => {
+    const { db, rows } = createRewardDb();
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    let clock = NOW_MS;
+    let challengeId = CHALLENGE_ID;
+    const app = testApp({
+      nowMs: () => clock,
+      randomUUID: () => challengeId,
+      verifyCallback: async () => verifiedCallback(challengeId, TRANSACTION_ID, 'user-1', AD_UNIT, clock)
+    });
+    const authorized = { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' };
+    const prepare = () =>
+      app.request('/api/v1/rewards/prepare', {
+        method: 'POST',
+        headers: authorized,
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+      }, env);
+    const claim = (id: string) =>
+      app.request('/api/v1/rewards/claim', {
+        method: 'POST',
+        headers: authorized,
+        body: JSON.stringify({ challenge_id: id })
+      }, env);
+
+    // The SDK ad is dismissed without onUserEarnedReward, so there is no SSV call.
+    expect((await prepare()).status).toBe(201);
+    expect((await claim(CHALLENGE_ID)).status).toBe(409);
+    expect(rows.get(CHALLENGE_ID)?.status).toBe('pending');
+    expect(rows.get(CHALLENGE_ID)?.entitlement_expires_at).toBeNull();
+
+    clock += 10 * 60 * 1_000 + 1;
+    expect((await claim(CHALLENGE_ID)).status).toBe(410);
+    expect((await app.request('/api/v1/rewards/ssv?synthetic-expired', {}, env)).status).toBe(410);
+    expect(rows.get(CHALLENGE_ID)?.status).toBe('pending');
+
+    // Abandonment must not prevent a later legitimate challenge for that period.
+    challengeId = SECOND_CHALLENGE_ID;
+    expect((await prepare()).status).toBe(201);
+    expect(rows.get(SECOND_CHALLENGE_ID)?.status).toBe('pending');
+    expect((await claim(SECOND_CHALLENGE_ID)).status).toBe(409);
+    expect((await app.request('/api/v1/rewards/ssv?synthetic-valid', {}, env)).status).toBe(200);
+    expect((await claim(SECOND_CHALLENGE_ID)).status).toBe(200);
+    expect(rows.get(SECOND_CHALLENGE_ID)?.status).toBe('consumed');
+    expect(rows.get(CHALLENGE_ID)?.entitlement_expires_at).toBeNull();
+  });
+
   it('verifies a callback and consumes the challenge exactly once', async () => {
     const { db, rows } = createRewardDb();
     const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
