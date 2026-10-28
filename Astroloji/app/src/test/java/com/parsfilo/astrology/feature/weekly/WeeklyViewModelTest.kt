@@ -12,6 +12,7 @@ import com.parsfilo.astrology.core.domain.model.RemoteFlags
 import com.parsfilo.astrology.core.domain.model.RewardChallenge
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.domain.model.WeeklyHoroscope
+import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import io.mockk.coEvery
 import io.mockk.coJustRun
@@ -298,6 +299,52 @@ class WeeklyViewModelTest {
             assertThat(preparations).isEqualTo(2)
             assertThat(model.effects.first()).isEqualTo(WeeklyUiEffect.ShowRewardAd(challenge))
             coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+        }
+
+    @Test
+    fun `weekly repeated reward earned events cannot duplicate an in-flight claim`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+            val releaseFirst = CompletableDeferred<Unit>()
+            var claims = 0
+            coEvery { contentRepository.claimRewardUnlock("same-challenge") } coAnswers {
+                claims += 1
+                if (claims == 1) {
+                    releaseFirst.await()
+                    AppResult.Error(AppException.NetworkException("claim failed, retry"))
+                } else {
+                    AppResult.Loading
+                }
+            }
+            val model =
+                WeeklyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            model.onEvent(WeeklyUiEvent.RewardEarned("same-challenge"))
+            model.onEvent(WeeklyUiEvent.RewardEarned("same-challenge"))
+            runCurrent()
+            assertThat(claims).isEqualTo(1)
+
+            releaseFirst.complete(Unit)
+            advanceUntilIdle()
+            assertThat(model.state.value.error).contains("claim failed")
+            model.onEvent(WeeklyUiEvent.RewardEarned("same-challenge"))
+            advanceUntilIdle()
+            assertThat(claims).isEqualTo(2)
+            coVerify(exactly = 2) { contentRepository.claimRewardUnlock("same-challenge") }
         }
 
     private fun weekly(

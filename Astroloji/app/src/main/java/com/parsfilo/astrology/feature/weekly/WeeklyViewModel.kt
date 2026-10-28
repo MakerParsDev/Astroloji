@@ -60,6 +60,7 @@ class WeeklyViewModel
     ) : MviViewModel<WeeklyUiState, WeeklyUiEvent, WeeklyUiEffect>(WeeklyUiState()) {
         private val signFromArgs: String? = savedStateHandle.get<String>("sign")
         private val preparingReward = AtomicBoolean(false)
+        private val claimingReward = AtomicBoolean(false)
 
         init {
             viewModelScope.launch { load(false) }
@@ -74,15 +75,7 @@ class WeeklyViewModel
                 is WeeklyUiEvent.RewardAdUnavailable -> {
                     setState { copy(error = event.message) }
                 }
-                is WeeklyUiEvent.RewardEarned -> {
-                    viewModelScope.launch {
-                        when (val claimResult = contentRepository.claimRewardUnlock(event.challengeId)) {
-                            is AppResult.Success -> load(true)
-                            is AppResult.Error -> setState { copy(error = claimResult.exception.message) }
-                            AppResult.Loading -> Unit
-                        }
-                    }
-                }
+                is WeeklyUiEvent.RewardEarned -> claimRewardUnlock(event.challengeId)
             }
         }
 
@@ -109,6 +102,21 @@ class WeeklyViewModel
                     }
                 } finally {
                     preparingReward.set(false)
+                }
+            }
+        }
+
+        private fun claimRewardUnlock(challengeId: String) {
+            if (!claimingReward.compareAndSet(false, true)) return
+            viewModelScope.launch {
+                try {
+                    when (val result = contentRepository.claimRewardUnlock(challengeId)) {
+                        is AppResult.Success -> load(true)
+                        is AppResult.Error -> setState { copy(error = result.exception.message) }
+                        AppResult.Loading -> Unit
+                    }
+                } finally {
+                    claimingReward.set(false)
                 }
             }
         }

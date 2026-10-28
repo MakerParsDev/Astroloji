@@ -83,6 +83,7 @@ class DailyViewModel
         // Claim preparation is a network call; repeated taps must not mint
         // multiple outstanding SSV challenges for a single user action.
         private val preparingReward = AtomicBoolean(false)
+        private val claimingReward = AtomicBoolean(false)
 
         init {
             viewModelScope.launch {
@@ -135,11 +136,16 @@ class DailyViewModel
         }
 
         private fun claimRewardUnlock(challengeId: String) {
+            if (!claimingReward.compareAndSet(false, true)) return
             viewModelScope.launch {
-                when (val result = contentRepository.claimRewardUnlock(challengeId)) {
-                    is AppResult.Success -> load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
-                    is AppResult.Error -> setState { copy(error = result.exception.message) }
-                    AppResult.Loading -> Unit
+                try {
+                    when (val result = contentRepository.claimRewardUnlock(challengeId)) {
+                        is AppResult.Success -> load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
+                        is AppResult.Error -> setState { copy(error = result.exception.message) }
+                        AppResult.Loading -> Unit
+                    }
+                } finally {
+                    claimingReward.set(false)
                 }
             }
         }

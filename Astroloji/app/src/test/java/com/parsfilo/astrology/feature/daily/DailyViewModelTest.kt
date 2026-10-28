@@ -516,6 +516,44 @@ class DailyViewModelTest {
             coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
         }
 
+    @Test
+    fun `daily repeated reward earned events never claim concurrently and failed claim can retry`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            val releaseFirst = CompletableDeferred<Unit>()
+            var claims = 0
+            coEvery { contentRepository.claimRewardUnlock("same-challenge") } coAnswers {
+                claims += 1
+                if (claims == 1) {
+                    releaseFirst.await()
+                    AppResult.Error(AppException.NetworkException("claim failed, retry"))
+                } else {
+                    AppResult.Loading
+                }
+            }
+            val model = createViewModel()
+            advanceUntilIdle()
+
+            model.onEvent(DailyUiEvent.RewardEarned("same-challenge"))
+            model.onEvent(DailyUiEvent.RewardEarned("same-challenge"))
+            runCurrent()
+            assertThat(claims).isEqualTo(1)
+
+            releaseFirst.complete(Unit)
+            advanceUntilIdle()
+            assertThat(model.state.value.error).contains("claim failed")
+            model.onEvent(DailyUiEvent.RewardEarned("same-challenge"))
+            advanceUntilIdle()
+            assertThat(claims).isEqualTo(2)
+            coVerify(exactly = 2) { contentRepository.claimRewardUnlock("same-challenge") }
+        }
+
     private fun createViewModel(): DailyViewModel =
         DailyViewModel(
             savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
