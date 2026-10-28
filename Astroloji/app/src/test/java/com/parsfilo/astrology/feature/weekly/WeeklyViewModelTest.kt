@@ -442,6 +442,45 @@ class WeeklyViewModelTest {
             coVerify(exactly = 0) { contentRepository.prepareRewardUnlock(any(), any()) }
         }
 
+    @Test
+    fun `terminal weekly reward expiry clears saved pending claim and permits new preparation`() =
+        runTest {
+            val saved = SavedStateHandle(mapOf("sign" to "aries", "pendingRewardChallengeId" to "expired-weekly"))
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+            coEvery { contentRepository.claimRewardUnlock("expired-weekly") } returns
+                AppResult.Error(AppException.RewardChallengeExpiredException())
+            coEvery { contentRepository.prepareRewardUnlock("weekly", any()) } returns AppResult.Loading
+
+            val model =
+                WeeklyViewModel(
+                    savedStateHandle = saved,
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+            model.onEvent(WeeklyUiEvent.RetryRewardVerification)
+            advanceUntilIdle()
+
+            assertThat(model.state.value.pendingRewardChallengeId).isNull()
+            assertThat(saved.get<String>("pendingRewardChallengeId")).isNull()
+            assertThat(model.state.value.error).contains("expired")
+
+            model.onEvent(WeeklyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { contentRepository.prepareRewardUnlock("weekly", any()) }
+            coVerify(exactly = 1) { contentRepository.claimRewardUnlock("expired-weekly") }
+        }
+
     private fun weekly(
         love: String?,
         career: String?,

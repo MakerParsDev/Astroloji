@@ -10,6 +10,7 @@ internal data class RewardClaimAttempt(
 internal enum class RewardClaimPollOutcome {
     CLAIMED,
     UNAUTHORIZED,
+    EXPIRED,
     TIMED_OUT,
     FAILED,
 }
@@ -30,6 +31,9 @@ internal suspend fun pollRewardClaim(
             when {
                 attempt.statusCode in HTTP_SUCCESS_MIN..HTTP_SUCCESS_MAX -> RewardClaimPollOutcome.CLAIMED
                 attempt.statusCode == HTTP_UNAUTHORIZED -> RewardClaimPollOutcome.UNAUTHORIZED
+                attempt.statusCode == HTTP_GONE ||
+                    (attempt.statusCode == HTTP_NOT_FOUND && attempt.errorCode == REWARD_CHALLENGE_NOT_FOUND) ->
+                    RewardClaimPollOutcome.EXPIRED
                 attempt.statusCode == HTTP_CONFLICT && attempt.errorCode == PENDING_VERIFICATION -> {
                     attemptIndex += 1
                     if (attemptIndex < maxAttempts) {
@@ -51,3 +55,7 @@ private const val HTTP_SUCCESS_MAX = 299
 private const val HTTP_UNAUTHORIZED = 401
 private const val HTTP_CONFLICT = 409
 private const val PENDING_VERIFICATION = "PENDING_VERIFICATION"
+
+private const val HTTP_GONE = 410
+private const val HTTP_NOT_FOUND = 404
+private const val REWARD_CHALLENGE_NOT_FOUND = "REWARD_CHALLENGE_NOT_FOUND"

@@ -11,6 +11,7 @@ import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.core.domain.model.RewardChallenge
 import com.parsfilo.astrology.core.domain.model.WeeklyHoroscope
 import com.parsfilo.astrology.core.ui.MviViewModel
+import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.TimeUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -139,7 +140,13 @@ class WeeklyViewModel
                             setState { copy(pendingRewardChallengeId = null) }
                             load(true)
                         }
-                        is AppResult.Error -> setState { copy(error = result.exception.message) }
+                        is AppResult.Error -> {
+                            if (result.exception is AppException.RewardChallengeExpiredException) {
+                                savedStateHandle.remove<String>("pendingRewardChallengeId")
+                                setState { copy(pendingRewardChallengeId = null) }
+                            }
+                            setState { copy(error = result.exception.message) }
+                        }
                         AppResult.Loading -> Unit
                     }
                 } finally {

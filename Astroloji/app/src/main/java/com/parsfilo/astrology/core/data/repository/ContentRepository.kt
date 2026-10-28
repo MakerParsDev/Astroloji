@@ -255,6 +255,8 @@ class ContentRepository
                 when (outcome) {
                     RewardClaimPollOutcome.CLAIMED -> AppResult.Success(Unit)
                     RewardClaimPollOutcome.UNAUTHORIZED -> AppResult.Error(AppException.UnauthorizedException())
+                    RewardClaimPollOutcome.EXPIRED ->
+                        AppResult.Error(AppException.RewardChallengeExpiredException())
                     RewardClaimPollOutcome.TIMED_OUT ->
                         AppResult.Error(AppException.NetworkException("Reward verification is still pending."))
                     RewardClaimPollOutcome.FAILED ->
