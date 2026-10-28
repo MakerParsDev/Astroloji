@@ -252,6 +252,39 @@ describe('content seed document builder', () => {
   });
 
 
+  it('covers every weekday in weekly and monthly best_day pools', () => {
+    const uploads = buildDocumentsForSeed({
+      seedDate: '2026-01-01',
+      dailyDays: 365,
+      skipStaticContent: true,
+      language: 'en'
+    });
+
+    const weeklyBestDays = new Set(
+      uploads
+        .filter((item) => item.key.startsWith('content/weekly/en/'))
+        .flatMap((item) =>
+          Object.values((item.payload as { signs: Record<string, { best_day: string }> }).signs).map(
+            (entry) => entry.best_day
+          )
+        )
+    );
+    const monthlyBestDays = new Set(
+      uploads
+        .filter((item) => item.key.startsWith('content/monthly/en/'))
+        .flatMap((item) =>
+          Object.values((item.payload as { signs: Record<string, { best_day: string }> }).signs).map(
+            (entry) => entry.best_day
+          )
+        )
+    );
+
+    for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']) {
+      expect(weeklyBestDays.has(day)).toBe(true);
+      expect(monthlyBestDays.has(day)).toBe(true);
+    }
+  });
+
   it('attaches traceable generation metadata to every document', () => {
     const uploads = buildDocumentsForSeed({ seedDate: '2026-03-21', dailyDays: 2 });
 

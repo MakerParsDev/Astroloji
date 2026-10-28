@@ -23,7 +23,7 @@ import { registerCreditsRoutes } from '@/workers/credits';
 import { registerFriendRoutes } from '@/workers/friends';
 import { registerMoodRoutes } from '@/workers/mood';
 import { registerReadingRoutes } from '@/workers/reading';
-import { registerStreakRoutes } from '@/workers/streak';
+import { registerStreakRoutes, type StreakRouteDependencies } from '@/workers/streak';
 import { registerContentAdminRoutes, registerContentRoutes } from '@/workers/content';
 import { handleCron } from '@/workers/cron';
 import { registerNotificationRoutes } from '@/workers/notification';
@@ -41,6 +41,7 @@ function jsonError(status: number, code: string, message: string) {
 
 export interface CreateAppOptions {
   reward?: RewardRouteDependencies;
+  streak?: StreakRouteDependencies;
   subscription?: SubscriptionRouteDependencies;
 }
 
@@ -175,7 +176,7 @@ export function createApp(options: CreateAppOptions = {}) {
   registerFriendRoutes(apiRoutes);
   registerReadingRoutes(apiRoutes);
   registerChatRoutes(apiRoutes);
-  registerStreakRoutes(apiRoutes);
+  registerStreakRoutes(apiRoutes, options.streak);
   registerMoodRoutes(apiRoutes);
 
   apiRoutes.post('/events/track', async (c) => {
