@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PersonalGuidanceViewModelTest {
@@ -67,6 +68,28 @@ class PersonalGuidanceViewModelTest {
                     targetTimestamp = "2026-08-05T11:22:33.987Z",
                     language = "tr",
                 )
+            }
+        }
+
+    @Test
+    fun `persisted daily line uses injected clock date`() =
+        runTest {
+            val pickerMillis = Instant.parse("1990-01-15T00:00:00.000Z").toEpochMilli()
+            val fixedNow = Instant.parse("2026-08-05T11:22:33.987Z")
+            val expectedDate = fixedNow.atZone(ZoneId.systemDefault()).toLocalDate().toString()
+            coEvery { preferencesRepository.current() } returns UserPreferences(language = "en")
+            coJustRun { preferencesRepository.savePersonalizedDailyLine(any(), any(), any()) }
+            every { chartClock.now() } returns fixedNow
+            coEvery { chartRepository.getPersonalGuidance(any(), any(), any(), any()) } returns
+                AppResult.Success(guidance())
+
+            val viewModel = createViewModel()
+            viewModel.selectBirthDate(pickerMillis)
+            viewModel.loadGuidance()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                preferencesRepository.savePersonalizedDailyLine(any(), any(), expectedDate)
             }
         }
 

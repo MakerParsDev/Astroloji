@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -88,11 +89,12 @@ class PersonalGuidanceViewModel
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true, guidance = null, error = null) }
                 val language = TimeUtils.normalizeLanguageTag(preferencesRepository.current().language)
+                val now = chartClock.now()
                 val result =
                     chartRepository.getPersonalGuidance(
                         natalTimestamp = unknownBirthTimestamp(datePickerMillisToLocalDate(birthDateMillis)),
                         natalTimeCertainty = UNKNOWN_TIME_CERTAINTY,
-                        targetTimestamp = targetTimestamp(chartClock.now()),
+                        targetTimestamp = targetTimestamp(now),
                         language = language,
                     )
                 if (requestGeneration != guidanceRequestGeneration) return@launch
@@ -109,7 +111,7 @@ class PersonalGuidanceViewModel
                             preferencesRepository.savePersonalizedDailyLine(
                                 title = topSignal.title,
                                 body = topSignal.summary,
-                                date = TimeUtils.dateIdentifier(),
+                                date = TimeUtils.dateIdentifier(now.atZone(ZoneId.systemDefault()).toLocalDate()),
                             )
                         }
                     }
