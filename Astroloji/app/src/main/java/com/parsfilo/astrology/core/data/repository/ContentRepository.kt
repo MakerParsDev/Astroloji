@@ -15,6 +15,7 @@ import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.ErrorEnvelope
 import com.parsfilo.astrology.core.data.remote.RewardChallengeResponse
 import com.parsfilo.astrology.core.data.remote.RewardClaimRequest
+import com.parsfilo.astrology.core.data.remote.RewardClaimResponse
 import com.parsfilo.astrology.core.data.remote.RewardPrepareRequest
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.domain.model.CompatibilityReport
@@ -59,6 +60,18 @@ private fun RewardChallengeResponse.isValidFor(
         expiresAtMs - nowMs >= MIN_REWARD_CHALLENGE_LIFETIME_MS &&
         rewardType == requestedRewardType &&
         identifier == requestedIdentifier
+}
+
+private fun RewardClaimResponse.isValidClaimFor(
+    requestedChallengeId: String,
+    nowMs: Long = System.currentTimeMillis(),
+): Boolean {
+    val expiresAtMs = TimeUtils.parseIsoMillis(entitlementExpiresAt) ?: return false
+    return ok &&
+        challengeId == requestedChallengeId &&
+        rewardType in setOf("daily", "weekly") &&
+        identifier.isNotBlank() &&
+        expiresAtMs > nowMs
 }
 
 @Singleton
@@ -269,7 +282,7 @@ class ContentRepository
                                     api.claimReward(RewardClaimRequest(challengeId = challengeId))
                                 }
                             val verifiedSuccessBody =
-                                response.body()?.let { it.ok && it.challengeId == challengeId } == true
+                                response.body()?.isValidClaimFor(challengeId) == true
                             RewardClaimAttempt(
                                 statusCode = response.code(),
                                 errorCode = if (response.isSuccessful) null else response.errorCode(),

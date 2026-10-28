@@ -152,6 +152,10 @@ class ContentRepositoryRewardNetworkTest {
                 listOf(
                     Response.success(valid.copy(ok = false)),
                     Response.success(valid.copy(challengeId = "different-challenge")),
+                    Response.success(valid.copy(entitlementExpiresAt = "not-a-date")),
+                    Response.success(valid.copy(entitlementExpiresAt = Instant.now().minusSeconds(120).toString())),
+                    Response.success(valid.copy(rewardType = "")),
+                    Response.success(valid.copy(identifier = "")),
                     Response.success<RewardClaimResponse>(null),
                 )
             for (response in malformed) {
@@ -161,6 +165,22 @@ class ContentRepositoryRewardNetworkTest {
 
                 assertThat(outcome).isInstanceOf(AppResult.Error::class.java)
             }
+        }
+
+    @Test
+    fun `valid claim with a future entitlement is accepted`() =
+        runTest {
+            val valid =
+                RewardClaimResponse(
+                    ok = true,
+                    challengeId = "test-challenge",
+                    rewardType = "daily",
+                    identifier = "2026-10-28",
+                    entitlementExpiresAt = Instant.now().plusSeconds(3600).toString(),
+                )
+            coEvery { api.claimReward(any()) } returns Response.success(valid)
+
+            assertThat(repository.claimRewardUnlock("test-challenge")).isInstanceOf(AppResult.Success::class.java)
         }
 
     @Test
