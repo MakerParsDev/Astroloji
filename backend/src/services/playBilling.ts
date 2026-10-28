@@ -43,7 +43,9 @@ export function hasPremiumEntitlement(
     return false;
   }
 
-  return subscription.expiresAt > now;
+  const expiresAt = Date.parse(subscription.expiresAt);
+  const checkedAt = Date.parse(now);
+  return Number.isFinite(expiresAt) && Number.isFinite(checkedAt) && expiresAt > checkedAt;
 }
 
 function normalizeSubscription(
@@ -56,13 +58,17 @@ function normalizeSubscription(
   if (!lineItem?.expiryTime) {
     return null;
   }
+  const expiryTimestamp = Date.parse(lineItem.expiryTime);
+  if (!Number.isFinite(expiryTimestamp)) {
+    return null;
+  }
 
   return {
     purchaseToken,
     productId: lineItem.productId ?? productId,
     status: normalizeSubscriptionState(raw.subscriptionState),
     startsAt: raw.startTime ?? new Date().toISOString(),
-    expiresAt: lineItem.expiryTime,
+    expiresAt: new Date(expiryTimestamp).toISOString(),
     autoRenewing: Boolean(lineItem.autoRenewingPlan),
     cancelReason: raw.canceledStateContext?.cancellationReason ?? null,
     raw
