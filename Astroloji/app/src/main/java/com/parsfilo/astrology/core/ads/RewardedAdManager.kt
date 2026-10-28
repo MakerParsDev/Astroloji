@@ -49,6 +49,7 @@ class RewardedAdManager
         fun preload() {
             discardAdFromEarlierConsentRevision()
             val loadRevision = consentManager.consentRevision
+            loadRetryGate.scopeToConsentRevision(loadRevision)
             val canStartPreload = !isLoading && rewardedAd == null && consentManager.canRequestAds
             if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true

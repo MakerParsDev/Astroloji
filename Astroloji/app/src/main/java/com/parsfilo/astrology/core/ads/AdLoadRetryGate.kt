@@ -15,6 +15,17 @@ internal class AdLoadRetryGate(
 ) {
     private var failureCount = 0
     private var retryAfterMs = 0L
+    private var consentRevision = Long.MIN_VALUE
+
+    /**
+     * A previous UMP snapshot's network failure cannot block newly permitted
+     * requests. Repeated requests under the same revision retain backoff.
+     */
+    fun scopeToConsentRevision(revision: Long) {
+        if (consentRevision == revision) return
+        consentRevision = revision
+        recordSuccess()
+    }
 
     fun canLoad(): Boolean = failureCount == 0 || elapsedRealtimeMs() >= retryAfterMs
 

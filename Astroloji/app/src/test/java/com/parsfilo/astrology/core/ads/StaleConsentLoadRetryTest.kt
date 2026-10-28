@@ -89,6 +89,30 @@ class StaleConsentLoadRetryTest {
     }
 
     @Test
+    fun rewardedFailureBackoffFromOldConsentCannotBlockNewRequest() {
+        configureConsent()
+        val callbacks = mutableListOf<RewardedAdLoadCallback>()
+        mockkStatic(RewardedAd::class)
+        mockkStatic(SystemClock::class)
+        try {
+            every { SystemClock.elapsedRealtime() } returns 10_000L
+            every { RewardedAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
+            val manager = RewardedAdManager(context, consent, analytics)
+            manager.preload()
+            callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
+            manager.preload()
+            assertThat(callbacks).hasSize(1)
+
+            revision = 5L
+            manager.preload()
+            assertThat(callbacks).hasSize(2)
+        } finally {
+            unmockkStatic(SystemClock::class)
+            unmockkStatic(RewardedAd::class)
+        }
+    }
+
+    @Test
     fun realRewardedLoadFailureStillUsesNormalBackoff() {
         configureConsent()
         val callbacks = mutableListOf<RewardedAdLoadCallback>()
@@ -129,6 +153,60 @@ class StaleConsentLoadRetryTest {
             assertThat(cachedAd(manager, "interstitialAd")).isSameInstanceAs(fresh)
         } finally {
             unmockkStatic(InterstitialAd::class)
+        }
+    }
+
+    @Test
+    fun interstitialFailureBackoffIsResetForNewConsentButNotWhileRevoked() {
+        configureConsent()
+        val callbacks = mutableListOf<InterstitialAdLoadCallback>()
+        mockkStatic(InterstitialAd::class)
+        mockkStatic(SystemClock::class)
+        try {
+            every { SystemClock.elapsedRealtime() } returns 10_000L
+            every { InterstitialAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
+            val manager = InterstitialAdManager(context, consent, analytics, mockk(relaxed = true))
+            manager.preload()
+            callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
+            manager.preload()
+            assertThat(callbacks).hasSize(1)
+
+            revision = 5L
+            every { consent.canRequestAds } returns false
+            manager.preload()
+            assertThat(callbacks).hasSize(1)
+
+            revision = 6L
+            every { consent.canRequestAds } returns true
+            manager.preload()
+            assertThat(callbacks).hasSize(2)
+        } finally {
+            unmockkStatic(SystemClock::class)
+            unmockkStatic(InterstitialAd::class)
+        }
+    }
+
+    @Test
+    fun appOpenFailureBackoffIsResetForNewConsentWithoutWaitingThirtySeconds() {
+        configureConsent()
+        val callbacks = mutableListOf<AppOpenAd.AppOpenAdLoadCallback>()
+        mockkStatic(AppOpenAd::class)
+        mockkStatic(SystemClock::class)
+        try {
+            every { SystemClock.elapsedRealtime() } returns 10_000L
+            every { AppOpenAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
+            val manager = AppOpenAdManager(context, consent, analytics)
+            manager.preload()
+            callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
+            manager.preload()
+            assertThat(callbacks).hasSize(1)
+
+            revision = 5L
+            manager.preload()
+            assertThat(callbacks).hasSize(2)
+        } finally {
+            unmockkStatic(SystemClock::class)
+            unmockkStatic(AppOpenAd::class)
         }
     }
 

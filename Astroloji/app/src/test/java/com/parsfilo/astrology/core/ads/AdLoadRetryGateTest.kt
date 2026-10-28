@@ -50,6 +50,28 @@ class AdLoadRetryGateTest {
     }
 
     @Test
+    fun consentRevisionChangeResetsOnlyThePreviousRevisionsBackoff() {
+        var elapsedMs = 1_000L
+        val gate = AdLoadRetryGate { elapsedMs }
+        gate.scopeToConsentRevision(4L)
+        gate.recordFailure()
+        assertThat(gate.canLoad()).isFalse()
+
+        gate.scopeToConsentRevision(4L)
+        assertThat(gate.canLoad()).isFalse()
+
+        gate.scopeToConsentRevision(5L)
+        assertThat(gate.canLoad()).isTrue()
+
+        gate.recordFailure()
+        elapsedMs += 29_999L
+        gate.scopeToConsentRevision(5L)
+        assertThat(gate.canLoad()).isFalse()
+        elapsedMs += 1L
+        assertThat(gate.canLoad()).isTrue()
+    }
+
+    @Test
     fun wallClockChangesDoNotBypassMonotonicCooldown() {
         var elapsedMs = 10_000L
         val gate = AdLoadRetryGate { elapsedMs }

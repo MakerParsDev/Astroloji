@@ -44,6 +44,7 @@ class AppOpenAdManager
         fun preload() {
             discardAdFromEarlierConsentRevision()
             val loadRevision = consentManager.consentRevision
+            loadRetryGate.scopeToConsentRevision(loadRevision)
             val canStartPreload = !isLoading && !isAdAvailable() && consentManager.canRequestAds
             if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true

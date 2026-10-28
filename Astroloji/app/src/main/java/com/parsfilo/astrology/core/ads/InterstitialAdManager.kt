@@ -44,6 +44,7 @@ class InterstitialAdManager
         fun preload() {
             discardAdFromEarlierConsentRevision()
             val loadRevision = consentManager.consentRevision
+            loadRetryGate.scopeToConsentRevision(loadRevision)
             val canStartPreload = !isLoading && interstitialAd == null && consentManager.canRequestAds
             if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
