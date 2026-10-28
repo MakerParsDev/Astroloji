@@ -31,6 +31,7 @@ class RewardedInterstitialAdManager
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
+        private val loadRetryGate = AdLoadRetryGate()
         private var rewardedInterstitialAd: RewardedInterstitialAd? = null
         private var loadedConsentRevision = Long.MIN_VALUE
 
@@ -43,6 +44,7 @@ class RewardedInterstitialAdManager
             discardAdFromEarlierConsentRevision()
             val loadRevision = consentManager.consentRevision
             if (isLoading || rewardedInterstitialAd != null || !consentManager.canRequestAds) return
+            if (!loadRetryGate.canLoad()) return
             isLoading = true
             RewardedInterstitialAd.load(
                 context,
@@ -54,16 +56,25 @@ class RewardedInterstitialAdManager
                         // Never cache a callback that arrived after permission was revoked.
                         if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             rewardedInterstitialAd = null
+                            // A stale creative is not usable under the updated UMP decision.
+                            if (consentManager.canRequestAds) preload()
                             return
                         }
                         rewardedInterstitialAd = ad
                         loadedConsentRevision = loadRevision
+                        loadRetryGate.recordSuccess()
                         Timber.d("Rewarded interstitial ad loaded")
                     }
 
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         rewardedInterstitialAd = null
                         isLoading = false
+                        if (consentManager.consentRevision != loadRevision) {
+                            // Do not penalize current consent for an old load's failure.
+                            if (consentManager.canRequestAds) preload()
+                            return
+                        }
+                        loadRetryGate.recordFailure()
                         Timber.w("Rewarded interstitial ad failed: %s", error.message)
                     }
                 },
