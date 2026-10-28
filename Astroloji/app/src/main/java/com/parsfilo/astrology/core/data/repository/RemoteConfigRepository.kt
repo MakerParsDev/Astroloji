@@ -103,7 +103,8 @@ class RemoteConfigRepository
                     interstitialCooldownMinutes =
                         remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toSafeCooldownMinutes(),
                     premiumTrialDays = remoteConfig.getLong(RemoteConfigKeys.PREMIUM_TRIAL_DAYS).toInt(),
-                    rewardedDailyUnlockLimit = remoteConfig.getLong(RemoteConfigKeys.REWARDED_DAILY_UNLOCK_LIMIT).toInt(),
+                    rewardedDailyUnlockLimit =
+                        remoteConfig.getLong(RemoteConfigKeys.REWARDED_DAILY_UNLOCK_LIMIT).toSafeNonnegativeIntOrZero(),
                     appOpenMinBackgroundMs = remoteConfig.getLong(RemoteConfigKeys.APP_OPEN_MIN_BACKGROUND_MS),
                     forceUpdateVersion = remoteConfig.getLong(RemoteConfigKeys.FORCE_UPDATE_VERSION),
                     onboardingPaywallEnabled = remoteConfig.getBoolean(RemoteConfigKeys.ONBOARDING_PAYWALL_ENABLED),
