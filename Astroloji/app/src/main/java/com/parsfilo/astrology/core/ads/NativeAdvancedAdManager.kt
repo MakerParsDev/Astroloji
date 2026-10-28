@@ -7,9 +7,12 @@ import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.nativead.NativeAd
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,24 +24,33 @@ class NativeAdvancedAdManager
         @param:ApplicationContext private val context: Context,
         private val consentManager: GoogleMobileAdsConsentManager,
     ) {
-        private var isLoading = false
-        private val _nativeAd = MutableStateFlow<NativeAd?>(null)
-        val nativeAd: StateFlow<NativeAd?> = _nativeAd.asStateFlow()
+        private val cache =
+            NativeAdCache(
+                canRequestAds = { consentManager.canRequestAds },
+                consentRevision = { consentManager.consentRevision },
+            )
+        val nativeAd: StateFlow<NativeAd?> = cache.ad
+
+        init {
+            // Native ads have no fullscreen show-time gate. Remove cached ads
+            // immediately when privacy options or UMP permission are updated.
+            CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
+                consentManager.consentSnapshotFlow.drop(1).collect { cache.clear() }
+            }
+        }
 
         fun preload() {
-            if (isLoading || _nativeAd.value != null || !consentManager.canRequestAds) return
-            isLoading = true
+            val token = cache.beginLoad() ?: return
             AdLoader
                 .Builder(context, AdMobUnits.nativeAdvanced)
                 .forNativeAd { ad ->
-                    _nativeAd.value?.destroy()
-                    _nativeAd.value = ad
-                    isLoading = false
-                    Timber.d("Native advanced ad loaded")
+                    if (cache.loaded(token, ad)) {
+                        Timber.d("Native advanced ad loaded")
+                    }
                 }.withAdListener(
                     object : AdListener() {
                         override fun onAdFailedToLoad(error: LoadAdError) {
-                            isLoading = false
+                            cache.failed(token)
                             Timber.w("Native advanced ad failed: %s", error.message)
                         }
                     },
@@ -47,7 +59,6 @@ class NativeAdvancedAdManager
         }
 
         fun clear() {
-            _nativeAd.value?.destroy()
-            _nativeAd.value = null
+            cache.clear()
         }
     }
