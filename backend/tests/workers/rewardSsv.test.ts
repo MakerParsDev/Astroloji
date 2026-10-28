@@ -24,7 +24,7 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
-function createRewardDb(options: { failVerifyUpdate?: boolean; failEntitlementLookup?: boolean; failEntitlementLookupMessage?: string; failPrepareInsert?: boolean } = {}) {
+function createRewardDb(options: { failVerifyUpdate?: boolean; failVerifyUpdateMessage?: string; failEntitlementLookup?: boolean; failEntitlementLookupMessage?: string; failPrepareInsert?: boolean } = {}) {
   const rows = new Map<string, RewardChallengeRow>();
 
   const db = {
@@ -92,7 +92,7 @@ function createRewardDb(options: { failVerifyUpdate?: boolean; failEntitlementLo
             return { success: true, meta: { changes: 1 } };
           }
           if (query.startsWith('UPDATE reward_challenges SET status = \'verified\'')) {
-            if (options.failVerifyUpdate) throw new Error('database unavailable');
+            if (options.failVerifyUpdate || options.failVerifyUpdateMessage) throw new Error(options.failVerifyUpdateMessage ?? 'database unavailable');
             const [transactionId, adUnit, callbackTimestampMs, verifiedAt, id, nowIso] = statement.bindings;
             const row = rows.get(String(id));
             const transactionUsed = [...rows.values()].some(
@@ -737,7 +737,7 @@ describe('rewarded access SSV routes', () => {
   });
 
   it('redacts request identifiers when the verification update fails', async () => {
-    const { db } = createRewardDb({ failVerifyUpdate: true });
+    const { db } = createRewardDb({ failVerifyUpdateMessage: 'database unavailable secret-forbidden-123 sensitive-user-token' });
     const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
     const { jwt } = await createAuthenticatedRequestContext(env);
     const app = testApp();
@@ -775,7 +775,9 @@ describe('rewarded access SSV routes', () => {
       TRANSACTION_ID,
       TRANSACTION_ID.slice(0, 8),
       '/api/v1/rewards/ssv?db-failure',
-      'db-failure'
+      'db-failure',
+      'secret-forbidden-123',
+      'sensitive-user-token'
     ]) {
       expect(capturedLogs).not.toContain(forbidden);
     }

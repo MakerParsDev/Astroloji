@@ -281,10 +281,9 @@ export function registerRewardRoutes<E extends RewardEnv>(
           verifiedAt
         )
         .run();
-    } catch (error) {
-      console.error('Reward SSV verification update failed.', {
-        error: error instanceof Error ? error.message : 'unknown database error'
-      });
+    } catch {
+      // Database errors can include SQL and request identifiers; never log their raw messages.
+      console.error('Reward SSV verification update failed.', { error: 'database unavailable' });
       const transactionOwner = await getChallengeByTransaction(c.env.DB, transactionId);
       if (transactionOwner && transactionOwner.id !== challengeId) {
         logRewardResult('transaction_replay');
