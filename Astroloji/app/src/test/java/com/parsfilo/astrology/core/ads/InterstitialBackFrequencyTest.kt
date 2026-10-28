@@ -15,6 +15,83 @@ class InterstitialBackFrequencyTest {
     private val preferencesRepository = mockk<UserPreferencesRepository>(relaxed = true)
 
     @Test
+    fun `premium activation while pacing is checked blocks the actual ad`() =
+        runTest {
+            var premium = false
+            var frequencyChecks = 0
+            val eligible =
+                isInterstitialBackStillEligible(
+                    isFreeAndConsented = { !premium },
+                    meetsFrequency = {
+                        frequencyChecks += 1
+                        premium = true
+                        true
+                    },
+                )
+
+            assertThat(eligible).isFalse()
+            assertThat(frequencyChecks).isEqualTo(1)
+        }
+
+    @Test
+    fun `consent revocation during pacing blocks ad without a second frequency count`() =
+        runTest {
+            var canRequestAds = true
+            var checks = 0
+            val eligible =
+                isInterstitialBackStillEligible(
+                    isFreeAndConsented = { canRequestAds },
+                    meetsFrequency = {
+                        checks += 1
+                        canRequestAds = false
+                        true
+                    },
+                )
+
+            assertThat(eligible).isFalse()
+            assertThat(checks).isEqualTo(1)
+        }
+
+    @Test
+    fun `steady valid eligibility uses one frequency opportunity and allows ad`() =
+        runTest {
+            var eligibilityChecks = 0
+            var frequencyChecks = 0
+            val eligible =
+                isInterstitialBackStillEligible(
+                    isFreeAndConsented = {
+                        eligibilityChecks += 1
+                        true
+                    },
+                    meetsFrequency = {
+                        frequencyChecks += 1
+                        true
+                    },
+                )
+
+            assertThat(eligible).isTrue()
+            assertThat(eligibilityChecks).isEqualTo(2)
+            assertThat(frequencyChecks).isEqualTo(1)
+        }
+
+    @Test
+    fun `ineligible user never uses frequency opportunity`() =
+        runTest {
+            var frequencyChecks = 0
+            val eligible =
+                isInterstitialBackStillEligible(
+                    isFreeAndConsented = { false },
+                    meetsFrequency = {
+                        frequencyChecks += 1
+                        true
+                    },
+                )
+
+            assertThat(eligible).isFalse()
+            assertThat(frequencyChecks).isEqualTo(0)
+        }
+
+    @Test
     fun `only the configured BACK opportunity and later are eligible`() =
         runTest {
             coEvery { preferencesRepository.current() } returns UserPreferences()
