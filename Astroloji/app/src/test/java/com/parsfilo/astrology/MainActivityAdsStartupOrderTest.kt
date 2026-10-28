@@ -11,14 +11,14 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainActivityAdsStartupOrderTest {
     @Test
-    fun `slow remote config does not block consent and safe ad startup`() =
+    fun `slow remote config does not delay consent but safely holds ad preloading`() =
         runTest {
             val steps = mutableListOf<String>()
             val pendingNetwork = CompletableDeferred<Int>()
 
             val result =
                 async {
-                    prepareAdsBeforeRemoteConfig(
+                    prepareStartupWithConsentFirst(
                         gatherConsent = { steps += "consent" },
                         persistConsent = { steps += "persist" },
                         initializeAds = { steps += "initialize" },
@@ -31,13 +31,14 @@ class MainActivityAdsStartupOrderTest {
                 }
 
             runCurrent()
-            assertThat(steps)
-                .containsExactly("consent", "persist", "initialize", "preload", "remote-config")
-                .inOrder()
+            assertThat(steps).containsExactly("consent", "persist", "remote-config").inOrder()
             assertThat(result.isCompleted).isFalse()
 
             pendingNetwork.complete(42)
             assertThat(result.await()).isEqualTo(42)
+            assertThat(steps)
+                .containsExactly("consent", "persist", "remote-config", "initialize", "preload")
+                .inOrder()
         }
 
     @Test
@@ -46,7 +47,7 @@ class MainActivityAdsStartupOrderTest {
             val steps = mutableListOf<String>()
             val error =
                 runCatching {
-                    prepareAdsBeforeRemoteConfig(
+                    prepareStartupWithConsentFirst(
                         gatherConsent = {
                             steps += "consent"
                             error("UMP update failed before fallback")
@@ -66,12 +67,12 @@ class MainActivityAdsStartupOrderTest {
         }
 
     @Test
-    fun `a remote config failure occurs after consent and preloading`() =
+    fun `a remote config failure occurs after consent but before ad initialization`() =
         runTest {
             val steps = mutableListOf<String>()
             val error =
                 runCatching {
-                    prepareAdsBeforeRemoteConfig(
+                    prepareStartupWithConsentFirst(
                         gatherConsent = { steps += "consent" },
                         persistConsent = { steps += "persist" },
                         initializeAds = { steps += "initialize" },
@@ -84,8 +85,6 @@ class MainActivityAdsStartupOrderTest {
                 }
 
             assertThat(error.isFailure).isTrue()
-            assertThat(steps)
-                .containsExactly("consent", "persist", "initialize", "preload", "remote-config")
-                .inOrder()
+            assertThat(steps).containsExactly("consent", "persist", "remote-config").inOrder()
         }
 }
