@@ -7,6 +7,7 @@ import com.parsfilo.astrology.core.data.local.MonthlyDao
 import com.parsfilo.astrology.core.data.local.PersonalityDao
 import com.parsfilo.astrology.core.data.local.WeeklyDao
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
+import com.parsfilo.astrology.core.data.remote.RewardChallengeResponse
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
@@ -20,10 +21,21 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Test
+import retrofit2.Response
 import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ContentRepositoryRewardNetworkTest {
+    private fun challenge(): RewardChallengeResponse =
+        RewardChallengeResponse(
+            challengeId = "challenge-1",
+            customData = "opaque-ssv",
+            userId = "user-1",
+            rewardType = "daily",
+            identifier = "2026-10-28",
+            expiresAt = "2026-10-28T23:59:59Z",
+        )
+
     private val api = mockk<AstrologyApi>()
     private val dispatcher = UnconfinedTestDispatcher()
     private val repository =
@@ -40,6 +52,55 @@ class ContentRepositoryRewardNetworkTest {
             json = Json,
             stringsProvider = mockk<StringsProvider>(),
         )
+
+    @Test
+    fun `valid matching SSV challenge is accepted for requested period`() =
+        runTest {
+            val response = challenge()
+            coEvery { api.prepareReward(any()) } returns Response.success(response)
+
+            val outcome = repository.prepareRewardUnlock("daily", "2026-10-28")
+
+            assertThat(outcome).isInstanceOf(AppResult.Success::class.java)
+            val challenge = (outcome as AppResult.Success).data
+            assertThat(challenge.customData).isEqualTo("opaque-ssv")
+            assertThat(challenge.challengeId).isEqualTo("challenge-1")
+        }
+
+    @Test
+    fun `incomplete SSV challenge fails closed before an ad can start`() =
+        runTest {
+            val original = challenge()
+            val variants =
+                listOf(
+                    original.copy(challengeId = ""),
+                    original.copy(customData = " "),
+                    original.copy(userId = ""),
+                    original.copy(expiresAt = ""),
+                )
+            for (variant in variants) {
+                coEvery { api.prepareReward(any()) } returns Response.success(variant)
+
+                val outcome = repository.prepareRewardUnlock("daily", "2026-10-28")
+
+                assertThat(outcome).isInstanceOf(AppResult.Error::class.java)
+                assertThat((outcome as AppResult.Error).exception.message)
+                    .contains("invalid")
+            }
+        }
+
+    @Test
+    fun `wrong reward type or period is rejected rather than shown`() =
+        runTest {
+            val original = challenge()
+            for (variant in listOf(original.copy(rewardType = "weekly"), original.copy(identifier = "2026-10-27"))) {
+                coEvery { api.prepareReward(any()) } returns Response.success(variant)
+
+                val outcome = repository.prepareRewardUnlock("daily", "2026-10-28")
+
+                assertThat(outcome).isInstanceOf(AppResult.Error::class.java)
+            }
+        }
 
     @Test
     fun `offline reward preparation returns a network error instead of throwing`() =

@@ -13,6 +13,7 @@ import com.parsfilo.astrology.core.data.local.WeeklyDao
 import com.parsfilo.astrology.core.data.local.WeeklyHoroscopeEntity
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.ErrorEnvelope
+import com.parsfilo.astrology.core.data.remote.RewardChallengeResponse
 import com.parsfilo.astrology.core.data.remote.RewardClaimRequest
 import com.parsfilo.astrology.core.data.remote.RewardPrepareRequest
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
@@ -37,6 +38,21 @@ import java.io.IOException
 import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * Never ask someone to watch an ad whose SSV challenge cannot be verified.
+ * The challenge must refer to the reward type/period that the user requested.
+ */
+private fun RewardChallengeResponse.isValidFor(
+    requestedRewardType: String,
+    requestedIdentifier: String,
+): Boolean =
+    challengeId.isNotBlank() &&
+        customData.isNotBlank() &&
+        userId.isNotBlank() &&
+        expiresAt.isNotBlank() &&
+        rewardType == requestedRewardType &&
+        identifier == requestedIdentifier
 
 @Singleton
 @Suppress("LongParameterList")
@@ -210,6 +226,11 @@ class ContentRepository
                                 ?: return@withContext AppResult.Error(
                                     AppException.NetworkException("Reward challenge response was empty."),
                                 )
+                        if (!body.isValidFor(rewardType, identifier)) {
+                            return@withContext AppResult.Error(
+                                AppException.NetworkException("Reward challenge response was invalid."),
+                            )
+                        }
                         AppResult.Success(
                             RewardChallenge(
                                 challengeId = body.challengeId,
