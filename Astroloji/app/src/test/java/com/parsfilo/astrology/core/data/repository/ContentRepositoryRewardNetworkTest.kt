@@ -8,6 +8,7 @@ import com.parsfilo.astrology.core.data.local.PersonalityDao
 import com.parsfilo.astrology.core.data.local.WeeklyDao
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.RewardChallengeResponse
+import com.parsfilo.astrology.core.data.remote.RewardClaimResponse
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
@@ -134,6 +135,32 @@ class ContentRepositoryRewardNetworkTest {
             val error = (outcome as AppResult.Error).exception
             assertThat(error).isInstanceOf(AppException.NetworkException::class.java)
             assertThat(error.cause).isInstanceOf(IOException::class.java)
+        }
+
+    @Test
+    fun `success HTTP code without matching verified reward body never claims`() =
+        runTest {
+            val valid =
+                RewardClaimResponse(
+                    ok = true,
+                    challengeId = "test-challenge",
+                    rewardType = "daily",
+                    identifier = "2026-10-28",
+                    entitlementExpiresAt = Instant.now().plusSeconds(3600).toString(),
+                )
+            val malformed =
+                listOf(
+                    Response.success(valid.copy(ok = false)),
+                    Response.success(valid.copy(challengeId = "different-challenge")),
+                    Response.success<RewardClaimResponse>(null),
+                )
+            for (response in malformed) {
+                coEvery { api.claimReward(any()) } returns response
+
+                val outcome = repository.claimRewardUnlock("test-challenge")
+
+                assertThat(outcome).isInstanceOf(AppResult.Error::class.java)
+            }
         }
 
     @Test

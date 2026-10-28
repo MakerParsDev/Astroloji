@@ -13,7 +13,7 @@ class RewardClaimPollerTest {
                     listOf(
                         RewardClaimAttempt(409, "PENDING_VERIFICATION"),
                         RewardClaimAttempt(409, "PENDING_VERIFICATION"),
-                        RewardClaimAttempt(200, null),
+                        RewardClaimAttempt(200, null, verifiedSuccessBody = true),
                     ),
                 )
             val delays = mutableListOf<Long>()
@@ -46,6 +46,16 @@ class RewardClaimPollerTest {
 
             assertThat(outcome).isEqualTo(RewardClaimPollOutcome.TIMED_OUT)
             assertThat(calls).isEqualTo(3)
+        }
+
+    @Test
+    fun `HTTP 200 without verified claim response does not grant success`() =
+        runTest {
+            val outcome =
+                pollRewardClaim(maxAttempts = 3, delayMillis = 1, delayFn = {}) {
+                    RewardClaimAttempt(200, null, verifiedSuccessBody = false)
+                }
+            assertThat(outcome).isEqualTo(RewardClaimPollOutcome.FAILED)
         }
 
     @Test

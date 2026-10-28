@@ -5,6 +5,7 @@ import kotlinx.coroutines.delay
 internal data class RewardClaimAttempt(
     val statusCode: Int,
     val errorCode: String?,
+    val verifiedSuccessBody: Boolean = false,
 )
 
 internal enum class RewardClaimPollOutcome {
@@ -28,7 +29,8 @@ internal suspend fun pollRewardClaim(
         val attempt = request()
         outcome =
             when {
-                attempt.statusCode in HTTP_SUCCESS_MIN..HTTP_SUCCESS_MAX -> RewardClaimPollOutcome.CLAIMED
+                attempt.statusCode in HTTP_SUCCESS_MIN..HTTP_SUCCESS_MAX && attempt.verifiedSuccessBody ->
+                    RewardClaimPollOutcome.CLAIMED
                 attempt.statusCode == HTTP_UNAUTHORIZED -> RewardClaimPollOutcome.UNAUTHORIZED
                 attempt.statusCode == HTTP_CONFLICT && attempt.errorCode == PENDING_VERIFICATION -> {
                     attemptIndex += 1

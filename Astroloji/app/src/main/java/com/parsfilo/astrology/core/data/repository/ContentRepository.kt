@@ -268,9 +268,12 @@ class ContentRepository
                                 authenticatedRequest {
                                     api.claimReward(RewardClaimRequest(challengeId = challengeId))
                                 }
+                            val verifiedSuccessBody =
+                                response.body()?.let { it.ok && it.challengeId == challengeId } == true
                             RewardClaimAttempt(
                                 statusCode = response.code(),
-                                errorCode = response.errorCode(),
+                                errorCode = if (response.isSuccessful) null else response.errorCode(),
+                                verifiedSuccessBody = verifiedSuccessBody,
                             )
                         }
                     } catch (e: IOException) {
