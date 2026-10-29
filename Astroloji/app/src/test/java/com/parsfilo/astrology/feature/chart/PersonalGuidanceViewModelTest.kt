@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -172,6 +173,20 @@ class PersonalGuidanceViewModelTest {
             assertThat(viewModel.uiState.value.inputError).isEqualTo(ChartInputError.FUTURE_BIRTH_DATE)
             coVerify(exactly = 0) { chartRepository.getPersonalGuidance(any(), any(), any(), any()) }
         }
+
+    @Test
+    fun `today selected east of UTC is accepted`() {
+        val now = Instant.parse("2026-08-05T12:15:00Z") // Aug 6 in Kiritimati.
+        val selected = LocalDate.parse("2026-08-06")
+        assertThat(isFutureBirthDateInZone(selected, now, ZoneId.of("Pacific/Kiritimati"))).isFalse()
+    }
+
+    @Test
+    fun `tomorrow selected west of UTC is rejected`() {
+        val now = Instant.parse("2026-08-05T03:00:00Z") // Aug 4 in Honolulu.
+        val selected = LocalDate.parse("2026-08-05")
+        assertThat(isFutureBirthDateInZone(selected, now, ZoneId.of("Pacific/Honolulu"))).isTrue()
+    }
 
     private fun createViewModel(): PersonalGuidanceViewModel =
         PersonalGuidanceViewModel(
