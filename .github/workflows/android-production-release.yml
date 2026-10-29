@@ -182,14 +182,18 @@ jobs:
 
       - name: Promote from an existing Play track
         if: ${{ inputs.promote_from_track != '' }}
+        env:
+          PROMOTE_FROM_TRACK: ${{ inputs.promote_from_track }}
+          PLAY_USER_FRACTION: ${{ inputs.rollout_fraction }}
+          VERSION_CODE: ${{ inputs.version_code }}
         run: >-
           ./gradlew :app:promoteReleaseArtifact
-          --from-track="${{ inputs.promote_from_track }}"
+          --from-track="$PROMOTE_FROM_TRACK"
           --promote-track="${PLAY_TRACK_PRODUCTION:-production}"
           --release-name="${{ steps.release_identity.outputs.release_name }}"
           --release-status="inProgress"
-          --user-fraction="${{ inputs.rollout_fraction }}"
-          --version-code="${{ inputs.version_code }}"
+          --user-fraction="$PLAY_USER_FRACTION"
+          --version-code="$VERSION_CODE"
 
       - name: Upload Android production artifacts
         if: ${{ inputs.promote_from_track == '' }}
@@ -202,20 +206,25 @@ jobs:
           if-no-files-found: error
 
       - name: Publish summary
+        env:
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          PROMOTE_FROM_TRACK: ${{ inputs.promote_from_track }}
+          PLAY_USER_FRACTION: ${{ inputs.rollout_fraction }}
         run: |
           {
             echo '## Android production release'
             echo
-            echo "- Version name: ${{ inputs.version_name }}"
-            echo "- Version code: ${{ inputs.version_code }}"
+            echo "- Version name: $VERSION_NAME"
+            echo "- Version code: $VERSION_CODE"
             echo "- Release name: ${{ steps.release_identity.outputs.release_name }}"
             echo "- Git SHA: $RELEASE_SHA"
-            echo "- Promote from track: ${{ inputs.promote_from_track || 'n/a' }}"
+            echo "- Promote from track: ${PROMOTE_FROM_TRACK:-n/a}"
             echo "- Play track: ${PLAY_TRACK_PRODUCTION:-production}"
             echo "- Release status: inProgress"
-            echo "- Rollout fraction: ${{ inputs.rollout_fraction }}"
-            if [ '${{ inputs.promote_from_track }}' = '' ]; then
-              echo "- Artifact: android-production-release-${{ inputs.version_code }}"
+            echo "- Rollout fraction: $PLAY_USER_FRACTION"
+            if [ -z "$PROMOTE_FROM_TRACK" ]; then
+              echo "- Artifact: android-production-release-$VERSION_CODE"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
