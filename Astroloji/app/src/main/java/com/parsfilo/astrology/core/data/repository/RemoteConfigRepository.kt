@@ -54,9 +54,12 @@ class RemoteConfigRepository
                 return null
             }
             return RemoteFlags(
-                interstitialFrequency = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY).toInt(),
-                interstitialDailyLimit = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT).toInt(),
-                interstitialCooldownMinutes = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toInt(),
+                interstitialFrequency =
+                    remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY).toSafeNonnegativeIntOrZero(),
+                interstitialDailyLimit =
+                    remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT).toSafeNonnegativeIntOrZero(),
+                interstitialCooldownMinutes =
+                    remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toSafeCooldownMinutes(),
             )
         }
 
@@ -93,11 +96,15 @@ class RemoteConfigRepository
                 RemoteFlags(
                     showPremiumBanner = remoteConfig.getBoolean(RemoteConfigKeys.SHOW_PREMIUM_BANNER),
                     showBannerAds = remoteConfig.getBoolean(RemoteConfigKeys.SHOW_BANNER_ADS),
-                    interstitialFrequency = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY).toInt(),
-                    interstitialDailyLimit = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT).toInt(),
-                    interstitialCooldownMinutes = remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toInt(),
+                    interstitialFrequency =
+                        remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_FREQUENCY).toSafeNonnegativeIntOrZero(),
+                    interstitialDailyLimit =
+                        remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_DAILY_LIMIT).toSafeNonnegativeIntOrZero(),
+                    interstitialCooldownMinutes =
+                        remoteConfig.getLong(RemoteConfigKeys.INTERSTITIAL_COOLDOWN_MINUTES).toSafeCooldownMinutes(),
                     premiumTrialDays = remoteConfig.getLong(RemoteConfigKeys.PREMIUM_TRIAL_DAYS).toInt(),
-                    rewardedDailyUnlockLimit = remoteConfig.getLong(RemoteConfigKeys.REWARDED_DAILY_UNLOCK_LIMIT).toInt(),
+                    rewardedDailyUnlockLimit =
+                        remoteConfig.getLong(RemoteConfigKeys.REWARDED_DAILY_UNLOCK_LIMIT).toSafeNonnegativeIntOrZero(),
                     appOpenMinBackgroundMs = remoteConfig.getLong(RemoteConfigKeys.APP_OPEN_MIN_BACKGROUND_MS),
                     forceUpdateVersion = remoteConfig.getLong(RemoteConfigKeys.FORCE_UPDATE_VERSION),
                     onboardingPaywallEnabled = remoteConfig.getBoolean(RemoteConfigKeys.ONBOARDING_PAYWALL_ENABLED),
@@ -106,3 +113,9 @@ class RemoteConfigRepository
                 )
             }
     }
+
+// Never let Long -> Int wrapping weaken the interstitial pacing policy.
+// Out-of-range frequency/daily limits disable ads; invalid cooldown blocks premature reuse.
+private fun Long.toSafeNonnegativeIntOrZero(): Int = if (this in 0L..Int.MAX_VALUE.toLong()) toInt() else 0
+
+private fun Long.toSafeCooldownMinutes(): Int = if (this in 0L..Int.MAX_VALUE.toLong()) toInt() else Int.MAX_VALUE
