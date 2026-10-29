@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildContentCacheKey,
+  getCachedJsonContent,
   invalidateContentCache,
   parseContentR2Key
 } from '@/services/cache';
@@ -73,5 +74,69 @@ describe('invalidateContentCache', () => {
 
     await expect(invalidateContentCache(env, 'not-a-content-key.json')).resolves.toBeUndefined();
     expect(deleted).toEqual([]);
+  });
+});
+
+describe('getCachedJsonContent KV fault tolerance', () => {
+  const payload = { date: '2026-08-11', signs: { aries: { short: 'hi' } } };
+
+  it('falls through to R2 when the KV read fails instead of throwing', async () => {
+    const env = createTestEnv({
+      CACHE: {
+        async get() {
+          throw new Error('KV unavailable');
+        },
+        async put() {
+          return;
+        },
+        async delete() {
+          return;
+        }
+      } as unknown as ReturnType<typeof createTestEnv>['CACHE'],
+      CONTENT: {
+        async get() {
+          return { json: async () => payload } as unknown as R2ObjectBody;
+        }
+      } as unknown as R2Bucket
+    });
+
+    await expect(
+      getCachedJsonContent(env, {
+        language: 'tr',
+        type: 'daily',
+        identifier: '2026-08-11',
+        r2Key: 'content/daily/tr/2026-08-11.json'
+      })
+    ).resolves.toEqual(payload);
+  });
+
+  it('still returns the R2 payload when the KV write fails instead of throwing', async () => {
+    const env = createTestEnv({
+      CACHE: {
+        async get() {
+          return null;
+        },
+        async put() {
+          throw new Error('KV PUT failed');
+        },
+        async delete() {
+          return;
+        }
+      } as unknown as ReturnType<typeof createTestEnv>['CACHE'],
+      CONTENT: {
+        async get() {
+          return { json: async () => payload } as unknown as R2ObjectBody;
+        }
+      } as unknown as R2Bucket
+    });
+
+    await expect(
+      getCachedJsonContent(env, {
+        language: 'tr',
+        type: 'daily',
+        identifier: '2026-08-11',
+        r2Key: 'content/daily/tr/2026-08-11.json'
+      })
+    ).resolves.toEqual(payload);
   });
 });
