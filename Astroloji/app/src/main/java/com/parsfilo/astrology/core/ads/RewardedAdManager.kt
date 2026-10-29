@@ -21,10 +21,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val MIN_REWARD_LIFETIME_MS = 60_000L
+
 data class RewardedAdRequest(
     val placement: String,
     val ssvUserId: String,
     val ssvCustomData: String,
+    val expiresAtMillis: Long,
 )
 
 @Singleton
@@ -80,12 +83,19 @@ class RewardedAdManager
             )
         }
 
+        @Suppress("ReturnCount")
         fun showIfAvailable(
             activity: Activity,
             request: RewardedAdRequest,
             onRewardEarned: (RewardItem) -> Unit,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            // Never play an ad that cannot be attributed to a valid SSV claim.
+            // Keep the cached creative available for a later valid request.
+            if (request.ssvUserId.isBlank() || request.ssvCustomData.isBlank()) return false
+            // A valid prepare response may expire before the Compose effect is
+            // collected. Avoid showing an ad the backend can no longer verify.
+            if (request.expiresAtMillis < System.currentTimeMillis() + MIN_REWARD_LIFETIME_MS) return false
             discardAdFromEarlierConsentRevision()
             // Consent can change after preload. Never show an old ad if revoked.
             val consentAllowed = consentManager.canRequestAds

@@ -3,6 +3,9 @@ package com.parsfilo.astrology.feature.weekly
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.parsfilo.astrology.core.ads.AdEligibilityChecker
+import com.parsfilo.astrology.core.ads.RewardClaimCallbacks
+import com.parsfilo.astrology.core.ads.RewardClaimVerifier
+import com.parsfilo.astrology.core.ads.prepareEligibleRewardChallenge
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
@@ -15,6 +18,7 @@ import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.TimeUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 data class WeeklyUiState(
@@ -24,12 +28,15 @@ data class WeeklyUiState(
     val error: String? = null,
     val showBannerAd: Boolean = false,
     val canUnlockWithReward: Boolean = false,
+    val pendingRewardChallengeId: String? = null,
 )
 
 sealed interface WeeklyUiEvent {
     data object Refresh : WeeklyUiEvent
 
     data object UnlockWithReward : WeeklyUiEvent
+
+    data object RetryRewardVerification : WeeklyUiEvent
 
     data class RewardAdUnavailable(
         val message: String,
@@ -50,14 +57,18 @@ sealed interface WeeklyUiEffect {
 class WeeklyViewModel
     @Inject
     constructor(
-        savedStateHandle: SavedStateHandle,
+        private val savedStateHandle: SavedStateHandle,
         private val contentRepository: ContentRepository,
         private val preferencesRepository: UserPreferencesRepository,
         private val analyticsRepository: AnalyticsRepository,
         private val remoteConfigRepository: RemoteConfigRepository,
         private val adEligibilityChecker: AdEligibilityChecker,
-    ) : MviViewModel<WeeklyUiState, WeeklyUiEvent, WeeklyUiEffect>(WeeklyUiState()) {
+    ) : MviViewModel<WeeklyUiState, WeeklyUiEvent, WeeklyUiEffect>(
+            WeeklyUiState(pendingRewardChallengeId = savedStateHandle["pendingRewardChallengeId"]),
+        ) {
         private val signFromArgs: String? = savedStateHandle.get<String>("sign")
+        private val preparingReward = AtomicBoolean(false)
+        private val rewardClaimVerifier = RewardClaimVerifier(contentRepository, savedStateHandle, viewModelScope)
 
         init {
             viewModelScope.launch { load(false) }
@@ -68,40 +79,69 @@ class WeeklyViewModel
                 WeeklyUiEvent.Refresh -> {
                     viewModelScope.launch { load(true) }
                 }
-                WeeklyUiEvent.UnlockWithReward -> {
-                    viewModelScope.launch {
-                        setState { copy(error = null) }
-                        if (!adEligibilityChecker.canShowRewarded()) {
-                            setState { copy(canUnlockWithReward = false) }
-                            return@launch
-                        }
-                        val identifier = TimeUtils.weekIdentifier()
-                        when (val prepareResult = contentRepository.prepareRewardUnlock("weekly", identifier)) {
-                            is AppResult.Success -> {
-                                if (adEligibilityChecker.canShowRewarded()) {
-                                    sendEffect { WeeklyUiEffect.ShowRewardAd(prepareResult.data) }
-                                } else {
-                                    setState { copy(canUnlockWithReward = false) }
-                                }
-                            }
-                            is AppResult.Error -> setState { copy(error = prepareResult.exception.message) }
-                            AppResult.Loading -> Unit
-                        }
-                    }
+                WeeklyUiEvent.UnlockWithReward -> prepareRewardUnlock()
+                WeeklyUiEvent.RetryRewardVerification -> {
+                    state.value.pendingRewardChallengeId?.let(::claimRewardUnlock)
                 }
                 is WeeklyUiEvent.RewardAdUnavailable -> {
                     setState { copy(error = event.message) }
                 }
-                is WeeklyUiEvent.RewardEarned -> {
-                    viewModelScope.launch {
-                        when (val claimResult = contentRepository.claimRewardUnlock(event.challengeId)) {
-                            is AppResult.Success -> load(true)
-                            is AppResult.Error -> setState { copy(error = claimResult.exception.message) }
-                            AppResult.Loading -> Unit
-                        }
+                is WeeklyUiEvent.RewardEarned -> claimRewardUnlock(event.challengeId)
+            }
+        }
+
+        private fun prepareRewardUnlock() {
+            // If an SDK reward was already earned, verify it instead of
+            // asking the user to watch a second ad for the same content.
+            state.value.pendingRewardChallengeId?.let {
+                claimRewardUnlock(it)
+                return
+            }
+            if (!preparingReward.compareAndSet(false, true)) return
+            viewModelScope.launch {
+                try {
+                    setState { copy(error = null) }
+                    val result =
+                        prepareEligibleRewardChallenge(
+                            repository = contentRepository,
+                            eligibility = adEligibilityChecker,
+                            rewardType = "weekly",
+                            identifier = TimeUtils.weekIdentifier(),
+                        )
+                    when (result) {
+                        is AppResult.Success -> sendEffect { WeeklyUiEffect.ShowRewardAd(result.data) }
+                        is AppResult.Error -> setState { copy(error = result.exception.message) }
+                        AppResult.Loading -> Unit
+                        null -> setState { copy(canUnlockWithReward = false) }
                     }
+                } finally {
+                    preparingReward.set(false)
                 }
             }
+        }
+
+        private fun claimRewardUnlock(challengeId: String) {
+            val callbacks =
+                RewardClaimCallbacks(
+                    onPending = { setState { copy(pendingRewardChallengeId = it, error = null) } },
+                    onGranted = {
+                        setState { copy(pendingRewardChallengeId = null) }
+                        load(true)
+                    },
+                    onFailed = { message, expired ->
+                        setState {
+                            copy(
+                                pendingRewardChallengeId = if (expired) null else pendingRewardChallengeId,
+                                error = message,
+                            )
+                        }
+                    },
+                )
+            rewardClaimVerifier.claim(
+                challengeId = challengeId,
+                pendingId = state.value.pendingRewardChallengeId,
+                callbacks = callbacks,
+            )
         }
 
         private suspend fun load(forceRefresh: Boolean) {

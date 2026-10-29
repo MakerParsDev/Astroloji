@@ -113,8 +113,35 @@ export const trackEventSchema = z.object({
   owner_user_id: z.string().trim().min(1).max(256).optional()
 });
 
-const dailyRewardIdentifierSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const weeklyRewardIdentifierSchema = z.string().regex(/^\d{4}-W\d{2}$/);
+function isRealDailyRewardIdentifier(identifier: string): boolean {
+  const year = Number(identifier.slice(0, 4));
+  if (year < 1) return false;
+  const date = new Date(identifier + 'T00:00:00.000Z');
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === identifier;
+}
+
+function isRealWeeklyRewardIdentifier(identifier: string): boolean {
+  const year = Number(identifier.slice(0, 4));
+  const week = Number(identifier.slice(-2));
+  if (year < 1 || week < 1 || week > 53) return false;
+
+  // An ISO year has 53 weeks only if January 1 is Thursday, or a
+  // Wednesday in a leap year. Other ISO years end at week 52.
+  const firstDay = new Date(identifier.slice(0, 4) + '-01-01T00:00:00.000Z').getUTCDay();
+  const isLeapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const hasWeek53 = firstDay === 4 || (firstDay === 3 && isLeapYear);
+  return week <= (hasWeek53 ? 53 : 52);
+}
+
+const dailyRewardIdentifierSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine(isRealDailyRewardIdentifier, 'daily reward identifier must be a real calendar date.');
+
+const weeklyRewardIdentifierSchema = z
+  .string()
+  .regex(/^\d{4}-W\d{2}$/)
+  .refine(isRealWeeklyRewardIdentifier, 'weekly reward identifier must be a real ISO week.');
 
 export function isValidRewardIdentifier(rewardType: RewardType, identifier: string): boolean {
   const schema = rewardType === 'daily' ? dailyRewardIdentifierSchema : weeklyRewardIdentifierSchema;
@@ -231,6 +258,33 @@ const utcTimestampSchema = z
 
 const birthTimeCertaintySchema = z.enum(['exact', 'approximate', 'unknown']);
 
+function isRealLocalDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+
+  const instant = new Date(Date.UTC(year, month - 1, day));
+  return (
+    instant.getUTCFullYear() === year &&
+    instant.getUTCMonth() === month - 1 &&
+    instant.getUTCDate() === day
+  );
+}
+
+function isRealLocalTime(value: string): boolean {
+  const match = /^(\d{2}):(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const second = Number(match[3]);
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 && second >= 0 && second <= 59;
+}
+
 const geographicObserverSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180)
@@ -242,8 +296,14 @@ export const natalChartSchema = z.object({
   observer: geographicObserverSchema.optional()
 });
 
-const localDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'local_date must be in YYYY-MM-DD form.');
-const localTimeSchema = z.string().regex(/^\d{2}:\d{2}:\d{2}$/, 'local_time must be in HH:mm:ss form.');
+const localDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'local_date must be in YYYY-MM-DD form.')
+  .refine(isRealLocalDate, 'local_date must be a real calendar date in YYYY-MM-DD form.');
+const localTimeSchema = z
+  .string()
+  .regex(/^\d{2}:\d{2}:\d{2}$/, 'local_time must be in HH:mm:ss form.')
+  .refine(isRealLocalTime, 'local_time must be a real clock time in HH:mm:ss form.');
 
 export const saveBirthDataSchema = z
   .object({

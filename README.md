@@ -157,7 +157,7 @@ Onerilen model:
 - `PLAY_SERVICE_ACCOUNT_JSON`
 - `GOOGLE_SERVICES_JSON`
 - `DOPPLER_TOKEN` (tercih edilen yontem)
-- `CRASHLYTICS_MAPPING_UPLOAD_ENABLED` (CI dry-run icin `false`, release publish icin genelde `true`)
+- `CRASHLYTICS_MAPPING_UPLOAD_ENABLED` (varsayilan `false`: yerel/CI build mapping gondermez; onayli internal/production release workflow'lari acikca `true` verir)
 
 Repo variable'lari:
 
