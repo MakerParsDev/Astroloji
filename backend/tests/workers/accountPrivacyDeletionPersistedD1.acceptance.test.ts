@@ -285,4 +285,103 @@ describe('privacy deletion — isolated persistent local D1 and synthetic accoun
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('purges every account-linked D1 table without harming another user', async () => {
+    deleteFirebaseUserMock.mockReset().mockResolvedValue(undefined);
+    const dir = mkdtempSync(join(tmpdir(), 'astro-account-matrix-'));
+    const runtime = makeMiniflare(dir);
+    try {
+      const db = await runtime.getD1Database('DB');
+      await installLocalSchema(db);
+      const date = '2026-10-26';
+      for (const userId of [A, B, 'synthetic-privacy-C']) {
+        await db.prepare(
+          'INSERT INTO users (id, firebase_uid, sign, created_at, last_seen_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind(userId, 'firebase-' + userId, 'aries', date, date).run();
+      }
+      for (const userId of [A, B]) {
+        const id = userId === A ? 'a' : 'b';
+        await db.prepare(
+          'INSERT INTO fcm_tokens (id, user_id, token, created_at, updated_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind('fcm-' + id, userId, 'synthetic-token-' + id, date, date).run();
+        await db.prepare(
+          'INSERT INTO subscriptions (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind('sub-' + id, userId, 'synthetic-purchase-' + id, 'premium_monthly',
+          'active', date, '2026-11-26', 1, date, date).run();
+        await db.prepare(
+          'INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind('sub-event-' + id, userId, 'synthetic-purchase-' + id, 'renewal',
+          '{"synthetic":true}', date).run();
+        await db.prepare(
+          'INSERT INTO reward_challenges (id, user_id, reward_type, identifier, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        ).bind('reward-' + id, userId, 'daily', date, 'pending', date, '2026-10-27').run();
+        await db.prepare(
+          'INSERT INTO user_events (id, user_id, event_type, meta, created_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind('event-' + id, userId, 'mood_logged', '{}', date).run();
+        await db.prepare(
+          'INSERT INTO user_birth_data (user_id, time_certainty, encrypted_payload, encryption_iv, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(userId, 'unknown', 'synthetic-ciphertext', 'synthetic-iv', date, date).run();
+        await db.prepare(
+          'INSERT INTO credit_ledger (id, user_id, delta, reason, created_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind('credit-' + id, userId, 10, 'purchase', date).run();
+        await db.prepare(
+          'INSERT INTO mood_logs (id, user_id, date, mood, created_at) VALUES (?, ?, ?, ?, ?)'
+        ).bind('mood-' + id, userId, date, 'neutral', date).run();
+      }
+      // Another user's invitation was redeemed by the user being deleted.
+      await db.prepare(
+        'INSERT INTO invite_codes (code, owner_user_id, created_at, expires_at, redeemed_by, redeemed_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind('invite-a', A, date, '2026-11-26', B, date).run();
+      await db.prepare(
+        'INSERT INTO invite_codes (code, owner_user_id, created_at, expires_at, redeemed_by, redeemed_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind('invite-b', B, date, '2026-11-26', A, date).run();
+      await db.prepare(
+        'INSERT INTO friendships (id, user_a, user_b, status, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).bind('friend-ab', A, B, 'active', date).run();
+      await db.prepare(
+        'INSERT INTO friendships (id, user_a, user_b, status, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).bind('friend-bc', B, 'synthetic-privacy-C', 'active', date).run();
+
+      const env = createTestEnv({ DB: db });
+      const headers = { authorization: 'Bearer ' + await signAppJwt(env, {
+        userId: A, firebaseUid: 'firebase-' + A, isPremium: false
+      }) };
+      const response = await createApp().request(ENDPOINT, { method: 'DELETE', headers }, env);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ ok: true, firebase_account_deleted: true });
+      expect(deleteFirebaseUserMock).toHaveBeenCalledExactlyOnceWith(env, 'firebase-' + A);
+
+      const ownedTables = [
+        'fcm_tokens', 'subscriptions', 'subscription_events', 'reward_challenges',
+        'user_events', 'user_birth_data', 'credit_ledger', 'mood_logs', 'account_deletion_jobs'
+      ] as const;
+      for (const table of ownedTables) {
+        const count = async (userId: string) => (
+          await db.prepare('SELECT COUNT(*) AS n FROM ' + table + ' WHERE user_id = ?')
+            .bind(userId).first<{ n: number }>()
+        )?.n;
+        expect(await count(A), table + ' should delete A rows').toBe(0);
+        if (table !== 'account_deletion_jobs') {
+          expect(await count(B), table + ' should preserve B rows').toBe(1);
+        }
+      }
+      const one = async (sql: string, ...args: unknown[]) =>
+        (await db.prepare(sql).bind(...args).first<{ n: number }>())?.n;
+      expect(await one('SELECT COUNT(*) AS n FROM users WHERE id = ?', A)).toBe(0);
+      expect(await one('SELECT COUNT(*) AS n FROM users WHERE id = ?', B)).toBe(1);
+      expect(await one('SELECT COUNT(*) AS n FROM friendships WHERE user_a = ? OR user_b = ?', A, A)).toBe(0);
+      expect(await one('SELECT COUNT(*) AS n FROM friendships WHERE id = ?', 'friend-bc')).toBe(1);
+      expect(await one('SELECT COUNT(*) AS n FROM invite_codes WHERE owner_user_id = ?', A)).toBe(0);
+      expect(await one('SELECT COUNT(*) AS n FROM invite_codes WHERE owner_user_id = ?', B)).toBe(1);
+      expect(await one('SELECT COUNT(*) AS n FROM invite_codes WHERE redeemed_by = ?', A)).toBe(0);
+      expect((await db.prepare('SELECT redeemed_by, redeemed_at FROM invite_codes WHERE code = ?')
+        .bind('invite-b').first<{ redeemed_by: string | null; redeemed_at: string | null }>())).toEqual({
+        redeemed_by: null, redeemed_at: null
+      });
+    } finally {
+      await runtime.dispose();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
 });
