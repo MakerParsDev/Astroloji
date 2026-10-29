@@ -33,6 +33,7 @@ class RewardedAdLifecycleAnalyticsTest {
                 placement = "unlock_daily_full",
                 ssvUserId = "synthetic-user",
                 ssvCustomData = "synthetic-challenge",
+                expiresAtMillis = Long.MAX_VALUE,
             )
 
         init {

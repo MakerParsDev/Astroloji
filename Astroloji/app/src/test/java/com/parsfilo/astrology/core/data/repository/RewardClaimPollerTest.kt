@@ -13,7 +13,7 @@ class RewardClaimPollerTest {
                     listOf(
                         RewardClaimAttempt(409, "PENDING_VERIFICATION"),
                         RewardClaimAttempt(409, "PENDING_VERIFICATION"),
-                        RewardClaimAttempt(200, null),
+                        RewardClaimAttempt(200, null, verifiedSuccessBody = true),
                     ),
                 )
             val delays = mutableListOf<Long>()
@@ -46,6 +46,43 @@ class RewardClaimPollerTest {
 
             assertThat(outcome).isEqualTo(RewardClaimPollOutcome.TIMED_OUT)
             assertThat(calls).isEqualTo(3)
+        }
+
+    @Test
+    fun `HTTP 200 without verified claim response does not grant success`() =
+        runTest {
+            val outcome =
+                pollRewardClaim(maxAttempts = 3, delayMillis = 1, delayFn = {}) {
+                    RewardClaimAttempt(200, null, verifiedSuccessBody = false)
+                }
+            assertThat(outcome).isEqualTo(RewardClaimPollOutcome.FAILED)
+        }
+
+    @Test
+    fun `terminal expired and missing challenges permit safe fresh preparation`() =
+        runTest {
+            val terminalResponses =
+                listOf(
+                    RewardClaimAttempt(410, "REWARD_CHALLENGE_EXPIRED"),
+                    RewardClaimAttempt(410, "REWARD_ENTITLEMENT_EXPIRED"),
+                    RewardClaimAttempt(404, "REWARD_CHALLENGE_NOT_FOUND"),
+                )
+            for (attempt in terminalResponses) {
+                var calls = 0
+                val outcome =
+                    pollRewardClaim(maxAttempts = 3, delayMillis = 1, delayFn = {}) {
+                        calls++
+                        attempt
+                    }
+                assertThat(outcome).isEqualTo(RewardClaimPollOutcome.EXPIRED)
+                assertThat(calls).isEqualTo(1)
+            }
+
+            assertThat(
+                pollRewardClaim(maxAttempts = 3, delayMillis = 1, delayFn = {}) {
+                    RewardClaimAttempt(404, "OTHER_NOT_FOUND")
+                },
+            ).isEqualTo(RewardClaimPollOutcome.FAILED)
         }
 
     @Test

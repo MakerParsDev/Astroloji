@@ -12,14 +12,17 @@ import com.parsfilo.astrology.core.domain.model.RemoteFlags
 import com.parsfilo.astrology.core.domain.model.RewardChallenge
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.domain.model.WeeklyHoroscope
+import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import io.mockk.coEvery
 import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -239,6 +242,243 @@ class WeeklyViewModelTest {
 
             assertThat(viewModel.state.value.error).isEqualTo("Reklam hazır değil")
             coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+        }
+
+    @Test
+    fun `rapid weekly unlock taps do not create concurrent server challenges`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+            val challenge =
+                RewardChallenge(
+                    challengeId = "challenge-weekly",
+                    customData = "opaque-ssv",
+                    userId = "test-user",
+                    rewardType = "weekly",
+                    identifier = "2026-W43",
+                    expiresAt = "2026-10-26T00:00:00Z",
+                )
+            val releaseFirst = CompletableDeferred<Unit>()
+            var preparations = 0
+            coEvery { contentRepository.prepareRewardUnlock("weekly", any()) } coAnswers {
+                preparations += 1
+                if (preparations == 1) {
+                    releaseFirst.await()
+                    AppResult.Loading
+                } else {
+                    AppResult.Success(challenge)
+                }
+            }
+            val model =
+                WeeklyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            model.onEvent(WeeklyUiEvent.UnlockWithReward)
+            model.onEvent(WeeklyUiEvent.UnlockWithReward)
+            runCurrent()
+            assertThat(preparations).isEqualTo(1)
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+
+            releaseFirst.complete(Unit)
+            advanceUntilIdle()
+            model.onEvent(WeeklyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+            assertThat(preparations).isEqualTo(2)
+            assertThat(model.effects.first()).isEqualTo(WeeklyUiEffect.ShowRewardAd(challenge))
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+        }
+
+    @Test
+    fun `weekly repeated reward earned events cannot duplicate an in-flight claim`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+            val releaseFirst = CompletableDeferred<Unit>()
+            var claims = 0
+            coEvery { contentRepository.claimRewardUnlock("same-challenge") } coAnswers {
+                claims += 1
+                if (claims == 1) {
+                    releaseFirst.await()
+                    AppResult.Error(AppException.NetworkException("claim failed, retry"))
+                } else {
+                    AppResult.Loading
+                }
+            }
+            val model =
+                WeeklyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            model.onEvent(WeeklyUiEvent.RewardEarned("same-challenge"))
+            model.onEvent(WeeklyUiEvent.RewardEarned("same-challenge"))
+            runCurrent()
+            assertThat(claims).isEqualTo(1)
+
+            releaseFirst.complete(Unit)
+            advanceUntilIdle()
+            assertThat(model.state.value.error).contains("claim failed")
+            model.onEvent(WeeklyUiEvent.RewardEarned("same-challenge"))
+            advanceUntilIdle()
+            assertThat(claims).isEqualTo(2)
+            coVerify(exactly = 2) { contentRepository.claimRewardUnlock("same-challenge") }
+        }
+
+    @Test
+    fun `successful weekly reward claim ignores a late duplicate callback`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+            coEvery { contentRepository.claimRewardUnlock("claimed-challenge") } returns AppResult.Success(Unit)
+            val model =
+                WeeklyViewModel(
+                    savedStateHandle = SavedStateHandle(mapOf("sign" to "aries")),
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            model.onEvent(WeeklyUiEvent.RewardEarned("claimed-challenge"))
+            advanceUntilIdle()
+            model.onEvent(WeeklyUiEvent.RewardEarned("claimed-challenge"))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { contentRepository.claimRewardUnlock("claimed-challenge") }
+        }
+
+    @Test
+    fun `weekly earned challenge survives saved state and retries without a second ad`() =
+        runTest {
+            val saved = SavedStateHandle(mapOf("sign" to "aries"))
+            var claims = 0
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } coAnswers {
+                AppResult.Success(
+                    weekly(
+                        love = if (claims >= 2) "Verified love" else null,
+                        career = null,
+                        money = null,
+                    ),
+                )
+            }
+            coEvery { contentRepository.claimRewardUnlock("earned-weekly") } coAnswers {
+                claims++
+                if (claims == 1) {
+                    AppResult.Error(AppException.NetworkException("SSV still pending"))
+                } else {
+                    AppResult.Success(Unit)
+                }
+            }
+
+            fun newModel() =
+                WeeklyViewModel(
+                    savedStateHandle = saved,
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            val first = newModel()
+            advanceUntilIdle()
+            first.onEvent(WeeklyUiEvent.RewardEarned("earned-weekly"))
+            advanceUntilIdle()
+            assertThat(claims).isEqualTo(1)
+            assertThat(
+                first.state.value.weekly
+                    ?.love,
+            ).isNull()
+            assertThat(saved.get<String>("pendingRewardChallengeId")).isEqualTo("earned-weekly")
+
+            // Recreated ViewModel can verify the earned reward without an SDK event.
+            val recreated = newModel()
+            advanceUntilIdle()
+            assertThat(recreated.state.value.pendingRewardChallengeId).isEqualTo("earned-weekly")
+            recreated.onEvent(WeeklyUiEvent.RetryRewardVerification)
+            advanceUntilIdle()
+
+            assertThat(claims).isEqualTo(2)
+            assertThat(recreated.state.value.pendingRewardChallengeId).isNull()
+            assertThat(
+                recreated.state.value.weekly
+                    ?.love,
+            ).isEqualTo("Verified love")
+            coVerify(exactly = 0) { contentRepository.prepareRewardUnlock(any(), any()) }
+        }
+
+    @Test
+    fun `terminal weekly reward expiry clears saved pending claim and permits new preparation`() =
+        runTest {
+            val saved = SavedStateHandle(mapOf("sign" to "aries", "pendingRewardChallengeId" to "expired-weekly"))
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getWeekly(any(), any(), any(), any()) } returns
+                AppResult.Success(weekly(love = null, career = null, money = null))
+            coEvery { contentRepository.claimRewardUnlock("expired-weekly") } returns
+                AppResult.Error(AppException.RewardChallengeExpiredException())
+            coEvery { contentRepository.prepareRewardUnlock("weekly", any()) } returns AppResult.Loading
+
+            val model =
+                WeeklyViewModel(
+                    savedStateHandle = saved,
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+            model.onEvent(WeeklyUiEvent.RetryRewardVerification)
+            advanceUntilIdle()
+
+            assertThat(model.state.value.pendingRewardChallengeId).isNull()
+            assertThat(saved.get<String>("pendingRewardChallengeId")).isNull()
+            assertThat(model.state.value.error).contains("expired")
+
+            model.onEvent(WeeklyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { contentRepository.prepareRewardUnlock("weekly", any()) }
+            coVerify(exactly = 1) { contentRepository.claimRewardUnlock("expired-weekly") }
         }
 
     private fun weekly(

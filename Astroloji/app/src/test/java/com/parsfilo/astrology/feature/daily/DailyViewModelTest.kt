@@ -19,9 +19,11 @@ import io.mockk.coEvery
 import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -471,6 +473,170 @@ class DailyViewModelTest {
             coVerify(exactly = 0) {
                 analyticsRepository.track(AnalyticsEvents.SHARE_COMPLETED, any())
             }
+        }
+
+    @Test
+    fun `rapid daily unlock taps issue only one pending prepare and allow a later retry`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            val releaseFirst = CompletableDeferred<Unit>()
+            var preparations = 0
+            coEvery { contentRepository.prepareRewardUnlock("daily", any()) } coAnswers {
+                preparations += 1
+                if (preparations == 1) {
+                    releaseFirst.await()
+                    AppResult.Loading
+                } else {
+                    AppResult.Success(dailyRewardChallenge())
+                }
+            }
+            val model = createViewModel()
+            advanceUntilIdle()
+
+            model.onEvent(DailyUiEvent.UnlockWithReward)
+            model.onEvent(DailyUiEvent.UnlockWithReward)
+            runCurrent()
+            assertThat(preparations).isEqualTo(1)
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+
+            // Once the first request finishes without a challenge, retry is safe.
+            releaseFirst.complete(Unit)
+            advanceUntilIdle()
+            model.onEvent(DailyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+            assertThat(preparations).isEqualTo(2)
+            assertThat(model.effects.first()).isEqualTo(DailyUiEffect.ShowRewardAd(dailyRewardChallenge()))
+            coVerify(exactly = 0) { contentRepository.claimRewardUnlock(any()) }
+        }
+
+    @Test
+    fun `daily repeated reward earned events never claim concurrently and failed claim can retry`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            val releaseFirst = CompletableDeferred<Unit>()
+            var claims = 0
+            coEvery { contentRepository.claimRewardUnlock("same-challenge") } coAnswers {
+                claims += 1
+                if (claims == 1) {
+                    releaseFirst.await()
+                    AppResult.Error(AppException.NetworkException("claim failed, retry"))
+                } else {
+                    AppResult.Loading
+                }
+            }
+            val model = createViewModel()
+            advanceUntilIdle()
+
+            model.onEvent(DailyUiEvent.RewardEarned("same-challenge"))
+            model.onEvent(DailyUiEvent.RewardEarned("same-challenge"))
+            runCurrent()
+            assertThat(claims).isEqualTo(1)
+
+            releaseFirst.complete(Unit)
+            advanceUntilIdle()
+            assertThat(model.state.value.error).contains("claim failed")
+            model.onEvent(DailyUiEvent.RewardEarned("same-challenge"))
+            advanceUntilIdle()
+            assertThat(claims).isEqualTo(2)
+            coVerify(exactly = 2) { contentRepository.claimRewardUnlock("same-challenge") }
+        }
+
+    @Test
+    fun `successful daily reward claim ignores a late duplicate callback`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } returns
+                AppResult.Success(lockedDailyHoroscope())
+            coEvery { contentRepository.claimRewardUnlock("claimed-challenge") } returns AppResult.Success(Unit)
+            val model = createViewModel()
+            advanceUntilIdle()
+
+            model.onEvent(DailyUiEvent.RewardEarned("claimed-challenge"))
+            advanceUntilIdle()
+            model.onEvent(DailyUiEvent.RewardEarned("claimed-challenge"))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { contentRepository.claimRewardUnlock("claimed-challenge") }
+        }
+
+    @Test
+    fun `earned daily reward can retry backend verification without another ad`() =
+        runTest {
+            val saved = SavedStateHandle(mapOf("sign" to "aries"))
+            val locked = lockedDailyHoroscope()
+            var claims = 0
+            coEvery { preferencesRepository.current() } returns UserPreferences(selectedSign = "aries", language = "tr")
+            coEvery { remoteConfigRepository.fetchFlags() } returns
+                RemoteFlags(showBannerAds = false, rewardedDailyUnlockLimit = 1)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coEvery { adEligibilityChecker.canShowRewarded() } returns true
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { contentRepository.getDaily(any(), any(), any(), any()) } coAnswers {
+                AppResult.Success(if (claims >= 2) locked.copy(full = "Verified reading") else locked)
+            }
+            coEvery { contentRepository.claimRewardUnlock("earned-daily") } coAnswers {
+                claims++
+                if (claims == 1) {
+                    AppResult.Error(AppException.NetworkException("Verification still pending"))
+                } else {
+                    AppResult.Success(Unit)
+                }
+            }
+            val model =
+                DailyViewModel(
+                    savedStateHandle = saved,
+                    contentRepository = contentRepository,
+                    preferencesRepository = preferencesRepository,
+                    analyticsRepository = analyticsRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+            advanceUntilIdle()
+
+            // A retry without a previous SDK reward callback cannot claim anything.
+            model.onEvent(DailyUiEvent.RetryRewardVerification)
+            advanceUntilIdle()
+            assertThat(claims).isEqualTo(0)
+
+            model.onEvent(DailyUiEvent.RewardEarned("earned-daily"))
+            advanceUntilIdle()
+            assertThat(claims).isEqualTo(1)
+            assertThat(
+                model.state.value.horoscope
+                    ?.full,
+            ).isNull()
+            assertThat(model.state.value.pendingRewardChallengeId).isEqualTo("earned-daily")
+            assertThat(saved.get<String>("pendingRewardChallengeId")).isEqualTo("earned-daily")
+
+            // The visible ad action must recheck the earned challenge, not mint another.
+            model.onEvent(DailyUiEvent.UnlockWithReward)
+            advanceUntilIdle()
+
+            assertThat(claims).isEqualTo(2)
+            assertThat(model.state.value.pendingRewardChallengeId).isNull()
+            assertThat(saved.get<String>("pendingRewardChallengeId")).isNull()
+            assertThat(
+                model.state.value.horoscope
+                    ?.full,
+            ).isEqualTo("Verified reading")
+            coVerify(exactly = 0) { contentRepository.prepareRewardUnlock(any(), any()) }
         }
 
     private fun createViewModel(): DailyViewModel =

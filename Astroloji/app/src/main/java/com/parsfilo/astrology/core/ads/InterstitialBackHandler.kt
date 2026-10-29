@@ -12,6 +12,16 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /**
+ * Preferences may change while the pacing check suspends (e.g. premium becomes active).
+ * Recheck premium and consent immediately before attempting an SDK show.
+ * The frequency check itself must run exactly once per BACK opportunity.
+ */
+internal suspend fun isInterstitialBackStillEligible(
+    isFreeAndConsented: suspend () -> Boolean,
+    meetsFrequency: suspend () -> Boolean,
+): Boolean = isFreeAndConsented() && meetsFrequency() && isFreeAndConsented()
+
+/**
  * A BACK press is a single in-flight navigation request until the destination is disposed.
  * Another BACK while fetching flags or showing an ad must not bypass the ad.
  */
@@ -36,8 +46,10 @@ fun InterstitialBackHandler(
                 val flags = entry.remoteConfigRepository().cachedInterstitialFlagsOrNull()
                 val eligible =
                     flags != null &&
-                        entry.adEligibilityChecker().canShowInterstitial() &&
-                        entry.adFrequencyManager().canShowInterstitial(flags)
+                        isInterstitialBackStillEligible(
+                            isFreeAndConsented = { entry.adEligibilityChecker().canShowInterstitial() },
+                            meetsFrequency = { entry.adFrequencyManager().canShowInterstitialOnBack(flags) },
+                        )
                 if (!eligible) {
                     backNavigation.complete(onNavigateBack)
                     return@launch

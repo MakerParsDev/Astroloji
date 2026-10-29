@@ -13,7 +13,9 @@ import com.parsfilo.astrology.core.data.local.WeeklyDao
 import com.parsfilo.astrology.core.data.local.WeeklyHoroscopeEntity
 import com.parsfilo.astrology.core.data.remote.AstrologyApi
 import com.parsfilo.astrology.core.data.remote.ErrorEnvelope
+import com.parsfilo.astrology.core.data.remote.RewardChallengeResponse
 import com.parsfilo.astrology.core.data.remote.RewardClaimRequest
+import com.parsfilo.astrology.core.data.remote.RewardClaimResponse
 import com.parsfilo.astrology.core.data.remote.RewardPrepareRequest
 import com.parsfilo.astrology.core.data.session.AuthenticatedRequestExecutor
 import com.parsfilo.astrology.core.domain.model.CompatibilityReport
@@ -37,6 +39,40 @@ import java.io.IOException
 import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * Never ask someone to watch an ad whose SSV challenge cannot be verified.
+ * The challenge must refer to the reward type/period that the user requested.
+ */
+private const val MIN_REWARD_CHALLENGE_LIFETIME_MS = 60_000L
+
+private fun RewardChallengeResponse.isValidFor(
+    requestedRewardType: String,
+    requestedIdentifier: String,
+    nowMs: Long = System.currentTimeMillis(),
+): Boolean {
+    // Backend verifies SSV custom_data against the stored challenge id.
+    // A near-expiry challenge can expire while the user watches the ad.
+    val expiresAtMs = TimeUtils.parseIsoMillis(expiresAt) ?: return false
+    return challengeId.isNotBlank() &&
+        customData == challengeId &&
+        userId.isNotBlank() &&
+        expiresAtMs - nowMs >= MIN_REWARD_CHALLENGE_LIFETIME_MS &&
+        rewardType == requestedRewardType &&
+        identifier == requestedIdentifier
+}
+
+private fun RewardClaimResponse.isValidClaimFor(
+    requestedChallengeId: String,
+    nowMs: Long = System.currentTimeMillis(),
+): Boolean {
+    val expiresAtMs = TimeUtils.parseIsoMillis(entitlementExpiresAt) ?: return false
+    return ok &&
+        challengeId == requestedChallengeId &&
+        rewardType in setOf("daily", "weekly") &&
+        identifier.isNotBlank() &&
+        expiresAtMs > nowMs
+}
 
 @Singleton
 @Suppress("LongParameterList")
@@ -210,6 +246,11 @@ class ContentRepository
                                 ?: return@withContext AppResult.Error(
                                     AppException.NetworkException("Reward challenge response was empty."),
                                 )
+                        if (!body.isValidFor(rewardType, identifier)) {
+                            return@withContext AppResult.Error(
+                                AppException.NetworkException("Reward challenge response was invalid."),
+                            )
+                        }
                         AppResult.Success(
                             RewardChallenge(
                                 challengeId = body.challengeId,
@@ -240,9 +281,12 @@ class ContentRepository
                                 authenticatedRequest {
                                     api.claimReward(RewardClaimRequest(challengeId = challengeId))
                                 }
+                            val verifiedSuccessBody =
+                                response.body()?.isValidClaimFor(challengeId) == true
                             RewardClaimAttempt(
                                 statusCode = response.code(),
-                                errorCode = response.errorCode(),
+                                errorCode = if (response.isSuccessful) null else response.errorCode(),
+                                verifiedSuccessBody = verifiedSuccessBody,
                             )
                         }
                     } catch (e: IOException) {
@@ -255,6 +299,8 @@ class ContentRepository
                 when (outcome) {
                     RewardClaimPollOutcome.CLAIMED -> AppResult.Success(Unit)
                     RewardClaimPollOutcome.UNAUTHORIZED -> AppResult.Error(AppException.UnauthorizedException())
+                    RewardClaimPollOutcome.EXPIRED ->
+                        AppResult.Error(AppException.RewardChallengeExpiredException())
                     RewardClaimPollOutcome.TIMED_OUT ->
                         AppResult.Error(AppException.NetworkException("Reward verification is still pending."))
                     RewardClaimPollOutcome.FAILED ->

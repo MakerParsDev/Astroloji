@@ -22,6 +22,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PersonalGuidanceViewModelTest {
@@ -67,6 +69,28 @@ class PersonalGuidanceViewModelTest {
                     targetTimestamp = "2026-08-05T11:22:33.987Z",
                     language = "tr",
                 )
+            }
+        }
+
+    @Test
+    fun `persisted daily line uses injected clock date`() =
+        runTest {
+            val pickerMillis = Instant.parse("1990-01-15T00:00:00.000Z").toEpochMilli()
+            val fixedNow = Instant.parse("2026-08-05T11:22:33.987Z")
+            val expectedDate = fixedNow.atZone(ZoneId.systemDefault()).toLocalDate().toString()
+            coEvery { preferencesRepository.current() } returns UserPreferences(language = "en")
+            coJustRun { preferencesRepository.savePersonalizedDailyLine(any(), any(), any()) }
+            every { chartClock.now() } returns fixedNow
+            coEvery { chartRepository.getPersonalGuidance(any(), any(), any(), any()) } returns
+                AppResult.Success(guidance())
+
+            val viewModel = createViewModel()
+            viewModel.selectBirthDate(pickerMillis)
+            viewModel.loadGuidance()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) {
+                preferencesRepository.savePersonalizedDailyLine(any(), any(), expectedDate)
             }
         }
 
@@ -149,6 +173,20 @@ class PersonalGuidanceViewModelTest {
             assertThat(viewModel.uiState.value.inputError).isEqualTo(ChartInputError.FUTURE_BIRTH_DATE)
             coVerify(exactly = 0) { chartRepository.getPersonalGuidance(any(), any(), any(), any()) }
         }
+
+    @Test
+    fun `today selected east of UTC is accepted`() {
+        val now = Instant.parse("2026-08-05T12:15:00Z") // Aug 6 in Kiritimati.
+        val selected = LocalDate.parse("2026-08-06")
+        assertThat(isFutureBirthDateInZone(selected, now, ZoneId.of("Pacific/Kiritimati"))).isFalse()
+    }
+
+    @Test
+    fun `tomorrow selected west of UTC is rejected`() {
+        val now = Instant.parse("2026-08-05T03:00:00Z") // Aug 4 in Honolulu.
+        val selected = LocalDate.parse("2026-08-05")
+        assertThat(isFutureBirthDateInZone(selected, now, ZoneId.of("Pacific/Honolulu"))).isTrue()
+    }
 
     private fun createViewModel(): PersonalGuidanceViewModel =
         PersonalGuidanceViewModel(
