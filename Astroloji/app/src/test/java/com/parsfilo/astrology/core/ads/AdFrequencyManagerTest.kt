@@ -46,6 +46,61 @@ class AdFrequencyManagerTest {
         }
 
     @Test
+    fun `invalid persisted daily count must not make an exhausted quota eligible`() =
+        runTest {
+            val now =
+                LocalDate
+                    .of(2026, 10, 28)
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    lastInterstitialShown = 0L,
+                    interstitialCountToday = -1,
+                    interstitialCountDate = "2026-10-28",
+                )
+
+            val manager = AdFrequencyManager(preferencesRepository)
+            val flags =
+                RemoteFlags(
+                    interstitialFrequency = 1,
+                    interstitialDailyLimit = 3,
+                    interstitialCooldownMinutes = 0,
+                )
+
+            assertThat(manager.canShowInterstitial(flags, nowMs = now)).isFalse()
+            assertThat(manager.canShowInterstitialOnBack(flags, nowMs = now)).isFalse()
+        }
+
+    @Test
+    fun `persisted impression counter saturates instead of wrapping negative`() =
+        runTest {
+            val now =
+                LocalDate
+                    .of(2026, 10, 28)
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            for (previousCount in listOf(Int.MAX_VALUE - 1, Int.MAX_VALUE, -1)) {
+                coEvery { preferencesRepository.current() } returns
+                    UserPreferences(
+                        interstitialCountToday = previousCount,
+                        interstitialCountDate = "2026-10-28",
+                    )
+                AdFrequencyManager(preferencesRepository).recordInterstitialShown(nowMs = now)
+                coVerify(exactly = 1) {
+                    preferencesRepository.updateInterstitialMetrics(
+                        lastShown = now,
+                        count = Int.MAX_VALUE,
+                        date = "2026-10-28",
+                    )
+                }
+                io.mockk.clearMocks(preferencesRepository, answers = false, recordedCalls = true)
+            }
+        }
+
+    @Test
     fun `a zero daily limit disables interstitials even at midnight rollover`() =
         runTest {
             coEvery { preferencesRepository.current() } returns

@@ -47,3 +47,15 @@ test('internal release validates Play version before build and publish', () => {
   assert.ok(buildIndex > validationIndex);
   assert.ok(publishIndex > buildIndex);
 });
+
+test('Crashlytics mapping upload is opt-in for local builds but enabled explicitly in release workflows', () => {
+  const gradleConfig = fs.readFileSync(new URL('../Astroloji/app/build.gradle.kts', import.meta.url), 'utf8');
+  const exampleConfig = fs.readFileSync(new URL('../Astroloji/gradle.properties.example', import.meta.url), 'utf8');
+  const productionWorkflow = fs.readFileSync(new URL('../.github/workflows/android-production-release.yml', import.meta.url), 'utf8');
+
+  assert.match(gradleConfig, /stringConfig\("CRASHLYTICS_MAPPING_UPLOAD_ENABLED", "false"\)\.toBoolean\(\)/);
+  assert.match(exampleConfig, /^CRASHLYTICS_MAPPING_UPLOAD_ENABLED=false$/m);
+  assert.match(workflow, /CRASHLYTICS_MAPPING_UPLOAD_ENABLED: false/);
+  assert.match(releaseWorkflow, /CRASHLYTICS_MAPPING_UPLOAD_ENABLED: true/);
+  assert.match(productionWorkflow, /CRASHLYTICS_MAPPING_UPLOAD_ENABLED: true/);
+});
