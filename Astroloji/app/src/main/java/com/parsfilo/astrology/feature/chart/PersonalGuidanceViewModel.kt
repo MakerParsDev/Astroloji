@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,6 +25,12 @@ class ChartClock
     constructor() {
         fun now(): Instant = Instant.now()
     }
+
+internal fun isFutureBirthDateInZone(
+    selectedDate: LocalDate,
+    now: Instant,
+    zoneId: ZoneId,
+): Boolean = selectedDate.isAfter(now.atZone(zoneId).toLocalDate())
 
 enum class ChartInputError {
     FUTURE_BIRTH_DATE,
@@ -51,8 +59,7 @@ class PersonalGuidanceViewModel
         fun selectBirthDate(millis: Long) {
             guidanceRequestGeneration += 1
             val selectedDate = datePickerMillisToLocalDate(millis)
-            val today = chartClock.now().atZone(java.time.ZoneOffset.UTC).toLocalDate()
-            if (selectedDate.isAfter(today)) {
+            if (isFutureBirthDateInZone(selectedDate, chartClock.now(), ZoneId.systemDefault())) {
                 _uiState.update {
                     it.copy(
                         birthDateMillis = null,
@@ -88,11 +95,12 @@ class PersonalGuidanceViewModel
             viewModelScope.launch {
                 _uiState.update { it.copy(isLoading = true, guidance = null, error = null) }
                 val language = TimeUtils.normalizeLanguageTag(preferencesRepository.current().language)
+                val now = chartClock.now()
                 val result =
                     chartRepository.getPersonalGuidance(
                         natalTimestamp = unknownBirthTimestamp(datePickerMillisToLocalDate(birthDateMillis)),
                         natalTimeCertainty = UNKNOWN_TIME_CERTAINTY,
-                        targetTimestamp = targetTimestamp(chartClock.now()),
+                        targetTimestamp = targetTimestamp(now),
                         language = language,
                     )
                 if (requestGeneration != guidanceRequestGeneration) return@launch
@@ -109,7 +117,7 @@ class PersonalGuidanceViewModel
                             preferencesRepository.savePersonalizedDailyLine(
                                 title = topSignal.title,
                                 body = topSignal.summary,
-                                date = TimeUtils.dateIdentifier(),
+                                date = TimeUtils.dateIdentifier(now.atZone(ZoneId.systemDefault()).toLocalDate()),
                             )
                         }
                     }
