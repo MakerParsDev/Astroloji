@@ -258,6 +258,33 @@ const utcTimestampSchema = z
 
 const birthTimeCertaintySchema = z.enum(['exact', 'approximate', 'unknown']);
 
+function isRealLocalDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+
+  const instant = new Date(Date.UTC(year, month - 1, day));
+  return (
+    instant.getUTCFullYear() === year &&
+    instant.getUTCMonth() === month - 1 &&
+    instant.getUTCDate() === day
+  );
+}
+
+function isRealLocalTime(value: string): boolean {
+  const match = /^(\d{2}):(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const second = Number(match[3]);
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59 && second >= 0 && second <= 59;
+}
+
 const geographicObserverSchema = z.object({
   latitude: z.number().min(-90).max(90),
   longitude: z.number().min(-180).max(180)
@@ -269,8 +296,14 @@ export const natalChartSchema = z.object({
   observer: geographicObserverSchema.optional()
 });
 
-const localDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'local_date must be in YYYY-MM-DD form.');
-const localTimeSchema = z.string().regex(/^\d{2}:\d{2}:\d{2}$/, 'local_time must be in HH:mm:ss form.');
+const localDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'local_date must be in YYYY-MM-DD form.')
+  .refine(isRealLocalDate, 'local_date must be a real calendar date in YYYY-MM-DD form.');
+const localTimeSchema = z
+  .string()
+  .regex(/^\d{2}:\d{2}:\d{2}$/, 'local_time must be in HH:mm:ss form.')
+  .refine(isRealLocalTime, 'local_time must be a real clock time in HH:mm:ss form.');
 
 export const saveBirthDataSchema = z
   .object({

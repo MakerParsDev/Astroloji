@@ -9,6 +9,7 @@ import {
   validateCreditsVerifyBody,
   validateRegisterBody,
   validateRewardPrepareBody,
+  validateSaveBirthDataBody,
   validateSubscriptionBody,
   validateUpdateUserBody,
   validateLanguage,
@@ -119,6 +120,35 @@ describe('validators', () => {
         time_certainty: 'exact'
       }).timestamp
     ).toBe('2024-02-29T12:00:00.000Z');
+  });
+
+  it('rejects impossible local birth dates and times while accepting leap days', () => {
+    expect(() =>
+      validateSaveBirthDataBody({
+        local_date: '2026-02-30',
+        local_time: '12:00:00',
+        time_certainty: 'exact',
+        city_id: 'london-gb'
+      })
+    ).toThrow(/local_date must be a real calendar date/);
+
+    expect(() =>
+      validateSaveBirthDataBody({
+        local_date: '2026-08-10',
+        local_time: '99:99:99',
+        time_certainty: 'exact',
+        city_id: 'london-gb'
+      })
+    ).toThrow(/local_time must be a real clock time/);
+
+    expect(
+      validateSaveBirthDataBody({
+        local_date: '2024-02-29',
+        local_time: '12:00:00',
+        time_certainty: 'exact',
+        city_id: 'london-gb'
+      }).local_date
+    ).toBe('2024-02-29');
   });
 
   it('requires explicit editorial approval for content backfill', () => {

@@ -122,12 +122,17 @@ class MainActivity : AppCompatActivity() {
             if (appOpenCount > 0) {
                 preferencesRepository.incrementAppOpenCount()
             }
-            val flags = remoteConfigRepository.fetchFlags()
+            // A slow Remote Config network fetch must not delay UMP consent.
+            // Consent and ad eligibility are checked before preloading anything.
+            val flags =
+                prepareStartupWithConsentFirst(
+                    gatherConsent = { consentManager.gatherConsent(this@MainActivity) },
+                    persistConsent = { preferencesRepository.updateConsentStatus(consentManager.consentStatus) },
+                    initializeAds = { adsInitializer.initializeIfNeeded() },
+                    preloadAds = { preloadAdStack() },
+                    fetchRemoteConfig = { remoteConfigRepository.fetchFlags() },
+                )
             appOpenMinBackgroundDurationMs = flags.appOpenMinBackgroundMs
-            consentManager.gatherConsent(this@MainActivity)
-            preferencesRepository.updateConsentStatus(consentManager.consentStatus)
-            adsInitializer.initializeIfNeeded()
-            preloadAdStack()
         }
     }
 
@@ -192,6 +197,25 @@ class MainActivity : AppCompatActivity() {
             nativeAdvancedAdManager.preload()
         }
     }
+}
+
+/**
+ * A slow Remote Config request must not delay UMP consent presentation.
+ * Keep ad initialization/preloading after config to respect the active policy.
+ */
+internal suspend fun <T> prepareStartupWithConsentFirst(
+    gatherConsent: suspend () -> Unit,
+    persistConsent: suspend () -> Unit,
+    initializeAds: suspend () -> Unit,
+    preloadAds: suspend () -> Unit,
+    fetchRemoteConfig: suspend () -> T,
+): T {
+    gatherConsent()
+    persistConsent()
+    val flags = fetchRemoteConfig()
+    initializeAds()
+    preloadAds()
+    return flags
 }
 
 private fun Intent?.toAppDeepLink(): AppDeepLink? {
