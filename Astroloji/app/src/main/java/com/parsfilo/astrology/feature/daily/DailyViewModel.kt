@@ -3,6 +3,7 @@ package com.parsfilo.astrology.feature.daily
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.parsfilo.astrology.core.ads.AdEligibilityChecker
+import com.parsfilo.astrology.core.ads.prepareEligibleRewardChallenge
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
@@ -129,21 +130,18 @@ class DailyViewModel
             viewModelScope.launch {
                 try {
                     setState { copy(error = null) }
-                    if (!adEligibilityChecker.canShowRewarded()) {
-                        setState { copy(canUnlockWithReward = false) }
-                        return@launch
-                    }
-                    val identifier = TimeUtils.dateIdentifier()
-                    when (val result = contentRepository.prepareRewardUnlock("daily", identifier)) {
-                        is AppResult.Success -> {
-                            if (adEligibilityChecker.canShowRewarded()) {
-                                sendEffect { DailyUiEffect.ShowRewardAd(result.data) }
-                            } else {
-                                setState { copy(canUnlockWithReward = false) }
-                            }
-                        }
+                    val result =
+                        prepareEligibleRewardChallenge(
+                            repository = contentRepository,
+                            eligibility = adEligibilityChecker,
+                            rewardType = "daily",
+                            identifier = TimeUtils.dateIdentifier(),
+                        )
+                    when (result) {
+                        is AppResult.Success -> sendEffect { DailyUiEffect.ShowRewardAd(result.data) }
                         is AppResult.Error -> setState { copy(error = result.exception.message) }
                         AppResult.Loading -> Unit
+                        null -> setState { copy(canUnlockWithReward = false) }
                     }
                 } finally {
                     preparingReward.set(false)
