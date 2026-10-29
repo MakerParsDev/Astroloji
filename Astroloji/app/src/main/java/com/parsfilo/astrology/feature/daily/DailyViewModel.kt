@@ -3,6 +3,8 @@ package com.parsfilo.astrology.feature.daily
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.parsfilo.astrology.core.ads.AdEligibilityChecker
+import com.parsfilo.astrology.core.ads.RewardClaimCallbacks
+import com.parsfilo.astrology.core.ads.RewardClaimVerifier
 import com.parsfilo.astrology.core.ads.prepareEligibleRewardChallenge
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
@@ -12,7 +14,6 @@ import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.core.domain.model.DailyHoroscope
 import com.parsfilo.astrology.core.domain.model.RewardChallenge
 import com.parsfilo.astrology.core.ui.MviViewModel
-import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.TimeUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -90,8 +91,7 @@ class DailyViewModel
         // Claim preparation is a network call; repeated taps must not mint
         // multiple outstanding SSV challenges for a single user action.
         private val preparingReward = AtomicBoolean(false)
-        private val claimingReward = AtomicBoolean(false)
-        private var claimedChallengeId: String? = null
+        private val rewardClaimVerifier = RewardClaimVerifier(contentRepository, savedStateHandle, viewModelScope)
 
         init {
             viewModelScope.launch {
@@ -150,36 +150,27 @@ class DailyViewModel
         }
 
         private fun claimRewardUnlock(challengeId: String) {
-            if (challengeId == claimedChallengeId || !claimingReward.compareAndSet(false, true)) return
-            // Do not replace an earned, unverified challenge with a different one.
-            if (state.value.pendingRewardChallengeId?.let { it != challengeId } == true) {
-                claimingReward.set(false)
-                return
-            }
-            savedStateHandle["pendingRewardChallengeId"] = challengeId
-            setState { copy(pendingRewardChallengeId = challengeId, error = null) }
-            viewModelScope.launch {
-                try {
-                    when (val result = contentRepository.claimRewardUnlock(challengeId)) {
-                        is AppResult.Success -> {
-                            claimedChallengeId = challengeId
-                            savedStateHandle.remove<String>("pendingRewardChallengeId")
-                            setState { copy(pendingRewardChallengeId = null) }
-                            load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
+            val callbacks =
+                RewardClaimCallbacks(
+                    onPending = { setState { copy(pendingRewardChallengeId = it, error = null) } },
+                    onGranted = {
+                        setState { copy(pendingRewardChallengeId = null) }
+                        load(signFromArgs ?: preferencesRepository.current().selectedSign, true)
+                    },
+                    onFailed = { message, expired ->
+                        setState {
+                            copy(
+                                pendingRewardChallengeId = if (expired) null else pendingRewardChallengeId,
+                                error = message,
+                            )
                         }
-                        is AppResult.Error -> {
-                            if (result.exception is AppException.RewardChallengeExpiredException) {
-                                savedStateHandle.remove<String>("pendingRewardChallengeId")
-                                setState { copy(pendingRewardChallengeId = null) }
-                            }
-                            setState { copy(error = result.exception.message) }
-                        }
-                        AppResult.Loading -> Unit
-                    }
-                } finally {
-                    claimingReward.set(false)
-                }
-            }
+                    },
+                )
+            rewardClaimVerifier.claim(
+                challengeId = challengeId,
+                pendingId = state.value.pendingRewardChallengeId,
+                callbacks = callbacks,
+            )
         }
 
         private fun trackShareClicked() {
