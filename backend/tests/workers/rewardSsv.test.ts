@@ -24,7 +24,7 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
-function createRewardDb(options: { failVerifyUpdate?: boolean; failEntitlementLookup?: boolean; failEntitlementLookupMessage?: string; failPrepareInsert?: boolean } = {}) {
+function createRewardDb(options: { failVerifyUpdate?: boolean; failVerifyUpdateMessage?: string; failEntitlementLookup?: boolean; failEntitlementLookupMessage?: string; failPrepareInsert?: boolean } = {}) {
   const rows = new Map<string, RewardChallengeRow>();
 
   const db = {
@@ -92,7 +92,7 @@ function createRewardDb(options: { failVerifyUpdate?: boolean; failEntitlementLo
             return { success: true, meta: { changes: 1 } };
           }
           if (query.startsWith('UPDATE reward_challenges SET status = \'verified\'')) {
-            if (options.failVerifyUpdate) throw new Error('database unavailable');
+            if (options.failVerifyUpdate || options.failVerifyUpdateMessage) throw new Error(options.failVerifyUpdateMessage ?? 'database unavailable');
             const [transactionId, adUnit, callbackTimestampMs, verifiedAt, id, nowIso] = statement.bindings;
             const row = rows.get(String(id));
             const transactionUsed = [...rows.values()].some(
@@ -358,6 +358,53 @@ describe('rewarded access SSV routes', () => {
     await expect(claimResponse.json()).resolves.toMatchObject({
       error: { code: 'PENDING_VERIFICATION' }
     });
+  });
+
+  it('keeps an abandoned ad challenge unclaimed and permits a fresh attempt after expiry', async () => {
+    const { db, rows } = createRewardDb();
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    let clock = NOW_MS;
+    let challengeId = CHALLENGE_ID;
+    const app = testApp({
+      nowMs: () => clock,
+      randomUUID: () => challengeId,
+      verifyCallback: async () => verifiedCallback(challengeId, TRANSACTION_ID, 'user-1', AD_UNIT, clock)
+    });
+    const authorized = { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' };
+    const prepare = () =>
+      app.request('/api/v1/rewards/prepare', {
+        method: 'POST',
+        headers: authorized,
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+      }, env);
+    const claim = (id: string) =>
+      app.request('/api/v1/rewards/claim', {
+        method: 'POST',
+        headers: authorized,
+        body: JSON.stringify({ challenge_id: id })
+      }, env);
+
+    // The SDK ad is dismissed without onUserEarnedReward, so there is no SSV call.
+    expect((await prepare()).status).toBe(201);
+    expect((await claim(CHALLENGE_ID)).status).toBe(409);
+    expect(rows.get(CHALLENGE_ID)?.status).toBe('pending');
+    expect(rows.get(CHALLENGE_ID)?.entitlement_expires_at).toBeNull();
+
+    clock += 10 * 60 * 1_000 + 1;
+    expect((await claim(CHALLENGE_ID)).status).toBe(410);
+    expect((await app.request('/api/v1/rewards/ssv?synthetic-expired', {}, env)).status).toBe(410);
+    expect(rows.get(CHALLENGE_ID)?.status).toBe('pending');
+
+    // Abandonment must not prevent a later legitimate challenge for that period.
+    challengeId = SECOND_CHALLENGE_ID;
+    expect((await prepare()).status).toBe(201);
+    expect(rows.get(SECOND_CHALLENGE_ID)?.status).toBe('pending');
+    expect((await claim(SECOND_CHALLENGE_ID)).status).toBe(409);
+    expect((await app.request('/api/v1/rewards/ssv?synthetic-valid', {}, env)).status).toBe(200);
+    expect((await claim(SECOND_CHALLENGE_ID)).status).toBe(200);
+    expect(rows.get(SECOND_CHALLENGE_ID)?.status).toBe('consumed');
+    expect(rows.get(CHALLENGE_ID)?.entitlement_expires_at).toBeNull();
   });
 
   it('verifies a callback and consumes the challenge exactly once', async () => {
@@ -690,7 +737,7 @@ describe('rewarded access SSV routes', () => {
   });
 
   it('redacts request identifiers when the verification update fails', async () => {
-    const { db } = createRewardDb({ failVerifyUpdate: true });
+    const { db } = createRewardDb({ failVerifyUpdateMessage: 'database unavailable secret-forbidden-123 sensitive-user-token' });
     const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
     const { jwt } = await createAuthenticatedRequestContext(env);
     const app = testApp();
@@ -728,7 +775,9 @@ describe('rewarded access SSV routes', () => {
       TRANSACTION_ID,
       TRANSACTION_ID.slice(0, 8),
       '/api/v1/rewards/ssv?db-failure',
-      'db-failure'
+      'db-failure',
+      'secret-forbidden-123',
+      'sensitive-user-token'
     ]) {
       expect(capturedLogs).not.toContain(forbidden);
     }

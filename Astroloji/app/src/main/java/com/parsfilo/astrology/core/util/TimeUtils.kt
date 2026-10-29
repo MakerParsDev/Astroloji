@@ -7,7 +7,7 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.WeekFields
+import java.time.temporal.IsoFields
 import java.util.Locale
 
 object TimeUtils {
@@ -67,10 +67,12 @@ object TimeUtils {
             "$value%"
         }
 
-    fun weekIdentifier(date: LocalDate = currentLocalDate()): String {
-        val weekFields = WeekFields.of(Locale.getDefault())
-        return "%d-W%02d".format(date.year, date.get(weekFields.weekOfWeekBasedYear()))
-    }
+    fun weekIdentifier(date: LocalDate = currentLocalDate()): String =
+        "%d-W%02d".format(
+            Locale.ROOT,
+            date.get(IsoFields.WEEK_BASED_YEAR),
+            date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR),
+        )
 
     fun monthIdentifier(date: LocalDate = currentLocalDate()): String = date.format(yearMonthFormatter)
 
