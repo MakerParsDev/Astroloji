@@ -57,6 +57,9 @@ internal fun PremiumOfferCard(
     callbacks: PremiumOfferCallbacks,
 ) {
     AstrologyCard {
+        // Explain the most immediately useful benefits before asking for a plan.
+        // These strings already exist in every supported language.
+        PremiumValuePreview()
         Text(
             text = stringResource(R.string.premium_plan_title),
             style = MaterialTheme.typography.titleLarge,
