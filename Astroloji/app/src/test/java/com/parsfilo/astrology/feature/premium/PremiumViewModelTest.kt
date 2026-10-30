@@ -391,6 +391,61 @@ class PremiumViewModelTest {
         }
 
     @Test
+    fun `repeated purchase taps while checkout is pending launch billing only once`() =
+        runTest {
+            stubDependencies()
+            val viewModel = createViewModel()
+            val activity = mockk<Activity>()
+            advanceUntilIdle()
+
+            viewModel.onEvent(PremiumUiEvent.SelectPlan(weeklyPlan.planId))
+            viewModel.onEvent(PremiumUiEvent.Purchase(activity))
+            viewModel.onEvent(PremiumUiEvent.Purchase(activity))
+            advanceUntilIdle()
+
+            verify(exactly = 1) { billingManager.launchPurchase(activity, weeklyPlan.planId) }
+            coVerify(exactly = 1) {
+                analyticsRepository.track(AnalyticsEvents.PURCHASE_STARTED, any())
+            }
+        }
+
+    @Test
+    fun `restore blocks repeated restore and purchase events until it resolves`() =
+        runTest {
+            stubDependencies()
+            coEvery { billingManager.restorePurchases() } returns AppResult.Loading
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(PremiumUiEvent.Restore)
+            viewModel.onEvent(PremiumUiEvent.Restore)
+            viewModel.onEvent(PremiumUiEvent.Purchase(mockk()))
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { billingManager.restorePurchases() }
+            verify(exactly = 0) { billingManager.launchPurchase(any(), any()) }
+        }
+
+    @Test
+    fun `failed purchase clears the guard so a new checkout is possible`() =
+        runTest {
+            val purchaseState = MutableStateFlow<AppResult<SubscriptionStatus>?>(null)
+            stubDependencies(purchaseState = purchaseState)
+            val viewModel = createViewModel()
+            val activity = mockk<Activity>()
+            advanceUntilIdle()
+
+            viewModel.onEvent(PremiumUiEvent.SelectPlan(weeklyPlan.planId))
+            viewModel.onEvent(PremiumUiEvent.Purchase(activity))
+            purchaseState.value = AppResult.Error(AppException.BillingException("Test cancellation"))
+            advanceUntilIdle()
+            viewModel.onEvent(PremiumUiEvent.Purchase(activity))
+            advanceUntilIdle()
+
+            verify(exactly = 2) { billingManager.launchPurchase(activity, weeklyPlan.planId) }
+        }
+
+    @Test
     fun `weekly purchase start and success emit selected product funnel`() =
         runTest {
             val purchaseState = MutableStateFlow<AppResult<SubscriptionStatus>?>(null)
