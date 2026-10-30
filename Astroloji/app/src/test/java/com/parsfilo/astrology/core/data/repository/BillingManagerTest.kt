@@ -1,14 +1,70 @@
 package com.parsfilo.astrology.core.data.repository
 
+import android.app.Activity
+import android.content.Context
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.Purchase
 import com.google.common.truth.Truth.assertThat
+import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.BillingFailureReason
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import org.junit.Test
 
 class BillingManagerTest {
+    @Test
+    fun `credit checkout cannot start during a premium billing flow`() {
+        val billingClient = mockk<BillingClient>(relaxed = true)
+        val builder = mockk<BillingClient.Builder>(relaxed = true)
+        every { builder.setListener(any()) } returns builder
+        every { builder.enablePendingPurchases(any()) } returns builder
+        every { builder.enableAutoServiceReconnection() } returns builder
+        every { builder.build() } returns billingClient
+        every { billingClient.isReady } returns false
+        every { billingClient.startConnection(any()) } returns Unit
+        mockkStatic(BillingClient::class)
+        try {
+            every { BillingClient.newBuilder(any()) } returns builder
+            val manager =
+                BillingManager(
+                    context = mockk<Context>(),
+                    sessionRepository = mockk(),
+                    creditsRepository = mockk(),
+                    stringsProvider = mockk(relaxed = true),
+                )
+            try {
+                val activity = mockk<Activity>()
+                manager.launchPurchase(activity, "premium_weekly")
+                manager.launchCreditPurchase(activity, "credits_small")
+
+                // Even before the asynchronous Google Play connection resolves,
+                // the shared billing manager must refuse the competing checkout.
+                assertThat(manager.creditPurchaseState.value).isInstanceOf(AppResult.Error::class.java)
+            } finally {
+                manager.close()
+            }
+        } finally {
+            unmockkStatic(BillingClient::class)
+        }
+    }
+
+    @Test
+    fun `shared checkout gate rejects overlapping premium and credit requests in either order`() {
+        val gate = BillingCheckoutGate()
+        assertThat(gate.tryStart(PendingBillingFlow.PREMIUM)).isTrue()
+        assertThat(gate.tryStart(PendingBillingFlow.CREDITS)).isFalse()
+        assertThat(gate.tryStart(PendingBillingFlow.PREMIUM)).isFalse()
+        gate.finish(PendingBillingFlow.CREDITS)
+        assertThat(gate.currentFlow()).isEqualTo(PendingBillingFlow.PREMIUM)
+        gate.finish(PendingBillingFlow.PREMIUM)
+        assertThat(gate.tryStart(PendingBillingFlow.CREDITS)).isTrue()
+        assertThat(gate.tryStart(PendingBillingFlow.PREMIUM)).isFalse()
+        gate.finish(PendingBillingFlow.CREDITS)
+        assertThat(gate.currentFlow()).isEqualTo(PendingBillingFlow.NONE)
+    }
+
     private val monthlyPlan =
         PremiumPlanUi(
             planId = "premium_monthly:monthly:default",
