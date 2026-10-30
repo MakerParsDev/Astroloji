@@ -92,6 +92,32 @@ class MoodRepositoryTest {
         }
 
     @Test
+    fun `deletion waits for an in-flight mood log to avoid restoring erased history`() =
+        runTest {
+            val logStarted = CompletableDeferred<Unit>()
+            val finishLog = CompletableDeferred<Unit>()
+            coEvery { api.logMood(any()) } coAnswers {
+                logStarted.complete(Unit)
+                finishLog.await()
+                Response.success(MoodLogResponse(date = "2026-10-30", mood = "good", domain = null))
+            }
+            coEvery { api.deleteMoodHistory() } returns Response.success(Unit)
+            coJustRun { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, "owner-A") }
+
+            val log = async { repository.logMood("good", null) }
+            logStarted.await()
+            val delete = async { repository.deleteMoodHistory() }
+            runCurrent()
+
+            // A deletion must not reach D1 while an older mood insertion is in flight.
+            coVerify(exactly = 0) { api.deleteMoodHistory() }
+            finishLog.complete(Unit)
+            assertThat(log.await()).isInstanceOf(AppResult.Success::class.java)
+            assertThat(delete.await()).isInstanceOf(AppResult.Success::class.java)
+            coVerify(exactly = 1) { api.deleteMoodHistory() }
+        }
+
+    @Test
     fun `pending analytics delivery blocks remote deletion until in-flight write settles`() =
         runTest {
             val entered = CompletableDeferred<Unit>()

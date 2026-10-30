@@ -37,11 +37,15 @@ class MoodRepository
             domain: String?,
         ): AppResult<MoodLogResponse> =
             withContext(dispatchers.io) {
-                runAuthenticated(
-                    request = { api.logMood(MoodLogRequest(mood = mood, domain = domain)) },
-                    emptyBodyMessage = "Mood log response was empty.",
-                    failureMessage = "Mood could not be logged.",
-                )
+                // An in-flight POST must finish before account-preserving deletion
+                // starts; otherwise its D1 write could restore erased mood history.
+                syncGate.withLock {
+                    runAuthenticated(
+                        request = { api.logMood(MoodLogRequest(mood = mood, domain = domain)) },
+                        emptyBodyMessage = "Mood log response was empty.",
+                        failureMessage = "Mood could not be logged.",
+                    )
+                }
             }
 
         /** Removes account-scoped mood history, not the user account or third-party GA4 history. */
