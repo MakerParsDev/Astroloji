@@ -219,6 +219,56 @@ class OnboardingViewModelTest {
         }
 
     @Test
+    fun `double tap does not start a second registration before coroutine dispatch`() =
+        runTest {
+            val preferences =
+                UserPreferences(
+                    onboardingCompleted = false,
+                    selectedSign = ZodiacSign.ARIES.key,
+                    language = "en",
+                    userId = "user-1",
+                    jwt = "jwt",
+                )
+            val profile =
+                UserProfile(
+                    userId = "user-1",
+                    sign = ZodiacSign.ARIES.key,
+                    language = "en",
+                    isPremium = false,
+                    premiumExpiresAt = null,
+                    jwt = "jwt",
+                    utcOffset = 3,
+                    notificationEnabled = true,
+                    notificationHour = 9,
+                )
+            val registrationGate = CompletableDeferred<Unit>()
+            stubSuccessfulRegistration(preferences, profile)
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { sessionRepository.registerFromPreferences() } coAnswers {
+                registrationGate.await()
+                AppResult.Success(profile)
+            }
+            val viewModel = createViewModel()
+            viewModel.selectSign(ZodiacSign.ARIES)
+            var navigations = 0
+
+            viewModel.complete { navigations++ }
+            // A second tap before runCurrent is precisely the old race window.
+            viewModel.complete { navigations++ }
+            assertThat(viewModel.uiState.value.isSubmitting).isTrue()
+            runCurrent()
+            coVerify(exactly = 1) { sessionRepository.registerFromPreferences() }
+            registrationGate.complete(Unit)
+            advanceUntilIdle()
+
+            assertThat(navigations).isEqualTo(1)
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            coVerify(exactly = 1) {
+                analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any())
+            }
+        }
+
+    @Test
     fun `onboarding completion is queued before successful navigation`() =
         runTest {
             val preferences =

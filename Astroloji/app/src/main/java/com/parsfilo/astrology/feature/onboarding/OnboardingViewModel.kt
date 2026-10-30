@@ -238,14 +238,17 @@ class OnboardingViewModel
         }
 
         fun complete(onSuccess: () -> Unit) {
+            // A double tap (or a late permission callback) must not launch a
+            // second registration before the first coroutine gets scheduled.
+            if (_uiState.value.isSubmitting) return
             val sign =
                 _uiState.value.selectedSign ?: run {
                     _uiState.update { it.copy(error = stringsProvider.get(R.string.onboarding_error_missing_sign)) }
                     return
                 }
 
+            _uiState.update { it.copy(isSubmitting = true, error = null) }
             viewModelScope.launch {
-                _uiState.update { it.copy(isSubmitting = true, error = null) }
                 preferencesRepository.updateOnboarding(
                     completed = false,
                     sign = sign.key,
