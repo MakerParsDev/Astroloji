@@ -244,6 +244,45 @@ class AdFrequencyManagerTest {
         }
 
     @Test
+    fun `impression read failure blocks stale quota after storage recovers`() =
+        runTest {
+            val today = LocalDate.of(2026, 10, 30)
+            val now = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() + 65_000L
+            val stalePreferences =
+                UserPreferences(
+                    lastInterstitialShown = 0L,
+                    interstitialCountToday = 0,
+                    interstitialCountDate = today.toString(),
+                )
+            var readAttempts = 0
+            coEvery { preferencesRepository.current() } coAnswers {
+                readAttempts += 1
+                if (readAttempts == 2) throw IOException("transient DataStore read failure")
+                stalePreferences
+            }
+
+            val manager = AdFrequencyManager(preferencesRepository)
+            val flags =
+                RemoteFlags(
+                    interstitialFrequency = 1,
+                    interstitialDailyLimit = 1,
+                    interstitialCooldownMinutes = 0,
+                )
+            assertThat(manager.canShowInterstitial(flags, now)).isTrue()
+            try {
+                manager.recordInterstitialShown(now)
+                org.junit.Assert.fail("Impression read error should propagate")
+            } catch (expected: IOException) {
+                assertThat(expected.message).isEqualTo("transient DataStore read failure")
+            }
+
+            // A later successful read must not resurrect the unsaved ad quota.
+            assertThat(manager.canShowInterstitial(flags, now + 1000L)).isFalse()
+            assertThat(manager.canShowInterstitialOnBack(flags, now + 1000L)).isFalse()
+            coVerify(exactly = 0) { preferencesRepository.updateInterstitialMetrics(any(), any(), any()) }
+        }
+
+    @Test
     fun `new day resets interstitial counters and record updates persisted state`() =
         runTest {
             val localMidnight = LocalDate.of(1970, 1, 2).atStartOfDay(ZoneId.systemDefault())
