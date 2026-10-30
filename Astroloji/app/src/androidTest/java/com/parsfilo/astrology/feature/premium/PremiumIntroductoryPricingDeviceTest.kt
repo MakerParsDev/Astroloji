@@ -94,10 +94,16 @@ class PremiumIntroductoryPricingDeviceTest {
     }
 
     private fun assertBillingTermsAbovePurchase() {
+        val preview = composeRule.onNodeWithTag("premium-value-preview").fetchSemanticsNode().boundsInRoot
+        val plan = composeRule.onNodeWithTag("premium-plan-monthly-synthetic").fetchSemanticsNode().boundsInRoot
+        assertTrue("Premium value must appear before the plan and price", preview.bottom <= plan.top)
+        // At large font scale the purchase action starts below the viewport.
+        // Scroll it into view before measuring its visible semantics bounds.
+        composeRule.onNodeWithTag("premium-purchase-action").performScrollTo()
         val disclosure = composeRule.onNodeWithTag("premium-billing-disclosure").fetchSemanticsNode().boundsInRoot
         val purchase = composeRule.onNodeWithTag("premium-purchase-action").fetchSemanticsNode().boundsInRoot
         assertTrue(
-            "Actual recurring/introductory terms must appear before the purchase action",
+            "Actual recurring/introductory terms must appear before the purchase action: $disclosure / $purchase",
             disclosure.bottom <= purchase.top,
         )
     }
