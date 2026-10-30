@@ -272,6 +272,11 @@ jobs:
           retention-days: 1
 
       - name: Publish preflight summary
+        env:
+          PLAY_MAX_VERSION_CODE: ${{ steps.play_access.outputs.max_version_code }}
+          PLAY_NEXT_VERSION_CODE: ${{ steps.play_access.outputs.recommended_version_code }}
+          PREFLIGHT_VERSION_CODE: ${{ inputs.version_code }}
+          PREFLIGHT_GIT_SHA: ${{ github.sha }}
         run: |
           {
             echo '## Android internal release preflight'
@@ -280,15 +285,15 @@ jobs:
             echo '- Firebase package validation: passed'
             echo '- Play service-account structure: passed'
             echo '- Google Play package access: passed'
-            echo "- Current maximum version code: ${{ steps.play_access.outputs.max_version_code }}"
-            echo "- Recommended next version code: ${{ steps.play_access.outputs.recommended_version_code }}"
+            echo "- Current maximum version code: $PLAY_MAX_VERSION_CODE"
+            echo "- Recommended next version code: $PLAY_NEXT_VERSION_CODE"
             echo '- Production AdMob IDs: passed'
             echo '- Keystore alias/password verification: passed'
             echo '- Signed release AAB build: passed'
             echo '- Signed release APK build and verification: passed'
-            echo "- APK artifact: android-signed-apk-${{ inputs.version_code }} (retained for 1 day)"
+            echo "- APK artifact: android-signed-apk-$PREFLIGHT_VERSION_CODE (retained for 1 day)"
             echo '- Google Play upload: not performed'
-            echo "- Git SHA: ${{ github.sha }}"
+            echo "- Git SHA: $PREFLIGHT_GIT_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove sensitive release files

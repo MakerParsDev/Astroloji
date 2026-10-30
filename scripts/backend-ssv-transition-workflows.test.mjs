@@ -131,3 +131,10 @@ test('product operator docs preserve fail-closed transition and rollback guidanc
   assert.match(readiness, /REMOVE_TRANSITION_ROUTE/);
   assert.match(readiness, /D1 migration/);
 });
+
+test('rollback summary treats dynamic workflow inputs as shell data', () => {
+  const summary = rollback.slice(rollback.indexOf('name: Publish rollback evidence'));
+  assert.ok(summary.includes('DELETE_WORKER: ' + String.fromCharCode(36) + '{{ inputs.delete_worker }}'));
+  assert.match(summary, /echo "- Worker deleted: \$DELETE_WORKER"/);
+  assert.doesNotMatch(summary, /echo[^\n]*\$\{\{/);
+});
