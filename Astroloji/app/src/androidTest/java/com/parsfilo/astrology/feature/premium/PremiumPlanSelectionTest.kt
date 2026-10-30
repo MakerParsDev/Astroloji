@@ -10,13 +10,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInputModeManager
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
@@ -29,6 +37,40 @@ import org.junit.Test
 
 class PremiumPlanSelectionTest {
     @get:Rule val composeRule = createComposeRule()
+
+    @Test
+    fun keyboardFocusNavigationDoesNotTriggerPurchase() {
+        val (monthly, yearly) = samplePlans()
+        var selections = 0
+        composeRule.setContent {
+            LocalInputModeManager.current.requestInputMode(InputMode.Keyboard)
+            var selected by remember { mutableStateOf("monthly") }
+            MaterialTheme {
+                PremiumPlanSelector(
+                    plans = listOf(monthly, yearly),
+                    selectedPlanId = selected,
+                    variant = PaywallVariant.MONTHLY_FIRST,
+                    onSelect = {
+                        selected = it
+                        selections++
+                    },
+                )
+            }
+        }
+        val first = composeRule.onNodeWithTag("premium-plan-monthly")
+        first.performSemanticsAction(SemanticsActions.RequestFocus)
+        first.assertIsFocused()
+        first.performKeyInput { pressKey(Key.DirectionRight) }
+        val second = composeRule.onNodeWithTag("premium-plan-yearly")
+        second.assertIsFocused()
+        second.performKeyInput { pressKey(Key.DirectionLeft) }
+        first.assertIsFocused()
+        first.performKeyInput { pressKey(Key.Tab) }
+        second.assertIsFocused()
+        second.performKeyInput { pressKey(Key.Enter) }
+        second.assertIsSelected()
+        composeRule.runOnIdle { assertTrue("Only selection, no checkout", selections == 1) }
+    }
 
     @Test
     fun selectionAnnouncesExactlyOnePlanWithoutTriggeringAnyPurchase() {
