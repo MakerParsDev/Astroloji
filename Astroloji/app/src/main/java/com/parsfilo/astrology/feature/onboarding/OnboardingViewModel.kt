@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
@@ -249,25 +250,23 @@ class OnboardingViewModel
 
             _uiState.update { it.copy(isSubmitting = true, error = null) }
             viewModelScope.launch {
-                preferencesRepository.updateOnboarding(
-                    completed = false,
-                    sign = sign.key,
-                    language = _uiState.value.language,
-                )
-                preferencesRepository.updateNotification(enabled = true, hour = _uiState.value.notificationHour)
-                preferencesRepository.updateSession(
-                    userId = preferencesRepository.current().userId ?: "",
-                    jwt = preferencesRepository.current().jwt.orEmpty(),
-                    isPremium = preferencesRepository.current().isPremium,
-                    premiumExpiresAt = preferencesRepository.current().premiumExpiresAt,
-                    sign = sign.key,
-                    language = _uiState.value.language,
-                    utcOffset = TimeUtils.utcOffsetHours(),
-                    notificationEnabled = true,
-                    notificationHour = _uiState.value.notificationHour,
-                )
+                val registrationResult =
+                    try {
+                        persistPendingRegistration(sign)
+                        sessionRepository.registerFromPreferences()
+                    } catch (exception: IOException) {
+                        // Local DataStore writes can fail independently of the
+                        // backend. Show a retryable message instead of leaving the
+                        // submit button permanently disabled.
+                        AppResult.Error(
+                            AppException.UnknownException(
+                                stringsProvider.get(R.string.session_error_open_failed_after_register),
+                                exception,
+                            ),
+                        )
+                    }
 
-                when (val result = sessionRepository.registerFromPreferences()) {
+                when (val result = registrationResult) {
                     is AppResult.Success -> {
                         preferencesRepository.updateOnboarding(true, sign.key, _uiState.value.language)
                         analyticsRepository.enqueue(
@@ -312,6 +311,26 @@ class OnboardingViewModel
          * the time this runs, so a failure here (network blip, unreachable city, etc.) must
          * never block or roll back onboarding completion; the user can add birth data later.
          */
+        private suspend fun persistPendingRegistration(sign: ZodiacSign) {
+            preferencesRepository.updateOnboarding(
+                completed = false,
+                sign = sign.key,
+                language = _uiState.value.language,
+            )
+            preferencesRepository.updateNotification(enabled = true, hour = _uiState.value.notificationHour)
+            preferencesRepository.updateSession(
+                userId = preferencesRepository.current().userId ?: "",
+                jwt = preferencesRepository.current().jwt.orEmpty(),
+                isPremium = preferencesRepository.current().isPremium,
+                premiumExpiresAt = preferencesRepository.current().premiumExpiresAt,
+                sign = sign.key,
+                language = _uiState.value.language,
+                utcOffset = TimeUtils.utcOffsetHours(),
+                notificationEnabled = true,
+                notificationHour = _uiState.value.notificationHour,
+            )
+        }
+
         private fun registrationFailureReason(error: AppException): String =
             when (error) {
                 is AppException.NetworkException -> "network"
