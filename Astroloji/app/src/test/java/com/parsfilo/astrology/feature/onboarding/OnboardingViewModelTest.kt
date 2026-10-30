@@ -124,6 +124,12 @@ class OnboardingViewModelTest {
 
             assertThat(viewModel.uiState.value.error).isEqualTo("Session could not be refreshed.")
             assertThat(completed).isFalse()
+            coVerify(exactly = 1) {
+                analyticsRepository.enqueue(
+                    AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
+                    mapOf("reason" to "network"),
+                )
+            }
 
             viewModel.retryLastSubmission { completed = true }
             advanceUntilIdle()
@@ -131,6 +137,9 @@ class OnboardingViewModelTest {
             assertThat(completed).isTrue()
             assertThat(viewModel.uiState.value.error).isNull()
             assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            coVerify(exactly = 1) {
+                analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED, any())
+            }
         }
 
     @Test

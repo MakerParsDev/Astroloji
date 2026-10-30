@@ -10,6 +10,7 @@ import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.BirthDataRepository
 import com.parsfilo.astrology.core.data.repository.ChartRepository
 import com.parsfilo.astrology.core.data.repository.SessionRepository
+import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.StringsProvider
 import com.parsfilo.astrology.core.util.TimeUtils
@@ -287,6 +288,14 @@ class OnboardingViewModel
                                         ?: stringsProvider.get(R.string.session_error_open_failed_after_register),
                             )
                         }
+                        // Record only a fixed failure category, never error text,
+                        // birth details or identifiers. Retry must not await analytics.
+                        viewModelScope.launch {
+                            analyticsRepository.enqueue(
+                                AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
+                                mapOf("reason" to registrationFailureReason(result.exception)),
+                            )
+                        }
                     }
                     AppResult.Loading -> Unit
                 }
@@ -300,6 +309,13 @@ class OnboardingViewModel
          * the time this runs, so a failure here (network blip, unreachable city, etc.) must
          * never block or roll back onboarding completion; the user can add birth data later.
          */
+        private fun registrationFailureReason(error: AppException): String =
+            when (error) {
+                is AppException.NetworkException -> "network"
+                is AppException.UnauthorizedException -> "authorization"
+                else -> "other"
+            }
+
         private suspend fun saveBirthDataAndReveal() {
             val state = _uiState.value
             val city = state.selectedCity ?: return

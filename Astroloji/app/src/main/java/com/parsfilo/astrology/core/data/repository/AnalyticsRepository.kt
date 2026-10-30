@@ -39,6 +39,7 @@ object AnalyticsEvents {
     const val ONBOARDING_STARTED = "onboarding_started"
     const val ONBOARDING_STEP_VIEWED = "onboarding_step_viewed"
     const val ONBOARDING_COMPLETED = "onboarding_completed"
+    const val ONBOARDING_REGISTRATION_FAILED = "onboarding_registration_failed"
     const val NOTIFICATION_PERMISSION_RESULT = "notification_permission_result"
     const val PAYWALL_VIEWED = "paywall_viewed"
     const val PAYWALL_PLAN_SELECTED = "paywall_plan_selected"
