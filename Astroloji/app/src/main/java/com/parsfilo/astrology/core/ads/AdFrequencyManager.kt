@@ -87,6 +87,9 @@ class AdFrequencyManager
         suspend fun recordInterstitialShown(nowMs: Long = System.currentTimeMillis()) =
             impressionMutex.withLock {
                 eligibleBacksSinceImpression = 0
+                // An impression was already observed. Even reading the old quota
+                // can fail, so block subsequent ads before any DataStore access.
+                quotaPersistenceHealthy = false
                 val preferences = preferencesRepository.current()
                 val today = nowMs.toDateKey()
                 val nextCount =
@@ -97,10 +100,8 @@ class AdFrequencyManager
                     } else {
                         1
                     }
-                // A failed write must not leave a usable stale quota in memory.
-                // Keep the flag false on cancellation/exception; only successful
-                // persistence restores eligibility.
-                quotaPersistenceHealthy = false
+                // Only successful persistence restores eligibility. Failure or
+                // cancellation during either read or write leaves it blocked.
                 preferencesRepository.updateInterstitialMetrics(
                     lastShown = nowMs,
                     count = nextCount,

@@ -209,7 +209,7 @@ class AdFrequencyManagerTest {
         }
 
     @Test
-    fun `failed impression persistence blocks further interstitials during this process`() =
+    fun `failed impression read or write blocks further interstitials during this process`() =
         runTest {
             val today = LocalDate.of(2026, 10, 30)
             val now = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() + 40_000L
@@ -241,6 +241,23 @@ class AdFrequencyManagerTest {
             // Stored quota remains zero. Do not re-show against stale quota state.
             assertThat(manager.canShowInterstitial(flags, now + 1000L)).isFalse()
             assertThat(manager.canShowInterstitialOnBack(flags, now + 1000L)).isFalse()
+
+            // Also cover a transient DataStore read error before writing
+            // anything: the previously observed impression must not be lost.
+            var reads = 0
+            coEvery { preferencesRepository.current() } coAnswers {
+                if (++reads == 1) throw IOException("read unavailable")
+                UserPreferences(interstitialCountDate = today.toString())
+            }
+            val readFailureManager = AdFrequencyManager(preferencesRepository)
+            try {
+                readFailureManager.recordInterstitialShown(now)
+                org.junit.Assert.fail("Read failure must propagate")
+            } catch (expected: IOException) {
+                assertThat(expected.message).isEqualTo("read unavailable")
+            }
+            assertThat(readFailureManager.canShowInterstitial(flags, now + 1000L)).isFalse()
+            assertThat(readFailureManager.canShowInterstitialOnBack(flags, now + 1000L)).isFalse()
         }
 
     @Test
