@@ -68,3 +68,17 @@ test('preflight summary passes dynamic values through shell environment instead 
   assert.match(summary, /echo "- Git SHA: \$PREFLIGHT_GIT_SHA"/);
   assert.doesNotMatch(summary, /echo[^\n]*\$\{\{/);
 });
+
+test('internal preflight verifies its Doppler CLI archive like the internal release', () => {
+  const extractInstallStep = (source) =>
+    source.slice(
+      source.indexOf('      - name: Install pinned Doppler CLI\n'),
+      source.indexOf('      - name: Download Doppler secrets\n'),
+    );
+
+  const preflightInstall = extractInstallStep(workflow);
+  const releaseInstall = extractInstallStep(releaseWorkflow);
+  assert.equal(preflightInstall.trimEnd(), releaseInstall.trimEnd());
+  assert.match(preflightInstall, /sha256sum --check/);
+  assert.doesNotMatch(workflow, /curl -Ls https:\/\/cli\.doppler\.com\/install\.sh \| sudo sh/);
+});
