@@ -87,6 +87,7 @@ export const USER_EVENT_TYPES = [
   'onboarding_started',
   'onboarding_step_viewed',
   'onboarding_completed',
+  'onboarding_registration_failed',
   'notification_permission_result',
   'paywall_viewed',
   'paywall_plan_selected',

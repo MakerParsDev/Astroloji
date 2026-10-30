@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
+import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class OnboardingViewModelTest {
@@ -124,6 +125,12 @@ class OnboardingViewModelTest {
 
             assertThat(viewModel.uiState.value.error).isEqualTo("Session could not be refreshed.")
             assertThat(completed).isFalse()
+            coVerify(exactly = 1) {
+                analyticsRepository.enqueue(
+                    AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
+                    mapOf("reason" to "network"),
+                )
+            }
 
             viewModel.retryLastSubmission { completed = true }
             advanceUntilIdle()
@@ -131,6 +138,68 @@ class OnboardingViewModelTest {
             assertThat(completed).isTrue()
             assertThat(viewModel.uiState.value.error).isNull()
             assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            coVerify(exactly = 1) {
+                analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED, any())
+            }
+        }
+
+    @Test
+    fun `local preferences write failure restores retry without starting backend registration`() =
+        runTest {
+            val preferences =
+                UserPreferences(
+                    onboardingCompleted = false,
+                    selectedSign = ZodiacSign.ARIES.key,
+                    language = "en",
+                    userId = "user-1",
+                    jwt = "jwt",
+                )
+            val profile =
+                UserProfile(
+                    userId = "user-1",
+                    sign = ZodiacSign.ARIES.key,
+                    language = "en",
+                    isPremium = false,
+                    premiumExpiresAt = null,
+                    jwt = "jwt",
+                    utcOffset = 3,
+                    notificationEnabled = true,
+                    notificationHour = 9,
+                )
+            stubSuccessfulRegistration(preferences, profile)
+            coEvery { analyticsRepository.track(any(), any()) } returns Unit
+            coEvery { stringsProvider.get(any()) } returns "Registration unavailable, please retry."
+            coEvery {
+                preferencesRepository.updateOnboarding(any(), any(), any())
+            } throws IOException("disk unavailable")
+            val viewModel = createViewModel()
+            viewModel.selectSign(ZodiacSign.ARIES)
+            var navigations = 0
+
+            viewModel.complete { navigations++ }
+            advanceUntilIdle()
+
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            assertThat(viewModel.uiState.value.error).isEqualTo("Registration unavailable, please retry.")
+            assertThat(navigations).isEqualTo(0)
+            coVerify(exactly = 0) { sessionRepository.registerFromPreferences() }
+            coVerify(exactly = 1) {
+                analyticsRepository.enqueue(
+                    AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
+                    mapOf("reason" to "other"),
+                )
+            }
+
+            coJustRun { preferencesRepository.updateOnboarding(any(), any(), any()) }
+            viewModel.retryLastSubmission { navigations++ }
+            advanceUntilIdle()
+
+            assertThat(navigations).isEqualTo(1)
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            coVerify(exactly = 1) { sessionRepository.registerFromPreferences() }
+            coVerify(exactly = 1) {
+                analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any())
+            }
         }
 
     @Test
@@ -206,6 +275,56 @@ class OnboardingViewModelTest {
                     AnalyticsEvents.ONBOARDING_COMPLETED,
                     mapOf("sign" to "aries", "locale" to "en"),
                 )
+            }
+        }
+
+    @Test
+    fun `double tap does not start a second registration before coroutine dispatch`() =
+        runTest {
+            val preferences =
+                UserPreferences(
+                    onboardingCompleted = false,
+                    selectedSign = ZodiacSign.ARIES.key,
+                    language = "en",
+                    userId = "user-1",
+                    jwt = "jwt",
+                )
+            val profile =
+                UserProfile(
+                    userId = "user-1",
+                    sign = ZodiacSign.ARIES.key,
+                    language = "en",
+                    isPremium = false,
+                    premiumExpiresAt = null,
+                    jwt = "jwt",
+                    utcOffset = 3,
+                    notificationEnabled = true,
+                    notificationHour = 9,
+                )
+            val registrationGate = CompletableDeferred<Unit>()
+            stubSuccessfulRegistration(preferences, profile)
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { sessionRepository.registerFromPreferences() } coAnswers {
+                registrationGate.await()
+                AppResult.Success(profile)
+            }
+            val viewModel = createViewModel()
+            viewModel.selectSign(ZodiacSign.ARIES)
+            var navigations = 0
+
+            viewModel.complete { navigations++ }
+            // A second tap before runCurrent is precisely the old race window.
+            viewModel.complete { navigations++ }
+            assertThat(viewModel.uiState.value.isSubmitting).isTrue()
+            runCurrent()
+            coVerify(exactly = 1) { sessionRepository.registerFromPreferences() }
+            registrationGate.complete(Unit)
+            advanceUntilIdle()
+
+            assertThat(navigations).isEqualTo(1)
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            coVerify(exactly = 1) {
+                analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any())
             }
         }
 
