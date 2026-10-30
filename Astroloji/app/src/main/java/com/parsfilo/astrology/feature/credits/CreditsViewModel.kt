@@ -101,8 +101,14 @@ class CreditsViewModel
         fun onEvent(event: CreditsUiEvent) {
             when (event) {
                 is CreditsUiEvent.Purchase -> {
+                    // Claim the checkout synchronously: billing loading state is
+                    // delivered asynchronously and rapid taps must not open
+                    // overlapping Play purchase flows.
+                    if (_uiState.value.isPurchasing) return
+                    _uiState.update {
+                        it.copy(isPurchasing = true, purchaseSuccessCredits = null, error = null)
+                    }
                     billingManager.clearCreditPurchaseState()
-                    _uiState.update { it.copy(purchaseSuccessCredits = null, error = null) }
                     billingManager.launchCreditPurchase(event.activity, event.productId)
                 }
                 CreditsUiEvent.RetryCatalogue -> loadCatalogue()
