@@ -45,11 +45,13 @@
     <string name="onboarding_intro_feature_content">✨ Daily, weekly, and monthly guidance for all 12 signs</string>
     <string name="onboarding_intro_feature_premium">💜 Unlimited analysis and an ad-free premium experience</string>
     <string name="onboarding_sign_title">Find your sign</string>
-    <string name="onboarding_sign_body">Choose your birth date and we will suggest your zodiac sign automatically.</string>
+    <string name="onboarding_sign_body">Select a birth date to find your sign, or choose your sign directly. You can add your birth city and time for a rising sign.</string>
     <string name="onboarding_birthdate_label">Birth date</string>
     <string name="onboarding_birthdate_placeholder">No date selected yet</string>
     <string name="onboarding_birthdate_action">Select birth date</string>
     <string name="onboarding_detected_sign_label">Suggested sign</string>
+    <string name="onboarding_choose_sign_without_birthdate">Choose my sign without a birth date</string>
+    <string name="onboarding_hide_sign_choices">Hide sign choices</string>
     <string name="onboarding_show_manual_selection">Choose a different sign manually</string>
     <string name="onboarding_hide_manual_selection">Use the suggested sign</string>
     <string name="onboarding_manual_selection_title">Manual sign selection</string>
@@ -199,7 +201,7 @@
     <string name="chat_title">AI Consultation</string>
     <string name="chat_input_placeholder">Ask about your chart…</string>
     <string name="chat_send_cta">Send</string>
-    <string name="onboarding_error_missing_sign">Select your birth date to determine your sign.</string>
+    <string name="onboarding_error_missing_sign">Choose a birth date or a zodiac sign to continue.</string>
     <string name="session_error_open_failed_after_register">Registration completed, but the session could not be opened.</string>
     <string name="notification_channel_daily_name">Daily Horoscope</string>
     <string name="notification_channel_daily_description">Daily astrology notifications</string>

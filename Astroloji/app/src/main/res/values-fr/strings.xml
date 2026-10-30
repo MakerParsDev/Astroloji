@@ -48,11 +48,13 @@
     <string name="onboarding_intro_feature_content">✨ Des conseils quotidiens, hebdomadaires et mensuels pour les 12 signes</string>
     <string name="onboarding_intro_feature_premium">💜 Analyses illimitées et une expérience premium sans publicité</string>
     <string name="onboarding_sign_title">Trouvez votre signe</string>
-    <string name="onboarding_sign_body">Choisissez votre date de naissance et nous vous suggérerons automatiquement votre signe astrologique.</string>
+    <string name="onboarding_sign_body">Choisissez votre date de naissance pour trouver votre signe ou sélectionnez-le directement. Ajoutez votre ville et heure de naissance pour calculer votre ascendant.</string>
     <string name="onboarding_birthdate_label">Date de naissance</string>
     <string name="onboarding_birthdate_placeholder">Aucune date sélectionnée pour le moment</string>
     <string name="onboarding_birthdate_action">Sélectionner la date de naissance</string>
     <string name="onboarding_detected_sign_label">Signe suggéré</string>
+    <string name="onboarding_choose_sign_without_birthdate">Choisir mon signe sans date de naissance</string>
+    <string name="onboarding_hide_sign_choices">Masquer les signes</string>
     <string name="onboarding_show_manual_selection">Choisir un autre signe manuellement</string>
     <string name="onboarding_hide_manual_selection">Utiliser le signe suggéré</string>
     <string name="onboarding_manual_selection_title">Sélection manuelle du signe</string>
@@ -206,7 +208,7 @@
     <string name="chat_title">Consultation IA</string>
     <string name="chat_input_placeholder">Posez une question sur votre thème…</string>
     <string name="chat_send_cta">Envoyer</string>
-    <string name="onboarding_error_missing_sign">Sélectionnez votre date de naissance pour déterminer votre signe.</string>
+    <string name="onboarding_error_missing_sign">Choisissez une date de naissance ou un signe pour continuer.</string>
     <string name="session_error_open_failed_after_register">Inscription terminée, mais la session n\'a pas pu être ouverte.</string>
     <string name="notification_channel_daily_name">Horoscope du jour</string>
     <string name="notification_channel_daily_description">Notifications astrologiques quotidiennes</string>
