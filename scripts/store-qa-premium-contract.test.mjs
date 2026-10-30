@@ -19,7 +19,9 @@ test('premium catalogue uses store QA seam only for store QA builds', () => {
 
 test('purchase and restore fail closed before BillingClient interaction', () => {
   const credits = methodBody(billing, 'fun launchCreditPurchase(', 'fun launchPurchase(');
-  const purchase = methodBody(billing, 'fun launchPurchase(', 'suspend fun restorePurchases()');
+  const purchase = methodBody(billing, 'fun launchPurchase(', 'private suspend fun startCreditCheckout(');
+  const creditStarter = methodBody(billing, 'private suspend fun startCreditCheckout(', 'private suspend fun startPremiumCheckout(');
+  const premiumStarter = methodBody(billing, 'private suspend fun startPremiumCheckout(', 'suspend fun restorePurchases()');
   const restore = methodBody(billing, 'suspend fun restorePurchases()', 'override fun onPurchasesUpdated(');
   const launcher = methodBody(
     billing,
@@ -27,16 +29,27 @@ test('purchase and restore fail closed before BillingClient interaction', () => 
     'private fun handleImmediateBillingLaunchResult(',
   );
 
-  // Premium and credit entrypoints must reject screenshot-QA builds before
-  // either BillingClient initialization or their shared SDK launcher.
-  for (const entrypoint of [credits, purchase]) {
+  // Entrypoints must fail closed in screenshot QA builds before they can
+  // acquire admission or call the SDK-facing starters. No direct SDK call
+  // is allowed on either public purchase path.
+  for (const [entrypoint, starterName] of [
+    [credits, 'startCreditCheckout('],
+    [purchase, 'startPremiumCheckout(']
+  ]) {
     assert.match(entrypoint, /if \(BuildConfig\.STORE_SCREENSHOT_QA\)[\s\S]*?return/);
-    assert.ok(entrypoint.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < entrypoint.indexOf('ensureReady()'));
-    assert.ok(entrypoint.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < entrypoint.indexOf('launchBillingFlowOnMain('));
+    assert.ok(entrypoint.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < entrypoint.indexOf('checkoutGate.tryStart('));
+    assert.ok(entrypoint.indexOf('checkoutGate.tryStart(') < entrypoint.indexOf(starterName));
+    assert.ok(!entrypoint.includes('ensureReady('));
+    assert.ok(!entrypoint.includes('launchBillingFlowOnMain('));
     assert.ok(!entrypoint.includes('billingClient.launchBillingFlow'));
   }
+  for (const starter of [creditStarter, premiumStarter]) {
+    assert.match(starter, /ensureReady\(\)/);
+    assert.match(starter, /launchBillingFlowOnMain\(/);
+    assert.ok(!starter.includes('billingClient.launchBillingFlow'));
+  }
 
-  // The actual SDK call was moved to this private main-thread helper.
+  // The actual SDK call remains in this private main-thread helper.
   // Two guarded callers and this declaration are the only references.
   assert.equal((billing.match(/launchBillingFlowOnMain\(/g) ?? []).length, 3);
   assert.match(launcher, /withContext\(Dispatchers\.Main\.immediate\)/);
