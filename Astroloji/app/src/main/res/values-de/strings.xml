@@ -45,11 +45,13 @@
     <string name="onboarding_intro_feature_content">✨ Tägliche, wöchentliche und monatliche Orientierung für alle 12 Sternzeichen</string>
     <string name="onboarding_intro_feature_premium">💜 Unbegrenzte Analysen und ein werbefreies Premium-Erlebnis</string>
     <string name="onboarding_sign_title">Finden Sie Ihr Sternzeichen</string>
-    <string name="onboarding_sign_body">Wählen Sie Ihr Geburtsdatum, und wir schlagen automatisch Ihr Sternzeichen vor.</string>
+    <string name="onboarding_sign_body">Wähle dein Geburtsdatum, um dein Sternzeichen zu finden, oder wähle es direkt aus. Geburtsort und -zeit ermöglichen die Berechnung des Aszendenten.</string>
     <string name="onboarding_birthdate_label">Geburtsdatum</string>
     <string name="onboarding_birthdate_placeholder">Noch kein Datum ausgewählt</string>
     <string name="onboarding_birthdate_action">Geburtsdatum auswählen</string>
     <string name="onboarding_detected_sign_label">Vorgeschlagenes Sternzeichen</string>
+    <string name="onboarding_choose_sign_without_birthdate">Mein Sternzeichen ohne Geburtsdatum auswählen</string>
+    <string name="onboarding_hide_sign_choices">Sternzeichen-Auswahl ausblenden</string>
     <string name="onboarding_show_manual_selection">Ein anderes Sternzeichen manuell auswählen</string>
     <string name="onboarding_hide_manual_selection">Vorgeschlagenes Sternzeichen verwenden</string>
     <string name="onboarding_manual_selection_title">Manuelle Auswahl des Sternzeichens</string>
@@ -199,7 +201,7 @@
     <string name="chat_title">KI-Beratung</string>
     <string name="chat_input_placeholder">Fragen Sie zu Ihrem Horoskop…</string>
     <string name="chat_send_cta">Senden</string>
-    <string name="onboarding_error_missing_sign">Wählen Sie Ihr Geburtsdatum, um Ihr Sternzeichen zu bestimmen.</string>
+    <string name="onboarding_error_missing_sign">Wähle ein Geburtsdatum oder ein Sternzeichen, um fortzufahren.</string>
     <string name="session_error_open_failed_after_register">Registrierung abgeschlossen, aber die Sitzung konnte nicht geöffnet werden.</string>
     <string name="notification_channel_daily_name">Tägliches Horoskop</string>
     <string name="notification_channel_daily_description">Tägliche astrologische Benachrichtigungen</string>
