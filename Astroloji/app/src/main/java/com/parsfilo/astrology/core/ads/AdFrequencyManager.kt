@@ -24,6 +24,10 @@ class AdFrequencyManager
         // interval instead of serving an ad sooner than the remote frequency.
         private var eligibleBacksSinceImpression = 0
 
+        // If an observed impression cannot be persisted, the stored daily count
+        // is stale. Never authorize another impression from that stale snapshot.
+        private var quotaPersistenceHealthy = true
+
         suspend fun canShowInterstitial(
             flags: RemoteFlags,
             nowMs: Long = System.currentTimeMillis(),
@@ -59,7 +63,8 @@ class AdFrequencyManager
                 if (preferences.interstitialCountDate == today) preferences.interstitialCountToday else 0
             // Day rollover cannot bypass a cooldown; convert before multiplying.
             val cooldownMs = flags.interstitialCooldownMinutes.coerceAtLeast(0).toLong() * MILLIS_PER_MINUTE
-            return dailyLimit > 0 &&
+            return quotaPersistenceHealthy &&
+                dailyLimit > 0 &&
                 countToday >= 0 &&
                 countToday < dailyLimit &&
                 nowMs - preferences.lastInterstitialShown >= cooldownMs
@@ -92,11 +97,16 @@ class AdFrequencyManager
                     } else {
                         1
                     }
+                // A failed write must not leave a usable stale quota in memory.
+                // Keep the flag false on cancellation/exception; only successful
+                // persistence restores eligibility.
+                quotaPersistenceHealthy = false
                 preferencesRepository.updateInterstitialMetrics(
                     lastShown = nowMs,
                     count = nextCount,
                     date = today,
                 )
+                quotaPersistenceHealthy = true
             }
     }
 
