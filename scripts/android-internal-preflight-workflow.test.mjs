@@ -59,3 +59,12 @@ test('Crashlytics mapping upload is opt-in for local builds but enabled explicit
   assert.match(releaseWorkflow, /CRASHLYTICS_MAPPING_UPLOAD_ENABLED: true/);
   assert.match(productionWorkflow, /CRASHLYTICS_MAPPING_UPLOAD_ENABLED: true/);
 });
+
+test('preflight summary passes dynamic values through shell environment instead of inline expressions', () => {
+  const summary = workflow.slice(workflow.indexOf('name: Publish preflight summary'));
+  assert.ok(summary.includes('PLAY_MAX_VERSION_CODE: '+ String.fromCharCode(36) + '{{ steps.play_access.outputs.max_version_code }}'));
+  assert.ok(summary.includes('PREFLIGHT_GIT_SHA: '+ String.fromCharCode(36) + '{{ github.sha }}'));
+  assert.match(summary, /echo "- Current maximum version code: \$PLAY_MAX_VERSION_CODE"/);
+  assert.match(summary, /echo "- Git SHA: \$PREFLIGHT_GIT_SHA"/);
+  assert.doesNotMatch(summary, /echo[^\n]*\$\{\{/);
+});
