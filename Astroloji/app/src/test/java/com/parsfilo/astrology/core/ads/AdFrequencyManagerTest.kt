@@ -261,6 +261,56 @@ class AdFrequencyManagerTest {
         }
 
     @Test
+    fun `a backward calendar date never reopens exhausted future quota`() =
+        runTest {
+            val now =
+                LocalDate
+                    .of(2026, 10, 29)
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    lastInterstitialShown = now - 2 * 60 * 60_000L,
+                    interstitialCountToday = 3,
+                    interstitialCountDate = "2026-10-30",
+                )
+            val manager = AdFrequencyManager(preferencesRepository)
+            val flags = RemoteFlags(interstitialDailyLimit = 3, interstitialCooldownMinutes = 30)
+
+            assertThat(manager.canShowInterstitial(flags, now)).isFalse()
+            assertThat(manager.canShowInterstitialOnBack(flags, now)).isFalse()
+            manager.resetIfNewDay(now)
+            coVerify(exactly = 0) { preferencesRepository.updateInterstitialMetrics(any(), any(), any()) }
+        }
+
+    @Test
+    fun `a recorded impression after clock rollback preserves previously exhausted quota`() =
+        runTest {
+            val now =
+                LocalDate
+                    .of(2026, 10, 29)
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            val previousShown = now + 60_000L
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    lastInterstitialShown = previousShown,
+                    interstitialCountToday = 3,
+                    interstitialCountDate = "2026-10-30",
+                )
+            AdFrequencyManager(preferencesRepository).recordInterstitialShown(now)
+            coVerify(exactly = 1) {
+                preferencesRepository.updateInterstitialMetrics(
+                    lastShown = previousShown,
+                    count = 4,
+                    date = "2026-10-30",
+                )
+            }
+        }
+
+    @Test
     fun `new day resets interstitial counters and record updates persisted state`() =
         runTest {
             val localMidnight = LocalDate.of(1970, 1, 2).atStartOfDay(ZoneId.systemDefault())

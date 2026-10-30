@@ -63,7 +63,10 @@ class AdFrequencyManager
                 if (preferences.interstitialCountDate == today) preferences.interstitialCountToday else 0
             // Day rollover cannot bypass a cooldown; convert before multiplying.
             val cooldownMs = flags.interstitialCooldownMinutes.coerceAtLeast(0).toLong() * MILLIS_PER_MINUTE
+            // A backward clock or time-zone change must not reopen a capped
+            // future-day bucket. Wait for the stored date to be reached.
             return quotaPersistenceHealthy &&
+                preferences.interstitialCountDate.orEmpty() <= today &&
                 dailyLimit > 0 &&
                 countToday >= 0 &&
                 countToday < dailyLimit &&
@@ -74,7 +77,7 @@ class AdFrequencyManager
             impressionMutex.withLock {
                 val preferences = preferencesRepository.current()
                 val today = nowMs.toDateKey()
-                if (preferences.interstitialCountDate == today) {
+                if (preferences.interstitialCountDate.orEmpty() >= today) {
                     return@withLock
                 }
                 preferencesRepository.updateInterstitialMetrics(
@@ -92,8 +95,11 @@ class AdFrequencyManager
                 quotaPersistenceHealthy = false
                 val preferences = preferencesRepository.current()
                 val today = nowMs.toDateKey()
+                // Preserve the newer quota bucket if the device date moved
+                // backward while an already-visible ad was being recorded.
+                val bucketDate = maxOf(today, preferences.interstitialCountDate.orEmpty())
                 val nextCount =
-                    if (preferences.interstitialCountDate == today) {
+                    if (preferences.interstitialCountDate == bucketDate) {
                         // Corrupted or saturated counters must never wrap and reopen the daily quota.
                         val previousCount = preferences.interstitialCountToday
                         if (previousCount in 0 until Int.MAX_VALUE) previousCount + 1 else Int.MAX_VALUE
@@ -103,9 +109,9 @@ class AdFrequencyManager
                 // Only successful persistence restores eligibility. Failure or
                 // cancellation during either read or write leaves it blocked.
                 preferencesRepository.updateInterstitialMetrics(
-                    lastShown = nowMs,
+                    lastShown = maxOf(nowMs, preferences.lastInterstitialShown),
                     count = nextCount,
-                    date = today,
+                    date = bucketDate,
                 )
                 quotaPersistenceHealthy = true
             }
