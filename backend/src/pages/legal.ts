@@ -1,6 +1,7 @@
 const SUPPORT_EMAIL = 'info@parsfilo.com';
 const LAST_UPDATED = '5 August 2026';
 const PRIVACY_UPDATED = '26 October 2026';
+const ACCOUNT_DELETION_UPDATED = '27 October 2026';
 
 function escapeHtml(value: string): string {
   return value
@@ -231,7 +232,7 @@ export function renderAccountDeletion(): string {
     'Astroloji Account and Data Deletion / Hesap ve Veri Silme',
     'Instructions for deleting an Astroloji account and associated personal data.',
     `<h1>Hesap ve Veri Silme</h1>
-<p class="meta"><strong>Son güncelleme / Last updated:</strong> ${PRIVACY_UPDATED}</p>
+<p class="meta"><strong>Son güncelleme / Last updated:</strong> ${ACCOUNT_DELETION_UPDATED}</p>
 <p class="notice">Astroloji hesabınızı ve hesabınıza bağlı kişisel verileri uygulama içinden kalıcı olarak
 silebilirsiniz. Yardım veya uygulamaya erişemediğiniz durumlar için
 <a href="mailto:${SUPPORT_EMAIL}?subject=Astroloji%20hesap%20silme">${SUPPORT_EMAIL}</a> adresine yazabilirsiniz.</p>
@@ -278,9 +279,16 @@ veri kategorileri için ayrı bir otomatik silme düğmesi sunduğu anlamına ge
 ve geçerli saklama yükümlülükleri doğrulama sonrasında değerlendirilir.</p>
 
 <h2>E-posta ile hesap silme talebi</h2>
-<p>Uygulamaya erişemiyorsanız ${SUPPORT_EMAIL} adresine "Astroloji hesap silme" konusuyla yazın. Hesabın size
-ait olduğunu doğrulamak için sınırlı bilgi isteyebiliriz. Parola, ödeme kartı bilgisi veya servis hesabı anahtarı
-göndermeyin.</p>
+<p>Uygulamayı kaldırmış veya oturumunuza erişiminizi kaybetmiş olsanız bile uygulamayı yeniden yüklemeden
+<a href="mailto:${SUPPORT_EMAIL}?subject=Astroloji%20hesap%20silme">${SUPPORT_EMAIL}</a> adresine
+"Astroloji hesap silme" konusuyla talep gönderebilirsiniz. Hesabın tamamını mı yoksa yalnızca belirli
+verileri mi silmek istediğinizi yazın. Talebi almak, henüz hesap sahipliğinizin doğrulandığı veya silmenin
+gerçekleştiği anlamına gelmez.</p>
+<p>Astroloji anonim Firebase oturumu kullanabilir; gönderici e-posta adresi bir anonim uygulama hesabına
+otomatik olarak bağlı değildir. Güvenli bir hesap eşleştirmesi sağlanmadan hiçbir hesabın verileri destek
+üzerinden silinmez. Doğrulama için mevcut seçenekler ve bir engel varsa durum e-posta yanıtında açıklanır.
+<strong>Parola, giriş kodu, oturum/Firebase belirteci, kart numarası, servis hesabı anahtarı veya kimlik belgesi
+göndermeyin.</strong></p>
 
 <h2>Saklanabilecek sınırlı kayıtlar</h2>
 <p>Hesabınıza bağlı operasyonel veriler silinir. Yasal yükümlülük, dolandırıcılık önleme veya muhasebe amacıyla
@@ -303,7 +311,15 @@ Firebase Analytics events remain subject to separate retention terms. To request
 or deletion of specific data without deleting your account, describe the data concerned in an email to
 <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>. Other data categories do not necessarily have
 individual self-service deletion controls; requests are assessed subject to identity verification
-and applicable retention obligations.</p>`
+and applicable retention obligations.</p>
+<p>If you no longer have the app or a working session, you can initiate an account or data deletion request
+<strong>without reinstalling the app</strong> by emailing
+<a href="mailto:${SUPPORT_EMAIL}?subject=Astroloji%20account%20deletion">${SUPPORT_EMAIL}</a>.
+Specify full account deletion or the particular data to review. The request itself does not prove account
+ownership or mean deletion has completed. An anonymous Firebase app account is not automatically linked
+to your email address; support will explain the available verification steps or any unresolved blocker.
+No account is erased solely on an unverified email claim. Never email passwords, sign-in codes, session/Firebase
+tokens, payment-card details, service credentials, or identity-document images.</p>`
   );
 }
 
