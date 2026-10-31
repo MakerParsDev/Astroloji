@@ -326,6 +326,7 @@
     <string name="settings_delete_dialog_confirm">Eliminar permanentemente</string>
     <string name="settings_delete_dialog_cancel">Cancelar</string>
     <string name="rewarded_ad_unavailable">El anuncio con recompensa no está listo. Inténtalo de nuevo.</string>
+    <string name="rewarded_ad_not_completed">El anuncio se cerró antes de obtener la recompensa. Míralo completo para desbloquear el contenido.</string>
     <string name="chart_settings_title">Guía Personal Beta</string>
     <string name="chart_settings_body">Obtén tres señales de reflexión basadas en fecha a partir de posiciones planetarias verificadas. Los datos de nacimiento no se guardan.</string>
     <string name="chart_settings_cta">Abrir guía personal</string>

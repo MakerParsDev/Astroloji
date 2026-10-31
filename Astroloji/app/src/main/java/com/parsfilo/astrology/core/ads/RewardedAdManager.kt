@@ -101,6 +101,7 @@ class RewardedAdManager
             request: RewardedAdRequest,
             onRewardEarned: (RewardItem) -> Unit,
             onDismissed: () -> Unit = {},
+            onDismissedWithoutReward: () -> Unit = {},
         ): Boolean {
             // Never play an ad that cannot be attributed to a valid SSV claim.
             // Keep the cached creative available for a later valid request.
@@ -133,9 +134,9 @@ class RewardedAdManager
                 bindFullScreenCallbacks(
                     ad,
                     telemetry,
-                    attempt.finished,
-                    attempt.rewardDelivered,
+                    attempt,
                     onDismissed,
+                    onDismissedWithoutReward,
                 )
             }
             return if (ssvConfigured) {
@@ -177,13 +178,16 @@ class RewardedAdManager
         private fun bindFullScreenCallbacks(
             ad: RewardedAd,
             telemetry: RewardedAdLifecycleTelemetry,
-            finished: AtomicBoolean,
-            rewardDelivered: AtomicBoolean,
+            attempt: RewardedAdAttemptState,
             onDismissed: () -> Unit,
+            onDismissedWithoutReward: () -> Unit,
         ) {
             val dismissOnce: (String) -> Unit = { reason ->
-                if (finished.compareAndSet(false, true)) {
-                    if (!rewardDelivered.get()) telemetry.failed(reason)
+                if (attempt.finished.compareAndSet(false, true)) {
+                    if (!attempt.rewardDelivered.get()) {
+                        telemetry.failed(reason)
+                        onDismissedWithoutReward()
+                    }
                     preload()
                     onDismissed()
                 }
@@ -191,7 +195,7 @@ class RewardedAdManager
             ad.fullScreenContentCallback =
                 object : FullScreenContentCallback() {
                     override fun onAdShowedFullScreenContent() {
-                        telemetry.shown(!finished.get())
+                        telemetry.shown(!attempt.finished.get())
                     }
 
                     override fun onAdDismissedFullScreenContent() {
@@ -204,7 +208,7 @@ class RewardedAdManager
                     }
 
                     override fun onAdImpression() {
-                        telemetry.impression(!finished.get())
+                        telemetry.impression(!attempt.finished.get())
                     }
                 }
         }

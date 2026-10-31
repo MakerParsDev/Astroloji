@@ -318,6 +318,7 @@
     <string name="settings_delete_dialog_confirm">Delete permanently</string>
     <string name="settings_delete_dialog_cancel">Cancel</string>
     <string name="rewarded_ad_unavailable">Rewarded ad is not ready. Please try again.</string>
+    <string name="rewarded_ad_not_completed">The ad was closed before earning a reward. Watch the full ad to unlock this content.</string>
     <string name="chart_settings_title">Personal Guidance Beta</string>
     <string name="chart_settings_body">Get three date-based reflection signals from verified planetary positions. Birth data is not saved.</string>
     <string name="chart_settings_cta">Open personal guidance</string>

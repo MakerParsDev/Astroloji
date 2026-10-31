@@ -62,8 +62,9 @@ fun DailyScreen(
     val shareScope = rememberCoroutineScope()
     val rewardedAdManager = adsEntryPoint(context).rewardedAdManager()
     val rewardedAdUnavailableMessage = stringResource(R.string.rewarded_ad_unavailable)
+    val rewardedAdNotCompletedMessage = stringResource(R.string.rewarded_ad_not_completed)
 
-    LaunchedEffect(viewModel, activity, rewardedAdUnavailableMessage) {
+    LaunchedEffect(viewModel, activity, rewardedAdUnavailableMessage, rewardedAdNotCompletedMessage) {
         viewModel.effects.collect { effect ->
             when (effect) {
                 is DailyUiEffect.ShowRewardAd -> {
@@ -90,6 +91,9 @@ fun DailyScreen(
                                 ),
                             onRewardEarned = {
                                 viewModel.onEvent(DailyUiEvent.RewardEarned(effect.challenge.challengeId))
+                            },
+                            onDismissedWithoutReward = {
+                                viewModel.onEvent(DailyUiEvent.RewardAdUnavailable(rewardedAdNotCompletedMessage))
                             },
                         )
                     if (!shown) {

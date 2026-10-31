@@ -54,7 +54,14 @@ class RewardedAdLifecycleAnalyticsTest {
         fun show(
             onRewardEarned: (RewardItem) -> Unit = {},
             onDismissed: () -> Unit = {},
-        ) = manager.showIfAvailable(activity, request, onRewardEarned, onDismissed)
+            onDismissedWithoutReward: () -> Unit = {},
+        ) = manager.showIfAvailable(
+            activity,
+            request,
+            onRewardEarned,
+            onDismissed,
+            onDismissedWithoutReward,
+        )
 
         val meta = mapOf("format" to "rewarded", "placement" to "unlock_daily_full")
     }
@@ -64,7 +71,14 @@ class RewardedAdLifecycleAnalyticsTest {
         val f = Fixture()
         var earned = 0
         var dismissed = 0
-        assertThat(f.show(onRewardEarned = { earned++ }, onDismissed = { dismissed++ })).isTrue()
+        var dismissedWithoutReward = 0
+        assertThat(
+            f.show(
+                onRewardEarned = { earned++ },
+                onDismissed = { dismissed++ },
+                onDismissedWithoutReward = { dismissedWithoutReward++ },
+            ),
+        ).isTrue()
 
         f.callback.captured.onAdShowedFullScreenContent()
         f.callback.captured.onAdShowedFullScreenContent()
@@ -75,6 +89,7 @@ class RewardedAdLifecycleAnalyticsTest {
 
         assertThat(earned).isEqualTo(1)
         assertThat(dismissed).isEqualTo(1)
+        assertThat(dismissedWithoutReward).isEqualTo(0)
         coVerify(exactly = 1, timeout = 3000) {
             f.analytics.track(AnalyticsEvents.REWARDED_AD_STARTED, f.meta)
         }
@@ -92,7 +107,13 @@ class RewardedAdLifecycleAnalyticsTest {
     fun `dismissal without reward records failure and ignores late rewards`() {
         val f = Fixture()
         var earned = 0
-        assertThat(f.show(onRewardEarned = { earned++ })).isTrue()
+        var dismissedWithoutReward = 0
+        assertThat(
+            f.show(
+                onRewardEarned = { earned++ },
+                onDismissedWithoutReward = { dismissedWithoutReward++ },
+            ),
+        ).isTrue()
 
         f.callback.captured.onAdShowedFullScreenContent()
         f.callback.captured.onAdDismissedFullScreenContent()
@@ -100,6 +121,7 @@ class RewardedAdLifecycleAnalyticsTest {
         f.earnedCallback.captured.onUserEarnedReward(mockk(relaxed = true))
 
         assertThat(earned).isEqualTo(0)
+        assertThat(dismissedWithoutReward).isEqualTo(1)
         coVerify(exactly = 1, timeout = 3000) {
             f.analytics.track(
                 AnalyticsEvents.REWARDED_AD_FAILED,

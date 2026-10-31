@@ -318,6 +318,7 @@
     <string name="settings_delete_dialog_confirm">Dauerhaft löschen</string>
     <string name="settings_delete_dialog_cancel">Abbrechen</string>
     <string name="rewarded_ad_unavailable">Die Werbeanzeige mit Prämie ist nicht bereit. Versuchen Sie es erneut.</string>
+    <string name="rewarded_ad_not_completed">Die Anzeige wurde vor der Belohnung geschlossen. Sehen Sie sie vollständig an, um den Inhalt freizuschalten.</string>
     <string name="chart_settings_title">Persönliche Orientierung Beta</string>
     <string name="chart_settings_body">Erhalten Sie drei datumsbasierte Reflexionssignale aus verifizierten Planetenpositionen. Geburtsdaten werden nicht gespeichert.</string>
     <string name="chart_settings_cta">Persönliche Orientierung öffnen</string>

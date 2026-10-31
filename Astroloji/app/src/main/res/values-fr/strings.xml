@@ -326,6 +326,7 @@
     <string name="settings_delete_dialog_confirm">Supprimer définitivement</string>
     <string name="settings_delete_dialog_cancel">Annuler</string>
     <string name="rewarded_ad_unavailable">La publicité récompensée n\'est pas prête. Veuillez réessayer.</string>
+    <string name="rewarded_ad_not_completed">La publicité a été fermée avant l\'obtention de la récompense. Regardez-la jusqu\'au bout pour déverrouiller le contenu.</string>
     <string name="chart_settings_title">Guidance personnelle bêta</string>
     <string name="chart_settings_body">Obtenez trois signaux de réflexion basés sur la date, issus de positions planétaires vérifiées. Les données de naissance ne sont pas enregistrées.</string>
     <string name="chart_settings_cta">Ouvrir la guidance personnelle</string>
