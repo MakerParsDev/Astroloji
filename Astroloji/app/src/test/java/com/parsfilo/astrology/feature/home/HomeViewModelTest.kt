@@ -203,8 +203,11 @@ class HomeViewModelTest {
     fun `logging a mood updates state and refreshes the insight`() =
         runTest {
             stubDependencies()
-            coEvery { moodRepository.logMood("good", null) } returns
+            coJustRun { analyticsRepository.trackMoodLoggedWithinGate() }
+            coEvery { moodRepository.logMood("good", null, any()) } coAnswers {
+                thirdArg<suspend () -> Unit>().invoke()
                 AppResult.Success(MoodLogResponse(date = "2026-03-18", mood = "good", domain = null))
+            }
             coEvery { moodRepository.getInsight() } returnsMany
                 listOf(
                     AppResult.Success(NO_INSIGHT),
@@ -219,6 +222,6 @@ class HomeViewModelTest {
             assertThat(viewModel.state.value.loggedMood).isEqualTo("good")
             assertThat(viewModel.state.value.moodInsight)
                 .isEqualTo(MoodInsightUi("communication", 3, 2))
-            coVerify(exactly = 1) { analyticsRepository.track(AnalyticsEvents.MOOD_LOGGED, emptyMap()) }
+            coVerify(exactly = 1) { analyticsRepository.trackMoodLoggedWithinGate() }
         }
 }

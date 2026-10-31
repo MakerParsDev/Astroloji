@@ -99,10 +99,14 @@ class HomeViewModel
             domain: String?,
         ) {
             viewModelScope.launch {
-                when (val result = moodRepository.logMood(mood, domain)) {
+                when (
+                    val result =
+                        moodRepository.logMood(mood, domain) {
+                            analyticsRepository.trackMoodLoggedWithinGate()
+                        }
+                ) {
                     is AppResult.Success -> {
                         setState { copy(loggedMood = result.data.mood) }
-                        analyticsRepository.track(AnalyticsEvents.MOOD_LOGGED)
                         refreshMoodInsight()
                     }
                     is AppResult.Error, AppResult.Loading -> Unit

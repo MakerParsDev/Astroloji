@@ -125,40 +125,56 @@ class AnalyticsRepository
             meta: Map<String, String> = emptyMap(),
         ) = withContext(Dispatchers.IO) {
             withMoodGate(eventType) {
-                val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
-                logFirebaseEvent(eventType, safeMeta)
-                // Pin the event to its owner before the first attempt. An app JWT
-                // refresh must not silently reattribute an old owner's event.
-                val ownerId =
-                    preferencesRepository.current().userId?.takeIf { it.isNotBlank() }
-                        ?: return@withMoodGate
-                val eventId = UUID.randomUUID().toString()
-                try {
-                    val response =
-                        api.trackEvent(
-                            TrackEventRequest(
-                                eventType = eventType,
-                                meta = safeMeta,
-                                eventId = eventId,
-                                ownerUserId = ownerId,
-                            ),
+                trackWithoutGate(eventType, meta)
+            }
+        }
+
+        /**
+         * Called only by MoodRepository while it already holds MoodAnalyticsSyncGate.
+         * Re-locking through track(MOOD_LOGGED) here would deadlock.
+         */
+        internal suspend fun trackMoodLoggedWithinGate() =
+            withContext(Dispatchers.IO) {
+                trackWithoutGate(AnalyticsEvents.MOOD_LOGGED, emptyMap())
+            }
+
+        private suspend fun trackWithoutGate(
+            eventType: String,
+            meta: Map<String, String>,
+        ) {
+            val safeMeta = sanitizeAnalyticsMeta(eventType, meta)
+            logFirebaseEvent(eventType, safeMeta)
+            // Pin the event to its owner before the first attempt. An app JWT
+            // refresh must not silently reattribute an old owner's event.
+            val ownerId =
+                preferencesRepository.current().userId?.takeIf { it.isNotBlank() }
+                    ?: return
+            val eventId = UUID.randomUUID().toString()
+            try {
+                val response =
+                    api.trackEvent(
+                        TrackEventRequest(
+                            eventType = eventType,
+                            meta = safeMeta,
+                            eventId = eventId,
+                            ownerUserId = ownerId,
+                        ),
+                    )
+                when (classifyAnalyticsResponse(response.code())) {
+                    AnalyticsDeliveryDisposition.DELIVERED -> Unit
+                    AnalyticsDeliveryDisposition.PERMANENT_FAILURE ->
+                        Timber.w(
+                            "Dropping permanently rejected analytics event: %s (%d)",
+                            eventType,
+                            response.code(),
                         )
-                    when (classifyAnalyticsResponse(response.code())) {
-                        AnalyticsDeliveryDisposition.DELIVERED -> Unit
-                        AnalyticsDeliveryDisposition.PERMANENT_FAILURE ->
-                            Timber.w(
-                                "Dropping permanently rejected analytics event: %s (%d)",
-                                eventType,
-                                response.code(),
-                            )
-                        AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, safeMeta, eventId, ownerId)
-                    }
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (exception: IOException) {
-                    Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
-                    queueEvent(eventType, safeMeta, eventId, ownerId)
+                    AnalyticsDeliveryDisposition.RETRY -> queueEvent(eventType, safeMeta, eventId, ownerId)
                 }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: IOException) {
+                Timber.w(exception, "Queueing analytics event after transient failure: %s", eventType)
+                queueEvent(eventType, safeMeta, eventId, ownerId)
             }
         }
 
