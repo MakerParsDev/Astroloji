@@ -3,18 +3,23 @@ package com.parsfilo.astrology.core.data.repository
 import android.app.Activity
 import android.content.Context
 import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.BillingFailureReason
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Test
@@ -100,7 +105,10 @@ class BillingManagerTest {
         }
     }
 
-    private fun withPendingBillingClient(block: (BillingManager, BillingClient) -> Unit) {
+    private fun withPendingBillingClient(
+        sessionRepository: SessionRepository = mockk(),
+        block: (BillingManager, BillingClient) -> Unit,
+    ) {
         val billingClient = mockk<BillingClient>(relaxed = true)
         val builder = mockk<BillingClient.Builder>(relaxed = true)
         every { builder.setListener(any()) } returns builder
@@ -115,7 +123,7 @@ class BillingManagerTest {
             val manager =
                 BillingManager(
                     context = mockk<Context>(),
-                    sessionRepository = mockk(),
+                    sessionRepository = sessionRepository,
                     creditsRepository = mockk(),
                     stringsProvider = mockk(relaxed = true),
                 )
@@ -126,6 +134,57 @@ class BillingManagerTest {
             }
         } finally {
             unmockkStatic(BillingClient::class)
+        }
+    }
+
+    @Test
+    fun `unsolicited purchase callback cannot verify while restore is in progress`() {
+        val sessionRepository = mockk<SessionRepository>(relaxed = true)
+        withPendingBillingClient(sessionRepository) { manager, _ ->
+            runBlocking {
+                val restoration = async(start = CoroutineStart.UNDISPATCHED) { manager.restorePurchases() }
+                try {
+                    val purchased = purchase("premium_monthly", Purchase.PurchaseState.PURCHASED)
+                    every { purchased.purchaseToken } returns "synthetic-token"
+                    val callback =
+                        BillingResult.newBuilder().setResponseCode(BillingClient.BillingResponseCode.OK).build()
+                    manager.onPurchasesUpdated(callback, mutableListOf(purchased))
+                    delay(150)
+                    coVerify(exactly = 0) { sessionRepository.apiVerify(any()) }
+                    assertThat(manager.purchaseState.value).isEqualTo(AppResult.Loading)
+                } finally {
+                    restoration.cancelAndJoin()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `duplicate unsolicited callback does not verify the same purchase twice`() {
+        val sessionRepository = mockk<SessionRepository>(relaxed = true)
+        withPendingBillingClient(sessionRepository) { manager, _ ->
+            runBlocking {
+                val started = CompletableDeferred<Unit>()
+                val release = CompletableDeferred<Unit>()
+                coEvery { sessionRepository.apiVerify(any()) } coAnswers {
+                    started.complete(Unit)
+                    release.await()
+                    AppResult.Error(mockk())
+                }
+                val purchased = purchase("premium_monthly", Purchase.PurchaseState.PURCHASED)
+                every { purchased.purchaseToken } returns "synthetic-token"
+                val callback =
+                    BillingResult.newBuilder().setResponseCode(BillingClient.BillingResponseCode.OK).build()
+                try {
+                    manager.onPurchasesUpdated(callback, mutableListOf(purchased))
+                    withTimeout(2_000) { started.await() }
+                    manager.onPurchasesUpdated(callback, mutableListOf(purchased))
+                    delay(100)
+                    coVerify(exactly = 1) { sessionRepository.apiVerify(any()) }
+                } finally {
+                    release.complete(Unit)
+                }
+            }
         }
     }
 

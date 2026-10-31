@@ -101,6 +101,16 @@ internal class BillingCheckoutGate {
 
     fun currentFlow(): PendingBillingFlow = active.get()
 
+    fun isBusyForUnsolicitedCallback(pending: PendingBillingFlow): Boolean {
+        val isUnsolicited = pending == PendingBillingFlow.NONE
+        return isUnsolicited && active.get() != PendingBillingFlow.NONE
+    }
+
+    fun reserveUnsolicitedCallback(
+        pending: PendingBillingFlow,
+        resolved: PendingBillingFlow,
+    ): Boolean = pending != PendingBillingFlow.NONE || resolved == PendingBillingFlow.NONE || tryStart(resolved)
+
     fun finish(flow: PendingBillingFlow) {
         if (flow != PendingBillingFlow.NONE) active.compareAndSet(flow, PendingBillingFlow.NONE)
     }
@@ -528,6 +538,7 @@ class BillingManager
             purchases: MutableList<Purchase>?,
         ) {
             val initialFlow = pendingFlow
+            if (checkoutGate.isBusyForUnsolicitedCallback(initialFlow)) return
             pendingFlow = PendingBillingFlow.NONE
             val flow =
                 if (billingResult.responseCode == BillingResponseCode.OK) {
@@ -535,6 +546,7 @@ class BillingManager
                 } else {
                     initialFlow
                 }
+            if (!checkoutGate.reserveUnsolicitedCallback(initialFlow, flow)) return
             val verifying =
                 if (billingResult.responseCode == BillingResponseCode.OK) {
                     dispatchSuccessfulPurchase(flow, purchases.orEmpty())
@@ -542,7 +554,7 @@ class BillingManager
                     dispatchFailedPurchase(flow, billingResult)
                     false
                 }
-            if (!verifying) checkoutGate.finish(initialFlow)
+            if (!verifying) checkoutGate.finish(flow)
         }
 
         private fun dispatchSuccessfulPurchase(
