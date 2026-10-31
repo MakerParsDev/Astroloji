@@ -145,6 +145,47 @@ class MoodRepositoryTest {
         }
 
     @Test
+    fun `deletion waits for analytics after successful mood insertion`() =
+        runTest {
+            val analyticsStarted = CompletableDeferred<Unit>()
+            val finishAnalytics = CompletableDeferred<Unit>()
+            coEvery { api.logMood(any()) } returns
+                Response.success(MoodLogResponse(date = "2026-10-31", mood = "good", domain = null))
+            coEvery { api.deleteMoodHistory() } returns Response.success(Unit)
+            coJustRun { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, "owner-A") }
+
+            val log =
+                async {
+                    repository.logMood("good", null) {
+                        analyticsStarted.complete(Unit)
+                        finishAnalytics.await()
+                    }
+                }
+            analyticsStarted.await()
+            val delete = async { repository.deleteMoodHistory() }
+            runCurrent()
+
+            // The mood was written, but its analytics callback is still in flight:
+            // deletion must not run before that callback settles.
+            coVerify(exactly = 0) { api.deleteMoodHistory() }
+            finishAnalytics.complete(Unit)
+            assertThat(log.await()).isInstanceOf(AppResult.Success::class.java)
+            assertThat(delete.await()).isInstanceOf(AppResult.Success::class.java)
+            coVerify(exactly = 1) { api.deleteMoodHistory() }
+            coVerify(exactly = 1) { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, "owner-A") }
+        }
+
+    @Test
+    fun `failed mood insertion never emits a mood analytics event`() =
+        runTest {
+            coEvery { api.logMood(any()) } returns Response.error(503, "offline".toResponseBody())
+            var called = false
+            val result = repository.logMood("good", null) { called = true }
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat(called).isFalse()
+        }
+
+    @Test
     fun `failed local queue cleanup reports retryable deletion instead of success`() =
         runTest {
             coEvery { api.deleteMoodHistory() } returns Response.success(Unit)

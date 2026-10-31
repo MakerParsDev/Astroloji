@@ -35,16 +35,21 @@ class MoodRepository
         suspend fun logMood(
             mood: String,
             domain: String?,
+            onLoggedWithinGate: suspend () -> Unit = {},
         ): AppResult<MoodLogResponse> =
             withContext(dispatchers.io) {
-                // An in-flight POST must finish before account-preserving deletion
-                // starts; otherwise its D1 write could restore erased mood history.
+                // Both the mood write and its analytics event must finish before
+                // account-preserving deletion can erase either. Otherwise the
+                // event may be recorded AFTER the server-side delete completes.
                 syncGate.withLock {
-                    runAuthenticated(
-                        request = { api.logMood(MoodLogRequest(mood = mood, domain = domain)) },
-                        emptyBodyMessage = "Mood log response was empty.",
-                        failureMessage = "Mood could not be logged.",
-                    )
+                    val result =
+                        runAuthenticated(
+                            request = { api.logMood(MoodLogRequest(mood = mood, domain = domain)) },
+                            emptyBodyMessage = "Mood log response was empty.",
+                            failureMessage = "Mood could not be logged.",
+                        )
+                    if (result is AppResult.Success) onLoggedWithinGate()
+                    result
                 }
             }
 
