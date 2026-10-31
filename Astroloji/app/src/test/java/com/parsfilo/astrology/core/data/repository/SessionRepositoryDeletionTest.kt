@@ -87,12 +87,7 @@ class SessionRepositoryDeletionTest {
             val result = repository.deleteAccount()
 
             assertThat((result as AppResult.Error).exception.message).isEqualTo("Account deletion failed.")
-            verify(exactly = 0) { firebaseAuth.signOut() }
-            verify(exactly = 0) { firebaseAnalytics.resetAnalyticsData() }
-            verify(exactly = 0) { database.clearAllTables() }
-            coVerify(exactly = 0) { preferencesRepository.clearAll() }
-            coVerify(exactly = 0) { pushRegistrationManager.unregister() }
-            assertThat(tokenStore.current()).isEqualTo("app-jwt")
+            assertFailedDeletionPreservesLocalState()
         }
 
     @Test
@@ -111,12 +106,7 @@ class SessionRepositoryDeletionTest {
             val result = repository.deleteAccount()
 
             assertThat((result as AppResult.Error).exception.message).isEqualTo("Account deletion failed.")
-            verify(exactly = 0) { firebaseAuth.signOut() }
-            verify(exactly = 0) { firebaseAnalytics.resetAnalyticsData() }
-            verify(exactly = 0) { database.clearAllTables() }
-            coVerify(exactly = 0) { preferencesRepository.clearAll() }
-            coVerify(exactly = 0) { pushRegistrationManager.unregister() }
-            assertThat(tokenStore.current()).isEqualTo("app-jwt")
+            assertFailedDeletionPreservesLocalState()
         }
 
     @Test
@@ -141,6 +131,15 @@ class SessionRepositoryDeletionTest {
             coVerify(exactly = 1) { preferencesRepository.clearAll() }
             assertThat(tokenStore.current()).isNull()
         }
+
+    private fun assertFailedDeletionPreservesLocalState() {
+        verify(exactly = 0) { firebaseAuth.signOut() }
+        verify(exactly = 0) { firebaseAnalytics.resetAnalyticsData() }
+        verify(exactly = 0) { database.clearAllTables() }
+        coVerify(exactly = 0) { preferencesRepository.clearAll() }
+        coVerify(exactly = 0) { pushRegistrationManager.unregister() }
+        assertThat(tokenStore.current()).isEqualTo("app-jwt")
+    }
 
     private fun createRepository(): SessionRepository {
         every { database.userProfileDao() } returns userProfileDao
