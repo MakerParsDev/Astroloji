@@ -220,6 +220,7 @@ jobs:
             'ADMOB_APP_OPEN_ID', 'ADMOB_NATIVE_ADVANCED_ID',
           ];
           const appPublisher = (values.get(appKey) ?? '').split('~')[0];
+          const seenUnits = new Set();
           for (const key of [appKey, ...unitKeys]) {
             const id = values.get(key) ?? '';
             const valid = key === appKey
@@ -228,6 +229,10 @@ jobs:
             if (!valid || id.includes('3940256099942544') ||
                 (key !== appKey && !id.startsWith(`${appPublisher}/`))) {
               throw new Error(`Release requires a non-sample production AdMob ID for ${key}.`);
+            }
+            if (key !== appKey) {
+              if (seenUnits.has(id)) throw new Error(`Duplicate AdMob unit for ${key}.`);
+              seenUnits.add(id);
             }
           }
           NODE

@@ -227,6 +227,7 @@ test('new production bundle requires actual formatted non-sample AdMob IDs befor
     assert.equal(run({ ...ids, ADMOB_REWARDED_ID: 'ca-app-pub-3940256099942544/5224354917' }).status, 1);
     assert.equal(run({ ...ids, ADMOB_BANNER_ID: 'not-an-id' }).status, 1);
     assert.equal(run({ ...ids, ADMOB_BANNER_ID: 'ca-app-pub-9876543210987654/9214589741' }).status, 1, 'Mismatched ad-unit publisher must fail closed');
+    assert.equal(run({ ...ids, ADMOB_NATIVE_ADVANCED_ID: ids.ADMOB_REWARDED_ID }).status, 1, 'Duplicate unit across ad formats must fail closed');
   } finally {
     fs.rmSync(folder, { recursive: true, force: true });
   }
