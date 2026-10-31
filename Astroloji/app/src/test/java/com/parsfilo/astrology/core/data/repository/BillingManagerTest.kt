@@ -39,6 +39,15 @@ class BillingManagerTest {
     }
 
     @Test
+    fun `silent resume cannot steal the gate from a live checkout`() {
+        withPendingBillingClient { manager, client ->
+            manager.launchPurchase(mockk<Activity>(), "premium_monthly")
+            runBlocking { withTimeout(1_000) { manager.reconcilePurchasesOnResume() } }
+            verify(exactly = 0) { client.queryPurchasesAsync(any(), any()) }
+        }
+    }
+
+    @Test
     fun `shared checkout gate rejects overlapping premium and credit requests in either order`() {
         val gate = BillingCheckoutGate()
         assertThat(gate.tryStart(PendingBillingFlow.PREMIUM)).isTrue()
