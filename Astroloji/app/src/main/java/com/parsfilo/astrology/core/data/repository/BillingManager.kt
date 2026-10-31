@@ -982,9 +982,16 @@ internal fun hasPendingPremiumPurchase(purchases: List<Purchase>): Boolean =
 
 internal fun selectPurchaseForVerification(purchases: List<Purchase>): Purchase? =
     purchases
-        .filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
-        .sortedBy { resolveRecognizedProductId(it.products) }
-        .firstOrNull { resolveRecognizedProductId(it.products) != null }
+        .filter {
+            it.purchaseState == Purchase.PurchaseState.PURCHASED &&
+                resolveRecognizedProductId(it.products) != null
+        }
+        // Prefer the newest purchase when more than one recognized subscription is owned.
+        // The backend still validates purchase token and expiry.
+        .sortedWith(
+            compareByDescending<Purchase> { it.purchaseTime }
+                .thenBy { resolveRecognizedProductId(it.products) },
+        ).firstOrNull()
 
 private fun selectCreditPurchaseForVerification(purchases: List<Purchase>): Purchase? =
     purchases

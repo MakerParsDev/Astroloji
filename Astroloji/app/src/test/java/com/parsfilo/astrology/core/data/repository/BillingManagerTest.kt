@@ -222,6 +222,7 @@ class BillingManagerTest {
         mockk {
             every { purchaseState } returns state
             every { products } returns listOf(sku)
+            every { purchaseTime } returns 0L
         }
 
     @Test
@@ -232,6 +233,31 @@ class BillingManagerTest {
 
         assertThat(selectPurchaseForVerification(listOf(pending, unknown, owned))).isSameInstanceAs(owned)
         assertThat(hasPendingPremiumPurchase(listOf(pending, unknown, owned))).isTrue()
+    }
+
+    @Test
+    fun `restore prioritizes newest recognized purchase over alphabetically first product`() {
+        val olderMonthly = purchase("premium_monthly", Purchase.PurchaseState.PURCHASED)
+        val newerWeekly = purchase("premium_weekly", Purchase.PurchaseState.PURCHASED)
+        every { olderMonthly.purchaseTime } returns 1_000L
+        every { newerWeekly.purchaseTime } returns 2_000L
+
+        assertThat(selectPurchaseForVerification(listOf(olderMonthly, newerWeekly))).isSameInstanceAs(newerWeekly)
+        assertThat(selectPurchaseForVerification(listOf(newerWeekly, olderMonthly))).isSameInstanceAs(newerWeekly)
+    }
+
+    @Test
+    fun `restore ignores newer pending and unknown products and selects purchased premium`() {
+        val activeMonthly = purchase("premium_monthly", Purchase.PurchaseState.PURCHASED)
+        val newerPendingWeekly = purchase("premium_weekly", Purchase.PurchaseState.PENDING)
+        val unrelatedCredit = purchase("credits_large", Purchase.PurchaseState.PURCHASED)
+        every { activeMonthly.purchaseTime } returns 1_000L
+        every { newerPendingWeekly.purchaseTime } returns 9_000L
+        every { unrelatedCredit.purchaseTime } returns 8_000L
+
+        assertThat(
+            selectPurchaseForVerification(listOf(newerPendingWeekly, unrelatedCredit, activeMonthly)),
+        ).isSameInstanceAs(activeMonthly)
     }
 
     @Test
