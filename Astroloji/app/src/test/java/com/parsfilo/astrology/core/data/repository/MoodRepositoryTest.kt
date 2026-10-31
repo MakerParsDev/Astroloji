@@ -88,6 +88,7 @@ class MoodRepositoryTest {
             val result = repository.deleteMoodHistory()
 
             assertThat(result).isInstanceOf(AppResult.Success::class.java)
+            assertThat(repository.historyDeletionRevision.value).isEqualTo(1L)
             coVerify(exactly = 1) { queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, "owner-A") }
         }
 
@@ -195,6 +196,7 @@ class MoodRepositoryTest {
             val result = repository.deleteMoodHistory()
 
             assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat(repository.historyDeletionRevision.value).isEqualTo(0L)
         }
 
     @Test
@@ -205,6 +207,7 @@ class MoodRepositoryTest {
             val result = repository.deleteMoodHistory()
 
             assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat(repository.historyDeletionRevision.value).isEqualTo(0L)
             coVerify(exactly = 0) { queuedEventDao.deleteByType(any(), any()) }
         }
 

@@ -12,6 +12,9 @@ import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.DispatchersProvider
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import retrofit2.Response
@@ -32,6 +35,11 @@ class MoodRepository
         private val requestExecutor: AuthenticatedRequestExecutor,
         private val dispatchers: DispatchersProvider,
     ) {
+        private val _historyDeletionRevision = MutableStateFlow(0L)
+
+        /** Invalidate mood state held by other screens after a confirmed account-preserving wipe. */
+        val historyDeletionRevision: StateFlow<Long> = _historyDeletionRevision.asStateFlow()
+
         suspend fun logMood(
             mood: String,
             domain: String?,
@@ -82,6 +90,7 @@ class MoodRepository
                                 // The deletion request was issued under the captured owner.
                                 // Do not erase another account's pending analytics.
                                 queuedEventDao.deleteByType(AnalyticsEvents.MOOD_LOGGED, ownerId)
+                                _historyDeletionRevision.value += 1
                                 AppResult.Success(Unit)
                             }
                         }
