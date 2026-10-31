@@ -30,6 +30,7 @@ class AppOpenAdManager
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
         private val loadRetryGate = AdLoadRetryGate()
+        private var retryConsentRevision = Long.MIN_VALUE
         private var isShowing = false
         private var loadElapsedRealtimeMs = 0L
         private var appOpenAd: AppOpenAd? = null
@@ -44,6 +45,11 @@ class AppOpenAdManager
         fun preload() {
             discardAdFromEarlierConsentRevision()
             val loadRevision = consentManager.consentRevision
+            // Never carry a load failure's backoff into a newer UMP decision.
+            if (retryConsentRevision != loadRevision) {
+                retryConsentRevision = loadRevision
+                loadRetryGate.recordSuccess()
+            }
             val canStartPreload = !isLoading && !isAdAvailable() && consentManager.canRequestAds
             if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
@@ -59,6 +65,7 @@ class AppOpenAdManager
                         if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             appOpenAd = null
                             loadElapsedRealtimeMs = 0L
+                            if (consentManager.canRequestAds) preload()
                             return
                         }
                         appOpenAd = ad
@@ -71,6 +78,11 @@ class AppOpenAdManager
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         appOpenAd = null
                         isLoading = false
+                        // Obsolete failure must not throttle newly authorized requests.
+                        if (consentManager.consentRevision != loadRevision) {
+                            if (consentManager.canRequestAds) preload()
+                            return
+                        }
                         loadRetryGate.recordFailure()
                         Timber.w("App open ad failed: %s", error.message)
                     }
