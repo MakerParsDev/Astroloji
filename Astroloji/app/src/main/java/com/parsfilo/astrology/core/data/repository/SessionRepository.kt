@@ -1,5 +1,6 @@
 package com.parsfilo.astrology.core.data.repository
 
+import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.local.AstrologyDatabase
@@ -35,6 +36,7 @@ class SessionRepository
     @Inject
     constructor(
         private val firebaseAuth: FirebaseAuth,
+        private val firebaseAnalytics: FirebaseAnalytics,
         private val api: AstrologyApi,
         private val preferencesRepository: UserPreferencesRepository,
         private val database: AstrologyDatabase,
@@ -254,6 +256,14 @@ class SessionRepository
                     database.clearAllTables()
                     preferencesRepository.clearAll()
                     tokenStore.update(null)
+                    // Erase local Analytics SDK data and rotate its app-instance ID only
+                    // after the server has confirmed account deletion. This cannot
+                    // delete analytics events already sent to Google's servers.
+                    runCatching { firebaseAnalytics.resetAnalyticsData() }
+                        .onFailure {
+                            if (it is CancellationException) throw it
+                            Timber.w("Local Firebase Analytics reset unavailable after account deletion.")
+                        }
                     AppResult.Success(Unit)
                 } catch (exception: CancellationException) {
                     throw exception

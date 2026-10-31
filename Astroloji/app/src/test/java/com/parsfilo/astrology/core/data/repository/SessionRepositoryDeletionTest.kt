@@ -1,6 +1,7 @@
 package com.parsfilo.astrology.core.data.repository
 
 import com.google.common.truth.Truth.assertThat
+import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.local.AstrologyDatabase
@@ -35,6 +36,7 @@ import java.io.IOException
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionRepositoryDeletionTest {
     private val firebaseAuth = mockk<FirebaseAuth>(relaxed = true)
+    private val firebaseAnalytics = mockk<FirebaseAnalytics>(relaxed = true)
     private val api = mockk<AstrologyApi>()
     private val preferencesRepository = mockk<UserPreferencesRepository>()
     private val userProfileDao = mockk<UserProfileDao>()
@@ -66,6 +68,7 @@ class SessionRepositoryDeletionTest {
             assertThat(result).isEqualTo(AppResult.Success(Unit))
             coVerify(exactly = 1) { api.deleteUser() }
             verify(exactly = 1) { firebaseAuth.signOut() }
+            verify(exactly = 1) { firebaseAnalytics.resetAnalyticsData() }
             verify(exactly = 1) { database.clearAllTables() }
             coVerify(exactly = 1) { preferencesRepository.clearAll() }
             coVerify(exactly = 1) { pushRegistrationManager.unregister() }
@@ -85,6 +88,7 @@ class SessionRepositoryDeletionTest {
 
             assertThat((result as AppResult.Error).exception.message).isEqualTo("Account deletion failed.")
             verify(exactly = 0) { firebaseAuth.signOut() }
+            verify(exactly = 0) { firebaseAnalytics.resetAnalyticsData() }
             verify(exactly = 0) { database.clearAllTables() }
             coVerify(exactly = 0) { preferencesRepository.clearAll() }
             coVerify(exactly = 0) { pushRegistrationManager.unregister() }
@@ -108,16 +112,41 @@ class SessionRepositoryDeletionTest {
 
             assertThat((result as AppResult.Error).exception.message).isEqualTo("Account deletion failed.")
             verify(exactly = 0) { firebaseAuth.signOut() }
+            verify(exactly = 0) { firebaseAnalytics.resetAnalyticsData() }
             verify(exactly = 0) { database.clearAllTables() }
             coVerify(exactly = 0) { preferencesRepository.clearAll() }
             coVerify(exactly = 0) { pushRegistrationManager.unregister() }
             assertThat(tokenStore.current()).isEqualTo("app-jwt")
         }
 
+    @Test
+    fun `account deletion still clears login data if Analytics reset throws`() =
+        runTest {
+            coEvery { api.deleteUser() } returns
+                Response.success(DeleteUserResponse(ok = true, userId = "user-1", firebaseAccountDeleted = true))
+            every { firebaseAnalytics.resetAnalyticsData() } throws IllegalStateException("SDK unavailable")
+            every { firebaseAuth.signOut() } just runs
+            every { database.clearAllTables() } just runs
+            coJustRun { preferencesRepository.clearAll() }
+            coJustRun { pushRegistrationManager.unregister() }
+            tokenStore.update("app-jwt")
+            val repository = createRepository()
+
+            val result = repository.deleteAccount()
+
+            assertThat(result).isEqualTo(AppResult.Success(Unit))
+            verify(exactly = 1) { firebaseAnalytics.resetAnalyticsData() }
+            verify(exactly = 1) { firebaseAuth.signOut() }
+            verify(exactly = 1) { database.clearAllTables() }
+            coVerify(exactly = 1) { preferencesRepository.clearAll() }
+            assertThat(tokenStore.current()).isNull()
+        }
+
     private fun createRepository(): SessionRepository {
         every { database.userProfileDao() } returns userProfileDao
         return SessionRepository(
             firebaseAuth = firebaseAuth,
+            firebaseAnalytics = firebaseAnalytics,
             api = api,
             preferencesRepository = preferencesRepository,
             database = database,
