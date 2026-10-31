@@ -27,37 +27,14 @@ import org.junit.Test
 class BillingManagerTest {
     @Test
     fun `credit checkout cannot start during a premium billing flow`() {
-        val billingClient = mockk<BillingClient>(relaxed = true)
-        val builder = mockk<BillingClient.Builder>(relaxed = true)
-        every { builder.setListener(any()) } returns builder
-        every { builder.enablePendingPurchases(any()) } returns builder
-        every { builder.enableAutoServiceReconnection() } returns builder
-        every { builder.build() } returns billingClient
-        every { billingClient.isReady } returns false
-        every { billingClient.startConnection(any()) } returns Unit
-        mockkStatic(BillingClient::class)
-        try {
-            every { BillingClient.newBuilder(any()) } returns builder
-            val manager =
-                BillingManager(
-                    context = mockk<Context>(),
-                    sessionRepository = mockk(),
-                    creditsRepository = mockk(),
-                    stringsProvider = mockk(relaxed = true),
-                )
-            try {
-                val activity = mockk<Activity>()
-                manager.launchPurchase(activity, "premium_weekly")
-                manager.launchCreditPurchase(activity, "credits_small")
+        withPendingBillingClient { manager, _ ->
+            val activity = mockk<Activity>()
+            manager.launchPurchase(activity, "premium_weekly")
+            manager.launchCreditPurchase(activity, "credits_small")
 
-                // Even before the asynchronous Google Play connection resolves,
-                // the shared billing manager must refuse the competing checkout.
-                assertThat(manager.creditPurchaseState.value).isInstanceOf(AppResult.Error::class.java)
-            } finally {
-                manager.close()
-            }
-        } finally {
-            unmockkStatic(BillingClient::class)
+            // Even before the asynchronous Google Play connection resolves,
+            // the shared billing manager must refuse the competing checkout.
+            assertThat(manager.creditPurchaseState.value).isInstanceOf(AppResult.Error::class.java)
         }
     }
 
