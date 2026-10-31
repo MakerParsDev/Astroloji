@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { assertNoDispatchInputsInRunBlocks } from './workflow-run-safety.mjs';
 
 function workflow(name) {
   return readFileSync('.github/workflows/' + name + '.yml', 'utf8');
@@ -75,23 +76,11 @@ test('backend rollback docs require reviewed main commit and guarded deploy work
 
 test('production release passes manual inputs as data, never interpolated Bash source', () => {
   const source = workflow('android-production-release');
-  const lines = source.split(/\r?\n/);
-  let runIndent = null;
-  for (const line of lines) {
-    const indent = line.match(/^\s*/)[0].length;
-    if (/^\s*run:\s*(?:\||>-?)?\s*$/.test(line)) {
-      runIndent = indent;
-      continue;
-    }
-    if (runIndent !== null && line.trim() && indent <= runIndent) runIndent = null;
-    if (runIndent !== null) {
-      assert.doesNotMatch(line, /\$\{\{\s*inputs\./, `Unsafe direct dispatch input in Bash: ${line.trim()}`);
-    }
-  }
-  assert.match(source, /--from-track="\$PROMOTE_FROM_TRACK"/);
-  assert.match(source, /--user-fraction="\$PLAY_USER_FRACTION"/);
-  assert.match(source, /--version-code="\$VERSION_CODE"/);
-  assert.match(source, /if \[ -z "\$PROMOTE_FROM_TRACK" \]; then/);
+  assertNoDispatchInputsInRunBlocks(source, 'production release');
+  assert.match(source, /--from-track=\"\$PROMOTE_FROM_TRACK\"/);
+  assert.match(source, /--user-fraction=\"\$PLAY_USER_FRACTION\"/);
+  assert.match(source, /--version-code=\"\$VERSION_CODE\"/);
+  assert.match(source, /if \[ -z \"\$PROMOTE_FROM_TRACK\" \]; then/);
   assert.match(source, /vars\.ENABLE_PRODUCTION_RELEASE == 'true'/);
   assert.match(source, /environment: production/);
 });
@@ -104,11 +93,13 @@ function localProductionShell(name) {
   assert.ok(start >= 0, `Missing production step: ${name}`);
   const next = source.indexOf('\n      - name:', start + 1);
   const block = source.slice(start, next < 0 ? undefined : next);
+  if (['Promote from an existing Play track', 'Publish summary'].includes(name)) {
+    assert.match(block, /RELEASE_NAME: \$\{\{ steps\.release_identity\.outputs\.release_name \}\}/);
+  }
   const run = block.match(/\n        run: (\||>-)\n((?:          [^\n]*(?:\n|$))*)/);
   assert.ok(run, `Missing multiline run in ${name}`);
   const lines = run[2].trimEnd().split('\n').map((line) => line.slice(10));
-  return (run[1] === '>-' ? lines.join(' ') : lines.join('\n'))
-    .replaceAll('${{ steps.release_identity.outputs.release_name }}', 'SafeRelease');
+  return run[1] === '>-' ? lines.join(' ') : lines.join('\n');
 }
 
 test('production release actual Bash never re-evaluates manual data during promotion', (t) => {
@@ -128,7 +119,7 @@ test('production release actual Bash never re-evaluates manual data during promo
   const result = spawnSync('bash', ['-e', '-u', '-o', 'pipefail', '-c', localProductionShell('Promote from an existing Play track')], {
     cwd: dir, encoding: 'utf8', timeout: 6000,
     env: { ...process.env, PROMOTE_FROM_TRACK: promote, PLAY_USER_FRACTION: fraction,
-      VERSION_CODE: version, PLAY_TRACK_PRODUCTION: 'production', ARGV_DUMP: argvFile },
+      VERSION_CODE: version, PLAY_TRACK_PRODUCTION: 'production', RELEASE_NAME: 'SafeRelease', ARGV_DUMP: argvFile },
   });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(readFileSync(argvFile, 'utf8').trimEnd().split('\n'), [
@@ -155,7 +146,7 @@ test('production summary treats special characters as data and keeps bundle/prom
       cwd: dir, encoding: 'utf8', timeout: 6000,
       env: { ...process.env, VERSION_NAME: version, VERSION_CODE: '1109',
         PROMOTE_FROM_TRACK: track, PLAY_USER_FRACTION: '0.1', PLAY_TRACK_PRODUCTION: 'production',
-        RELEASE_SHA: 'test-sha', GITHUB_STEP_SUMMARY: summary },
+        RELEASE_SHA: 'test-sha', RELEASE_NAME: 'SafeRelease', GITHUB_STEP_SUMMARY: summary },
     });
     assert.equal(result.status, 0, result.stderr);
     const output = readFileSync(summary, 'utf8');
