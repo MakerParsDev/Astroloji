@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { assertNoDispatchInputsInRunBlocks } from './workflow-run-safety.mjs';
 
 const workflow = fs.readFileSync(new URL('../.github/workflows/android-production-release.yml', import.meta.url), 'utf8');
 
@@ -24,19 +25,7 @@ test('production release preserves manual main, feature flag and protected envir
 });
 
 test('untrusted workflow_dispatch input is never interpolated inside production run scripts', () => {
-  const lines = workflow.split(/\r?\n/);
-  let runIndent = null;
-  for (const line of lines) {
-    const indent = line.match(/^\s*/)[0].length;
-    if (/^\s*run:\s*(?:\||>-?)?\s*$/.test(line)) {
-      runIndent = indent;
-      continue;
-    }
-    if (runIndent !== null && line.trim() && indent <= runIndent) runIndent = null;
-    if (runIndent !== null) {
-      assert.doesNotMatch(line, /\$\{\{\s*inputs\./, `Dispatch input used as shell code: ${line.trim()}`);
-    }
-  }
+  assertNoDispatchInputsInRunBlocks(workflow, 'production release');
 });
 
 test('production promotion passes operator inputs through environment variables', () => {
@@ -77,19 +66,7 @@ test('internal preflight summary safely passes input and Play output through env
   assert.match(summary, /android-signed-apk-\$PREFLIGHT_VERSION_CODE/);
   assert.doesNotMatch(summary.slice(summary.indexOf('        run:')), /\$\{\{/);
 
-  const lines = preflight.split(/\r?\n/);
-  let runIndent = null;
-  for (const line of lines) {
-    const indent = line.match(/^\s*/)[0].length;
-    if (/^\s*run:\s*(?:\||>-?)?\s*$/.test(line)) {
-      runIndent = indent;
-      continue;
-    }
-    if (runIndent !== null && line.trim() && indent <= runIndent) runIndent = null;
-    if (runIndent !== null) {
-      assert.doesNotMatch(line, /\$\{\{\s*inputs\./, `Unsafe preflight input: ${line.trim()}`);
-    }
-  }
+  assertNoDispatchInputsInRunBlocks(preflight, 'internal preflight');
 });
 
 

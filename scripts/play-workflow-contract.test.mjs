@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
+import { assertNoDispatchInputsInRunBlocks } from './workflow-run-safety.mjs';
 
 const workflow = fs.readFileSync('.github/workflows/android-metadata.yml', 'utf8');
 
@@ -114,19 +115,7 @@ test('phone screenshot publish workflow exposes no release-note track mutation s
 });
 
 test('workflow run scripts never interpolate workflow_dispatch inputs directly', () => {
-  const lines = workflow.split(/\r?\n/);
-  let runIndent = null;
-  for (const line of lines) {
-    const indent = line.match(/^\s*/)[0].length;
-    if (/^\s*run:\s*(?:\||>-?)?\s*$/.test(line)) {
-      runIndent = indent;
-      continue;
-    }
-    if (runIndent !== null && line.trim() && indent <= runIndent) runIndent = null;
-    if (runIndent !== null) {
-      assert.doesNotMatch(line, /\$\{\{\s*inputs\./, `Unsafe direct input interpolation in run block: ${line.trim()}`);
-    }
-  }
+  assertNoDispatchInputsInRunBlocks(workflow, 'metadata workflow');
 });
 
 test('credential files are mode 0600 and removed in always cleanup steps', () => {

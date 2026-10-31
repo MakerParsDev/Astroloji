@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { assertNoDispatchInputsInRunBlocks } from './workflow-run-safety.mjs';
 
 function workflow(name) {
   return readFileSync('.github/workflows/' + name + '.yml', 'utf8');
@@ -75,23 +76,11 @@ test('backend rollback docs require reviewed main commit and guarded deploy work
 
 test('production release passes manual inputs as data, never interpolated Bash source', () => {
   const source = workflow('android-production-release');
-  const lines = source.split(/\r?\n/);
-  let runIndent = null;
-  for (const line of lines) {
-    const indent = line.match(/^\s*/)[0].length;
-    if (/^\s*run:\s*(?:\||>-?)?\s*$/.test(line)) {
-      runIndent = indent;
-      continue;
-    }
-    if (runIndent !== null && line.trim() && indent <= runIndent) runIndent = null;
-    if (runIndent !== null) {
-      assert.doesNotMatch(line, /\$\{\{\s*inputs\./, `Unsafe direct dispatch input in Bash: ${line.trim()}`);
-    }
-  }
-  assert.match(source, /--from-track="\$PROMOTE_FROM_TRACK"/);
-  assert.match(source, /--user-fraction="\$PLAY_USER_FRACTION"/);
-  assert.match(source, /--version-code="\$VERSION_CODE"/);
-  assert.match(source, /if \[ -z "\$PROMOTE_FROM_TRACK" \]; then/);
+  assertNoDispatchInputsInRunBlocks(source, 'production release');
+  assert.match(source, /--from-track=\"\$PROMOTE_FROM_TRACK\"/);
+  assert.match(source, /--user-fraction=\"\$PLAY_USER_FRACTION\"/);
+  assert.match(source, /--version-code=\"\$VERSION_CODE\"/);
+  assert.match(source, /if \[ -z \"\$PROMOTE_FROM_TRACK\" \]; then/);
   assert.match(source, /vars\.ENABLE_PRODUCTION_RELEASE == 'true'/);
   assert.match(source, /environment: production/);
 });
