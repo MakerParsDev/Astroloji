@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -88,6 +89,22 @@ private val CREDIT_PRODUCT_AMOUNTS =
     )
 
 internal enum class PendingBillingFlow { NONE, PREMIUM, CREDITS }
+
+/** Serializes both purchase screens while the SDK checkout or verification is in flight. */
+internal class BillingCheckoutGate {
+    private val active = AtomicReference(PendingBillingFlow.NONE)
+
+    fun tryStart(flow: PendingBillingFlow): Boolean {
+        require(flow != PendingBillingFlow.NONE)
+        return active.compareAndSet(PendingBillingFlow.NONE, flow)
+    }
+
+    fun currentFlow(): PendingBillingFlow = active.get()
+
+    fun finish(flow: PendingBillingFlow) {
+        if (flow != PendingBillingFlow.NONE) active.compareAndSet(flow, PendingBillingFlow.NONE)
+    }
+}
 
 data class PremiumPlanUi(
     val planId: String,
@@ -192,6 +209,8 @@ class BillingManager
         private val _creditPurchaseState = MutableStateFlow<AppResult<CreditPurchaseResult>?>(null)
         val creditPurchaseState: StateFlow<AppResult<CreditPurchaseResult>?> = _creditPurchaseState.asStateFlow()
         private val creditCatalog = mutableMapOf<String, ProductDetails>()
+
+        private val checkoutGate = BillingCheckoutGate()
 
         @Volatile
         private var pendingFlow: PendingBillingFlow = PendingBillingFlow.NONE
@@ -304,38 +323,27 @@ class BillingManager
                     )
                 return
             }
-            scope.launch {
-                _creditPurchaseState.value = AppResult.Loading
-                val readyResult = ensureReady()
-                if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
+            if (!checkoutGate.tryStart(PendingBillingFlow.CREDITS)) {
+                // A second screen for the same checkout must not overwrite its
+                // live result; only reject a competing product-family flow.
+                if (checkoutGate.currentFlow() != PendingBillingFlow.CREDITS) {
                     _creditPurchaseState.value =
                         AppResult.Error(
-                            AppException.BillingException(
-                                readyResult.debugMessage.ifBlank {
-                                    stringsProvider.get(R.string.billing_purchase_failed)
-                                },
-                            ),
+                            AppException.BillingException(stringsProvider.get(R.string.billing_purchase_failed)),
                         )
-                    return@launch
                 }
-                val detail =
-                    fetchProductDetails(productId, creditCatalog, ProductType.INAPP) ?: run {
-                        _creditPurchaseState.value =
-                            AppResult.Error(
-                                AppException.BillingException(
-                                    stringsProvider.get(R.string.billing_credit_pack_not_found),
-                                ),
-                            )
-                        return@launch
+                return
+            }
+            scope.launch {
+                var handedToSdk = false
+                try {
+                    handedToSdk = startCreditCheckout(activity, productId)
+                } finally {
+                    if (!handedToSdk) {
+                        if (pendingFlow == PendingBillingFlow.CREDITS) pendingFlow = PendingBillingFlow.NONE
+                        checkoutGate.finish(PendingBillingFlow.CREDITS)
                     }
-                val params =
-                    BillingFlowParams.ProductDetailsParams
-                        .newBuilder()
-                        .setProductDetails(detail)
-                        .build()
-                pendingFlow = PendingBillingFlow.CREDITS
-                val launchResult = launchBillingFlowOnMain(activity, params)
-                handleImmediateBillingLaunchResult(PendingBillingFlow.CREDITS, launchResult)
+                }
             }
         }
 
@@ -350,47 +358,106 @@ class BillingManager
                     )
                 return
             }
-            scope.launch {
-                _purchaseState.value = AppResult.Loading
-                val readyResult = ensureReady()
-                if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
+            if (!checkoutGate.tryStart(PendingBillingFlow.PREMIUM)) {
+                // A second screen for the same checkout must not overwrite its
+                // live result; only reject a competing product-family flow.
+                if (checkoutGate.currentFlow() != PendingBillingFlow.PREMIUM) {
                     _purchaseState.value =
                         AppResult.Error(
-                            AppException.BillingException(
-                                readyResult.debugMessage.ifBlank {
-                                    stringsProvider.get(R.string.billing_purchase_failed)
-                                },
-                            ),
+                            AppException.BillingException(stringsProvider.get(R.string.billing_purchase_failed)),
                         )
-                    return@launch
                 }
-                val plan =
-                    _plans.value.firstOrNull { it.planId == planId } ?: run {
-                        _purchaseState.value =
-                            AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_plan_not_found)))
-                        return@launch
+                return
+            }
+            scope.launch {
+                var handedToSdk = false
+                try {
+                    handedToSdk = startPremiumCheckout(activity, planId)
+                } finally {
+                    if (!handedToSdk) {
+                        if (pendingFlow == PendingBillingFlow.PREMIUM) pendingFlow = PendingBillingFlow.NONE
+                        checkoutGate.finish(PendingBillingFlow.PREMIUM)
                     }
-                val detail =
-                    fetchProductDetails(plan.productId, catalog, ProductType.SUBS) ?: run {
-                        _purchaseState.value =
-                            AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_plan_not_found)))
-                        return@launch
-                    }
-                val offerToken =
-                    plan.offerToken?.takeIf { it.isNotBlank() } ?: run {
-                        _purchaseState.value =
-                            AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_plan_not_found)))
-                        return@launch
-                    }
-                val params =
-                    BillingFlowParams.ProductDetailsParams
-                        .newBuilder()
-                        .setProductDetails(detail)
-                        .setOfferToken(offerToken)
-                        .build()
+                }
+            }
+        }
+
+        private suspend fun startCreditCheckout(
+            activity: Activity,
+            productId: String,
+        ): Boolean {
+            _creditPurchaseState.value = AppResult.Loading
+            val readyResult = ensureReady()
+            var params: BillingFlowParams.ProductDetailsParams? = null
+            if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
+                _creditPurchaseState.value =
+                    AppResult.Error(
+                        AppException.BillingException(
+                            readyResult.debugMessage.ifBlank { stringsProvider.get(R.string.billing_purchase_failed) },
+                        ),
+                    )
+            } else {
+                val detail = fetchProductDetails(productId, creditCatalog, ProductType.INAPP)
+                if (detail == null) {
+                    _creditPurchaseState.value =
+                        AppResult.Error(
+                            AppException.BillingException(stringsProvider.get(R.string.billing_credit_pack_not_found)),
+                        )
+                } else {
+                    params =
+                        BillingFlowParams.ProductDetailsParams
+                            .newBuilder()
+                            .setProductDetails(detail)
+                            .build()
+                }
+            }
+            return if (params == null) {
+                false
+            } else {
+                pendingFlow = PendingBillingFlow.CREDITS
+                val result = launchBillingFlowOnMain(activity, params)
+                handleImmediateBillingLaunchResult(PendingBillingFlow.CREDITS, result)
+                result.responseCode == BillingResponseCode.OK
+            }
+        }
+
+        private suspend fun startPremiumCheckout(
+            activity: Activity,
+            planId: String,
+        ): Boolean {
+            _purchaseState.value = AppResult.Loading
+            val readyResult = ensureReady()
+            var params: BillingFlowParams.ProductDetailsParams? = null
+            if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
+                _purchaseState.value =
+                    AppResult.Error(
+                        AppException.BillingException(
+                            readyResult.debugMessage.ifBlank { stringsProvider.get(R.string.billing_purchase_failed) },
+                        ),
+                    )
+            } else {
+                val plan = _plans.value.firstOrNull { it.planId == planId }
+                val detail = plan?.let { fetchProductDetails(it.productId, catalog, ProductType.SUBS) }
+                val offerToken = plan?.offerToken?.takeIf { it.isNotBlank() }
+                if (detail == null || offerToken == null) {
+                    _purchaseState.value =
+                        AppResult.Error(AppException.BillingException(stringsProvider.get(R.string.billing_plan_not_found)))
+                } else {
+                    params =
+                        BillingFlowParams.ProductDetailsParams
+                            .newBuilder()
+                            .setProductDetails(detail)
+                            .setOfferToken(offerToken)
+                            .build()
+                }
+            }
+            return if (params == null) {
+                false
+            } else {
                 pendingFlow = PendingBillingFlow.PREMIUM
-                val launchResult = launchBillingFlowOnMain(activity, params)
-                handleImmediateBillingLaunchResult(PendingBillingFlow.PREMIUM, launchResult)
+                val result = launchBillingFlowOnMain(activity, params)
+                handleImmediateBillingLaunchResult(PendingBillingFlow.PREMIUM, result)
+                result.responseCode == BillingResponseCode.OK
             }
         }
 
@@ -454,51 +521,82 @@ class BillingManager
                 } else {
                     initialFlow
                 }
-            when (billingResult.responseCode) {
-                BillingResponseCode.OK -> {
-                    when (flow) {
-                        PendingBillingFlow.CREDITS -> {
-                            val purchase = selectCreditPurchaseForVerification(purchases.orEmpty())
-                            if (purchase == null) {
-                                applyPurchaseFlowResult(flow, missingPurchaseError(flow, purchases.orEmpty()))
-                            } else {
-                                scope.launch { _creditPurchaseState.value = verifyCreditPurchase(purchase) }
+            val verifying =
+                if (billingResult.responseCode == BillingResponseCode.OK) {
+                    dispatchSuccessfulPurchase(flow, purchases.orEmpty())
+                } else {
+                    dispatchFailedPurchase(flow, billingResult)
+                    false
+                }
+            if (!verifying) checkoutGate.finish(initialFlow)
+        }
+
+        private fun dispatchSuccessfulPurchase(
+            flow: PendingBillingFlow,
+            purchases: List<Purchase>,
+        ): Boolean {
+            var verificationInProgress = false
+            when (flow) {
+                PendingBillingFlow.CREDITS -> {
+                    val purchase = selectCreditPurchaseForVerification(purchases)
+                    if (purchase == null) {
+                        applyPurchaseFlowResult(flow, missingPurchaseError(flow, purchases))
+                    } else {
+                        scope.launch {
+                            try {
+                                _creditPurchaseState.value = verifyCreditPurchase(purchase)
+                            } finally {
+                                checkoutGate.finish(PendingBillingFlow.CREDITS)
                             }
                         }
-                        PendingBillingFlow.PREMIUM -> {
-                            val purchase = selectPurchaseForVerification(purchases.orEmpty())
-                            if (purchase == null) {
-                                applyPurchaseFlowResult(flow, missingPurchaseError(flow, purchases.orEmpty()))
-                            } else {
-                                scope.launch { _purchaseState.value = verifyPurchase(purchase, restore = false) }
-                            }
-                        }
-                        PendingBillingFlow.NONE ->
-                            Timber.w("Ignoring unrecognized Billing purchase callback without an active flow")
+                        verificationInProgress = true
                     }
                 }
-                BillingResponseCode.USER_CANCELED -> {
-                    applyPurchaseFlowResult(
-                        flow,
-                        AppResult.Error(
-                            AppException.BillingException(
-                                message = stringsProvider.get(R.string.billing_purchase_cancelled),
-                                reason = BillingFailureReason.USER_CANCELLED,
-                            ),
-                        ),
-                    )
+                PendingBillingFlow.PREMIUM -> {
+                    val purchase = selectPurchaseForVerification(purchases)
+                    if (purchase == null) {
+                        applyPurchaseFlowResult(flow, missingPurchaseError(flow, purchases))
+                    } else {
+                        scope.launch {
+                            try {
+                                _purchaseState.value = verifyPurchase(purchase, restore = false)
+                            } finally {
+                                checkoutGate.finish(PendingBillingFlow.PREMIUM)
+                            }
+                        }
+                        verificationInProgress = true
+                    }
                 }
-                else -> {
-                    applyPurchaseFlowResult(
-                        flow,
-                        AppResult.Error(
-                            AppException.BillingException(
-                                billingResult.debugMessage.ifBlank { stringsProvider.get(R.string.billing_purchase_failed) },
-                                reason = billingFailureReasonFromResponseCode(billingResult.responseCode),
-                            ),
+                PendingBillingFlow.NONE ->
+                    Timber.w("Ignoring unrecognized Billing purchase callback without an active flow")
+            }
+            return verificationInProgress
+        }
+
+        private fun dispatchFailedPurchase(
+            flow: PendingBillingFlow,
+            result: BillingResult,
+        ) {
+            if (result.responseCode == BillingResponseCode.USER_CANCELED) {
+                applyPurchaseFlowResult(
+                    flow,
+                    AppResult.Error(
+                        AppException.BillingException(
+                            message = stringsProvider.get(R.string.billing_purchase_cancelled),
+                            reason = BillingFailureReason.USER_CANCELLED,
                         ),
-                    )
-                }
+                    ),
+                )
+            } else {
+                applyPurchaseFlowResult(
+                    flow,
+                    AppResult.Error(
+                        AppException.BillingException(
+                            result.debugMessage.ifBlank { stringsProvider.get(R.string.billing_purchase_failed) },
+                            reason = billingFailureReasonFromResponseCode(result.responseCode),
+                        ),
+                    ),
+                )
             }
         }
 
