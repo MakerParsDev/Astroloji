@@ -27,8 +27,11 @@ import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
@@ -127,6 +130,7 @@ class HomeViewModelTest {
     private val consentManager = mockk<GoogleMobileAdsConsentManager>()
     private val streakRepository = mockk<StreakRepository>()
     private val moodRepository = mockk<MoodRepository>()
+    private val moodHistoryDeletionRevision = MutableStateFlow(0L)
 
     private fun stubDependencies() {
         coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showPremiumBanner = true)
@@ -140,6 +144,7 @@ class HomeViewModelTest {
         every { consentManager.canRequestAds } returns false
         coEvery { streakRepository.checkIn() } returns AppResult.Success(NO_REWARD_CHECK_IN)
         coEvery { moodRepository.getInsight() } returns AppResult.Success(NO_INSIGHT)
+        every { moodRepository.historyDeletionRevision } returns moodHistoryDeletionRevision
     }
 
     private fun createViewModel(): HomeViewModel =
@@ -223,5 +228,57 @@ class HomeViewModelTest {
             assertThat(viewModel.state.value.moodInsight)
                 .isEqualTo(MoodInsightUi("communication", 3, 2))
             coVerify(exactly = 1) { analyticsRepository.trackMoodLoggedWithinGate() }
+        }
+
+    @Test
+    fun `deleting mood history clears saved home mood and insight`() =
+        runTest {
+            stubDependencies()
+            coJustRun { analyticsRepository.trackMoodLoggedWithinGate() }
+            coEvery { moodRepository.logMood("good", null, any()) } returns
+                AppResult.Success(MoodLogResponse(date = "2026-03-18", mood = "good", domain = null))
+            coEvery { moodRepository.getInsight() } returnsMany
+                listOf(
+                    AppResult.Success(NO_INSIGHT),
+                    AppResult.Success(MoodInsightResponse(insight = MoodInsight("communication", 3, 2))),
+                )
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            viewModel.onEvent(HomeUiEvent.LogMood("good", null))
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.loggedMood).isEqualTo("good")
+            assertThat(viewModel.state.value.moodInsight).isNotNull()
+
+            // Settings successfully deleted the server history via the shared repository.
+            moodHistoryDeletionRevision.value += 1
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.loggedMood).isNull()
+            assertThat(viewModel.state.value.moodInsight).isNull()
+        }
+
+    @Test
+    fun `late insight response cannot restore erased history`() =
+        runTest {
+            stubDependencies()
+            val pendingInsight = CompletableDeferred<AppResult<MoodInsightResponse>>()
+            coEvery { moodRepository.getInsight() } returnsMany
+                listOf(AppResult.Success(NO_INSIGHT), AppResult.Success(NO_INSIGHT))
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+            // A fresh insight request was started before Settings deleted history.
+            coEvery { moodRepository.getInsight() } coAnswers { pendingInsight.await() }
+            coEvery { moodRepository.logMood("good", null, any()) } returns
+                AppResult.Success(MoodLogResponse(date = "2026-03-18", mood = "good", domain = null))
+            viewModel.onEvent(HomeUiEvent.LogMood("good", null))
+            runCurrent()
+            moodHistoryDeletionRevision.value += 1
+            advanceUntilIdle()
+            pendingInsight.complete(
+                AppResult.Success(MoodInsightResponse(insight = MoodInsight("communication", 3, 2))),
+            )
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.loggedMood).isNull()
+            assertThat(viewModel.state.value.moodInsight).isNull()
         }
 }

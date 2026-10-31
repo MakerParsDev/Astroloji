@@ -21,6 +21,8 @@ import com.parsfilo.astrology.core.util.TimeUtils
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -77,6 +79,13 @@ class HomeViewModel
         private val moodRepository: MoodRepository,
     ) : MviViewModel<HomeUiState, HomeUiEvent, HomeUiEffect>(HomeUiState()) {
         init {
+            // Tab navigation can restore this ViewModel after Settings has erased
+            // mood history. Never redisplay a previously logged mood or insight.
+            viewModelScope.launch {
+                moodRepository.historyDeletionRevision.drop(1).collect {
+                    setState { copy(loggedMood = null, moodInsight = null) }
+                }
+            }
             refresh(false)
         }
 
@@ -99,6 +108,7 @@ class HomeViewModel
             domain: String?,
         ) {
             viewModelScope.launch {
+                val deletionRevision = moodRepository.historyDeletionRevision.value
                 when (
                     val result =
                         moodRepository.logMood(mood, domain) {
@@ -106,8 +116,11 @@ class HomeViewModel
                         }
                 ) {
                     is AppResult.Success -> {
-                        setState { copy(loggedMood = result.data.mood) }
-                        refreshMoodInsight()
+                        // A delete may complete before this suspended screen resumes.
+                        if (deletionRevision == moodRepository.historyDeletionRevision.value) {
+                            setState { copy(loggedMood = result.data.mood) }
+                            refreshMoodInsight()
+                        }
                     }
                     is AppResult.Error, AppResult.Loading -> Unit
                 }
@@ -115,8 +128,11 @@ class HomeViewModel
         }
 
         private suspend fun refreshMoodInsight() {
+            val deletionRevision = moodRepository.historyDeletionRevision.value
             when (val result = moodRepository.getInsight()) {
                 is AppResult.Success -> {
+                    // Discard a pre-deletion response that could resurrect erased insights.
+                    if (deletionRevision != moodRepository.historyDeletionRevision.value) return
                     val insight = result.data.insight
                     setState {
                         copy(
