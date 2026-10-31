@@ -219,12 +219,14 @@ jobs:
             'ADMOB_REWARDED_ID', 'ADMOB_REWARDED_INTERSTITIAL_ID',
             'ADMOB_APP_OPEN_ID', 'ADMOB_NATIVE_ADVANCED_ID',
           ];
+          const appPublisher = (values.get(appKey) ?? '').split('~')[0];
           for (const key of [appKey, ...unitKeys]) {
             const id = values.get(key) ?? '';
             const valid = key === appKey
               ? /^ca-app-pub-\d+~\d+$/.test(id)
               : /^ca-app-pub-\d+\/\d+$/.test(id);
-            if (!valid || id.includes('3940256099942544')) {
+            if (!valid || id.includes('3940256099942544') ||
+                (key !== appKey && !id.startsWith(`${appPublisher}/`))) {
               throw new Error(`Release requires a non-sample production AdMob ID for ${key}.`);
             }
           }
