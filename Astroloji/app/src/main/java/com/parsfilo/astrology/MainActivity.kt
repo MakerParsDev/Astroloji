@@ -24,6 +24,7 @@ import com.parsfilo.astrology.core.ads.NativeAdvancedAdManager
 import com.parsfilo.astrology.core.ads.RewardedAdManager
 import com.parsfilo.astrology.core.ads.RewardedInterstitialAdManager
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.repository.BillingManager
 import com.parsfilo.astrology.core.data.repository.RemoteConfigDefaults
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
 import com.parsfilo.astrology.core.util.ZodiacSign
@@ -51,6 +52,9 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var adEligibilityChecker: AdEligibilityChecker
+
+    @Inject
+    lateinit var billingManager: BillingManager
 
     @Inject
     lateinit var adsInitializer: AdsInitializer
@@ -147,6 +151,17 @@ class MainActivity : AppCompatActivity() {
                     preloadAdStack()
                 },
             )
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (BuildConfig.STORE_SCREENSHOT_QA) return
+        lifecycleScope.launch {
+            val preferences = preferencesRepository.current()
+            if (!preferences.userId.isNullOrBlank() && !preferences.jwt.isNullOrBlank()) {
+                billingManager.reconcilePurchasesOnResume()
+            }
         }
     }
 

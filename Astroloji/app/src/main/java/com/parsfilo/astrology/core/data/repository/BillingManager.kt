@@ -235,7 +235,7 @@ class BillingManager
 
         suspend fun loadPlans(): BillingCatalogueLoadResult {
             val catalogueUnavailableMessage = stringsProvider.get(R.string.billing_catalogue_unavailable)
-            val readyResult = ensureReady()
+            val readyResult = billingClient.ensureBillingReady()
             if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
                 catalog.clear()
                 _plans.value = emptyList()
@@ -277,7 +277,7 @@ class BillingManager
 
         suspend fun loadCreditPacks(): CreditCatalogueLoadResult {
             val catalogueUnavailableMessage = stringsProvider.get(R.string.billing_credit_catalogue_unavailable)
-            val readyResult = ensureReady()
+            val readyResult = billingClient.ensureBillingReady()
             if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
                 creditCatalog.clear()
                 _creditPacks.value = emptyList()
@@ -397,7 +397,7 @@ class BillingManager
             productId: String,
         ): Boolean {
             _creditPurchaseState.value = AppResult.Loading
-            val readyResult = ensureReady()
+            val readyResult = billingClient.ensureBillingReady()
             var params: BillingFlowParams.ProductDetailsParams? = null
             if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
                 _creditPurchaseState.value =
@@ -436,7 +436,7 @@ class BillingManager
             planId: String,
         ): Boolean {
             _purchaseState.value = AppResult.Loading
-            val readyResult = ensureReady()
+            val readyResult = billingClient.ensureBillingReady()
             var params: BillingFlowParams.ProductDetailsParams? = null
             if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
                 _purchaseState.value =
@@ -471,6 +471,15 @@ class BillingManager
             }
         }
 
+        /** Recover Play purchases completed while the app was in background. */
+        suspend fun reconcilePurchasesOnResume() =
+            reconcileVerifiedSubscriptions(
+                gate = checkoutGate,
+                isBillingReady = { isSuccessfulBillingSetup(billingClient.ensureBillingReady().responseCode) },
+                queryPurchases = { billingClient.querySubscriptionPurchases() },
+                verify = { verifyPurchase(it, restore = true) },
+            )
+
         suspend fun restorePurchases(): AppResult<SubscriptionStatus> {
             if (BuildConfig.STORE_SCREENSHOT_QA) {
                 return AppResult
@@ -488,7 +497,7 @@ class BillingManager
             }
             try {
                 _purchaseState.value = AppResult.Loading
-                val readyResult = ensureReady()
+                val readyResult = billingClient.ensureBillingReady()
                 if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
                     return AppResult
                         .Error(
@@ -778,7 +787,7 @@ class BillingManager
             productType: String,
         ): ProductDetails? {
             val cachedDetail = catalogCache[productId]
-            val readyResult = ensureReady()
+            val readyResult = billingClient.ensureBillingReady()
             val queriedDetail =
                 if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
                     null
@@ -812,30 +821,28 @@ class BillingManager
             return cachedDetail ?: queriedDetail
         }
 
-        private suspend fun ensureReady(): BillingResult {
-            if (billingClient.isReady) {
-                return successfulConnectionResult()
-            }
-            return suspendCancellableCoroutine { continuation ->
-                billingClient.startConnection(
-                    object : BillingClientStateListener {
-                        override fun onBillingSetupFinished(billingResult: BillingResult) {
-                            if (continuation.isActive) continuation.resume(billingResult)
-                        }
-
-                        override fun onBillingServiceDisconnected() {
-                            if (continuation.isActive) continuation.resume(disconnectedConnectionResult())
-                        }
-                    },
-                )
-            }
-        }
-
         override fun close() {
             job.cancel()
             billingClient.endConnection()
         }
     }
+
+private suspend fun BillingClient.ensureBillingReady(): BillingResult {
+    if (isReady) return successfulConnectionResult()
+    return suspendCancellableCoroutine { continuation ->
+        startConnection(
+            object : BillingClientStateListener {
+                override fun onBillingSetupFinished(billingResult: BillingResult) {
+                    if (continuation.isActive) continuation.resume(billingResult)
+                }
+
+                override fun onBillingServiceDisconnected() {
+                    if (continuation.isActive) continuation.resume(disconnectedConnectionResult())
+                }
+            },
+        )
+    }
+}
 
 private suspend fun queryPremiumProductDetails(
     billingClient: BillingClient,

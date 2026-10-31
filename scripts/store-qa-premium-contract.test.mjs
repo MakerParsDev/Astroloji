@@ -23,6 +23,14 @@ test('purchase and restore fail closed before BillingClient interaction', () => 
   const creditStarter = methodBody(billing, 'private suspend fun startCreditCheckout(', 'private suspend fun startPremiumCheckout(');
   const premiumStarter = methodBody(billing, 'private suspend fun startPremiumCheckout(', 'suspend fun restorePurchases()');
   const restore = methodBody(billing, 'suspend fun restorePurchases()', 'override fun onPurchasesUpdated(');
+  const readiness = methodBody(
+    billing,
+    'private suspend fun BillingClient.ensureBillingReady()',
+    'private suspend fun queryPremiumProductDetails(',
+  );
+  assert.match(readiness, /if \(isReady\) return successfulConnectionResult\(\)/);
+  assert.match(readiness, /startConnection\(/);
+
   const launcher = methodBody(
     billing,
     'private suspend fun launchBillingFlowOnMain(',
@@ -40,11 +48,12 @@ test('purchase and restore fail closed before BillingClient interaction', () => 
     assert.ok(entrypoint.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < entrypoint.indexOf('checkoutGate.tryStart('));
     assert.ok(entrypoint.indexOf('checkoutGate.tryStart(') < entrypoint.indexOf(starterName));
     assert.ok(!entrypoint.includes('ensureReady('));
+    assert.ok(!entrypoint.includes('ensureBillingReady('));
     assert.ok(!entrypoint.includes('launchBillingFlowOnMain('));
     assert.ok(!entrypoint.includes('billingClient.launchBillingFlow'));
   }
   for (const starter of [creditStarter, premiumStarter]) {
-    assert.match(starter, /ensureReady\(\)/);
+    assert.match(starter, /billingClient\.ensureBillingReady\(\)/);
     assert.match(starter, /launchBillingFlowOnMain\(/);
     assert.ok(!starter.includes('billingClient.launchBillingFlow'));
   }
@@ -56,6 +65,6 @@ test('purchase and restore fail closed before BillingClient interaction', () => 
   assert.match(launcher, /billingClient\.launchBillingFlow\(/);
 
   assert.match(restore, /if \(BuildConfig\.STORE_SCREENSHOT_QA\)[\s\S]*?return/);
-  assert.ok(restore.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < restore.indexOf('ensureReady()'));
+  assert.ok(restore.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < restore.indexOf('billingClient.ensureBillingReady()'));
   assert.ok(restore.indexOf('BuildConfig.STORE_SCREENSHOT_QA') < restore.indexOf('billingClient.queryPurchasesAsync'));
 });
