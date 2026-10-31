@@ -318,6 +318,7 @@
     <string name="settings_delete_dialog_confirm">Kalıcı olarak sil</string>
     <string name="settings_delete_dialog_cancel">Vazgeç</string>
     <string name="rewarded_ad_unavailable">Ödüllü reklam henüz hazır değil. Lütfen tekrar deneyin.</string>
+    <string name="rewarded_ad_not_completed">Ödül kazanılmadan reklam kapatıldı. İçeriğin kilidini açmak için reklamı sonuna kadar izleyin.</string>
     <string name="chart_settings_title">Kişisel Rehber Beta</string>
     <string name="chart_settings_body">Doğrulanmış gezegen konumlarından doğum tarihine göre üç öz değerlendirme sinyali al. Doğum verin kaydedilmez.</string>
     <string name="chart_settings_cta">Kişisel rehberi aç</string>

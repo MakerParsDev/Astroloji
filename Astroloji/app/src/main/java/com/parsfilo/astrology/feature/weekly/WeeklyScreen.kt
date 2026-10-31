@@ -58,8 +58,9 @@ fun WeeklyScreen(
     val adsEntryPoint = adsEntryPoint(context)
     val rewardedAdManager = adsEntryPoint.rewardedAdManager()
     val rewardedAdUnavailableMessage = stringResource(R.string.rewarded_ad_unavailable)
+    val rewardedAdNotCompletedMessage = stringResource(R.string.rewarded_ad_not_completed)
 
-    LaunchedEffect(viewModel, activity, rewardedAdUnavailableMessage) {
+    LaunchedEffect(viewModel, activity, rewardedAdUnavailableMessage, rewardedAdNotCompletedMessage) {
         viewModel.effects.collect { effect ->
             when (effect) {
                 is WeeklyUiEffect.ShowRewardAd -> {
@@ -86,6 +87,9 @@ fun WeeklyScreen(
                                 ),
                             onRewardEarned = {
                                 viewModel.onEvent(WeeklyUiEvent.RewardEarned(effect.challenge.challengeId))
+                            },
+                            onDismissedWithoutReward = {
+                                viewModel.onEvent(WeeklyUiEvent.RewardAdUnavailable(rewardedAdNotCompletedMessage))
                             },
                         )
                     if (!shown) {
