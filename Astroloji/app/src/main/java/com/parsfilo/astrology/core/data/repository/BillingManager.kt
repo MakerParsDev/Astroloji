@@ -88,7 +88,7 @@ private val CREDIT_PRODUCT_AMOUNTS =
         PRODUCT_CREDITS_LARGE to CREDITS_LARGE_AMOUNT,
     )
 
-internal enum class PendingBillingFlow { NONE, PREMIUM, CREDITS }
+internal enum class PendingBillingFlow { NONE, PREMIUM, CREDITS, RESTORE }
 
 /** Serializes both purchase screens while the SDK checkout or verification is in flight. */
 internal class BillingCheckoutGate {
@@ -468,45 +468,59 @@ class BillingManager
                         AppException.BillingException(stringsProvider.get(R.string.billing_restore_failed)),
                     ).also { _purchaseState.value = it }
             }
-            _purchaseState.value = AppResult.Loading
-            val readyResult = ensureReady()
-            if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
-                return AppResult
-                    .Error(
-                        AppException.BillingException(
-                            readyResult.debugMessage.ifBlank { stringsProvider.get(R.string.billing_restore_failed) },
-                        ),
-                    ).also { _purchaseState.value = it }
+            // A restore from Settings can overlap a checkout started on the Premium
+            // or Credits screen. Reserve the same shared gate before touching state.
+            if (!checkoutGate.tryStart(PendingBillingFlow.RESTORE)) {
+                // The caller receives the failure without overwriting an active checkout.
+                return AppResult.Error(
+                    AppException.BillingException(stringsProvider.get(R.string.billing_restore_failed)),
+                )
             }
-            val purchases =
-                suspendCancellableCoroutine<Pair<BillingResult, List<Purchase>>> { continuation ->
-                    billingClient.queryPurchasesAsync(
-                        QueryPurchasesParams.newBuilder().setProductType(ProductType.SUBS).build(),
-                    ) { result, list ->
-                        continuation.resume(result to list)
-                    }
-                }
-            if (purchases.first.responseCode != BillingResponseCode.OK) {
-                return AppResult
-                    .Error(AppException.BillingException(stringsProvider.get(R.string.billing_restore_failed)))
-                    .also { _purchaseState.value = it }
-            }
-            val purchase =
-                selectPurchaseForVerification(purchases.second)
-                    ?: return AppResult
+            try {
+                _purchaseState.value = AppResult.Loading
+                val readyResult = ensureReady()
+                if (!isSuccessfulBillingSetup(readyResult.responseCode)) {
+                    return AppResult
                         .Error(
                             AppException.BillingException(
-                                stringsProvider.get(
-                                    if (hasPendingPremiumPurchase(purchases.second)) {
-                                        R.string.billing_payment_pending
-                                    } else {
-                                        R.string.billing_restore_missing_purchase
-                                    },
-                                ),
+                                readyResult.debugMessage.ifBlank {
+                                    stringsProvider.get(R.string.billing_restore_failed)
+                                },
                             ),
                         ).also { _purchaseState.value = it }
-            return verifyPurchase(purchase, restore = true)
-                .also { _purchaseState.value = it }
+                }
+                val purchases =
+                    suspendCancellableCoroutine<Pair<BillingResult, List<Purchase>>> { continuation ->
+                        billingClient.queryPurchasesAsync(
+                            QueryPurchasesParams.newBuilder().setProductType(ProductType.SUBS).build(),
+                        ) { result, list ->
+                            continuation.resume(result to list)
+                        }
+                    }
+                if (purchases.first.responseCode != BillingResponseCode.OK) {
+                    return AppResult
+                        .Error(AppException.BillingException(stringsProvider.get(R.string.billing_restore_failed)))
+                        .also { _purchaseState.value = it }
+                }
+                val purchase =
+                    selectPurchaseForVerification(purchases.second)
+                        ?: return AppResult
+                            .Error(
+                                AppException.BillingException(
+                                    stringsProvider.get(
+                                        if (hasPendingPremiumPurchase(purchases.second)) {
+                                            R.string.billing_payment_pending
+                                        } else {
+                                            R.string.billing_restore_missing_purchase
+                                        },
+                                    ),
+                                ),
+                            ).also { _purchaseState.value = it }
+                return verifyPurchase(purchase, restore = true)
+                    .also { _purchaseState.value = it }
+            } finally {
+                checkoutGate.finish(PendingBillingFlow.RESTORE)
+            }
         }
 
         override fun onPurchasesUpdated(
@@ -567,7 +581,9 @@ class BillingManager
                         verificationInProgress = true
                     }
                 }
-                PendingBillingFlow.NONE ->
+                PendingBillingFlow.NONE,
+                PendingBillingFlow.RESTORE,
+                ->
                     Timber.w("Ignoring unrecognized Billing purchase callback without an active flow")
             }
             return verificationInProgress
@@ -640,7 +656,9 @@ class BillingManager
             when (flow) {
                 PendingBillingFlow.CREDITS -> _creditPurchaseState.value = result
                 PendingBillingFlow.PREMIUM -> _purchaseState.value = result
-                PendingBillingFlow.NONE -> Timber.w("Ignoring Billing result without an active purchase flow")
+                PendingBillingFlow.NONE,
+                PendingBillingFlow.RESTORE,
+                -> Timber.w("Ignoring Billing result without an active purchase flow")
             }
         }
 
@@ -654,7 +672,9 @@ class BillingManager
                         when (flow) {
                             PendingBillingFlow.CREDITS -> resolveRecognizedCreditProductId(purchase.products) != null
                             PendingBillingFlow.PREMIUM -> resolveRecognizedProductId(purchase.products) != null
-                            PendingBillingFlow.NONE -> false
+                            PendingBillingFlow.NONE,
+                            PendingBillingFlow.RESTORE,
+                            -> false
                         }
                 }
             return AppResult.Error(

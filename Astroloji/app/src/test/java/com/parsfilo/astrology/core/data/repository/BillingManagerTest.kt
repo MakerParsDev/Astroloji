@@ -11,6 +11,12 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import io.mockk.verify
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Test
 
 class BillingManagerTest {
@@ -63,6 +69,75 @@ class BillingManagerTest {
         assertThat(gate.tryStart(PendingBillingFlow.PREMIUM)).isFalse()
         gate.finish(PendingBillingFlow.CREDITS)
         assertThat(gate.currentFlow()).isEqualTo(PendingBillingFlow.NONE)
+    }
+
+    @Test
+    fun `restore must not overwrite an in-flight premium checkout`() {
+        withPendingBillingClient { manager, billingClient ->
+            manager.launchPurchase(mockk<Activity>(), "premium_weekly")
+
+            val result =
+                runBlocking {
+                    withTimeout(1_000) { manager.restorePurchases() }
+                }
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            verify(exactly = 0) { billingClient.queryPurchasesAsync(any(), any()) }
+        }
+    }
+
+    @Test
+    fun `restore in progress prevents a competing credit checkout`() {
+        withPendingBillingClient { manager, _ ->
+            runBlocking {
+                val restore = async(start = CoroutineStart.UNDISPATCHED) { manager.restorePurchases() }
+                try {
+                    manager.launchCreditPurchase(mockk<Activity>(), "credits_small")
+                    assertThat(manager.creditPurchaseState.value).isInstanceOf(AppResult.Error::class.java)
+                } finally {
+                    restore.cancelAndJoin()
+                }
+            }
+        }
+    }
+
+    private fun withPendingBillingClient(block: (BillingManager, BillingClient) -> Unit) {
+        val billingClient = mockk<BillingClient>(relaxed = true)
+        val builder = mockk<BillingClient.Builder>(relaxed = true)
+        every { builder.setListener(any()) } returns builder
+        every { builder.enablePendingPurchases(any()) } returns builder
+        every { builder.enableAutoServiceReconnection() } returns builder
+        every { builder.build() } returns billingClient
+        every { billingClient.isReady } returns false
+        every { billingClient.startConnection(any()) } returns Unit
+        mockkStatic(BillingClient::class)
+        try {
+            every { BillingClient.newBuilder(any()) } returns builder
+            val manager =
+                BillingManager(
+                    context = mockk<Context>(),
+                    sessionRepository = mockk(),
+                    creditsRepository = mockk(),
+                    stringsProvider = mockk(relaxed = true),
+                )
+            try {
+                block(manager, billingClient)
+            } finally {
+                manager.close()
+            }
+        } finally {
+            unmockkStatic(BillingClient::class)
+        }
+    }
+
+    @Test
+    fun `restore reservation cannot be released by an unrelated purchase callback`() {
+        val gate = BillingCheckoutGate()
+        assertThat(gate.tryStart(PendingBillingFlow.RESTORE)).isTrue()
+        gate.finish(PendingBillingFlow.PREMIUM)
+        assertThat(gate.currentFlow()).isEqualTo(PendingBillingFlow.RESTORE)
+        assertThat(gate.tryStart(PendingBillingFlow.CREDITS)).isFalse()
+        gate.finish(PendingBillingFlow.RESTORE)
+        assertThat(gate.tryStart(PendingBillingFlow.CREDITS)).isTrue()
     }
 
     private val monthlyPlan =
