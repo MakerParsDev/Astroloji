@@ -107,6 +107,8 @@ jobs:
         run: npx wrangler delete --name astrology-ssv-transition --force
 
       - name: Publish rollback evidence
+        env:
+          DELETE_WORKER: ${{ inputs.delete_worker }}
         run: |
           {
             echo '## Rewarded SSV transition rollback'
@@ -116,5 +118,5 @@ jobs:
             echo '- Origin SSV fall-through: 403'
             echo '- D1 migration remains intact; no data tables were removed.'
             echo '- Leave rewarded SSV D1 migration intact.'
-            echo "- Worker deleted: ${{ inputs.delete_worker }}"
+            echo "- Worker deleted: $DELETE_WORKER"
           } >> "$GITHUB_STEP_SUMMARY"

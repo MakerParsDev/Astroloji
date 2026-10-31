@@ -21,10 +21,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val MIN_REWARD_LIFETIME_MS = 60_000L
+
 data class RewardedAdRequest(
     val placement: String,
     val ssvUserId: String,
     val ssvCustomData: String,
+    val expiresAtMillis: Long,
 )
 
 @Singleton
@@ -38,6 +41,7 @@ class RewardedAdManager
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
         private val loadRetryGate = AdLoadRetryGate()
+        private var retryConsentRevision = Long.MIN_VALUE
         private var rewardedAd: RewardedAd? = null
         private var loadedConsentRevision = Long.MIN_VALUE
 
@@ -49,6 +53,12 @@ class RewardedAdManager
         fun preload() {
             discardAdFromEarlierConsentRevision()
             val loadRevision = consentManager.consentRevision
+            // A load failure from an older consent decision must not throttle
+            // the newly authorized request. Same-decision failures still back off.
+            if (retryConsentRevision != loadRevision) {
+                retryConsentRevision = loadRevision
+                loadRetryGate.recordSuccess()
+            }
             val canStartPreload = !isLoading && rewardedAd == null && consentManager.canRequestAds
             if (!canStartPreload || !loadRetryGate.canLoad()) return
             isLoading = true
@@ -62,6 +72,7 @@ class RewardedAdManager
                         // Consent can be revoked while the SDK is loading this creative.
                         if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             rewardedAd = null
+                            if (consentManager.canRequestAds) preload()
                             return
                         }
                         rewardedAd = ad
@@ -73,6 +84,10 @@ class RewardedAdManager
                     override fun onAdFailedToLoad(error: LoadAdError) {
                         rewardedAd = null
                         isLoading = false
+                        if (consentManager.consentRevision != loadRevision) {
+                            if (consentManager.canRequestAds) preload()
+                            return
+                        }
                         loadRetryGate.recordFailure()
                         Timber.w("Rewarded ad failed: %s", error.message)
                     }
@@ -80,12 +95,19 @@ class RewardedAdManager
             )
         }
 
+        @Suppress("ReturnCount")
         fun showIfAvailable(
             activity: Activity,
             request: RewardedAdRequest,
             onRewardEarned: (RewardItem) -> Unit,
             onDismissed: () -> Unit = {},
         ): Boolean {
+            // Never play an ad that cannot be attributed to a valid SSV claim.
+            // Keep the cached creative available for a later valid request.
+            if (request.ssvUserId.isBlank() || request.ssvCustomData.isBlank()) return false
+            // A valid prepare response may expire before the Compose effect is
+            // collected. Avoid showing an ad the backend can no longer verify.
+            if (request.expiresAtMillis < System.currentTimeMillis() + MIN_REWARD_LIFETIME_MS) return false
             discardAdFromEarlierConsentRevision()
             // Consent can change after preload. Never show an old ad if revoked.
             val consentAllowed = consentManager.canRequestAds

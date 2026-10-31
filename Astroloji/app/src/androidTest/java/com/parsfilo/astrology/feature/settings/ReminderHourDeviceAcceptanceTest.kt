@@ -13,11 +13,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -28,6 +33,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -109,6 +117,27 @@ class ReminderHourDeviceAcceptanceTest {
         file.outputStream().use { out -> assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG, 100, out)) }
         screenshot.recycle()
         assertTrue("Blank reminder selection screenshot: ${colors.size} colors", colors.size > 2)
+    }
+
+    @Test fun keyboardFocusNavigation() {
+        rule.setContent {
+            LocalInputModeManager.current.requestInputMode(InputMode.Keyboard)
+            var selected by remember { mutableIntStateOf(9) }
+            MaterialTheme { ReminderHourOptions(selectedHour = selected, onSelectHour = { selected = it }) }
+        }
+        val first = rule.onNodeWithText("07:00")
+        first.performSemanticsAction(SemanticsActions.RequestFocus)
+        first.assertIsFocused()
+        first.performKeyInput { pressKey(Key.DirectionRight) }
+        val second = rule.onNodeWithText("08:00")
+        second.assertIsFocused()
+        second.performKeyInput { pressKey(Key.DirectionLeft) }
+        first.assertIsFocused()
+        first.performKeyInput { pressKey(Key.Tab) }
+        second.assertIsFocused()
+        second.performKeyInput { pressKey(Key.Enter) }
+        rule.onNodeWithText("08:00").assertIsSelected()
+        rule.onNodeWithText("09:00").assertIsNotSelected()
     }
 
     @Test fun width320() = verify(320)

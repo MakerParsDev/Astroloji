@@ -30,9 +30,14 @@ export async function getCachedJsonContent<T>(
   const key = buildContentCacheKey(args.language, args.type, args.identifier);
 
   if (!args.bypassCache) {
-    const cached = await env.CACHE.get(key, 'json');
-    if (cached) {
-      return cached as T;
+    try {
+      const cached = await env.CACHE.get(key, 'json');
+      if (cached) {
+        return cached as T;
+      }
+    } catch {
+      // KV is a best-effort read-through cache: a transient KV failure must
+      // not fail the request when R2 still holds the document.
     }
   }
 
@@ -42,9 +47,14 @@ export async function getCachedJsonContent<T>(
   }
 
   const payload = (await object.json()) as T;
-  await env.CACHE.put(key, JSON.stringify(payload), {
-    expirationTtl: getContentTtl(args.type)
-  });
+  try {
+    await env.CACHE.put(key, JSON.stringify(payload), {
+      expirationTtl: getContentTtl(args.type)
+    });
+  } catch {
+    // A failed cache write must never fail a successful R2 read; the next
+    // request simply reads from R2 again.
+  }
   return payload;
 }
 

@@ -48,11 +48,13 @@
     <string name="onboarding_intro_feature_content">✨ Orientação diária, semanal e mensal para os 12 signos</string>
     <string name="onboarding_intro_feature_premium">💜 Análises ilimitadas e uma experiência premium sem anúncios</string>
     <string name="onboarding_sign_title">Encontre seu signo</string>
-    <string name="onboarding_sign_body">Escolha sua data de nascimento e sugeriremos seu signo do zodíaco automaticamente.</string>
+    <string name="onboarding_sign_body">Escolha sua data de nascimento para descobrir seu signo ou selecione-o diretamente. Você pode adicionar cidade e hora para calcular o ascendente.</string>
     <string name="onboarding_birthdate_label">Data de nascimento</string>
     <string name="onboarding_birthdate_placeholder">Nenhuma data selecionada ainda</string>
     <string name="onboarding_birthdate_action">Selecionar data de nascimento</string>
     <string name="onboarding_detected_sign_label">Signo sugerido</string>
+    <string name="onboarding_choose_sign_without_birthdate">Escolher meu signo sem data de nascimento</string>
+    <string name="onboarding_hide_sign_choices">Ocultar opções de signos</string>
     <string name="onboarding_show_manual_selection">Escolher outro signo manualmente</string>
     <string name="onboarding_hide_manual_selection">Usar o signo sugerido</string>
     <string name="onboarding_manual_selection_title">Seleção manual de signo</string>
@@ -206,7 +208,7 @@
     <string name="chat_title">Consulta com IA</string>
     <string name="chat_input_placeholder">Pergunte sobre sua carta…</string>
     <string name="chat_send_cta">Enviar</string>
-    <string name="onboarding_error_missing_sign">Selecione sua data de nascimento para determinar seu signo.</string>
+    <string name="onboarding_error_missing_sign">Escolha uma data de nascimento ou um signo para continuar.</string>
     <string name="session_error_open_failed_after_register">Cadastro concluído, mas não foi possível abrir a sessão.</string>
     <string name="notification_channel_daily_name">Horóscopo Diário</string>
     <string name="notification_channel_daily_description">Notificações astrológicas diárias</string>

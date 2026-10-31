@@ -1048,12 +1048,12 @@ function dailyEntry(sign: Sign, language: Language, isoDate: string) {
 }
 
 const WEEKDAY_NAMES: Record<Language, readonly string[]> = {
-  tr: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'],
-  en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-  es: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'],
-  pt: ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'],
-  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
-  fr: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+  tr: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'],
+  en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+  es: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'],
+  pt: ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'],
+  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
+  fr: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
 };
 
 const WEEKLY_SUMMARY_FORMAT: Record<Language, (name: string, focus: string) => string> = {
@@ -1098,12 +1098,12 @@ function weeklyEntry(sign: Sign, language: Language, weekId: string) {
 }
 
 const MONTHLY_WEEKDAY_NAMES: Record<Language, readonly string[]> = {
-  tr: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Pazar'],
-  en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sunday'],
-  es: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'domingo'],
-  pt: ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'domingo'],
-  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Sonntag'],
-  fr: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'dimanche']
+  tr: ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'],
+  en: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+  es: ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'],
+  pt: ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado', 'domingo'],
+  de: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
+  fr: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche']
 };
 
 const MONTHLY_SUMMARY_FORMAT: Record<Language, (name: string, focus: string) => string> = {

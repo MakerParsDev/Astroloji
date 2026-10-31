@@ -108,6 +108,40 @@ jobs:
           esac
           printf 'release_name=%s\n' "$release_name" >> "$GITHUB_OUTPUT"
 
+      - name: Validate manual production release inputs
+        env:
+          REQUESTED_VERSION_CODE: ${{ inputs.version_code }}
+          REQUESTED_VERSION_NAME: ${{ inputs.version_name }}
+          REQUESTED_SOURCE_TRACK: ${{ inputs.promote_from_track }}
+          REQUESTED_ROLLOUT_FRACTION: ${{ inputs.rollout_fraction }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { assertRequestedVersionCode } from '../scripts/check-play-release-access.mjs';
+
+          const code = process.env.REQUESTED_VERSION_CODE ?? '';
+          const name = process.env.REQUESTED_VERSION_NAME ?? '';
+          const source = process.env.REQUESTED_SOURCE_TRACK ?? '';
+          const fraction = process.env.REQUESTED_ROLLOUT_FRACTION ?? '';
+          const target = process.env.PLAY_TRACK_PRODUCTION ?? '';
+          if (target !== 'production') {
+            throw new Error('Production release must explicitly target the production Play track.');
+          }
+
+          if (!/^[1-9][0-9]*$/.test(code)) {
+            throw new Error('Version code must be a positive decimal integer.');
+          }
+          assertRequestedVersionCode(code, 1);
+          if (!/^[0-9A-Za-z._-]{1,50}$/.test(name)) {
+            throw new Error('Version name contains unsupported characters.');
+          }
+          if (!/^0\.[0-9]+$/.test(fraction) || Number(fraction) <= 0 || Number(fraction) >= 1) {
+            throw new Error('Rollout fraction must be a decimal between zero and one.');
+          }
+          if (source && (!/^[A-Za-z][A-Za-z0-9_-]{0,99}$/.test(source) || source.toLowerCase() === target.toLowerCase())) {
+            throw new Error('Source track must be a valid non-production Play track name.');
+          }
+          NODE
+
       - name: Install pinned Doppler CLI
         env:
           DOPPLER_VERSION: 3.76.1
@@ -164,6 +198,67 @@ jobs:
           REQUIRE_PLAY_SERVICE_ACCOUNT_JSON: true
         run: node ../scripts/prepare-android-release-assets.mjs
 
+      - name: Verify production AdMob IDs for new bundle
+        if: ${{ inputs.promote_from_track == '' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+
+          const values = new Map();
+          for (const line of fs.readFileSync('gradle.properties', 'utf8').split(/\r?\n/)) {
+            const separator = line.indexOf('=');
+            if (separator < 1) continue;
+            const key = line.slice(0, separator);
+            if (values.has(key)) throw new Error(`Duplicate release property: ${key}`);
+            values.set(key, line.slice(separator + 1).trim());
+          }
+
+          const appKey = 'ADMOB_APP_ID';
+          const unitKeys = [
+            'ADMOB_BANNER_ID', 'ADMOB_INTERSTITIAL_ID',
+            'ADMOB_REWARDED_ID', 'ADMOB_REWARDED_INTERSTITIAL_ID',
+            'ADMOB_APP_OPEN_ID', 'ADMOB_NATIVE_ADVANCED_ID',
+          ];
+          const appPublisher = (values.get(appKey) ?? '').split('~')[0];
+          const seenUnits = new Set();
+          for (const key of [appKey, ...unitKeys]) {
+            const id = values.get(key) ?? '';
+            const valid = key === appKey
+              ? /^ca-app-pub-\d+~\d+$/.test(id)
+              : /^ca-app-pub-\d+\/\d+$/.test(id);
+            if (!valid || id.includes('3940256099942544') ||
+                (key !== appKey && !id.startsWith(`${appPublisher}/`))) {
+              throw new Error(`Release requires a non-sample production AdMob ID for ${key}.`);
+            }
+            if (key !== appKey) {
+              if (seenUnits.has(id)) throw new Error(`Duplicate AdMob unit for ${key}.`);
+              seenUnits.add(id);
+            }
+          }
+          NODE
+
+      - name: Verify Google Play version code for new bundle
+        if: ${{ inputs.promote_from_track == '' }}
+        id: play_access
+        env:
+          PLAY_PACKAGE_NAME: ${{ env.PACKAGE_NAME }}
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: node ../scripts/check-play-release-access.mjs
+
+      - name: Ensure new bundle has an unused Play version code
+        if: ${{ inputs.promote_from_track == '' }}
+        env:
+          REQUESTED_VERSION_CODE: ${{ inputs.version_code }}
+          REQUIRED_VERSION_CODE: ${{ steps.play_access.outputs.recommended_version_code }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { assertRequestedVersionCode } from '../scripts/check-play-release-access.mjs';
+          assertRequestedVersionCode(
+            process.env.REQUESTED_VERSION_CODE,
+            process.env.REQUIRED_VERSION_CODE,
+          );
+          NODE
+
       - name: Ensure Gradle wrapper is executable
         run: chmod +x ./gradlew
 
@@ -182,14 +277,19 @@ jobs:
 
       - name: Promote from an existing Play track
         if: ${{ inputs.promote_from_track != '' }}
+        env:
+          PROMOTE_FROM_TRACK: ${{ inputs.promote_from_track }}
+          PLAY_USER_FRACTION: ${{ inputs.rollout_fraction }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          RELEASE_NAME: ${{ steps.release_identity.outputs.release_name }}
         run: >-
           ./gradlew :app:promoteReleaseArtifact
-          --from-track="${{ inputs.promote_from_track }}"
+          --from-track="$PROMOTE_FROM_TRACK"
           --promote-track="${PLAY_TRACK_PRODUCTION:-production}"
-          --release-name="${{ steps.release_identity.outputs.release_name }}"
+          --release-name="$RELEASE_NAME"
           --release-status="inProgress"
-          --user-fraction="${{ inputs.rollout_fraction }}"
-          --version-code="${{ inputs.version_code }}"
+          --user-fraction="$PLAY_USER_FRACTION"
+          --version-code="$VERSION_CODE"
 
       - name: Upload Android production artifacts
         if: ${{ inputs.promote_from_track == '' }}
@@ -202,20 +302,26 @@ jobs:
           if-no-files-found: error
 
       - name: Publish summary
+        env:
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          PROMOTE_FROM_TRACK: ${{ inputs.promote_from_track }}
+          PLAY_USER_FRACTION: ${{ inputs.rollout_fraction }}
+          RELEASE_NAME: ${{ steps.release_identity.outputs.release_name }}
         run: |
           {
             echo '## Android production release'
             echo
-            echo "- Version name: ${{ inputs.version_name }}"
-            echo "- Version code: ${{ inputs.version_code }}"
-            echo "- Release name: ${{ steps.release_identity.outputs.release_name }}"
+            echo "- Version name: $VERSION_NAME"
+            echo "- Version code: $VERSION_CODE"
+            echo "- Release name: $RELEASE_NAME"
             echo "- Git SHA: $RELEASE_SHA"
-            echo "- Promote from track: ${{ inputs.promote_from_track || 'n/a' }}"
+            echo "- Promote from track: ${PROMOTE_FROM_TRACK:-n/a}"
             echo "- Play track: ${PLAY_TRACK_PRODUCTION:-production}"
             echo "- Release status: inProgress"
-            echo "- Rollout fraction: ${{ inputs.rollout_fraction }}"
-            if [ '${{ inputs.promote_from_track }}' = '' ]; then
-              echo "- Artifact: android-production-release-${{ inputs.version_code }}"
+            echo "- Rollout fraction: $PLAY_USER_FRACTION"
+            if [ -z "$PROMOTE_FROM_TRACK" ]; then
+              echo "- Artifact: android-production-release-$VERSION_CODE"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 

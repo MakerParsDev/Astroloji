@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
+import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
 
@@ -43,6 +44,61 @@ class AdFrequencyManagerTest {
 
             assertThat(manager.canShowInterstitial(flags, nowMs = startOfTestDay + 2_000L)).isFalse()
             assertThat(manager.canShowInterstitial(flags, nowMs = startOfTestDay + 1_000L + (6 * 60 * 1000L))).isFalse()
+        }
+
+    @Test
+    fun `invalid persisted daily count must not make an exhausted quota eligible`() =
+        runTest {
+            val now =
+                LocalDate
+                    .of(2026, 10, 28)
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    lastInterstitialShown = 0L,
+                    interstitialCountToday = -1,
+                    interstitialCountDate = "2026-10-28",
+                )
+
+            val manager = AdFrequencyManager(preferencesRepository)
+            val flags =
+                RemoteFlags(
+                    interstitialFrequency = 1,
+                    interstitialDailyLimit = 3,
+                    interstitialCooldownMinutes = 0,
+                )
+
+            assertThat(manager.canShowInterstitial(flags, nowMs = now)).isFalse()
+            assertThat(manager.canShowInterstitialOnBack(flags, nowMs = now)).isFalse()
+        }
+
+    @Test
+    fun `persisted impression counter saturates instead of wrapping negative`() =
+        runTest {
+            val now =
+                LocalDate
+                    .of(2026, 10, 28)
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            for (previousCount in listOf(Int.MAX_VALUE - 1, Int.MAX_VALUE, -1)) {
+                coEvery { preferencesRepository.current() } returns
+                    UserPreferences(
+                        interstitialCountToday = previousCount,
+                        interstitialCountDate = "2026-10-28",
+                    )
+                AdFrequencyManager(preferencesRepository).recordInterstitialShown(nowMs = now)
+                coVerify(exactly = 1) {
+                    preferencesRepository.updateInterstitialMetrics(
+                        lastShown = now,
+                        count = Int.MAX_VALUE,
+                        date = "2026-10-28",
+                    )
+                }
+                io.mockk.clearMocks(preferencesRepository, answers = false, recordedCalls = true)
+            }
         }
 
     @Test
@@ -150,6 +206,108 @@ class AdFrequencyManagerTest {
             second.join()
             assertThat(writes).isEqualTo(2)
             assertThat(persisted.interstitialCountToday).isEqualTo(2)
+        }
+
+    @Test
+    fun `failed impression read or write blocks further interstitials during this process`() =
+        runTest {
+            val today = LocalDate.of(2026, 10, 30)
+            val now = today.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() + 40_000L
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    lastInterstitialShown = 0L,
+                    interstitialCountToday = 0,
+                    interstitialCountDate = today.toString(),
+                )
+            coEvery { preferencesRepository.updateInterstitialMetrics(any(), any(), any()) } throws
+                IOException("disk unavailable")
+
+            val manager = AdFrequencyManager(preferencesRepository)
+            val flags =
+                RemoteFlags(
+                    interstitialFrequency = 1,
+                    interstitialDailyLimit = 1,
+                    interstitialCooldownMinutes = 0,
+                )
+            assertThat(manager.canShowInterstitial(flags, now)).isTrue()
+
+            try {
+                manager.recordInterstitialShown(now)
+                org.junit.Assert.fail("The failed write must propagate for caller logging")
+            } catch (expected: IOException) {
+                assertThat(expected.message).isEqualTo("disk unavailable")
+            }
+
+            // Stored quota remains zero. Do not re-show against stale quota state.
+            assertThat(manager.canShowInterstitial(flags, now + 1000L)).isFalse()
+            assertThat(manager.canShowInterstitialOnBack(flags, now + 1000L)).isFalse()
+
+            // Also cover a transient DataStore read error before writing
+            // anything: the previously observed impression must not be lost.
+            var reads = 0
+            coEvery { preferencesRepository.current() } coAnswers {
+                if (++reads == 1) throw IOException("read unavailable")
+                UserPreferences(interstitialCountDate = today.toString())
+            }
+            val readFailureManager = AdFrequencyManager(preferencesRepository)
+            try {
+                readFailureManager.recordInterstitialShown(now)
+                org.junit.Assert.fail("Read failure must propagate")
+            } catch (expected: IOException) {
+                assertThat(expected.message).isEqualTo("read unavailable")
+            }
+            assertThat(readFailureManager.canShowInterstitial(flags, now + 1000L)).isFalse()
+            assertThat(readFailureManager.canShowInterstitialOnBack(flags, now + 1000L)).isFalse()
+        }
+
+    @Test
+    fun `a backward calendar date never reopens exhausted future quota`() =
+        runTest {
+            val now =
+                LocalDate
+                    .of(2026, 10, 29)
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    lastInterstitialShown = now - 2 * 60 * 60_000L,
+                    interstitialCountToday = 3,
+                    interstitialCountDate = "2026-10-30",
+                )
+            val manager = AdFrequencyManager(preferencesRepository)
+            val flags = RemoteFlags(interstitialDailyLimit = 3, interstitialCooldownMinutes = 30)
+
+            assertThat(manager.canShowInterstitial(flags, now)).isFalse()
+            assertThat(manager.canShowInterstitialOnBack(flags, now)).isFalse()
+            manager.resetIfNewDay(now)
+            coVerify(exactly = 0) { preferencesRepository.updateInterstitialMetrics(any(), any(), any()) }
+        }
+
+    @Test
+    fun `a recorded impression after clock rollback preserves previously exhausted quota`() =
+        runTest {
+            val now =
+                LocalDate
+                    .of(2026, 10, 29)
+                    .atStartOfDay(ZoneId.systemDefault())
+                    .toInstant()
+                    .toEpochMilli()
+            val previousShown = now + 60_000L
+            coEvery { preferencesRepository.current() } returns
+                UserPreferences(
+                    lastInterstitialShown = previousShown,
+                    interstitialCountToday = 3,
+                    interstitialCountDate = "2026-10-30",
+                )
+            AdFrequencyManager(preferencesRepository).recordInterstitialShown(now)
+            coVerify(exactly = 1) {
+                preferencesRepository.updateInterstitialMetrics(
+                    lastShown = previousShown,
+                    count = 4,
+                    date = "2026-10-30",
+                )
+            }
         }
 
     @Test

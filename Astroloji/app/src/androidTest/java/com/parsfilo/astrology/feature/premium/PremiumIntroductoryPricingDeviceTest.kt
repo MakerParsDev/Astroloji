@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
@@ -20,6 +21,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.repository.PremiumPlanUi
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.util.concurrent.atomic.AtomicInteger
@@ -91,6 +93,21 @@ class PremiumIntroductoryPricingDeviceTest {
         }
     }
 
+    private fun assertBillingTermsAbovePurchase() {
+        val preview = composeRule.onNodeWithTag("premium-value-preview").fetchSemanticsNode().boundsInRoot
+        val plan = composeRule.onNodeWithTag("premium-plan-monthly-synthetic").fetchSemanticsNode().boundsInRoot
+        assertTrue("Premium value must appear before the plan and price", preview.bottom <= plan.top)
+        // At large font scale the purchase action starts below the viewport.
+        // Scroll it into view before measuring its visible semantics bounds.
+        composeRule.onNodeWithTag("premium-purchase-action").performScrollTo()
+        val disclosure = composeRule.onNodeWithTag("premium-billing-disclosure").fetchSemanticsNode().boundsInRoot
+        val purchase = composeRule.onNodeWithTag("premium-purchase-action").fetchSemanticsNode().boundsInRoot
+        assertTrue(
+            "Actual recurring/introductory terms must appear before the purchase action: $disclosure / $purchase",
+            disclosure.bottom <= purchase.top,
+        )
+    }
+
     @Test
     fun discountedPhaseShowsBothIntroductoryAndRenewalPriceAtLargeFont() {
         val attempts = AtomicInteger(0)
@@ -111,6 +128,7 @@ class PremiumIntroductoryPricingDeviceTest {
                 resources.getString(R.string.premium_continue_with_price, "$2.50"),
             ).assertExists()
         composeRule.onNodeWithText(expectedDisclosure).performScrollTo().assertIsDisplayed()
+        assertBillingTermsAbovePurchase()
         assertEquals(0, attempts.get())
     }
 
@@ -134,6 +152,7 @@ class PremiumIntroductoryPricingDeviceTest {
                 resources.getString(R.string.premium_start_trial_cta, 7),
             ).assertExists()
         composeRule.onNodeWithText(expectedDisclosure).performScrollTo().assertIsDisplayed()
+        assertBillingTermsAbovePurchase()
         assertEquals(0, attempts.get())
     }
 
@@ -152,6 +171,7 @@ class PremiumIntroductoryPricingDeviceTest {
                 resources.getString(R.string.premium_continue_with_price, "$10.00"),
             ).assertExists()
         composeRule.onNodeWithText(expectedDisclosure).performScrollTo().assertIsDisplayed()
+        assertBillingTermsAbovePurchase()
         assertEquals(0, attempts.get())
     }
 }

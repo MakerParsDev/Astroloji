@@ -45,11 +45,13 @@
     <string name="onboarding_intro_feature_content">✨ 12 burç için günlük, haftalık ve aylık yorumlar</string>
     <string name="onboarding_intro_feature_premium">💜 Premium ile sınırsız analiz ve reklamsız deneyim</string>
     <string name="onboarding_sign_title">Burcunu bul</string>
-    <string name="onboarding_sign_body">Doğum tarihini seç, burcunu senin için otomatik belirleyelim.</string>
+    <string name="onboarding_sign_body">Doğum tarihini seçerek burcunu bul veya burcunu doğrudan seç. Yükselen burcun için doğum şehri ve saatini ekleyebilirsin.</string>
     <string name="onboarding_birthdate_label">Doğum tarihi</string>
     <string name="onboarding_birthdate_placeholder">Henüz tarih seçilmedi</string>
     <string name="onboarding_birthdate_action">Doğum tarihini seç</string>
     <string name="onboarding_detected_sign_label">Önerilen burç</string>
+    <string name="onboarding_choose_sign_without_birthdate">Doğum tarihi girmeden burcumu seç</string>
+    <string name="onboarding_hide_sign_choices">Burç seçeneklerini gizle</string>
     <string name="onboarding_show_manual_selection">Farklı bir burç elle seç</string>
     <string name="onboarding_hide_manual_selection">Önerilen burcu kullan</string>
     <string name="onboarding_manual_selection_title">Manuel burç seçimi</string>
@@ -199,7 +201,7 @@
     <string name="chat_title">AI Danışma</string>
     <string name="chat_input_placeholder">Haritan hakkında sor…</string>
     <string name="chat_send_cta">Gönder</string>
-    <string name="onboarding_error_missing_sign">Doğum tarihini seçip burcunu belirlemen gerekiyor.</string>
+    <string name="onboarding_error_missing_sign">Devam etmek için doğum tarihini veya burcunu seç.</string>
     <string name="session_error_open_failed_after_register">Kayıt tamamlandı ama oturum açılamadı.</string>
     <string name="notification_channel_daily_name">Günlük Burç Yorumu</string>
     <string name="notification_channel_daily_description">Günlük astroloji bildirimleri</string>

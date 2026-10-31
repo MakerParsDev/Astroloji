@@ -43,7 +43,9 @@ export function hasPremiumEntitlement(
     return false;
   }
 
-  return subscription.expiresAt > now;
+  const expiresAt = Date.parse(subscription.expiresAt);
+  const checkedAt = Date.parse(now);
+  return Number.isFinite(expiresAt) && Number.isFinite(checkedAt) && expiresAt > checkedAt;
 }
 
 function normalizeSubscription(
@@ -51,8 +53,13 @@ function normalizeSubscription(
   productId: string,
   raw: GooglePlaySubscriptionResponse
 ): GooglePlaySubscription | null {
-  const lineItem = raw.lineItems?.find((item) => item.productId === productId) ?? raw.lineItems?.[0];
+  // Never accept a different product from a valid Play token as proof of the requested SKU.
+  const lineItem = raw.lineItems?.find((item) => item.productId === productId);
   if (!lineItem?.expiryTime) {
+    return null;
+  }
+  const expiryTimestamp = Date.parse(lineItem.expiryTime);
+  if (!Number.isFinite(expiryTimestamp)) {
     return null;
   }
 
@@ -61,7 +68,7 @@ function normalizeSubscription(
     productId: lineItem.productId ?? productId,
     status: normalizeSubscriptionState(raw.subscriptionState),
     startsAt: raw.startTime ?? new Date().toISOString(),
-    expiresAt: lineItem.expiryTime,
+    expiresAt: new Date(expiryTimestamp).toISOString(),
     autoRenewing: Boolean(lineItem.autoRenewingPlan),
     cancelReason: raw.canceledStateContext?.cancellationReason ?? null,
     raw

@@ -1,5 +1,6 @@
 package com.parsfilo.astrology.feature.credits
 
+import android.app.Activity
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.data.remote.CreditBalanceResponse
@@ -20,6 +21,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +64,43 @@ class CreditsViewModelTest {
             analyticsRepository = analyticsRepository,
             remoteConfigRepository = remoteConfigRepository,
         )
+
+    @Test
+    fun `rapid repeated credit purchases launch a single billing flow`() =
+        runTest {
+            stubDependencies()
+            justRun { billingManager.launchCreditPurchase(any(), any()) }
+            val viewModel = createViewModel()
+            val activity = mockk<Activity>()
+            advanceUntilIdle()
+
+            viewModel.onEvent(CreditsUiEvent.Purchase(activity, "credits_small"))
+            viewModel.onEvent(CreditsUiEvent.Purchase(activity, "credits_small"))
+            advanceUntilIdle()
+
+            verify(exactly = 1) { billingManager.launchCreditPurchase(activity, "credits_small") }
+            assertThat(viewModel.uiState.value.isPurchasing).isTrue()
+        }
+
+    @Test
+    fun `credit checkout becomes available again after an error`() =
+        runTest {
+            stubDependencies()
+            justRun { billingManager.launchCreditPurchase(any(), any()) }
+            val viewModel = createViewModel()
+            val activity = mockk<Activity>()
+            advanceUntilIdle()
+
+            viewModel.onEvent(CreditsUiEvent.Purchase(activity, "credits_small"))
+            assertThat(viewModel.uiState.value.isPurchasing).isTrue()
+            purchaseState.value = AppResult.Error(AppException.BillingException("Play canceled"))
+            advanceUntilIdle()
+
+            assertThat(viewModel.uiState.value.isPurchasing).isFalse()
+            viewModel.onEvent(CreditsUiEvent.Purchase(activity, "credits_small"))
+            verify(exactly = 2) { billingManager.launchCreditPurchase(activity, "credits_small") }
+            assertThat(viewModel.uiState.value.isPurchasing).isTrue()
+        }
 
     @Test
     fun `loads the pack catalogue and balance on init`() =

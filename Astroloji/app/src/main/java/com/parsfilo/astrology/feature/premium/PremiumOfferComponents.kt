@@ -57,6 +57,9 @@ internal fun PremiumOfferCard(
     callbacks: PremiumOfferCallbacks,
 ) {
     AstrologyCard {
+        // Explain the most immediately useful benefits before asking for a plan.
+        // These strings already exist in every supported language.
+        PremiumValuePreview()
         Text(
             text = stringResource(R.string.premium_plan_title),
             style = MaterialTheme.typography.titleLarge,
@@ -69,13 +72,15 @@ internal fun PremiumOfferCard(
             onSelect = callbacks.onSelectPlan,
         )
         PremiumOfferSummary(uiState, selected, purchaseReady)
+        // Show renewal and introductory billing terms before the purchase
+        // decision, including when a large font pushes content below the fold.
+        PremiumBillingDisclosure(uiState, selected, purchaseReady)
         PremiumGoldButton(
             text = premiumCtaLabel(uiState, selected, purchaseReady),
             onClick = callbacks.onPurchase,
             enabled = purchaseReady,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().testTag("premium-purchase-action"),
         )
-        PremiumBillingDisclosure(uiState, selected, purchaseReady)
         OutlinedButton(
             onClick = callbacks.onContinueFree,
             modifier = Modifier.fillMaxWidth(),
@@ -301,7 +306,7 @@ private fun PremiumBillingDisclosure(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag("premium-billing-disclosure"),
     )
 }
 

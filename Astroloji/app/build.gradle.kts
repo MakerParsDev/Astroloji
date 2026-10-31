@@ -352,7 +352,7 @@ play {
 }
 
 tasks.matching { it.name == "uploadCrashlyticsMappingFileRelease" }.configureEach {
-    onlyIf { stringConfig("CRASHLYTICS_MAPPING_UPLOAD_ENABLED", "true").toBoolean() }
+    onlyIf { stringConfig("CRASHLYTICS_MAPPING_UPLOAD_ENABLED", "false").toBoolean() }
 }
 
 val prepareDebugGoogleServices =

@@ -38,6 +38,8 @@ sealed class AppException(
         cause: Throwable? = null,
     ) : AppException(message, cause)
 
+    class RewardChallengeExpiredException : AppException("Reward verification expired. Please try again.")
+
     class UnauthorizedException : AppException("Your session has expired.")
 
     class NotFoundException(

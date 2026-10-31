@@ -48,11 +48,13 @@
     <string name="onboarding_intro_feature_content">✨ Guía diaria, semanal y mensual para los 12 signos</string>
     <string name="onboarding_intro_feature_premium">💜 Análisis ilimitado y una experiencia premium sin anuncios</string>
     <string name="onboarding_sign_title">Encuentra tu signo</string>
-    <string name="onboarding_sign_body">Elige tu fecha de nacimiento y sugeriremos tu signo zodiacal automáticamente.</string>
+    <string name="onboarding_sign_body">Elige tu fecha de nacimiento para conocer tu signo o selecciónalo directamente. Puedes añadir ciudad y hora para calcular el ascendente.</string>
     <string name="onboarding_birthdate_label">Fecha de nacimiento</string>
     <string name="onboarding_birthdate_placeholder">Aún no hay fecha seleccionada</string>
     <string name="onboarding_birthdate_action">Seleccionar fecha de nacimiento</string>
     <string name="onboarding_detected_sign_label">Signo sugerido</string>
+    <string name="onboarding_choose_sign_without_birthdate">Elegir mi signo sin fecha de nacimiento</string>
+    <string name="onboarding_hide_sign_choices">Ocultar los signos</string>
     <string name="onboarding_show_manual_selection">Elegir otro signo manualmente</string>
     <string name="onboarding_hide_manual_selection">Usar el signo sugerido</string>
     <string name="onboarding_manual_selection_title">Selección manual de signo</string>
@@ -206,7 +208,7 @@
     <string name="chat_title">Consulta con IA</string>
     <string name="chat_input_placeholder">Pregunta sobre tu carta…</string>
     <string name="chat_send_cta">Enviar</string>
-    <string name="onboarding_error_missing_sign">Selecciona tu fecha de nacimiento para determinar tu signo.</string>
+    <string name="onboarding_error_missing_sign">Elige una fecha de nacimiento o un signo para continuar.</string>
     <string name="session_error_open_failed_after_register">Registro completado, pero no se pudo abrir la sesión.</string>
     <string name="notification_channel_daily_name">Horóscopo Diario</string>
     <string name="notification_channel_daily_description">Notificaciones astrológicas diarias</string>

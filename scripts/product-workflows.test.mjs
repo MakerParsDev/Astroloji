@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdtempSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
+import { assertNoDispatchInputsInRunBlocks } from './workflow-run-safety.mjs';
 
 function workflow(name) {
   return readFileSync('.github/workflows/' + name + '.yml', 'utf8');
@@ -68,4 +72,88 @@ test('backend rollback docs require reviewed main commit and guarded deploy work
   assert.match(runbook, /backend-production-deploy/);
   assert.match(runbook, /release_sha/);
   assert.doesNotMatch(runbook, /npm run deploy:doppler/);
+});
+
+test('production release passes manual inputs as data, never interpolated Bash source', () => {
+  const source = workflow('android-production-release');
+  assertNoDispatchInputsInRunBlocks(source, 'production release');
+  assert.match(source, /--from-track=\"\$PROMOTE_FROM_TRACK\"/);
+  assert.match(source, /--user-fraction=\"\$PLAY_USER_FRACTION\"/);
+  assert.match(source, /--version-code=\"\$VERSION_CODE\"/);
+  assert.match(source, /if \[ -z \"\$PROMOTE_FROM_TRACK\" \]; then/);
+  assert.match(source, /vars\.ENABLE_PRODUCTION_RELEASE == 'true'/);
+  assert.match(source, /environment: production/);
+});
+
+
+// Extract the exact run block for sandbox Bash, never invoke real Gradle/Play.
+function localProductionShell(name) {
+  const source = workflow('android-production-release');
+  const start = source.indexOf(`      - name: ${name}\n`);
+  assert.ok(start >= 0, `Missing production step: ${name}`);
+  const next = source.indexOf('\n      - name:', start + 1);
+  const block = source.slice(start, next < 0 ? undefined : next);
+  if (['Promote from an existing Play track', 'Publish summary'].includes(name)) {
+    assert.match(block, /RELEASE_NAME: \$\{\{ steps\.release_identity\.outputs\.release_name \}\}/);
+  }
+  const run = block.match(/\n        run: (\||>-)\n((?:          [^\n]*(?:\n|$))*)/);
+  assert.ok(run, `Missing multiline run in ${name}`);
+  const lines = run[2].trimEnd().split('\n').map((line) => line.slice(10));
+  return run[1] === '>-' ? lines.join(' ') : lines.join('\n');
+}
+
+test('production release actual Bash never re-evaluates manual data during promotion', (t) => {
+  if (spawnSync('bash', ['--version'], { encoding: 'utf8', timeout: 3000 }).error?.code === 'ENOENT') {
+    t.skip('Bash is required for Linux production workflow simulation');
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'astro-prod-shell-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const sentinel = join(dir, 'INJECTION_TRIGGERED');
+  writeFileSync(join(dir, 'gradlew'), '#!/bin/sh\nprintf "%s\\n" "$@" > "$ARGV_DUMP"\n');
+  chmodSync(join(dir, 'gradlew'), 0o700);
+  const promote = `internal$(touch ${sentinel})" ; echo unsafe`;
+  const version = `1109$(touch ${sentinel})`;
+  const fraction = '0.1 ; echo forbidden';
+  const argvFile = join(dir, 'argv.txt');
+  const result = spawnSync('bash', ['-e', '-u', '-o', 'pipefail', '-c', localProductionShell('Promote from an existing Play track')], {
+    cwd: dir, encoding: 'utf8', timeout: 6000,
+    env: { ...process.env, PROMOTE_FROM_TRACK: promote, PLAY_USER_FRACTION: fraction,
+      VERSION_CODE: version, PLAY_TRACK_PRODUCTION: 'production', RELEASE_NAME: 'SafeRelease', ARGV_DUMP: argvFile },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(readFileSync(argvFile, 'utf8').trimEnd().split('\n'), [
+    ':app:promoteReleaseArtifact', `--from-track=${promote}`, '--promote-track=production',
+    '--release-name=SafeRelease', '--release-status=inProgress', `--user-fraction=${fraction}`,
+    `--version-code=${version}`,
+  ]);
+  assert.equal(existsSync(sentinel), false, 'Malicious dispatch input executed as a shell command');
+});
+
+test('production summary treats special characters as data and keeps bundle/promotion paths', (t) => {
+  if (spawnSync('bash', ['--version'], { encoding: 'utf8', timeout: 3000 }).error?.code === 'ENOENT') {
+    t.skip('Bash is required for Linux production workflow simulation');
+    return;
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'astro-prod-summary-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const sentinel = join(dir, 'INJECTION_TRIGGERED');
+  const summary = join(dir, 'summary.md');
+  const script = localProductionShell('Publish summary');
+  for (const [track, expectsArtifact] of [['', true], ['internal', false]]) {
+    const version = `1.0.$(touch ${sentinel})`;
+    const result = spawnSync('bash', ['-e', '-u', '-o', 'pipefail', '-c', script], {
+      cwd: dir, encoding: 'utf8', timeout: 6000,
+      env: { ...process.env, VERSION_NAME: version, VERSION_CODE: '1109',
+        PROMOTE_FROM_TRACK: track, PLAY_USER_FRACTION: '0.1', PLAY_TRACK_PRODUCTION: 'production',
+        RELEASE_SHA: 'test-sha', RELEASE_NAME: 'SafeRelease', GITHUB_STEP_SUMMARY: summary },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const output = readFileSync(summary, 'utf8');
+    assert.ok(output.includes(`- Version name: ${version}`));
+    assert.ok(output.includes(`- Promote from track: ${track || 'n/a'}`));
+    assert.equal(output.includes('- Artifact: android-production-release-1109'), expectsArtifact);
+    assert.equal(existsSync(sentinel), false, 'Summary input executed as a shell command');
+    writeFileSync(summary, '');
+  }
 });

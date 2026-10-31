@@ -3,6 +3,7 @@
 package com.parsfilo.astrology.feature.premium
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
@@ -12,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,6 +44,26 @@ internal fun PremiumActiveCard(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text(stringResource(R.string.premium_manage_in_play_store))
+        }
+    }
+}
+
+@Composable
+internal fun PremiumValuePreview() {
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag("premium-value-preview"),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        listOf(
+            R.string.premium_feature_daily,
+            R.string.premium_feature_compatibility,
+            R.string.premium_feature_ad_free,
+        ).forEach { feature ->
+            Text(
+                text = "✓  " + stringResource(feature),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
         }
     }
 }

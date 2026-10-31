@@ -47,3 +47,38 @@ test('internal release validates Play version before build and publish', () => {
   assert.ok(buildIndex > validationIndex);
   assert.ok(publishIndex > buildIndex);
 });
+
+test('Crashlytics mapping upload is opt-in for local builds but enabled explicitly in release workflows', () => {
+  const gradleConfig = fs.readFileSync(new URL('../Astroloji/app/build.gradle.kts', import.meta.url), 'utf8');
+  const exampleConfig = fs.readFileSync(new URL('../Astroloji/gradle.properties.example', import.meta.url), 'utf8');
+  const productionWorkflow = fs.readFileSync(new URL('../.github/workflows/android-production-release.yml', import.meta.url), 'utf8');
+
+  assert.match(gradleConfig, /stringConfig\("CRASHLYTICS_MAPPING_UPLOAD_ENABLED", "false"\)\.toBoolean\(\)/);
+  assert.match(exampleConfig, /^CRASHLYTICS_MAPPING_UPLOAD_ENABLED=false$/m);
+  assert.match(workflow, /CRASHLYTICS_MAPPING_UPLOAD_ENABLED: false/);
+  assert.match(releaseWorkflow, /CRASHLYTICS_MAPPING_UPLOAD_ENABLED: true/);
+  assert.match(productionWorkflow, /CRASHLYTICS_MAPPING_UPLOAD_ENABLED: true/);
+});
+
+test('preflight summary passes dynamic values through shell environment instead of inline expressions', () => {
+  const summary = workflow.slice(workflow.indexOf('name: Publish preflight summary'));
+  assert.ok(summary.includes('PLAY_MAX_VERSION_CODE: '+ String.fromCharCode(36) + '{{ steps.play_access.outputs.max_version_code }}'));
+  assert.ok(summary.includes('PREFLIGHT_GIT_SHA: '+ String.fromCharCode(36) + '{{ github.sha }}'));
+  assert.match(summary, /echo "- Current maximum version code: \$PLAY_MAX_VERSION_CODE"/);
+  assert.match(summary, /echo "- Git SHA: \$PREFLIGHT_GIT_SHA"/);
+  assert.doesNotMatch(summary, /echo[^\n]*\$\{\{/);
+});
+
+test('internal preflight verifies its Doppler CLI archive like the internal release', () => {
+  const extractInstallStep = (source) =>
+    source.slice(
+      source.indexOf('      - name: Install pinned Doppler CLI\n'),
+      source.indexOf('      - name: Download Doppler secrets\n'),
+    );
+
+  const preflightInstall = extractInstallStep(workflow);
+  const releaseInstall = extractInstallStep(releaseWorkflow);
+  assert.equal(preflightInstall.trimEnd(), releaseInstall.trimEnd());
+  assert.match(preflightInstall, /sha256sum --check/);
+  assert.doesNotMatch(workflow, /curl -Ls https:\/\/cli\.doppler\.com\/install\.sh \| sudo sh/);
+});

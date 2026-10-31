@@ -271,6 +271,8 @@ class PremiumViewModel
         }
 
         private fun handlePurchase(event: PremiumUiEvent.Purchase) {
+            // Do not launch another Play checkout while one is awaiting an SDK result.
+            if (billingAction != BillingAction.NONE) return
             val selectedPlan = state.value.plans.firstOrNull { it.planId == state.value.selectedPlanId }
             // UI disables checkout for unsupported offers. Guard the event
             // handler too so a stale/bypassed click cannot launch Billing.
@@ -291,9 +293,12 @@ class PremiumViewModel
         }
 
         private fun handleRestore() {
+            // Claim the flow before launching the coroutine: repeated taps may
+            // arrive before its first suspension point.
+            if (billingAction != BillingAction.NONE) return
+            billingAction = BillingAction.RESTORE
             viewModelScope.launch {
                 billingManager.clearPurchaseState()
-                billingAction = BillingAction.RESTORE
                 setState { copy(purchaseSuccess = false, error = null) }
                 billingManager.restorePurchases()
             }

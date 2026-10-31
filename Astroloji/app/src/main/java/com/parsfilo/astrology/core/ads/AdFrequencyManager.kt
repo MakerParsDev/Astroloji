@@ -2,6 +2,7 @@ package com.parsfilo.astrology.core.ads
 
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.domain.model.RemoteFlags
+import com.parsfilo.astrology.core.domain.model.UserPreferences
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Instant
@@ -19,32 +20,64 @@ class AdFrequencyManager
         // with persistence avoids lost updates and stale cap decisions.
         private val impressionMutex = Mutex()
 
+        // Process-local, conservative pacing: a restart requires a new full
+        // interval instead of serving an ad sooner than the remote frequency.
+        private var eligibleBacksSinceImpression = 0
+
+        // If an observed impression cannot be persisted, the stored daily count
+        // is stale. Never authorize another impression from that stale snapshot.
+        private var quotaPersistenceHealthy = true
+
         suspend fun canShowInterstitial(
             flags: RemoteFlags,
             nowMs: Long = System.currentTimeMillis(),
         ): Boolean =
             impressionMutex.withLock {
-                val preferences = preferencesRepository.current()
-                val today = nowMs.toDateKey()
-                val dailyLimit = flags.interstitialDailyLimit.coerceAtLeast(0)
-                if (dailyLimit == 0) {
-                    return@withLock false
-                }
-                val isSameDay = preferences.interstitialCountDate == today
-                val countToday = if (isSameDay) preferences.interstitialCountToday else 0
-                if (countToday >= dailyLimit) {
-                    return@withLock false
-                }
-                // A day boundary must not bypass the minimum interval between impressions.
-                val cooldownMs = flags.interstitialCooldownMinutes.coerceAtLeast(0) * 60 * 1000L
-                return@withLock nowMs - preferences.lastInterstitialShown >= cooldownMs
+                meetsQuotaAndCooldown(flags, preferencesRepository.current(), nowMs)
             }
+
+        /** Apply frequency only to eligible BACK opportunities, not mere loads. */
+        suspend fun canShowInterstitialOnBack(
+            flags: RemoteFlags,
+            nowMs: Long = System.currentTimeMillis(),
+        ): Boolean =
+            impressionMutex.withLock {
+                val frequency = flags.interstitialFrequency
+                if (frequency <= 0 || !meetsQuotaAndCooldown(flags, preferencesRepository.current(), nowMs)) {
+                    return@withLock false
+                }
+                if (eligibleBacksSinceImpression < frequency) {
+                    eligibleBacksSinceImpression += 1
+                }
+                eligibleBacksSinceImpression >= frequency
+            }
+
+        private fun meetsQuotaAndCooldown(
+            flags: RemoteFlags,
+            preferences: UserPreferences,
+            nowMs: Long,
+        ): Boolean {
+            val dailyLimit = flags.interstitialDailyLimit.coerceAtLeast(0)
+            val today = nowMs.toDateKey()
+            val countToday =
+                if (preferences.interstitialCountDate == today) preferences.interstitialCountToday else 0
+            // Day rollover cannot bypass a cooldown; convert before multiplying.
+            val cooldownMs = flags.interstitialCooldownMinutes.coerceAtLeast(0).toLong() * MILLIS_PER_MINUTE
+            // A backward clock or time-zone change must not reopen a capped
+            // future-day bucket. Wait for the stored date to be reached.
+            return quotaPersistenceHealthy &&
+                preferences.interstitialCountDate.orEmpty() <= today &&
+                dailyLimit > 0 &&
+                countToday >= 0 &&
+                countToday < dailyLimit &&
+                nowMs - preferences.lastInterstitialShown >= cooldownMs
+        }
 
         suspend fun resetIfNewDay(nowMs: Long = System.currentTimeMillis()) =
             impressionMutex.withLock {
                 val preferences = preferencesRepository.current()
                 val today = nowMs.toDateKey()
-                if (preferences.interstitialCountDate == today) {
+                if (preferences.interstitialCountDate.orEmpty() >= today) {
                     return@withLock
                 }
                 preferencesRepository.updateInterstitialMetrics(
@@ -56,21 +89,35 @@ class AdFrequencyManager
 
         suspend fun recordInterstitialShown(nowMs: Long = System.currentTimeMillis()) =
             impressionMutex.withLock {
+                eligibleBacksSinceImpression = 0
+                // An impression was already observed. Even reading the old quota
+                // can fail, so block subsequent ads before any DataStore access.
+                quotaPersistenceHealthy = false
                 val preferences = preferencesRepository.current()
                 val today = nowMs.toDateKey()
+                // Preserve the newer quota bucket if the device date moved
+                // backward while an already-visible ad was being recorded.
+                val bucketDate = maxOf(today, preferences.interstitialCountDate.orEmpty())
                 val nextCount =
-                    if (preferences.interstitialCountDate == today) {
-                        preferences.interstitialCountToday + 1
+                    if (preferences.interstitialCountDate == bucketDate) {
+                        // Corrupted or saturated counters must never wrap and reopen the daily quota.
+                        val previousCount = preferences.interstitialCountToday
+                        if (previousCount in 0 until Int.MAX_VALUE) previousCount + 1 else Int.MAX_VALUE
                     } else {
                         1
                     }
+                // Only successful persistence restores eligibility. Failure or
+                // cancellation during either read or write leaves it blocked.
                 preferencesRepository.updateInterstitialMetrics(
-                    lastShown = nowMs,
+                    lastShown = maxOf(nowMs, preferences.lastInterstitialShown),
                     count = nextCount,
-                    date = today,
+                    date = bucketDate,
                 )
+                quotaPersistenceHealthy = true
             }
     }
+
+private const val MILLIS_PER_MINUTE = 60_000L
 
 private fun Long.toDateKey(): String =
     Instant
