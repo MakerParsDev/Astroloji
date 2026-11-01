@@ -488,6 +488,27 @@ class PremiumViewModelTest {
         }
 
     @Test
+    fun `inactive verified subscription never displays purchase success or success telemetry`() =
+        runTest {
+            val purchaseState = MutableStateFlow<AppResult<SubscriptionStatus>?>(null)
+            stubDependencies(purchaseState = purchaseState)
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(PremiumUiEvent.Purchase(mockk()))
+            purchaseState.value =
+                AppResult.Success(
+                    SubscriptionStatus(isPremium = false, premiumExpiresAt = 0L, productId = monthlyPlan.productId),
+                )
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.purchaseSuccess).isFalse()
+            assertThat(viewModel.state.value.isAlreadyPremium).isFalse()
+            coVerify(exactly = 0) { analyticsRepository.track(AnalyticsEvents.PURCHASE_SUCCEEDED, any()) }
+            coVerify(exactly = 0) { analyticsRepository.track(AnalyticsEvents.TRIAL_STARTED, any()) }
+        }
+
+    @Test
     fun `purchasing a plan with a free trial emits a trial started event`() =
         runTest {
             val purchaseState = MutableStateFlow<AppResult<SubscriptionStatus>?>(null)

@@ -764,6 +764,7 @@ class BillingManager
                     )
                 }
             if (response !is AppResult.Success) return response
+            if (!response.data.isPremium) return inactiveSubscriptionResult(restore, stringsProvider)
             if (!purchase.isAcknowledged) {
                 val ackResult =
                     suspendCancellableCoroutine { continuation ->
@@ -1210,3 +1211,16 @@ private fun disconnectedConnectionResult(): BillingResult =
         .setResponseCode(BillingResponseCode.SERVICE_DISCONNECTED)
         .setDebugMessage("Billing service disconnected before setup completed.")
         .build()
+
+// A successfully verified API response can still represent an inactive subscription.
+private fun inactiveSubscriptionResult(
+    restore: Boolean,
+    stringsProvider: StringsProvider,
+): AppResult.Error =
+    AppResult.Error(
+        AppException.BillingException(
+            stringsProvider.get(
+                if (restore) R.string.billing_restore_missing_purchase else R.string.billing_purchase_failed,
+            ),
+        ),
+    )
