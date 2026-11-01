@@ -109,7 +109,7 @@ class PremiumViewModel
                             purchasedPlan = null
                             setState {
                                 copy(
-                                    purchaseSuccess = true,
+                                    purchaseSuccess = purchaseState.data.isPremium,
                                     error = null,
                                     isAlreadyPremium = purchaseState.data.isPremium,
                                     premiumExpiresAt =
@@ -119,6 +119,9 @@ class PremiumViewModel
                                         ),
                                 )
                             }
+                            // A verified-but-inactive response must never emit
+                            // purchase-success or restore-success telemetry.
+                            if (!purchaseState.data.isPremium) return@collectLatest
                             when (completedAction) {
                                 BillingAction.PURCHASE ->
                                     viewModelScope.launch {

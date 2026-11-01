@@ -64,6 +64,30 @@ class BillingResumeReconciliationTest {
     }
 
     @Test
+    fun `expired backend subscription cannot restore premium or trigger purchase acknowledgement`() {
+        val session = mockk<SessionRepository>()
+        val purchase =
+            mockk<Purchase> {
+                every { purchaseState } returns Purchase.PurchaseState.PURCHASED
+                every { products } returns listOf("premium_monthly")
+                every { purchaseTime } returns 100L
+                every { purchaseToken } returns "expired-synthetic-token"
+                every { isAcknowledged } returns false
+            }
+        coEvery { session.apiRestore(any()) } returns
+            AppResult.Success(
+                SubscriptionStatus(isPremium = false, premiumExpiresAt = 0L, productId = "premium_monthly"),
+            )
+        withReadyBillingClient(session, listOf(purchase)) { manager, client ->
+            val result = runBlocking { withTimeout(1_000) { manager.restorePurchases() } }
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat(manager.purchaseState.value).isInstanceOf(AppResult.Error::class.java)
+            coVerify(exactly = 1) { session.apiRestore(any()) }
+            verify(exactly = 0) { client.acknowledgePurchase(any(), any()) }
+        }
+    }
+
+    @Test
     fun `no existing subscription never produces a user-visible restore error`() {
         val session = mockk<SessionRepository>()
         withReadyBillingClient(session, emptyList()) { manager, _ ->
