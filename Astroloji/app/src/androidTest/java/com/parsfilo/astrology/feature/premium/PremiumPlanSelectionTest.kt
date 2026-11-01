@@ -58,12 +58,15 @@ class PremiumPlanSelectionTest {
             }
         }
         val first = composeRule.onNodeWithTag("premium-plan-monthly")
+        val second = composeRule.onNodeWithTag("premium-plan-yearly")
+        // At large font scales the selector stacks vertically, so the arrow
+        // navigation follows the actual layout rather than assuming a row.
+        val stacked = second.fetchSemanticsNode().boundsInRoot.top >= first.fetchSemanticsNode().boundsInRoot.bottom
         first.performSemanticsAction(SemanticsActions.RequestFocus)
         first.assertIsFocused()
-        first.performKeyInput { pressKey(Key.DirectionRight) }
-        val second = composeRule.onNodeWithTag("premium-plan-yearly")
+        first.performKeyInput { pressKey(if (stacked) Key.DirectionDown else Key.DirectionRight) }
         second.assertIsFocused()
-        second.performKeyInput { pressKey(Key.DirectionLeft) }
+        second.performKeyInput { pressKey(if (stacked) Key.DirectionUp else Key.DirectionLeft) }
         first.assertIsFocused()
         first.performKeyInput { pressKey(Key.Tab) }
         second.assertIsFocused()
