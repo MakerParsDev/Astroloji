@@ -10,8 +10,12 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.util.TimeUtils
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -52,7 +56,8 @@ class UserPreferencesRepository
     ) {
         private val dataStore = context.userPreferencesDataStore
 
-        val preferences: Flow<UserPreferences> = dataStore.data.map(::mapPreferences)
+        val preferences: Flow<UserPreferences> =
+            refreshPremiumOnExpiry(dataStore.data.map(::mapPreferences))
 
         fun emptyPreferences(): UserPreferences =
             UserPreferences(
@@ -244,3 +249,23 @@ internal fun isCachedPremiumUnexpired(
     premiumExpiresAt: Long?,
     nowMillis: Long,
 ): Boolean = storedPremium && (premiumExpiresAt == null || premiumExpiresAt > nowMillis)
+
+// DataStore does not emit just because wall-clock time passes. Keep already
+// observed screens in sync when a known cached Premium expiry is reached.
+// A new DataStore value cancels the previous deadline; free and legacy
+// subscriptions without an expiry never start a timer.
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun refreshPremiumOnExpiry(
+    snapshots: Flow<UserPreferences>,
+    nowMillis: () -> Long = System::currentTimeMillis,
+): Flow<UserPreferences> =
+    snapshots.flatMapLatest { snapshot ->
+        flow {
+            emit(snapshot)
+            val expiresAt = snapshot.premiumExpiresAt
+            if (snapshot.isPremium && expiresAt != null) {
+                delay((expiresAt - nowMillis()).coerceAtLeast(1L))
+                emit(snapshot.copy(isPremium = false))
+            }
+        }
+    }
