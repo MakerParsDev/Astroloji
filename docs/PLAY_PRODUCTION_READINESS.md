@@ -48,7 +48,8 @@ Run `backend-ssv-transition-rollback` with confirmation `REMOVE_TRANSITION_ROUTE
 - Store screenshots, feature graphic, icon, Turkish/English text, support contact, and release notes are current.
 - The public Play page must show account deletion is supported and link to `https://astrology.parsfilo.com/delete-account`; verify this after the Console save and review approval.
 - Keep `ENABLE_PRODUCTION_RELEASE=false` until all manual checks and internal QA are complete.
-- Production release `1102` is currently completed at 100% (`1.0`). Policy/listing work must not mutate that track. A future/staged release may use a 10% cap only after policy, visual, crash/ANR, and conversion evidence is reviewed in a separate rollout decision.
+- Before any production release or rollback decision, read back the **current** production track, versionCode, release status and rollout percentage from Google Play Console or the Android Publisher API. Historical version codes in tickets and runbooks are not an authoritative live baseline.
+- Policy/listing checks must not change the active production track. Any future staged rollout (for example, an initially proposed 10% cap) needs a separate documented Go/No-Go decision after policy, visual, crash/ANR and conversion evidence is reviewed; it is never an automatic promotion.
 
 ## Rollback
 

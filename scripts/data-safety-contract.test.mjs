@@ -36,8 +36,9 @@ test('data safety source links to the canonical Play policy answer set', () => {
 test('production readiness requires public deletion verification and keeps future staged rollout separate', () => {
   assert.match(readiness, /public Play page[^\n]*account deletion[^\n]*supported/i);
   assert.match(readiness, /https:\/\/astrology\.parsfilo\.com\/delete-account/i);
-  assert.match(readiness, /currently completed at 100%/i);
-  assert.match(readiness, /Policy\/listing work must not mutate that track/i);
-  assert.match(readiness, /future\/staged release[^\n]*10% cap[^\n]*separate rollout decision/i);
+  assert.match(readiness, /before any production release or rollback decision[^\n]*current[^\n]*production track[^\n]*versionCode[^\n]*release status[^\n]*rollout percentage/i);
+  assert.match(readiness, /Policy\/listing checks must not change the active production track/i);
+  assert.match(readiness, /future staged rollout[^\n]*10% cap[^\n]*separate documented Go\/No-Go decision/i);
+  assert.doesNotMatch(readiness, /Production release `\d+` is currently completed/i);
   assert.doesNotMatch(readiness, /existing production listing currently reports that data cannot be deleted/i);
 });
