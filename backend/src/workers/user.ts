@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 
 import { enforceStrictRateLimit, mapStrictRateLimitResult } from '@/services/rateLimit';
+import { hasPremiumEntitlement } from '@/services/playBilling';
 import { deleteFirebaseUser, isFirebaseAccountDeletionError } from '@/services/firebaseAuth';
 import type {
   AppBindings,
@@ -221,13 +222,20 @@ export async function reconcileAccountDeletions(env: AppBindings['Bindings']): P
   }
 }
 
-function toUserProfile(user: UserRow, token: FcmTokenRow | null): UserProfileResponse {
+function registeredPremiumEntitlement(user: UserRow): boolean {
+  return Boolean(user.is_premium) && hasPremiumEntitlement({
+    status: user.subscription_state ?? 'none',
+    expiresAt: user.premium_expires_at ?? ''
+  });
+}
+
+function toUserProfile(user: UserRow, token: FcmTokenRow | null, isPremium: boolean): UserProfileResponse {
   return {
     user_id: user.id,
     sign: user.sign,
     language: user.language,
     utc_offset: user.utc_offset,
-    is_premium: Boolean(user.is_premium),
+    is_premium: isPremium,
     subscription_state: user.subscription_state ?? 'none',
     premium_expires_at: user.premium_expires_at,
     notification_enabled: Boolean(token?.notification_enabled ?? 1),
@@ -300,16 +308,17 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
       return jsonError(500, 'USER_SYNC_FAILED', 'Unable to load user after register.');
     }
 
+    const isPremium = registeredPremiumEntitlement(refreshedUser);
     const jwt = await signAppJwt(c.env, {
       userId: refreshedUser.id,
-      isPremium: Boolean(refreshedUser.is_premium),
+      isPremium,
       firebaseUid
     });
 
     return c.json({
       user_id: refreshedUser.id,
       jwt,
-      is_premium: Boolean(refreshedUser.is_premium),
+      is_premium: isPremium,
       subscription_state: refreshedUser.subscription_state ?? 'none',
       premium_expires_at: refreshedUser.premium_expires_at
     });
@@ -322,7 +331,7 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
     }
 
     const token = await getUserToken(c.env.DB, user.id);
-    return c.json(toUserProfile(user, token));
+    return c.json(toUserProfile(user, token, c.get('auth').isPremium));
   });
 
   app.post('/users/refresh-token', async (c) => {
@@ -334,13 +343,13 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
 
     const jwt = await signAppJwt(c.env, {
       userId: user.id,
-      isPremium: Boolean(user.is_premium),
+      isPremium: auth.isPremium,
       firebaseUid: auth.firebaseUid ?? user.firebase_uid ?? undefined
     });
 
     return c.json({
       jwt,
-      is_premium: Boolean(user.is_premium),
+      is_premium: auth.isPremium,
       subscription_state: user.subscription_state ?? 'none'
     });
   });
@@ -400,7 +409,7 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
 
     const refreshedUser = await getUserById(c.env.DB, user.id);
     const refreshedToken = await getUserToken(c.env.DB, user.id);
-    return c.json(toUserProfile(refreshedUser as UserRow, refreshedToken));
+    return c.json(toUserProfile(refreshedUser as UserRow, refreshedToken, c.get('auth').isPremium));
   });
 
   app.delete('/users/me', async (c) => {

@@ -259,7 +259,49 @@ describe('user routes', () => {
     );
   });
 
-  it('refreshes the app JWT with the latest premium flag', async () => {
+  it('does not regrant expired Premium during a Firebase re-registration', async () => {
+    const user = {
+      id: 'user-1',
+      firebase_uid: 'firebase-1',
+      sign: 'aries',
+      language: 'tr',
+      utc_offset: 3,
+      is_premium: 1,
+      subscription_state: 'active',
+      premium_expires_at: '2020-01-01T00:00:00.000Z',
+      created_at: '2019-01-01T00:00:00.000Z',
+      last_seen_at: '2019-01-01T00:00:00.000Z'
+    };
+    const env = createTestEnv({
+      DB: {
+        prepare(sql: string) {
+          const statement = {
+            bind() { return statement; },
+            async first() {
+              return sql.includes('SELECT * FROM users') ? user : null;
+            },
+            async run() { return { success: true, meta: {} }; }
+          };
+          return statement;
+        },
+        async batch() { return []; }
+      } as unknown as D1Database
+    });
+    const response = await createApp().request('/api/v1/users/register', {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer firebase-test-token',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({ sign: 'aries', language: 'tr', utc_offset: 3, platform: 'android' })
+    }, env);
+    expect(response.status).toBe(200);
+    const result = await response.json() as { is_premium: boolean; jwt: string };
+    expect(result.is_premium).toBe(false);
+    expect((await verifyAppJwt(env, result.jwt)).is_premium).toBe(false);
+  });
+
+  it('refreshes the app JWT with the effective middleware entitlement despite a stale stored flag', async () => {
     const user = {
       id: 'user-1',
       firebase_uid: 'firebase-1',
@@ -327,9 +369,9 @@ describe('user routes', () => {
     };
     const claims = await verifyAppJwt(env, body.jwt);
 
-    expect(body.is_premium).toBe(true);
+    expect(body.is_premium).toBe(false);
     expect(body.subscription_state).toBe('grace_period');
-    expect(claims.is_premium).toBe(true);
+    expect(claims.is_premium).toBe(false);
     expect(claims.user_id).toBe(user.id);
     expect(claims.firebase_uid).toBe(user.firebase_uid);
     expect(claims.exp - claims.iat).toBeLessThanOrEqual(60 * 60);
