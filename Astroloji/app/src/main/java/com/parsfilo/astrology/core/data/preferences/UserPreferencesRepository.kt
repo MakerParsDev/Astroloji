@@ -216,7 +216,12 @@ class UserPreferencesRepository
                 utcOffset = preferences[PreferencesKeys.UTC_OFFSET] ?: TimeUtils.utcOffsetHours(),
                 jwt = preferences[PreferencesKeys.JWT],
                 userId = preferences[PreferencesKeys.USER_ID],
-                isPremium = preferences[PreferencesKeys.IS_PREMIUM] ?: false,
+                isPremium =
+                    isCachedPremiumUnexpired(
+                        storedPremium = preferences[PreferencesKeys.IS_PREMIUM] ?: false,
+                        premiumExpiresAt = preferences[PreferencesKeys.PREMIUM_EXPIRES_AT],
+                        nowMillis = System.currentTimeMillis(),
+                    ),
                 subscriptionState = preferences[PreferencesKeys.SUBSCRIPTION_STATE] ?: "none",
                 premiumExpiresAt = preferences[PreferencesKeys.PREMIUM_EXPIRES_AT],
                 appOpenCount = preferences[PreferencesKeys.APP_OPEN_COUNT] ?: 0,
@@ -231,3 +236,11 @@ class UserPreferencesRepository
                 consentStatus = preferences[PreferencesKeys.CONSENT_STATUS] ?: 0,
             )
     }
+
+// The server remains authoritative. Do not show a cached subscription as active
+// once its known expiry has passed, including after a process restart.
+internal fun isCachedPremiumUnexpired(
+    storedPremium: Boolean,
+    premiumExpiresAt: Long?,
+    nowMillis: Long,
+): Boolean = storedPremium && (premiumExpiresAt == null || premiumExpiresAt > nowMillis)
