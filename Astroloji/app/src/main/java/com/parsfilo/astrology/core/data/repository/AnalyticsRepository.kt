@@ -64,6 +64,7 @@ object AnalyticsEvents {
 private val ALLOWED_ANALYTICS_META_KEYS =
     setOf(
         "source",
+        "variant", // Non-identifying Remote Config paywall experiment arm.
         "step",
         "result",
         "plan",

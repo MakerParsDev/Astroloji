@@ -224,6 +224,52 @@ class AnalyticsRepositoryTest {
         }
 
     @Test
+    fun `paywall variant reaches Firebase and backend without leaking unknown metadata`() =
+        runTest {
+            val request = slot<com.parsfilo.astrology.core.data.remote.TrackEventRequest>()
+            val firebaseParams = slot<Bundle>()
+            coEvery { api.trackEvent(capture(request)) } returns Response.success(TrackEventResponse(ok = true))
+
+            repository.track(
+                AnalyticsEvents.PAYWALL_VIEWED,
+                mapOf(
+                    "source" to "nav",
+                    "variant" to "monthly_first",
+                    "email" to "private@example.com",
+                ),
+            )
+
+            assertThat(request.captured.meta).containsExactly(
+                "source",
+                "nav",
+                "variant",
+                "monthly_first",
+            )
+            verify(exactly = 1) {
+                firebaseAnalytics.logEvent(AnalyticsEvents.PAYWALL_VIEWED, capture(firebaseParams))
+            }
+            assertThat(firebaseParams.captured.getString("variant")).isEqualTo("monthly_first")
+            assertThat(firebaseParams.captured.containsKey("email")).isFalse()
+        }
+
+    @Test
+    fun `paywall variant survives offline replay queue sanitization`() =
+        runTest {
+            val queued = slot<com.parsfilo.astrology.core.data.local.QueuedEventEntity>()
+            coEvery { api.trackEvent(any()) } throws IOException("offline")
+            coJustRun { queuedEventDao.enqueueBounded(capture(queued), any(), any()) }
+
+            repository.track(
+                AnalyticsEvents.PURCHASE_STARTED,
+                mapOf("variant" to "default", "product" to "premium_monthly", "email" to "private@example.com"),
+            )
+
+            assertThat(queued.captured.payload).isEqualTo(
+                "{\"variant\":\"default\",\"product\":\"premium_monthly\"}",
+            )
+        }
+
+    @Test
     fun `other analytics events retain allowed metadata`() {
         assertThat(
             sanitizeAnalyticsMeta(
