@@ -15,6 +15,28 @@ describe('app routes', () => {
     });
   });
 
+  it('serves a public, search-readable app homepage without user data', async () => {
+    const response = await createApp().request('/', {}, createTestEnv());
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(html).toContain('<html lang="en">');
+    expect(html).toContain('<h1 id="hero-title">Astrology for every day.</h1>');
+    expect(html).toContain('rel="canonical" href="https://astrology.parsfilo.com/"');
+    expect(html).toContain('name="description"');
+    expect(html).toContain('https://play.google.com/store/apps/details?id=com.parsfilo.astrology');
+    for (const path of ['/privacy', '/terms', '/delete-account']) {
+      expect(html).toContain(`href="${path}"`);
+    }
+    expect(html).toContain('lang="tr"');
+    expect(html).toContain('Optional paid subscriptions');
+    expect(html).not.toContain('utm_');
+    expect(html).not.toContain('user_id');
+  });
+
   it.each([
     ['/privacy', 'Gizlilik Politikası'],
     ['/terms', 'Kullanım Koşulları']
