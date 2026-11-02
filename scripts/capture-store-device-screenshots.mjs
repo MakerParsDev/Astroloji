@@ -44,6 +44,62 @@ const anchors = {
     premiumNav: 'Premium',
     premiumReady: 'Unlimited Astrology',
   },
+  es: {
+    home: "Horóscopo de Hoy",
+    weeklyButton: "Semanal",
+    weeklyReady: "Resumen",
+    homeNav: "Inicio",
+    monthlyButton: "Mensual",
+    monthlyReady: "Los detalles mensuales se desbloquean con premium.",
+    compatibilityNav: "Compatibilidad",
+    compatibilityReady: "Lectura de Compatibilidad",
+    profileNav: "Perfil",
+    profileReady: "Estado Premium",
+    premiumNav: "Premium",
+    premiumReady: "Astrología Ilimitada",
+  },
+  pt: {
+    home: "Horóscopo de Hoje",
+    weeklyButton: "Semanal",
+    weeklyReady: "Resumo",
+    homeNav: "Início",
+    monthlyButton: "Mensal",
+    monthlyReady: "Os detalhes mensais são desbloqueados com o premium.",
+    compatibilityNav: "Compatibilidade",
+    compatibilityReady: "Leitura de Compatibilidade",
+    profileNav: "Perfil",
+    profileReady: "Status Premium",
+    premiumNav: "Premium",
+    premiumReady: "Astrologia Ilimitada",
+  },
+  fr: {
+    home: "Horoscope du jour",
+    weeklyButton: "Hebdomadaire",
+    weeklyReady: "Aperçu",
+    homeNav: "Accueil",
+    monthlyButton: "Mensuel",
+    monthlyReady: "Les détails mensuels se débloquent avec Premium.",
+    compatibilityNav: "Compatibilité",
+    compatibilityReady: "Lecture de compatibilité",
+    profileNav: "Profil",
+    profileReady: "Statut Premium",
+    premiumNav: "Premium",
+    premiumReady: "Astrologie illimitée",
+  },
+  de: {
+    home: "Horoskop für heute",
+    weeklyButton: "Wöchentlich",
+    weeklyReady: "Übersicht",
+    homeNav: "Start",
+    monthlyButton: "Monatlich",
+    monthlyReady: "Monatliche Details werden mit Premium freigeschaltet.",
+    compatibilityNav: "Kompatibilität",
+    compatibilityReady: "Kompatibilitätsdeutung",
+    profileNav: "Profil",
+    profileReady: "Premium-Status",
+    premiumNav: "Premium",
+    premiumReady: "Unbegrenzte Astrologie",
+  },
 };
 
 function execFileResult(command, args, options = {}) {
@@ -81,13 +137,13 @@ export function parseArgs(argv) {
     const key = argv[index];
     const value = argv[index + 1];
     if (!key?.startsWith('--') || value == null) {
-      throw new Error('Usage: --serial <adbSerial> --locale tr|en --apk <absoluteApkPath>');
+      throw new Error('Usage: --serial <adbSerial> --locale tr|en|es|pt|fr|de --apk <absoluteApkPath>');
     }
     values[key.slice(2)] = value;
   }
   const { serial, locale, apk } = values;
-  if (!serial || !apk || !['tr', 'en'].includes(locale)) {
-    throw new Error('Required arguments: --serial <adbSerial> --locale tr|en --apk <absoluteApkPath>');
+  if (!serial || !apk || !['tr', 'en', 'es', 'pt', 'fr', 'de'].includes(locale)) {
+    throw new Error('Required arguments: --serial <adbSerial> --locale tr|en|es|pt|fr|de --apk <absoluteApkPath>');
   }
   if (!path.isAbsolute(apk)) {
     throw new Error('--apk must be an absolute path');
@@ -292,6 +348,12 @@ export async function assertApkPackage(apk, expectedPackage) {
 }
 
 async function productionSnapshot(serial, adbFn) {
+  // A disposable QA emulator can correctly have no production application.
+  // Record that absence and verify it stays absent after capturing.
+  const { stdout: packages } = await adbFn(serial, ['shell', 'pm', 'list', 'packages', productionPackage]);
+  if (!String(packages).split(/\r?\n/).includes(`package:${productionPackage}`)) {
+    return 'NOT_INSTALLED';
+  }
   await assertPackageInstalledUsing(serial, productionPackage, adbFn);
   const { stdout } = await adbFn(serial, ['shell', 'dumpsys', 'package', productionPackage]);
   const lines = String(stdout)
@@ -321,7 +383,7 @@ function readSceneManifest() {
 
 export async function captureStoreScreenshots(config, dependencies = {}) {
   const { serial, locale, apk } = config;
-  if (!['tr', 'en'].includes(locale)) throw new Error('locale must be exactly tr or en');
+  if (!['tr', 'en', 'es', 'pt', 'fr', 'de'].includes(locale)) throw new Error('Unsupported capture locale');
   if (!path.isAbsolute(apk)) throw new Error('APK path must be absolute');
 
   const manifest = readSceneManifest();
@@ -345,15 +407,18 @@ export async function captureStoreScreenshots(config, dependencies = {}) {
   ]);
   await waitForTextUsing(serial, text.home, 15000, adbFn, sleepFn);
 
-  const capture = async (scene) => {
-    const destination = path.join(outputDir, `store_capture_${locale}_${scene}.png`);
-    fs.mkdirSync(outputDir, { recursive: true });
-    await sleepFn(350);
-    await captureFn(serial, destination);
-    assertPngFile(destination, manifest.device.width, manifest.device.height);
-  };
+  // Stage every scene before touching any checked-in marketing capture.
+  // A session expiry or navigation failure must leave existing images untouched.
+  const stagedDir = fs.mkdtempSync(path.join(os.tmpdir(), `astro-store-capture-${locale}-`));
+  try {
+    const capture = async (scene) => {
+      const destination = path.join(stagedDir, `store_capture_${locale}_${scene}.png`);
+      await sleepFn(350);
+      await captureFn(serial, destination);
+      assertPngFile(destination, manifest.device.width, manifest.device.height);
+    };
 
-  await capture('daily');
+    await capture('daily');
   await tapTextUsing(serial, text.weeklyButton, adbFn, sleepFn);
   await waitForTextUsing(serial, text.weeklyReady, 15000, adbFn, sleepFn);
   await capture('weekly');
@@ -383,7 +448,17 @@ export async function captureStoreScreenshots(config, dependencies = {}) {
     throw new Error('Production package version/signature changed during QA capture');
   }
 
-  return manifest.scenes.map((scene) => path.join(outputDir, `store_capture_${locale}_${scene.id}.png`));
+    fs.mkdirSync(outputDir, { recursive: true });
+    const published = manifest.scenes.map((scene) => {
+      const name = `store_capture_${locale}_${scene.id}.png`;
+      const destination = path.join(outputDir, name);
+      fs.renameSync(path.join(stagedDir, name), destination);
+      return destination;
+    });
+    return published;
+  } finally {
+    fs.rmSync(stagedDir, { recursive: true, force: true });
+  }
 }
 
 async function main() {

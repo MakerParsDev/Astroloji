@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package com.parsfilo.astrology.feature.monthly
 
 import android.app.Activity
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,6 +34,7 @@ import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
+import com.parsfilo.astrology.core.ui.components.PremiumUnlockCallout
 import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.core.util.localizedReadingMonth
 import com.parsfilo.astrology.core.util.localizedReadingRange
@@ -100,27 +102,23 @@ fun MonthlyScreen(
                     MonthlySectionCard(
                         title = stringResource(R.string.weekly_tab_overview),
                         body = monthly.summary ?: stringResource(R.string.monthly_premium_locked),
-                        locked = monthly.summary == null,
-                        onOpenPremium = onOpenPremium,
                     )
                     MonthlySectionCard(
                         title = stringResource(R.string.weekly_tab_love),
                         body = monthly.love ?: stringResource(R.string.monthly_premium_locked),
-                        locked = monthly.love == null,
-                        onOpenPremium = onOpenPremium,
                     )
                     MonthlySectionCard(
                         title = stringResource(R.string.weekly_tab_career),
                         body = monthly.career ?: stringResource(R.string.monthly_premium_locked),
-                        locked = monthly.career == null,
-                        onOpenPremium = onOpenPremium,
                     )
                     MonthlySectionCard(
                         title = stringResource(R.string.weekly_tab_money),
                         body = monthly.money ?: stringResource(R.string.monthly_premium_locked),
-                        locked = monthly.money == null,
-                        onOpenPremium = onOpenPremium,
                     )
+
+                    if (listOf(monthly.summary, monthly.love, monthly.career, monthly.money).any { it == null }) {
+                        PremiumUnlockCallout(onOpenPremium = onOpenPremium)
+                    }
 
                     val dayRange = readingCalendarDays(monthly.monthStart, monthly.monthEnd)
                     if (dayRange.isNotEmpty()) {
@@ -164,14 +162,9 @@ fun MonthlyScreen(
 private fun MonthlySectionCard(
     title: String,
     body: String,
-    locked: Boolean,
-    onOpenPremium: () -> Unit,
 ) {
     AstrologyCard {
         Text(text = title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text(text = body, style = MaterialTheme.typography.bodyLarge)
-        if (locked) {
-            Button(onClick = onOpenPremium) { Text(stringResource(R.string.common_open_premium)) }
-        }
     }
 }

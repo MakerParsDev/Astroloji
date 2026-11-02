@@ -230,22 +230,17 @@ private fun PremiumPlanDetails(model: PremiumPlanOptionModel) {
 
 @Composable
 private fun PremiumRecommendedChip() {
-    AssistChip(
-        onClick = {},
-        enabled = false,
-        border = null,
-        colors =
-            AssistChipDefaults.assistChipColors(
-                disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
-                disabledLabelColor = MaterialTheme.colorScheme.onSurface,
-            ),
-        label = {
-            Text(
-                text = stringResource(R.string.premium_recommended),
-                style = MaterialTheme.typography.labelSmall,
-            )
-        },
-    )
+    Surface(
+        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.premium_recommended),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
 }
 
 @Composable

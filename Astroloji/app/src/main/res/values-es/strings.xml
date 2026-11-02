@@ -327,16 +327,16 @@
     <string name="settings_delete_dialog_cancel">Cancelar</string>
     <string name="rewarded_ad_unavailable">El anuncio con recompensa no está listo. Inténtalo de nuevo.</string>
     <string name="rewarded_ad_not_completed">El anuncio se cerró antes de obtener la recompensa. Míralo completo para desbloquear el contenido.</string>
-    <string name="chart_settings_title">Guía Personal Beta</string>
+    <string name="chart_settings_title">Vista previa de guía personal</string>
     <string name="chart_settings_body">Obtén tres señales de reflexión basadas en fecha a partir de posiciones planetarias verificadas. Los datos de nacimiento no se guardan.</string>
     <string name="chart_settings_cta">Abrir guía personal</string>
     <string name="chart_title">Guía Personal</string>
-    <string name="chart_beta_label">Beta basada en fecha</string>
+    <string name="chart_beta_label">Vista previa según fecha</string>
     <string name="chart_intro">Elige tu fecha de nacimiento para calcular tres señales de reflexión rastreables para el cielo actual.</string>
     <string name="chart_privacy_title">Privado por diseño</string>
     <string name="chart_privacy_body">Tu fecha de nacimiento solo se envía cuando solicitas un cálculo. Esta app no la guarda en tu cuenta, preferencias del dispositivo, analíticas ni historial de contenido.</string>
     <string name="chart_limit_title">Precisión actual</string>
-    <string name="chart_limit_body">La hora y el lugar de nacimiento no se recopilan en esta beta. La Luna, el ascendente y las casas se excluyen en lugar de estimarse.</string>
+    <string name="chart_limit_body">Esta vista previa no recoge la hora ni el lugar de nacimiento. La Luna, el ascendente y las casas se omiten, no se estiman.</string>
     <string name="chart_birthdate_label">Fecha de nacimiento</string>
     <string name="chart_birthdate_placeholder">Selecciona tu fecha de nacimiento</string>
     <string name="chart_birthdate_action">Elegir fecha</string>
@@ -395,4 +395,8 @@
     <string name="settings_mood_delete_dialog_body">Se borrarán del servidor los registros de ánimo y sus eventos asociados. Tu cuenta y perfil natal se conservarán. Los eventos ya recogidos por Firebase Analytics no se eliminan.</string>
     <string name="settings_mood_delete_confirm">Eliminar historial de ánimo</string>
     <string name="settings_mood_delete_progress">Eliminando historial de ánimo…</string>
+    <string name="premium_insights_title">Más sobre tu signo</string>
+    <string name="premium_insights_description">Descubre el amor, el trabajo y las finanzas con más detalle cuando quieras.</string>
+    <string name="onboarding_step_progress">Paso %1$d de %2$d</string>
+    <string name="onboarding_skip_notifications">Ahora no, explorar la aplicación</string>
 </resources>

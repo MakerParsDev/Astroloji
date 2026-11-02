@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -39,6 +38,7 @@ import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
+import com.parsfilo.astrology.core.ui.components.PremiumUnlockCallout
 import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.core.util.localizedReadingRange
@@ -184,13 +184,11 @@ fun WeeklyScreen(
                         title = stringResource(R.string.weekly_tab_overview),
                         body = weekly.summary ?: stringResource(R.string.weekly_premium_locked),
                         locked = weekly.summary == null,
-                        onOpenPremium = onOpenPremium,
                     )
                     WeeklySectionCard(
                         title = stringResource(R.string.weekly_tab_love),
                         body = weekly.love ?: stringResource(R.string.weekly_premium_locked),
                         locked = weekly.love == null,
-                        onOpenPremium = onOpenPremium,
                         rewardAction = rewardAction.takeIf { rewardSection == WeeklyPremiumSection.LOVE },
                         rewardLabel = rewardLabel,
                     )
@@ -198,7 +196,6 @@ fun WeeklyScreen(
                         title = stringResource(R.string.weekly_tab_career),
                         body = weekly.career ?: stringResource(R.string.weekly_premium_locked),
                         locked = weekly.career == null,
-                        onOpenPremium = onOpenPremium,
                         rewardAction = rewardAction.takeIf { rewardSection == WeeklyPremiumSection.CAREER },
                         rewardLabel = rewardLabel,
                     )
@@ -206,10 +203,13 @@ fun WeeklyScreen(
                         title = stringResource(R.string.weekly_tab_money),
                         body = weekly.money ?: stringResource(R.string.weekly_premium_locked),
                         locked = weekly.money == null,
-                        onOpenPremium = onOpenPremium,
                         rewardAction = rewardAction.takeIf { rewardSection == WeeklyPremiumSection.MONEY },
                         rewardLabel = rewardLabel,
                     )
+                    if (listOf(weekly.summary, weekly.love, weekly.career, weekly.money).any { it == null }) {
+                        PremiumUnlockCallout(onOpenPremium = onOpenPremium)
+                    }
+
                     weekly.warning?.let {
                         AstrologyCard {
                             Text(
@@ -253,7 +253,6 @@ private fun WeeklySectionCard(
     title: String,
     body: String,
     locked: Boolean,
-    onOpenPremium: () -> Unit,
     rewardAction: (() -> Unit)? = null,
     rewardLabel: String = "",
 ) {
@@ -261,7 +260,6 @@ private fun WeeklySectionCard(
         Text(text = title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Text(text = body, style = MaterialTheme.typography.bodyLarge)
         if (locked) {
-            Button(onClick = onOpenPremium) { Text(stringResource(R.string.common_open_premium)) }
             rewardAction?.let { unlockWithReward ->
                 OutlinedButton(onClick = unlockWithReward) {
                     Text(rewardLabel)

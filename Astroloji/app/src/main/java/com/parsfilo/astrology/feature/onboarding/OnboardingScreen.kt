@@ -6,6 +6,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -116,6 +117,17 @@ fun OnboardingScreen(
                         .padding(horizontal = 20.dp, vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.onboarding_step_progress,
+                            pagerState.currentPage + 1,
+                            pagerState.pageCount,
+                        ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
                 HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.weight(1f),
@@ -204,6 +216,17 @@ fun OnboardingScreen(
                                 stringResource(R.string.onboarding_continue)
                             },
                     )
+                }
+                AnimatedVisibility(visible = pagerState.currentPage == 2) {
+                    TextButton(
+                        onClick = {
+                            viewModel.recordNotificationPermissionNotRequested()
+                            viewModel.complete(onComplete)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.onboarding_skip_notifications))
+                    }
                 }
                 SnackbarHost(hostState = snackbarHostState)
             }
