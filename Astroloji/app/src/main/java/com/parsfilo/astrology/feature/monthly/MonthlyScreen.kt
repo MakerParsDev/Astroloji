@@ -1,3 +1,5 @@
+@file:Suppress("FunctionNaming")
+
 package com.parsfilo.astrology.feature.monthly
 
 import android.app.Activity
@@ -5,19 +7,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -33,6 +36,8 @@ import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
+import com.parsfilo.astrology.core.ui.components.PremiumLockedLabel
+import com.parsfilo.astrology.core.ui.components.PremiumUnlockCallout
 import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.core.util.localizedReadingMonth
 import com.parsfilo.astrology.core.util.localizedReadingRange
@@ -101,26 +106,26 @@ fun MonthlyScreen(
                         title = stringResource(R.string.weekly_tab_overview),
                         body = monthly.summary ?: stringResource(R.string.monthly_premium_locked),
                         locked = monthly.summary == null,
-                        onOpenPremium = onOpenPremium,
                     )
                     MonthlySectionCard(
                         title = stringResource(R.string.weekly_tab_love),
                         body = monthly.love ?: stringResource(R.string.monthly_premium_locked),
                         locked = monthly.love == null,
-                        onOpenPremium = onOpenPremium,
                     )
                     MonthlySectionCard(
                         title = stringResource(R.string.weekly_tab_career),
                         body = monthly.career ?: stringResource(R.string.monthly_premium_locked),
                         locked = monthly.career == null,
-                        onOpenPremium = onOpenPremium,
                     )
                     MonthlySectionCard(
                         title = stringResource(R.string.weekly_tab_money),
                         body = monthly.money ?: stringResource(R.string.monthly_premium_locked),
                         locked = monthly.money == null,
-                        onOpenPremium = onOpenPremium,
                     )
+
+                    if (listOf(monthly.summary, monthly.love, monthly.career, monthly.money).any { it == null }) {
+                        PremiumUnlockCallout(onOpenPremium = onOpenPremium)
+                    }
 
                     val dayRange = readingCalendarDays(monthly.monthStart, monthly.monthEnd)
                     if (dayRange.isNotEmpty()) {
@@ -165,13 +170,16 @@ private fun MonthlySectionCard(
     title: String,
     body: String,
     locked: Boolean,
-    onOpenPremium: () -> Unit,
 ) {
     AstrologyCard {
-        Text(text = title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(text = body, style = MaterialTheme.typography.bodyLarge)
-        if (locked) {
-            Button(onClick = onOpenPremium) { Text(stringResource(R.string.common_open_premium)) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (locked) PremiumLockedLabel()
         }
+        if (!locked) Text(text = body, style = MaterialTheme.typography.bodyLarge)
     }
 }

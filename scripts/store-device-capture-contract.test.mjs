@@ -40,7 +40,8 @@ test('runner exposes safe argument, bounds, screenshot, and navigation contracts
   assert.deepEqual(runner.parseArgs(['--serial', 'device-1', '--locale', 'tr', '--apk', apk]), {
     serial: 'device-1', locale: 'tr', apk,
   });
-  assert.throws(() => runner.parseArgs(['--serial', 'device-1', '--locale', 'de', '--apk', apk]), /--locale tr\|en/);
+  assert.deepEqual(runner.parseArgs(['--serial', 'device-1', '--locale', 'de', '--apk', apk]), { serial: 'device-1', locale: 'de', apk });
+  assert.throws(() => runner.parseArgs(['--serial', 'device-1', '--locale', 'it', '--apk', apk]), /--locale tr\|en\|es\|pt\|fr\|de/);
   assert.throws(() => runner.parseArgs(['--serial', 'device-1', '--locale', 'en', '--apk', 'relative.apk']), /absolute/i);
   assert.deepEqual(
     runner.parseBounds('<node text="Profil" clickable="true" bounds="[10,20][210,120]"/>', 'Profil'),
@@ -61,8 +62,8 @@ test('runner exposes safe argument, bounds, screenshot, and navigation contracts
   assert.match(source, /assertApkPackage/);
   assert.match(source, /timeout: options\.timeoutMs \?\? 120_000/);
   assert.match(source, /killSignal: 'SIGKILL'/);
-  assert.match(source, /monthlyReady: 'Aylık detaylar premium ile açılır\.'/);
-  assert.match(source, /monthlyReady: 'Monthly details unlock with premium\.'/);
+  assert.match(source, /monthlyReady: 'Genel'/);
+  assert.match(source, /monthlyReady: 'Overview'/);
   assert.doesNotMatch(source, /pm['"],\s*['"]clear/);
 });
 
@@ -106,8 +107,8 @@ test('mocked capture preserves production and writes six validated PNGs', async 
   t.after(() => fs.rmSync(outputDir, { recursive: true, force: true }));
   const apk = path.resolve('/tmp/app-storeQa.apk');
   const allText = [
-    'Bugünün Yorumu', 'Haftalık', 'Genel', 'Ana Sayfa', 'Aylık', 'Aylık detaylar premium ile açılır.',
-    'Uyum', 'Uyum Analizi', 'Profil', 'Premium Durumu', 'Premium', 'Sınırsız Astroloji',
+    'Bugünün Yorumu', 'Hızlı erişim', 'Haftalık', 'Genel', 'Ana Sayfa', 'Aylık', 'Aylık detaylar premium ile açılır.',
+    'Uyum', 'Uyum Analizi', 'Profil', 'Kişisel Rehber Önizlemesi', 'Premium', 'Sınırsız Astroloji',
   ];
   const initiallyVisible = allText.filter((text) => !['Haftalık', 'Aylık'].includes(text));
   let scrolled = false;
@@ -117,6 +118,7 @@ test('mocked capture preserves production and writes six validated PNGs', async 
     calls.push(args);
     const joined = args.join(' ');
     if (joined === 'shell wm size') return { stdout: 'Physical size: 1080x2160\n', stderr: '' };
+    if (joined === 'shell pm list packages com.parsfilo.astrology') return { stdout: 'package:com.parsfilo.astrology\n', stderr: '' };
     if (joined === 'shell pm path com.parsfilo.astrology') return { stdout: 'package:/data/app/prod/base.apk\n', stderr: '' };
     if (joined === 'shell pm path com.parsfilo.astrology.storeqa') return { stdout: 'package:/data/app/qa/base.apk\n', stderr: '' };
     if (joined === 'shell dumpsys package com.parsfilo.astrology') {
@@ -178,4 +180,45 @@ test('mocked capture rejects a device with the wrong physical size before instal
     /1080x2160/,
   );
   assert.equal(calls.filter((args) => args[0] === 'install').length, 0);
+});
+
+test('failed isolated capture never overwrites previously approved screenshots', async (t) => {
+  const runner = await import(`./capture-store-device-screenshots.mjs?atomic=${Date.now()}`);
+  const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), 'astro-store-atomic-'));
+  t.after(() => fs.rmSync(outputDir, { recursive: true, force: true }));
+  const approved = path.join(outputDir, 'store_capture_tr_daily.png');
+  fs.writeFileSync(approved, fakePng());
+  const original = fs.readFileSync(approved);
+  let captured = 0;
+  const allText = [
+    'Bugünün Yorumu', 'Hızlı erişim', 'Haftalık', 'Genel', 'Ana Sayfa', 'Aylık',
+    'Aylık detaylar premium ile açılır.', 'Uyum', 'Uyum Analizi', 'Profil',
+    'Kişisel Rehber Önizlemesi', 'Premium', 'Sınırsız Astroloji',
+  ];
+  const xml = `<hierarchy>${allText.map((value) => `<node text="${value}" clickable="true" bounds="[10,20][210,120]"/>`).join('')}</hierarchy>`;
+  const adb = async (_serial, args) => {
+    const cmd = args.join(' ');
+    if (cmd === 'shell wm size') return { stdout: 'Physical size: 1080x2160\n' };
+    if (cmd === 'shell pm list packages com.parsfilo.astrology') return { stdout: '' };
+    if (cmd === 'shell pm path com.parsfilo.astrology.storeqa') return { stdout: 'package:/qa/base.apk\n' };
+    if (cmd === 'shell cat /sdcard/window.xml') return { stdout: xml };
+    return { stdout: '' };
+  };
+  await assert.rejects(
+    runner.captureStoreScreenshots(
+      { serial: 'isolated-device', locale: 'tr', apk: path.resolve('/tmp/app-storeQa.apk') },
+      {
+        adb, outputDir, apkPackage: async () => 'com.parsfilo.astrology.storeqa', sleep: async () => {},
+        capturePng: async (_serial, destination) => {
+          captured += 1;
+          if (captured === 2) throw new Error('session expired during QA');
+          fs.writeFileSync(destination, fakePng());
+        },
+      },
+    ),
+    /session expired during QA/,
+  );
+  assert.equal(captured, 2);
+  assert.deepEqual(fs.readFileSync(approved), original, 'failed capture must preserve the approved image');
+  assert.deepEqual(fs.readdirSync(outputDir), ['store_capture_tr_daily.png']);
 });

@@ -18,31 +18,93 @@ const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const anchors = {
   tr: {
     home: 'Bugünün Yorumu',
+    homeReady: "Hızlı erişim",
     weeklyButton: 'Haftalık',
     weeklyReady: 'Genel',
     homeNav: 'Ana Sayfa',
     monthlyButton: 'Aylık',
-    monthlyReady: 'Aylık detaylar premium ile açılır.',
+    monthlyReady: 'Genel',
     compatibilityNav: 'Uyum',
     compatibilityReady: 'Uyum Analizi',
     profileNav: 'Profil',
-    profileReady: 'Premium Durumu',
+    profileReady: "Kişisel Rehber Önizlemesi",
     premiumNav: 'Premium',
     premiumReady: 'Sınırsız Astroloji',
   },
   en: {
     home: 'Today’s Horoscope',
+    homeReady: "Quick access",
     weeklyButton: 'Weekly',
     weeklyReady: 'Overview',
     homeNav: 'Home',
     monthlyButton: 'Monthly',
-    monthlyReady: 'Monthly details unlock with premium.',
+    monthlyReady: 'Overview',
     compatibilityNav: 'Compatibility',
     compatibilityReady: 'Compatibility Reading',
     profileNav: 'Profile',
-    profileReady: 'Premium Status',
+    profileReady: "Personal Guidance Preview",
     premiumNav: 'Premium',
     premiumReady: 'Unlimited Astrology',
+  },
+  es: {
+    home: "Horóscopo de Hoy",
+    homeReady: "Acceso rápido",
+    weeklyButton: "Semanal",
+    weeklyReady: "Resumen",
+    homeNav: "Inicio",
+    monthlyButton: "Mensual",
+    monthlyReady: "Resumen",
+    compatibilityNav: "Compatibilidad",
+    compatibilityReady: "Lectura de Compatibilidad",
+    profileNav: "Perfil",
+    profileReady: "Vista previa de guía personal",
+    premiumNav: "Premium",
+    premiumReady: "Astrología Ilimitada",
+  },
+  pt: {
+    home: "Horóscopo de Hoje",
+    homeReady: "Acesso rápido",
+    weeklyButton: "Semanal",
+    weeklyReady: "Resumo",
+    homeNav: "Início",
+    monthlyButton: "Mensal",
+    monthlyReady: "Resumo",
+    compatibilityNav: "Compatibilidade",
+    compatibilityReady: "Leitura de Compatibilidade",
+    profileNav: "Perfil",
+    profileReady: "Prévia do guia pessoal",
+    premiumNav: "Premium",
+    premiumReady: "Astrologia Ilimitada",
+  },
+  fr: {
+    home: "Horoscope du jour",
+    homeReady: "Accès rapide",
+    weeklyButton: "Hebdomadaire",
+    weeklyReady: "Aperçu",
+    homeNav: "Accueil",
+    monthlyButton: "Mensuel",
+    monthlyReady: "Aperçu",
+    compatibilityNav: "Compatibilité",
+    compatibilityReady: "Lecture de compatibilité",
+    profileNav: "Profil",
+    profileReady: "Aperçu du guide personnel",
+    premiumNav: "Premium",
+    premiumReady: "Astrologie illimitée",
+  },
+  de: {
+    home: "Horoskop für heute",
+    homeReady: "Schnellzugriff",
+    weeklyButton: "Wöchentlich",
+    weeklyReady: "Übersicht",
+    homeNav: "Start",
+    monthlyButton: "Monatlich",
+    monthlyReady: "Übersicht",
+    compatibilityNav: "Kompatibilität",
+    compatibilityReady: "Kompatibilitätsdeutung",
+    profileNav: "Profil",
+    profileReady: "Vorschau: persönliche Orientierung",
+    premiumNav: "Premium",
+    premiumReady: "Unbegrenzte Astrologie",
   },
 };
 
@@ -81,13 +143,13 @@ export function parseArgs(argv) {
     const key = argv[index];
     const value = argv[index + 1];
     if (!key?.startsWith('--') || value == null) {
-      throw new Error('Usage: --serial <adbSerial> --locale tr|en --apk <absoluteApkPath>');
+      throw new Error('Usage: --serial <adbSerial> --locale tr|en|es|pt|fr|de --apk <absoluteApkPath>');
     }
     values[key.slice(2)] = value;
   }
   const { serial, locale, apk } = values;
-  if (!serial || !apk || !['tr', 'en'].includes(locale)) {
-    throw new Error('Required arguments: --serial <adbSerial> --locale tr|en --apk <absoluteApkPath>');
+  if (!serial || !apk || !['tr', 'en', 'es', 'pt', 'fr', 'de'].includes(locale)) {
+    throw new Error('Required arguments: --serial <adbSerial> --locale tr|en|es|pt|fr|de --apk <absoluteApkPath>');
   }
   if (!path.isAbsolute(apk)) {
     throw new Error('--apk must be an absolute path');
@@ -292,6 +354,12 @@ export async function assertApkPackage(apk, expectedPackage) {
 }
 
 async function productionSnapshot(serial, adbFn) {
+  // A disposable QA emulator can correctly have no production application.
+  // Record that absence and verify it stays absent after capturing.
+  const { stdout: packages } = await adbFn(serial, ['shell', 'pm', 'list', 'packages', productionPackage]);
+  if (!String(packages).split(/\r?\n/).includes(`package:${productionPackage}`)) {
+    return 'NOT_INSTALLED';
+  }
   await assertPackageInstalledUsing(serial, productionPackage, adbFn);
   const { stdout } = await adbFn(serial, ['shell', 'dumpsys', 'package', productionPackage]);
   const lines = String(stdout)
@@ -321,7 +389,7 @@ function readSceneManifest() {
 
 export async function captureStoreScreenshots(config, dependencies = {}) {
   const { serial, locale, apk } = config;
-  if (!['tr', 'en'].includes(locale)) throw new Error('locale must be exactly tr or en');
+  if (!['tr', 'en', 'es', 'pt', 'fr', 'de'].includes(locale)) throw new Error('Unsupported capture locale');
   if (!path.isAbsolute(apk)) throw new Error('APK path must be absolute');
 
   const manifest = readSceneManifest();
@@ -344,27 +412,33 @@ export async function captureStoreScreenshots(config, dependencies = {}) {
     'shell', 'am', 'start', '-W', '-n', `${qaPackage}/${qaActivity}`, '--es', 'locale', locale,
   ]);
   await waitForTextUsing(serial, text.home, 15000, adbFn, sleepFn);
+  // A title alone may also be present on an onboarding screen. Require a
+  // second Home-only landmark before accepting the first marketing capture.
+  await waitForTextUsing(serial, text.homeReady, 15000, adbFn, sleepFn);
 
-  const capture = async (scene) => {
-    const destination = path.join(outputDir, `store_capture_${locale}_${scene}.png`);
-    fs.mkdirSync(outputDir, { recursive: true });
-    await sleepFn(350);
-    await captureFn(serial, destination);
-    assertPngFile(destination, manifest.device.width, manifest.device.height);
-  };
+  // Stage every scene before touching any checked-in marketing capture.
+  // A session expiry or navigation failure must leave existing images untouched.
+  const stagedDir = fs.mkdtempSync(path.join(os.tmpdir(), `astro-store-capture-${locale}-`));
+  try {
+    const capture = async (scene) => {
+      const destination = path.join(stagedDir, `store_capture_${locale}_${scene}.png`);
+      await sleepFn(350);
+      await captureFn(serial, destination);
+      assertPngFile(destination, manifest.device.width, manifest.device.height);
+    };
 
-  await capture('daily');
+    await capture('daily');
   await tapTextUsing(serial, text.weeklyButton, adbFn, sleepFn);
   await waitForTextUsing(serial, text.weeklyReady, 15000, adbFn, sleepFn);
   await capture('weekly');
 
   await adbFn(serial, ['shell', 'input', 'keyevent', 'KEYCODE_BACK']);
-  await waitForTextUsing(serial, text.home, 15000, adbFn, sleepFn);
+  await waitForTextUsing(serial, text.homeReady, 15000, adbFn, sleepFn);
   await tapTextUsing(serial, text.monthlyButton, adbFn, sleepFn);
   await waitForTextUsing(serial, text.monthlyReady, 15000, adbFn, sleepFn);
   await capture('monthly');
   await adbFn(serial, ['shell', 'input', 'keyevent', 'KEYCODE_BACK']);
-  await waitForTextUsing(serial, text.home, 15000, adbFn, sleepFn);
+  await waitForTextUsing(serial, text.homeReady, 15000, adbFn, sleepFn);
 
   await tapTextUsing(serial, text.compatibilityNav, adbFn, sleepFn);
   await waitForTextUsing(serial, text.compatibilityReady, 15000, adbFn, sleepFn);
@@ -383,7 +457,17 @@ export async function captureStoreScreenshots(config, dependencies = {}) {
     throw new Error('Production package version/signature changed during QA capture');
   }
 
-  return manifest.scenes.map((scene) => path.join(outputDir, `store_capture_${locale}_${scene.id}.png`));
+    fs.mkdirSync(outputDir, { recursive: true });
+    const published = manifest.scenes.map((scene) => {
+      const name = `store_capture_${locale}_${scene.id}.png`;
+      const destination = path.join(outputDir, name);
+      fs.renameSync(path.join(stagedDir, name), destination);
+      return destination;
+    });
+    return published;
+  } finally {
+    fs.rmSync(stagedDir, { recursive: true, force: true });
+  }
 }
 
 async function main() {

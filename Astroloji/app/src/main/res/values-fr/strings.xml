@@ -327,16 +327,16 @@
     <string name="settings_delete_dialog_cancel">Annuler</string>
     <string name="rewarded_ad_unavailable">La publicité récompensée n\'est pas prête. Veuillez réessayer.</string>
     <string name="rewarded_ad_not_completed">La publicité a été fermée avant l\'obtention de la récompense. Regardez-la jusqu\'au bout pour déverrouiller le contenu.</string>
-    <string name="chart_settings_title">Guidance personnelle bêta</string>
+    <string name="chart_settings_title">Aperçu du guide personnel</string>
     <string name="chart_settings_body">Obtenez trois signaux de réflexion basés sur la date, issus de positions planétaires vérifiées. Les données de naissance ne sont pas enregistrées.</string>
     <string name="chart_settings_cta">Ouvrir la guidance personnelle</string>
     <string name="chart_title">Guidance personnelle</string>
-    <string name="chart_beta_label">Bêta basée sur la date</string>
+    <string name="chart_beta_label">Aperçu basé sur la date</string>
     <string name="chart_intro">Choisissez votre date de naissance pour calculer trois signaux de réflexion vérifiables pour le ciel actuel.</string>
     <string name="chart_privacy_title">Confidentiel par conception</string>
     <string name="chart_privacy_body">Votre date de naissance n\'est envoyée que lorsque vous demandez un calcul. Cette application ne l\'enregistre ni dans votre compte, ni dans les préférences de l\'appareil, ni dans les analyses, ni dans l\'historique de contenu.</string>
     <string name="chart_limit_title">Précision actuelle</string>
-    <string name="chart_limit_body">L\'heure et le lieu de naissance ne sont pas collectés dans cette bêta. La Lune, l\'ascendant et les maisons sont exclus plutôt qu\'estimés.</string>
+    <string name="chart_limit_body">Cet aperçu ne recueille ni l’heure ni le lieu de naissance. La Lune, l’ascendant et les maisons ne sont pas estimés.</string>
     <string name="chart_birthdate_label">Date de naissance</string>
     <string name="chart_birthdate_placeholder">Sélectionnez votre date de naissance</string>
     <string name="chart_birthdate_action">Choisir une date</string>
@@ -395,4 +395,8 @@
     <string name="settings_mood_delete_dialog_body">Les humeurs enregistrées et leurs événements seront supprimés de notre serveur. Votre compte et votre profil natal restent intacts. Les événements déjà collectés par Firebase Analytics ne sont pas supprimés.</string>
     <string name="settings_mood_delete_confirm">Supprimer l’historique d’humeur</string>
     <string name="settings_mood_delete_progress">Suppression de l’historique d’humeur…</string>
+    <string name="premium_insights_title">Votre signe en profondeur</string>
+    <string name="premium_insights_description">Explorez l’amour, le travail et les finances à votre rythme.</string>
+    <string name="onboarding_step_progress">Étape %1$d sur %2$d</string>
+    <string name="onboarding_skip_notifications">Pas maintenant, explorer l’application</string>
 </resources>

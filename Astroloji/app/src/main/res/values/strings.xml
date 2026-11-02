@@ -319,16 +319,16 @@
     <string name="settings_delete_dialog_cancel">Cancel</string>
     <string name="rewarded_ad_unavailable">Rewarded ad is not ready. Please try again.</string>
     <string name="rewarded_ad_not_completed">The ad was closed before earning a reward. Watch the full ad to unlock this content.</string>
-    <string name="chart_settings_title">Personal Guidance Beta</string>
+    <string name="chart_settings_title">Personal Guidance Preview</string>
     <string name="chart_settings_body">Get three date-based reflection signals from verified planetary positions. Birth data is not saved.</string>
     <string name="chart_settings_cta">Open personal guidance</string>
     <string name="chart_title">Personal Guidance</string>
-    <string name="chart_beta_label">Date-based beta</string>
+    <string name="chart_beta_label">Date-based preview</string>
     <string name="chart_intro">Choose your birth date to calculate three traceable reflection signals for the current sky.</string>
     <string name="chart_privacy_title">Private by design</string>
     <string name="chart_privacy_body">Your birth date is sent only when you request a calculation. This app does not save it to your account, device preferences, analytics, or content history.</string>
     <string name="chart_limit_title">Current precision</string>
-    <string name="chart_limit_body">Birth time and place are not collected in this beta. The Moon, ascendant, and houses are excluded rather than estimated.</string>
+    <string name="chart_limit_body">This preview does not collect birth time or place. The Moon, ascendant and houses are omitted rather than guessed.</string>
     <string name="chart_birthdate_label">Birth date</string>
     <string name="chart_birthdate_placeholder">Select your birth date</string>
     <string name="chart_birthdate_action">Choose date</string>
@@ -387,4 +387,8 @@
     <string name="settings_mood_delete_dialog_body">This removes all stored mood entries and mood event records from our server. Your account and birth profile remain. Previously collected Firebase Analytics events are not removed.</string>
     <string name="settings_mood_delete_confirm">Delete mood history</string>
     <string name="settings_mood_delete_progress">Deleting mood history…</string>
+    <string name="premium_insights_title">More insight for your sign</string>
+    <string name="premium_insights_description">Explore the deeper themes of love, work, and money when you are ready.</string>
+    <string name="onboarding_step_progress">Step %1$d of %2$d</string>
+    <string name="onboarding_skip_notifications">Not now — explore the app</string>
 </resources>

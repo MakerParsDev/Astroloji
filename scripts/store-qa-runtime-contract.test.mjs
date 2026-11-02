@@ -18,7 +18,15 @@ test('storeQa runtime is deterministic and side-effect isolated', () => {
   assert.match(source, /updateOnboarding\(true,\s*"aries",\s*locale\)/);
   assert.match(source, /AppLanguageManager\.applyLanguage\(this@StoreQaBootstrapActivity, locale\)/);
   assert.match(source, /database\.clearAllTables\(\)/);
-  assert.match(source, /withContext\(Dispatchers\.IO\)\s*\{\s*database\.clearAllTables\(\)\s*\}/);
+  assert.match(source, /withContext\(Dispatchers\.IO\)\s*\{\s*database\.clearAllTables\(\)/);
+  assert.match(source, /database\.weeklyDao\(\)\.upsert\(\s*WeeklyHoroscopeEntity\(/);
+  assert.match(source, /database\.monthlyDao\(\)\.upsert\(\s*MonthlyHoroscopeEntity\(/);
+  assert.match(source, /week = TimeUtils\.weekIdentifier\(today\)/);
+  assert.match(source, /month = TimeUtils\.monthIdentifier\(today\)/);
+  assert.equal((source.match(/summary = null,/g) ?? []).length, 2, 'only locked, free-tier weekly/monthly previews');
+  assert.equal((source.match(/bestDay = null,/g) ?? []).length, 2, 'do not invent best-day values');
+  assert.ok(source.indexOf('database.clearAllTables()') < source.indexOf('database.weeklyDao().upsert('));
+  assert.ok(source.indexOf('database.weeklyDao().upsert(') < source.indexOf('database.monthlyDao().upsert('));
   assert.match(source, /preferencesRepository\.clearAll\(\)/);
   assert.ok(source.indexOf('database.clearAllTables()') < source.indexOf('updateOnboarding(true, "aries", locale)'));
   assert.ok(source.indexOf('preferencesRepository.clearAll()') < source.indexOf('updateOnboarding(true, "aries", locale)'));

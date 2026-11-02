@@ -3,7 +3,7 @@
 package com.parsfilo.astrology.navigation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -15,9 +15,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-// Four equally sized tabs cannot fit long translations at 200% font scaling.
+// Preserve labels on narrow phones at normal font size; use icons only when text scales beyond the available height.
 private const val ICON_ONLY_FONT_SCALE = 1.5f
 
 internal data class PremiumNavigationItem(
@@ -32,15 +33,13 @@ internal fun PremiumNavigationBar(
     items: List<PremiumNavigationItem>,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(
+    Box(
         modifier =
             modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)),
     ) {
-        // The reported font scale alone cannot guarantee enough room for long labels.
-        // Also use the real available width so narrow four-tab bars never wrap long labels.
-        val iconOnly = LocalDensity.current.fontScale >= ICON_ONLY_FONT_SCALE || maxWidth < 360.dp
+        val iconOnly = LocalDensity.current.fontScale >= ICON_ONLY_FONT_SCALE
         NavigationBar(
             modifier = Modifier.fillMaxWidth(),
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
@@ -64,7 +63,15 @@ internal fun PremiumNavigationBar(
                         if (iconOnly) {
                             null
                         } else {
-                            { Text(item.label, style = MaterialTheme.typography.labelSmall) }
+                            {
+                                Text(
+                                    text = item.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    softWrap = false,
+                                )
+                            }
                         },
                 )
             }

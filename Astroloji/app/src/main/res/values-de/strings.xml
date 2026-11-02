@@ -319,16 +319,16 @@
     <string name="settings_delete_dialog_cancel">Abbrechen</string>
     <string name="rewarded_ad_unavailable">Die Werbeanzeige mit Prämie ist nicht bereit. Versuchen Sie es erneut.</string>
     <string name="rewarded_ad_not_completed">Die Anzeige wurde vor der Belohnung geschlossen. Sehen Sie sie vollständig an, um den Inhalt freizuschalten.</string>
-    <string name="chart_settings_title">Persönliche Orientierung Beta</string>
+    <string name="chart_settings_title">Vorschau: persönliche Orientierung</string>
     <string name="chart_settings_body">Erhalten Sie drei datumsbasierte Reflexionssignale aus verifizierten Planetenpositionen. Geburtsdaten werden nicht gespeichert.</string>
     <string name="chart_settings_cta">Persönliche Orientierung öffnen</string>
     <string name="chart_title">Persönliche Orientierung</string>
-    <string name="chart_beta_label">Datumsbasierte Beta</string>
+    <string name="chart_beta_label">Vorschau nach Geburtsdatum</string>
     <string name="chart_intro">Wählen Sie Ihr Geburtsdatum, um drei nachvollziehbare Reflexionssignale für den aktuellen Himmel zu berechnen.</string>
     <string name="chart_privacy_title">Von Grund auf privat</string>
     <string name="chart_privacy_body">Ihr Geburtsdatum wird nur gesendet, wenn Sie eine Berechnung anfordern. Diese App speichert es nicht in Ihrem Konto, den Geräteeinstellungen, Analysen oder im Inhaltsverlauf.</string>
     <string name="chart_limit_title">Aktuelle Genauigkeit</string>
-    <string name="chart_limit_body">Geburtszeit und -ort werden in dieser Beta nicht erfasst. Mond, Aszendent und Häuser werden ausgeschlossen statt geschätzt.</string>
+    <string name="chart_limit_body">In dieser Vorschau werden Geburtszeit und -ort nicht erfasst. Mond, Aszendent und Häuser werden nicht geschätzt.</string>
     <string name="chart_birthdate_label">Geburtsdatum</string>
     <string name="chart_birthdate_placeholder">Wählen Sie Ihr Geburtsdatum</string>
     <string name="chart_birthdate_action">Datum wählen</string>
@@ -387,4 +387,8 @@
     <string name="settings_mood_delete_dialog_body">Alle gespeicherten Stimmungseinträge und zugehörigen Ereignisse werden von unserem Server gelöscht. Konto und Geburtsprofil bleiben erhalten. Frühere Firebase-Analytics-Ereignisse bleiben bestehen.</string>
     <string name="settings_mood_delete_confirm">Stimmungsverlauf löschen</string>
     <string name="settings_mood_delete_progress">Stimmungsverlauf wird gelöscht…</string>
+    <string name="premium_insights_title">Mehr über dein Sternzeichen</string>
+    <string name="premium_insights_description">Erkunde Liebe, Beruf und Finanzen genauer, wenn du bereit bist.</string>
+    <string name="onboarding_step_progress">Schritt %1$d von %2$d</string>
+    <string name="onboarding_skip_notifications">Nicht jetzt, App entdecken</string>
 </resources>

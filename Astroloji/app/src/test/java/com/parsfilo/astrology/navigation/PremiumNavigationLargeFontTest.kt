@@ -57,11 +57,10 @@ class PremiumNavigationLargeFontTest {
         }
     }
 
-    @Test fun compact320dpNavigationHasAccessibleIconLabelsAtNormalFontScale() {
+    @Test fun compact320dpNavigationKeepsVisibleLabelsAtNormalFontScale() {
         render(1f, widthDp = 320)
         for (name in listOf("Home", "Compatibility", "Profile", "Premium")) {
-            rule.onNodeWithContentDescription(name, useUnmergedTree = true).assertExists()
-            rule.onNodeWithText(name, useUnmergedTree = true).assertDoesNotExist()
+            rule.onNodeWithText(name, useUnmergedTree = true).assertExists()
         }
     }
 
