@@ -165,6 +165,21 @@ function fakeClient({ failUploadAt = null } = {}) {
   };
 }
 
+function clientFrom(state) {
+  return {
+    packageName: state.packageName,
+    async createEdit() { return { id: 'edit-readback' }; },
+    async listListings() { return state.listings.map((listing) => ({ language: listing.locale })); },
+    async getListing(_editId, locale) { return state.listings.find((listing) => listing.locale === locale); },
+    async listImages(_editId, locale, imageType) {
+      return state.listings.find((listing) => listing.locale === locale).images[imageType] ?? [];
+    },
+    async getTrack(_editId, track) { return state.tracks[track] ?? { track, releases: [] }; },
+    async listSubscriptions() { return state.subscriptions; },
+    async deleteEdit() {},
+  };
+}
+
 test('backup confirmation is digest-bound and stale backups are rejected', () => {
   const backup = backupFixture();
   const backupDigest = digest(backup);
@@ -279,18 +294,6 @@ test('phone-only readback preserves backup state outside phone screenshots', asy
     );
   }
 
-  const clientFrom = (state) => ({
-    packageName: state.packageName,
-    async createEdit() { return { id: 'edit-readback' }; },
-    async listListings() { return state.listings.map((listing) => ({ language: listing.locale })); },
-    async getListing(_editId, locale) { return state.listings.find((listing) => listing.locale === locale); },
-    async listImages(_editId, locale, imageType) {
-      return state.listings.find((listing) => listing.locale === locale).images[imageType] ?? [];
-    },
-    async getTrack(_editId, track) { return state.tracks[track] ?? { track, releases: [] }; },
-    async listSubscriptions() { return state.subscriptions; },
-    async deleteEdit() {},
-  });
 
   assert.deepEqual(
     await verifySupportedPublishedState(clientFrom(live), proposed, {
@@ -700,4 +703,132 @@ test('publisher loads canonical state and exposes no release-note mutation path'
   assert.doesNotMatch(source, /PLAY_METADATA_ROOT/);
   assert.match(publishBody, /loadCanonicalPlayState\(resolvedRepositoryRoot\)/);
   assert.doesNotMatch(publishBody, /releaseNotesMutation|PLAY_METADATA_TRACK|updateTrack/);
+});
+
+test('phone-only publication creates missing language listings with feature graphic but preserves existing copy', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  proposed.locales.splice(1, 0, 'fr-FR');
+  proposed.listings['fr-FR'] = {
+    ...proposed.listings['en-US'],
+    title: 'Astrologie : horoscope',
+    shortDescription: 'Votre horoscope.',
+    fullDescription: 'Présentation française.',
+  };
+  const client = fakeClient();
+  const existing = new Set(backup.listings.map((listing) => listing.locale));
+  const originalDelete = client.deleteAllImages;
+  client.deleteAllImages = async (editId, locale, imageType) => {
+    const created = client.calls.some((call) => call[0] === 'updateListing' && call[2] === locale);
+    if (!existing.has(locale) && !created) {
+      throw new Error('Play API no-op: locale not yet created');
+    }
+    return originalDelete(editId, locale, imageType);
+  };
+
+  await publishPreparedMetadata({
+    client,
+    backup,
+    backupDigest,
+    confirmation: backupConfirmation(backupDigest),
+    proposed,
+    imageTypes: new Set(['phoneScreenshots']),
+    now: new Date('2026-08-06T15:10:00.000Z'),
+    independentReadback: async () => [],
+  });
+
+  const listed = client.calls.filter((call) => call[0] === 'updateListing');
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0][2], 'fr-FR');
+  assert.equal(listed[0][3].title, 'Astrologie : horoscope');
+  assert.deepEqual(
+    client.calls.filter((call) => call[0] === 'deleteAllImages').map((call) => [call[2], call[3]]),
+    [
+      ['en-US', 'phoneScreenshots'],
+      ['fr-FR', 'phoneScreenshots'],
+      ['fr-FR', 'featureGraphic'],
+      ['tr-TR', 'phoneScreenshots'],
+    ],
+  );
+  assert.equal(client.calls.filter((call) => call[0] === 'uploadImage').length, 19);
+  assert.ok(client.calls.some((call) => call[0] === 'commitEdit'));
+});
+
+test('phone-only readback accepts new locale while detecting existing copy drift', async () => {
+  const proposed = proposedFixture();
+  proposed.locales.push('fr-FR');
+  proposed.listings['fr-FR'] = {
+    ...proposed.listings['en-US'],
+    title: 'Astrologie : horoscope',
+    shortDescription: 'Votre horoscope.',
+    fullDescription: 'Présentation française.',
+  };
+  const backup = backupFixture();
+  const live = structuredClone(backup);
+  live.listings.push({
+    locale: 'fr-FR',
+    title: proposed.listings['fr-FR'].title,
+    shortDescription: proposed.listings['fr-FR'].shortDescription,
+    fullDescription: proposed.listings['fr-FR'].fullDescription,
+    images: proposed.listings['fr-FR'].images,
+  });
+  for (const listing of live.listings) {
+    listing.images.phoneScreenshots = proposed.listings[listing.locale].images.phoneScreenshots;
+  }
+  assert.deepEqual(
+    await verifySupportedPublishedState(clientFrom(live), proposed, {
+      imageTypes: new Set(['phoneScreenshots']), baseline: backup,
+    }),
+    [],
+  );
+  const copiedWrong = structuredClone(live);
+  copiedWrong.listings.find((listing) => listing.locale === 'en-US').fullDescription = 'Modified without permission';
+  const errors = await verifySupportedPublishedState(clientFrom(copiedWrong), proposed, {
+    imageTypes: new Set(['phoneScreenshots']), baseline: backup,
+  });
+  assert.ok(errors.some((error) => /Listing drift.*en-US.*fullDescription/i.test(error)));
+});
+
+test('new locale feature graphic hash is required before creating a Play edit', async () => {
+  const proposed = proposedFixture();
+  proposed.locales.push('fr-FR');
+  proposed.listings['fr-FR'] = { ...proposed.listings['en-US'],
+    images: { ...proposed.listings['en-US'].images, featureGraphic: [{ sha256: 'invalid' }] },
+  };
+  const backup = backupFixture();
+  const client = fakeClient();
+  await assert.rejects(publishPreparedMetadata({
+    client,
+    backup,
+    backupDigest: digest(backup),
+    confirmation: backupConfirmation(digest(backup)),
+    proposed,
+    imageTypes: new Set(['phoneScreenshots']),
+    now: new Date('2026-08-06T15:10:00.000Z'),
+    independentReadback: async () => [],
+  }), /valid sha-256/i);
+  assert.equal(client.calls.length, 0);
+});
+
+test('new locale with no feature graphic is rejected before edit creation', async () => {
+  const proposed = proposedFixture();
+  proposed.locales.push('fr-FR');
+  proposed.listings['fr-FR'] = {
+    ...proposed.listings['en-US'],
+    images: { ...proposed.listings['en-US'].images, featureGraphic: [] },
+  };
+  const backup = backupFixture();
+  const client = fakeClient();
+  await assert.rejects(publishPreparedMetadata({
+    client,
+    backup,
+    backupDigest: digest(backup),
+    confirmation: backupConfirmation(digest(backup)),
+    proposed,
+    imageTypes: new Set(['phoneScreenshots']),
+    now: new Date('2026-08-06T15:10:00.000Z'),
+    independentReadback: async () => [],
+  }), /requires a feature graphic/i);
+  assert.equal(client.calls.length, 0);
 });
