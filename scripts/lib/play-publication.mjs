@@ -140,12 +140,14 @@ export function assertBackupRestorable(backup) {
   }
 }
 
-async function verifyEditLocalState(client, editId, proposed, imageTypes = new Set(IMAGE_TYPES)) {
+async function verifyEditLocalState(client, editId, proposed, imageTypes = new Set(IMAGE_TYPES), backup) {
   const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
   const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
+  const existingLocales = new Set((backup?.listings ?? []).map((listing) => listing.locale));
   for (const locale of proposed.locales) {
     const expectedListing = proposed.listings[locale];
-    if (!phoneOnly) {
+    const isNewLocale = phoneOnly && !existingLocales.has(locale);
+    if (!phoneOnly || isNewLocale) {
       const actualListing = await client.getListing(editId, locale);
       for (const field of ['title', 'shortDescription', 'fullDescription']) {
         if (normalizeText(actualListing[field]) !== normalizeText(expectedListing[field])) {
@@ -154,7 +156,12 @@ async function verifyEditLocalState(client, editId, proposed, imageTypes = new S
       }
     }
 
-    for (const imageType of normalizedImageTypes) {
+    // Newly created locales also require their feature graphics; existing
+    // listing copy, icon, and feature graphic must remain untouched.
+    const verifiedTypes = isNewLocale
+      ? new Set([...normalizedImageTypes, 'featureGraphic'])
+      : normalizedImageTypes;
+    for (const imageType of verifiedTypes) {
       const expectedImages = expectedListing.images[imageType] ?? [];
       const actualImages = await client.listImages(editId, locale, imageType);
       if (actualImages.length !== expectedImages.length) {
@@ -173,12 +180,14 @@ async function verifyEditLocalState(client, editId, proposed, imageTypes = new S
   }
 }
 
-async function applyProposedState(client, editId, proposed, imageTypes = new Set(IMAGE_TYPES)) {
+async function applyProposedState(client, editId, proposed, imageTypes = new Set(IMAGE_TYPES), backup) {
   const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
   const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
+  const existingLocales = new Set((backup?.listings ?? []).map((listing) => listing.locale));
   for (const locale of proposed.locales) {
     const listing = proposed.listings[locale];
-    if (!phoneOnly) {
+    const isNewLocale = phoneOnly && !existingLocales.has(locale);
+    if (!phoneOnly || isNewLocale) {
       await client.updateListing(editId, locale, {
         language: locale,
         title: listing.title,
@@ -187,7 +196,10 @@ async function applyProposedState(client, editId, proposed, imageTypes = new Set
       });
     }
 
-    for (const imageType of normalizedImageTypes) {
+    const publishedTypes = isNewLocale
+      ? new Set([...normalizedImageTypes, 'featureGraphic'])
+      : normalizedImageTypes;
+    for (const imageType of publishedTypes) {
       await client.deleteAllImages(editId, locale, imageType);
       for (const image of listing.images[imageType] ?? []) {
         await client.uploadImage(editId, locale, imageType, image.filePath);
@@ -213,6 +225,20 @@ export async function publishPreparedMetadata({
   const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
   const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
   assertProposedImageHashes(proposed, normalizedImageTypes);
+  if (phoneOnly) {
+    const existingLocales = new Set((backup.listings ?? []).map((listing) => listing.locale));
+    for (const locale of proposed.locales) {
+      if (!existingLocales.has(locale)) {
+        // An image upload to a language without a listing is a Play API no-op.
+        // Preflight the feature graphic needed by a newly created listing.
+        const graphics = proposed.listings[locale].images.featureGraphic ?? [];
+        if (graphics.length === 0) {
+          throw new Error(`New supported locale ${locale} requires a feature graphic.`);
+        }
+        sortedHashes(graphics, `${locale}/featureGraphic`);
+      }
+    }
+  }
   assertFreshBackup(backup, { now, maxAgeMinutes });
   assertConfirmation(confirmation, backupConfirmation(backupDigest));
   const diff = buildPlayDiff(backup, proposed);
@@ -226,11 +252,11 @@ export async function publishPreparedMetadata({
   const edit = await client.createEdit();
   let committed = false;
   try {
-    await applyProposedState(client, edit.id, proposed, normalizedImageTypes);
+    await applyProposedState(client, edit.id, proposed, normalizedImageTypes, backup);
     if (!phoneOnly) {
       await additionalEditMutation(client, edit.id);
     }
-    await verifyEditLocalState(client, edit.id, proposed, normalizedImageTypes);
+    await verifyEditLocalState(client, edit.id, proposed, normalizedImageTypes, backup);
     await client.commitEdit(edit.id, {
       changesNotSentForReview,
       changesInReviewBehavior: 'ERROR_IF_IN_REVIEW',
@@ -456,7 +482,9 @@ function scopedExpectedPublishedState(proposed, baseline, imageTypes) {
   const expected = backupAsProposed(baseline);
   for (const locale of proposed.locales) {
     if (!expected.listings[locale]) {
-      throw new Error(`Approved backup is missing supported locale ${locale}.`);
+      // New locales are created with their canonical text and feature graphic.
+      expected.listings[locale] = structuredClone(proposed.listings[locale]);
+      continue;
     }
     expected.listings[locale].images.phoneScreenshots =
       proposed.listings[locale].images.phoneScreenshots;
