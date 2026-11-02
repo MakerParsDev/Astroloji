@@ -62,8 +62,8 @@ test('runner exposes safe argument, bounds, screenshot, and navigation contracts
   assert.match(source, /assertApkPackage/);
   assert.match(source, /timeout: options\.timeoutMs \?\? 120_000/);
   assert.match(source, /killSignal: 'SIGKILL'/);
-  assert.match(source, /monthlyReady: 'Aylık detaylar premium ile açılır\.'/);
-  assert.match(source, /monthlyReady: 'Monthly details unlock with premium\.'/);
+  assert.match(source, /monthlyReady: 'Genel'/);
+  assert.match(source, /monthlyReady: 'Overview'/);
   assert.doesNotMatch(source, /pm['"],\s*['"]clear/);
 });
 
@@ -107,8 +107,8 @@ test('mocked capture preserves production and writes six validated PNGs', async 
   t.after(() => fs.rmSync(outputDir, { recursive: true, force: true }));
   const apk = path.resolve('/tmp/app-storeQa.apk');
   const allText = [
-    'Bugünün Yorumu', 'Haftalık', 'Genel', 'Ana Sayfa', 'Aylık', 'Aylık detaylar premium ile açılır.',
-    'Uyum', 'Uyum Analizi', 'Profil', 'Premium Durumu', 'Premium', 'Sınırsız Astroloji',
+    'Bugünün Yorumu', 'Hızlı erişim', 'Haftalık', 'Genel', 'Ana Sayfa', 'Aylık', 'Aylık detaylar premium ile açılır.',
+    'Uyum', 'Uyum Analizi', 'Profil', 'Kişisel Rehber Önizlemesi', 'Premium', 'Sınırsız Astroloji',
   ];
   const initiallyVisible = allText.filter((text) => !['Haftalık', 'Aylık'].includes(text));
   let scrolled = false;
@@ -191,9 +191,9 @@ test('failed isolated capture never overwrites previously approved screenshots',
   const original = fs.readFileSync(approved);
   let captured = 0;
   const allText = [
-    'Bugünün Yorumu', 'Haftalık', 'Genel', 'Ana Sayfa', 'Aylık',
+    'Bugünün Yorumu', 'Hızlı erişim', 'Haftalık', 'Genel', 'Ana Sayfa', 'Aylık',
     'Aylık detaylar premium ile açılır.', 'Uyum', 'Uyum Analizi', 'Profil',
-    'Premium Durumu', 'Premium', 'Sınırsız Astroloji',
+    'Kişisel Rehber Önizlemesi', 'Premium', 'Sınırsız Astroloji',
   ];
   const xml = `<hierarchy>${allText.map((value) => `<node text="${value}" clickable="true" bounds="[10,20][210,120]"/>`).join('')}</hierarchy>`;
   const adb = async (_serial, args) => {

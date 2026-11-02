@@ -29,7 +29,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "c8c3b9966fe99d9809e06d3cc5a7c0d0b6a495d24ff039653a0f4874bd7e9342"
+      "sha256": "8e4752b0d04295a8333e8757deb70b5a45835de6033d778f596e2addc08f0677"
     },
     {
       "locale": "en-US",
@@ -39,7 +39,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "dcc7d8ee67ad8ea5292ed28dfe24c6bfedf0b244959ff1a3806b014c4dd7b03e"
+      "sha256": "323537f54d4a27c62dc20b4e7e4abafae26bfadf13f17dcd20fe00b41eddb775"
     },
     {
       "locale": "en-US",
@@ -49,7 +49,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "08620fc4dff596a955dd55f2677fbb45e7cf1c1de48fb23034bac624762a0ab7"
+      "sha256": "b3d77e154036df009107e15889036ef7af26549a7aa8ab86996d4838bbc5cb04"
     },
     {
       "locale": "en-US",
@@ -59,7 +59,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "a8a00b49eaf77c71a76139c99db066c12c510e64f7096d3f612204ecb5c6108a"
+      "sha256": "3dfe842f4e8bd338464d5d44836c9f6e28847a4797c8ed93a82989874dad3ddb"
     },
     {
       "locale": "en-US",
@@ -69,7 +69,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "c75efaeb6f8f5872840a8ed2859fad260f8d8eca1f2c8c53e05031ebec107455"
+      "sha256": "b647b2f6fbad43f984a41daa059498083f199a0338f4e29ecbaff0f844884852"
     },
     {
       "locale": "en-US",
@@ -79,7 +79,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "587cecdb9adac3ccdcf8499e9a6210374c04bc86a8176f35939d93ca97ac6ef8"
+      "sha256": "ef3ce2e6a8f995d523f4bc0ff0c9a397c7fc1aa668344a4ef9b63e2cb95d8b6c"
     },
     {
       "locale": "tr-TR",
@@ -99,7 +99,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "4ca8153d4ca06021c966746bec570b761bc60eb53a361f13c58b9752d8a39990"
+      "sha256": "245f5b4d50414cf4d0167f805bc19f3688ba663f314fecf5362a04af6085b75b"
     },
     {
       "locale": "tr-TR",
@@ -109,7 +109,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "86c309f007934670120b5dec3780e3bbf73fbea0f3242b0fd4c5565082e003cf"
+      "sha256": "c92bc56e35507664bcc64747df8f54949857fbd3104244aec2fff64ba442c608"
     },
     {
       "locale": "tr-TR",
@@ -119,7 +119,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "42e65e57ce032089e4e58a74535bcd52dc4a405f3e7ca692421606fadc603a45"
+      "sha256": "a94c2b7b1f79644050652097eaf0241373b79e31b8dd02145058237ea2ff2977"
     },
     {
       "locale": "tr-TR",
@@ -129,7 +129,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "c7516e2939e20a17792747498c0e65d9168b07134094915f09d6ba79bff45b92"
+      "sha256": "b1038c906c7edd9c47f819f58e67460c53dab865f3ab5834fb0436e4d08d2539"
     },
     {
       "locale": "tr-TR",
@@ -139,7 +139,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "a3d4de5e92fdb1d14de7897eceda18b1662ab89b55f674419b816d28e83d4568"
+      "sha256": "d3ff668ad1ed64c9b4a4e5b64d1c085218064587b4f3955319deb05ea4401389"
     },
     {
       "locale": "tr-TR",
@@ -149,7 +149,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "db3ca9c66ddaaf71de8585b9f3ae55a9f2657f941e22594cd164b2fba697135b"
+      "sha256": "69e647930f8e2520b5da1ab6887fcabc0bbdedd6b3b0eb22c93cc1659cc2d40b"
     },
     {
       "locale": "es-ES",
@@ -169,7 +169,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "ba982a5ecadbcfb88df80b35ffbd108728c8956be4a8052d8ee4344319c22515"
+      "sha256": "c331959778594e2de7d23c89d531d439d960edfaab5c71c77713deac1d5da970"
     },
     {
       "locale": "es-ES",
@@ -179,7 +179,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "36582438cc24ab0f4ac14c18cde0799a30121ce989f0957787a4875f8a045f7d"
+      "sha256": "42b4416b0ce9af358a5bc317e872b33ece1659a4bbc5f14074d6ac8c54e7348d"
     },
     {
       "locale": "es-ES",
@@ -189,7 +189,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "d2be81da365d45c7a149a9c19bed473d7b48d70926904ae64ccafca134ca85b5"
+      "sha256": "84b8d659e5815fb79a59806e13f527900f4c3caeb0b23240ba9d78f5665c2b90"
     },
     {
       "locale": "es-ES",
@@ -199,7 +199,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "4ce001382a65621af92d7ffff75c4ba1c5b65a42bb23f6050428e60694832d09"
+      "sha256": "24cbb638774c9a3e36907303f098dc395f623a8b743947e47050e2a12fa7d29e"
     },
     {
       "locale": "es-ES",
@@ -209,7 +209,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "98f44402686aa2bc470979e26941a2085c49f285f4fa5bffde0d725f4f5d47da"
+      "sha256": "05dafa17da7bf31c80b252d55a75b579bb13ce42cccc15a8c82b84c712ec47e1"
     },
     {
       "locale": "es-ES",
@@ -219,7 +219,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "e54f6753847460fabe4048795b8af211dd03bfe68ae9e075bc1590af45a668e3"
+      "sha256": "b368f882ecb857255b9a57948497751d9751edf2f85fffbb4a09db0693d2bb7c"
     },
     {
       "locale": "pt-BR",
@@ -239,7 +239,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "a09f8babcada17830eb4e2e2e61dcbf6db53e2da2342a5f3bde2a1a7b7ac683d"
+      "sha256": "621bef5d6959bb9a4426945a27967c2e6bb7dc6ccb0b09d3be69b62b9f1e6481"
     },
     {
       "locale": "pt-BR",
@@ -249,7 +249,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "d8dbfd6d90223ab51068bdde943116efa77972281c4bd896914737849ec51506"
+      "sha256": "777cb8879514e3d351839f9331178f846ce0a398923d376ba103e41a7d791bbc"
     },
     {
       "locale": "pt-BR",
@@ -259,7 +259,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "5bd98536bed1a3876f192cf3bfec898d0c79fb1938e1c2bf7133acf3125acece"
+      "sha256": "1a3c1c87985cfa94c49d3a8e7cc182a1c1c99e0f62cd2f096375ef4c01b94eb6"
     },
     {
       "locale": "pt-BR",
@@ -269,7 +269,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "7b0ce9d7a90200f06eeb3d8636a4d34b2a8b39bc58f4fc7dc46324c58638ac96"
+      "sha256": "8449ef9a873abd8e409d1d1c4aa52cb848a650334c14298a1b6816b989f9f8c6"
     },
     {
       "locale": "pt-BR",
@@ -279,7 +279,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "f849ad9af8ed2c3d2db79e02109a81f33508f64c69793365320789df819307e9"
+      "sha256": "a794b4040496e3c3fe2c4dcaed0cbcd3039b8120a154f2367c1eefc44f712aea"
     },
     {
       "locale": "pt-BR",
@@ -289,7 +289,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "bad562f8a908403378c29938ed5d6e6f087553f999967887c8e4e57a39026236"
+      "sha256": "6a6d86c536f8248882cdd259c080178ae4ea7c5b9571f5ff4380997d768298d1"
     },
     {
       "locale": "de-DE",
@@ -309,7 +309,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "98d7026739864152f94cfd24fc715c73e83847d4534336343e2bec1872f26da7"
+      "sha256": "b854eb5a03216bec18fd217996c33d97c76855f2cc59d9da6bab5d9f5f1967b9"
     },
     {
       "locale": "de-DE",
@@ -319,7 +319,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "c9bbf500e78254294097609d2a065a4310ef231f6e3ca0b29bf456fe21eeb396"
+      "sha256": "9cc5efde7fb8f5f58b128c6e7d8598ad59ceafa1b0175a30112272ea71b637e7"
     },
     {
       "locale": "de-DE",
@@ -329,7 +329,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "f5669193f5852450020f66cb72d1f6a5bd71580a4ca28f0e822444372579c75c"
+      "sha256": "03d50dbe1ac0350d92c490e22f2d13937683344972545f919853bd86cb13a286"
     },
     {
       "locale": "de-DE",
@@ -339,7 +339,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "f08ef1869300780133e3f8e50754758a1a8c3c4fb9020322b58f2b61886c8008"
+      "sha256": "c15303189be0851e949b7f5e0305008ef0728f7b0b2b328b3d526fad83a92527"
     },
     {
       "locale": "de-DE",
@@ -349,7 +349,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "eff6e47569090b342923021cfbce375b46bb8269f86b25c6240252a095a50e45"
+      "sha256": "fda961347779258af8d7c3fa9865e277189171a78fca8023fb317ef5f1cb5725"
     },
     {
       "locale": "de-DE",
@@ -359,7 +359,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "c5339e97868c05dd7468f9793abfe9c4286d4ec8d7f574e0557e7b6993eee6b0"
+      "sha256": "6a92d8ace90bb5d139fb35317a0a9808e97e7226b3f7e4fa3df46e51ec27aad6"
     },
     {
       "locale": "fr-FR",
@@ -379,7 +379,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "41fff075df9ce99b1da98a95079ffa30dbce0e17dd73b2d1223d711682c8a17c"
+      "sha256": "9d664dbdfa07c7efcbf9db9ca982639577dbbff63944f69ed5ec3edc17a647a7"
     },
     {
       "locale": "fr-FR",
@@ -389,7 +389,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "abf4671d01b9567f712ba3d23bb1d9171f516801286957dd07ba5b1c0dd50705"
+      "sha256": "611949d8de2781983c655f1f6af011f0c37c32a88f77b11e584d5ccf6be42b78"
     },
     {
       "locale": "fr-FR",
@@ -399,7 +399,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "b9ed1c65c0079f1c14b7e7c1c8c54a1799ef567b1cc0a315cc4b58d644e1f80e"
+      "sha256": "7604ed50f828a7b43afa5294c3051e75b22383d9d1a8200c202f457c2c27f7c2"
     },
     {
       "locale": "fr-FR",
@@ -409,7 +409,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "5de0011557fc178e394c60b1e1589135b39086b0f81c3600b977c4d266d1ed92"
+      "sha256": "6245bb82034de9856123fe07ca266ba4709c98e71d9b01720cb6f94502910622"
     },
     {
       "locale": "fr-FR",
@@ -419,7 +419,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "680fa46adaf8cb63a9746dca542500fcf82b15ebdc9261e1aadae561f48482d7"
+      "sha256": "4cb593ffa457452858dc9810fb6f75fdec7ef2ff320ebe3a86683f73faf33592"
     },
     {
       "locale": "fr-FR",
@@ -429,7 +429,7 @@
       "format": "png",
       "width": 1080,
       "height": 2400,
-      "sha256": "81cbb35fbee0ee7f83aa19cca400e8990c5772e802708e992136025cb1b64b78"
+      "sha256": "c66fef3d3ecc1f636bae4e17e4ce5ce180b4662d9f9864d7762d91d566948c7f"
     }
   ]
 }

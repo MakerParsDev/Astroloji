@@ -1,6 +1,7 @@
 package com.parsfilo.astrology.feature.compatibility
 
 import androidx.lifecycle.viewModelScope
+import com.parsfilo.astrology.BuildConfig
 import com.parsfilo.astrology.core.ads.AdEligibilityChecker
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
@@ -59,7 +60,9 @@ class CompatibilityViewModel
                         favorites = favorites,
                     )
                 }
-                onEvent(CompatibilityUiEvent.Load)
+                // The isolated storeQa variant has no authenticated user session.
+                // Show the actual selector without pretending to have a match score.
+                if (!BuildConfig.STORE_SCREENSHOT_QA) onEvent(CompatibilityUiEvent.Load)
             }
         }
 
@@ -74,7 +77,7 @@ class CompatibilityViewModel
 
         private fun selectSign(sign: String) {
             setState { copy(selectedSign = sign) }
-            loadCompatibility()
+            if (!BuildConfig.STORE_SCREENSHOT_QA) loadCompatibility()
         }
 
         private fun toggleFavorite() {

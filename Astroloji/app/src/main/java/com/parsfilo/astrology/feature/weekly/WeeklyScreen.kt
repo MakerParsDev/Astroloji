@@ -3,6 +3,7 @@ package com.parsfilo.astrology.feature.weekly
 import android.app.Activity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -38,6 +39,7 @@ import com.parsfilo.astrology.core.ui.components.CosmicBackground
 import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.ui.components.PremiumHeroCard
+import com.parsfilo.astrology.core.ui.components.PremiumLockedLabel
 import com.parsfilo.astrology.core.ui.components.PremiumUnlockCallout
 import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
@@ -257,8 +259,15 @@ private fun WeeklySectionCard(
     rewardLabel: String = "",
 ) {
     AstrologyCard {
-        Text(text = title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(text = body, style = MaterialTheme.typography.bodyLarge)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (locked) PremiumLockedLabel()
+        }
+        if (!locked) Text(text = body, style = MaterialTheme.typography.bodyLarge)
         if (locked) {
             rewardAction?.let { unlockWithReward ->
                 OutlinedButton(onClick = unlockWithReward) {
