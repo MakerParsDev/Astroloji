@@ -3,7 +3,7 @@
 package com.parsfilo.astrology.navigation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +33,7 @@ internal fun PremiumNavigationBar(
     items: List<PremiumNavigationItem>,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(
+    Box(
         modifier =
             modifier
                 .fillMaxWidth()
