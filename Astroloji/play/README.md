@@ -4,12 +4,10 @@ Bu klasör Google Play mağaza metinleri, sürüm notları ve global yayın yap�
 
 ## Desteklenen diller
 
-`store-config.json`, Android uygulamasının `locales_config.xml` dosyasıyla birebir eşleşen mağaza dillerini tanımlar. İlk global kalite aşamasında yalnızca:
-
-- `en-US`
-- `tr-TR`
-
-desteklenir. Android uygulamasında bulunmayan bir dil için Play listing yayımlanamaz.
+Mağaza ve Android dil sözleşmesi altı yerel ayarı destekler: tr-TR, en-US,
+es-ES, pt-BR, de-DE ve fr-FR. Bu listedeki bir dilin kaynakta hazır olması,
+ilgili mağaza kaydının Play'de zaten yayınlandığı anlamına gelmez.
+Canlı diller ve görseller, her işlemden önce yeni Play yedeği ile doğrulanır.
 
 ## Yapı
 
@@ -43,4 +41,11 @@ Mutation sonrası `ENABLE_METADATA_PUBLISH` kapısının gerçekten `false` duru
 
 Yeni Play backup şeması canonical `defaultLocale` değerini (`tr-TR`) açıkça kaydeder. `defaultLocale` veya doğrulanabilir SHA-256 bilgisi taşımayan eski backup dosyaları tarihsel kanıt olarak tutulabilir ancak guarded restore apply için kullanılmaz; restore öncesi yeni backup alınır.
 
-Canlı production release `1102` şu anda `completed` / `1.0` (100%) olarak okunmaktadır. `store-config.json` içindeki `0.1` değeri metadata yayın güvenlik sözleşmesidir; metadata araçları production rollout'u değiştirmez ve bu drift çözülmeden publish/cleanup mutasyonu açmaz.
+Production sürümü, inceleme durumu ve rollout oranı değişkendir. Bu belgedeki
+eski sürüm örneklerini yayın izni veya canlı durum kanıtı olarak kullanmayın.
+Her metadata işlemi öncesinde Google Play Console'daki gerçek Production
+sürümünü, inceleme durumunu ve yeni backup/diff sonucunu yeniden doğrulayın.
+İncelemede olan bir sürüm varken yeni Play değişikliği göndermeyin.
+
+Yayın öncesi ASO taslakları ve sürüm-görsel uyumluluk kontrolü için
+docs/PLAY_ASO_PRELAUNCH_2026-11-02.md belgesini inceleyin.
