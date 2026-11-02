@@ -165,6 +165,21 @@ function fakeClient({ failUploadAt = null } = {}) {
   };
 }
 
+function clientFrom(state) {
+  return {
+    packageName: state.packageName,
+    async createEdit() { return { id: 'edit-readback' }; },
+    async listListings() { return state.listings.map((listing) => ({ language: listing.locale })); },
+    async getListing(_editId, locale) { return state.listings.find((listing) => listing.locale === locale); },
+    async listImages(_editId, locale, imageType) {
+      return state.listings.find((listing) => listing.locale === locale).images[imageType] ?? [];
+    },
+    async getTrack(_editId, track) { return state.tracks[track] ?? { track, releases: [] }; },
+    async listSubscriptions() { return state.subscriptions; },
+    async deleteEdit() {},
+  };
+}
+
 test('backup confirmation is digest-bound and stale backups are rejected', () => {
   const backup = backupFixture();
   const backupDigest = digest(backup);
@@ -279,18 +294,6 @@ test('phone-only readback preserves backup state outside phone screenshots', asy
     );
   }
 
-  const clientFrom = (state) => ({
-    packageName: state.packageName,
-    async createEdit() { return { id: 'edit-readback' }; },
-    async listListings() { return state.listings.map((listing) => ({ language: listing.locale })); },
-    async getListing(_editId, locale) { return state.listings.find((listing) => listing.locale === locale); },
-    async listImages(_editId, locale, imageType) {
-      return state.listings.find((listing) => listing.locale === locale).images[imageType] ?? [];
-    },
-    async getTrack(_editId, track) { return state.tracks[track] ?? { track, releases: [] }; },
-    async listSubscriptions() { return state.subscriptions; },
-    async deleteEdit() {},
-  });
 
   assert.deepEqual(
     await verifySupportedPublishedState(clientFrom(live), proposed, {
@@ -773,18 +776,6 @@ test('phone-only readback accepts new locale while detecting existing copy drift
   for (const listing of live.listings) {
     listing.images.phoneScreenshots = proposed.listings[listing.locale].images.phoneScreenshots;
   }
-  const clientFrom = (state) => ({
-    packageName: state.packageName,
-    async createEdit() { return { id: 'readback-new-locales' }; },
-    async listListings() { return state.listings.map((listing) => ({ language: listing.locale })); },
-    async getListing(_editId, locale) { return state.listings.find((listing) => listing.locale === locale); },
-    async listImages(_editId, locale, imageType) {
-      return state.listings.find((listing) => listing.locale === locale).images[imageType] ?? [];
-    },
-    async getTrack(_editId, track) { return state.tracks[track] ?? { track, releases: [] }; },
-    async listSubscriptions() { return state.subscriptions; },
-    async deleteEdit() {},
-  });
   assert.deepEqual(
     await verifySupportedPublishedState(clientFrom(live), proposed, {
       imageTypes: new Set(['phoneScreenshots']), baseline: backup,
