@@ -8,6 +8,7 @@ import {
   jwtAuthMiddleware
 } from '@/middleware/auth';
 import { corsMiddleware } from '@/middleware/cors';
+import { renderAppHomepage } from '@/pages/home';
 import { renderAccountDeletion, renderPrivacyPolicy, renderTermsOfUse } from '@/pages/legal';
 import { parseShareSign, renderCompatibilityShare, renderDailyShare } from '@/pages/share';
 import { enforceStrictRateLimit, mapStrictRateLimitResult, RATE_LIMIT_POLICIES } from '@/services/rateLimit';
@@ -85,6 +86,7 @@ export function createApp(options: CreateAppOptions = {}) {
     return new Response(html, { status: 200, headers });
   };
 
+  app.get('/', () => renderHtmlPage(renderAppHomepage()));
   app.get('/privacy', () => renderHtmlPage(renderPrivacyPolicy()));
   app.get('/terms', () => renderHtmlPage(renderTermsOfUse()));
   app.get('/delete-account', () => renderHtmlPage(renderAccountDeletion()));
