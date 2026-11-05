@@ -763,6 +763,83 @@ describe('user routes', () => {
     }
   );
 
+  it.each(['KV', 'R2'] as const)(
+    'fails closed when %s pagination repeats the same cursor',
+    async (storage) => {
+      const { db, batched } = createDeletionDb();
+      const list = vi.fn(async () => {
+        // Bound the mock to expose a real infinite-pagination regression
+        // without allowing a test process to hang.
+        if (list.mock.calls.length > 2) {
+          throw new Error('Repeated pagination cursor was not rejected.');
+        }
+        return storage === 'KV'
+          ? { keys: [], list_complete: false, cursor: 'repeated-cursor' }
+          : { objects: [], truncated: true, cursor: 'repeated-cursor' };
+      });
+      const env = createTestEnv({
+        DB: db,
+        ...(storage === 'KV'
+          ? { CACHE: { list } as unknown as KVNamespace }
+          : { CONTENT: { list } as unknown as R2Bucket })
+      });
+      const token = await signAppJwt(env, {
+        userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
+      });
+      const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      const response = await createApp().request('/api/v1/users/me', {
+        method: 'DELETE', headers: { authorization: `Bearer ${token}` }
+      }, env);
+      expect(response.status).toBe(503);
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(batched).toEqual([]);
+      expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
+      expect(log).toHaveBeenCalledOnce();
+    }
+  );
+
+  it.each(['KV', 'R2'] as const)(
+    'completes %s cleanup across distinct pagination cursors',
+    async (storage) => {
+      const { db, batched } = createDeletionDb();
+      const prefix = storage === 'KV' ? 'reward:user-1:' : 'deep-reading/user-1/';
+      const deleted: string[] = [];
+      const list = vi.fn(async ({ cursor }: { cursor?: string }) => {
+        const key = prefix + (cursor ? 'second' : 'first');
+        return storage === 'KV'
+          ? {
+              keys: [{ name: key }], list_complete: Boolean(cursor),
+              ...(cursor ? {} : { cursor: 'next-page' })
+            }
+          : {
+              objects: [{ key }], truncated: !cursor,
+              ...(cursor ? {} : { cursor: 'next-page' })
+            };
+      });
+      const remove = vi.fn(async (key: string) => { deleted.push(key); });
+      const env = createTestEnv({
+        DB: db,
+        ...(storage === 'KV'
+          ? { CACHE: { list, delete: remove } as unknown as KVNamespace }
+          : { CONTENT: { list, delete: remove } as unknown as R2Bucket })
+      });
+      const token = await signAppJwt(env, {
+        userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
+      });
+      const response = await createApp().request('/api/v1/users/me', {
+        method: 'DELETE', headers: { authorization: 'Bearer ' + token }
+      }, env);
+      expect(response.status).toBe(200);
+      expect(list).toHaveBeenCalledTimes(2);
+      expect(list).toHaveBeenNthCalledWith(1, { prefix });
+      expect(list).toHaveBeenNthCalledWith(2, { prefix, cursor: 'next-page' });
+      expect(deleted).toEqual([prefix + 'first', prefix + 'second']);
+      expect(batched.length).toBeGreaterThan(0);
+      expect(deleteFirebaseUserMock).toHaveBeenCalledOnce();
+    }
+  );
+
   it('executes Firebase deletion before the final database transaction', async () => {
     const { db } = createDeletionDb();
     const order: string[] = [];

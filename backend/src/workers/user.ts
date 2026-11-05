@@ -118,6 +118,7 @@ async function upsertNotificationTarget(
 
 async function deleteKvKeysByPrefix(cache: KVNamespace, prefix: string): Promise<void> {
   let cursor: string | undefined;
+  const seenCursors = new Set<string>();
 
   do {
     const page = await cache.list({
@@ -129,15 +130,17 @@ async function deleteKvKeysByPrefix(cache: KVNamespace, prefix: string): Promise
     if (page.list_complete) {
       return;
     }
-    if (!page.cursor) {
-      throw new Error('Incomplete KV listing has no continuation cursor.');
+    if (!page.cursor || seenCursors.has(page.cursor)) {
+      throw new Error('KV listing has no new continuation cursor.');
     }
+    seenCursors.add(page.cursor);
     cursor = page.cursor;
   } while (cursor);
 }
 
 async function deleteR2KeysByPrefix(bucket: R2Bucket, prefix: string): Promise<void> {
   let cursor: string | undefined;
+  const seenCursors = new Set<string>();
 
   do {
     const page = await bucket.list({
@@ -149,9 +152,10 @@ async function deleteR2KeysByPrefix(bucket: R2Bucket, prefix: string): Promise<v
     if (!page.truncated) {
       return;
     }
-    if (!page.cursor) {
-      throw new Error('Incomplete R2 listing has no continuation cursor.');
+    if (!page.cursor || seenCursors.has(page.cursor)) {
+      throw new Error('R2 listing has no new continuation cursor.');
     }
+    seenCursors.add(page.cursor);
     cursor = page.cursor;
   } while (cursor);
 }
