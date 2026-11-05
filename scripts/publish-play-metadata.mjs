@@ -9,6 +9,7 @@ import { selectRelevantRelease } from './lib/play-release.mjs';
 import {
   assertBackupMatchesLiveState,
   backupConfirmation,
+  listingCopyConfirmation,
   publishPreparedMetadata,
   readBackupFile,
   verifySupportedPublishedState,
@@ -96,11 +97,13 @@ export async function publishPlayMetadata({
   now = new Date(),
 } = {}) {
   if (!backupPath) throw new Error('Provide a fresh backup with --backup=<absolute-path>.');
-  const imageTypes = parseImageScope(imageScope);
+  const imageTypes = imageScope === 'listingCopy' ? new Set() : parseImageScope(imageScope);
   const resolvedRepositoryRoot = path.resolve(repositoryRoot);
 
   const { backup, backupDigest } = readBackupFile(path.resolve(backupPath));
-  const expectedConfirmation = backupConfirmation(backupDigest);
+  const expectedConfirmation = imageScope === 'listingCopy'
+    ? listingCopyConfirmation(backupDigest)
+    : backupConfirmation(backupDigest);
   if (!confirmation) {
     throw new Error(`Missing publication confirmation. Expected exactly: ${expectedConfirmation}`);
   }
@@ -124,7 +127,7 @@ export async function publishPlayMetadata({
       ((state) => verifySupportedPublishedState(client, state, { imageTypes, baseline: backup })),
   });
   console.log(
-    `Published verified Play phone screenshots edit ${result.editId} for ${proposed.locales.length} supported locale(s).`,
+    `Published verified Play ${imageScope} edit ${result.editId} for ${proposed.locales.length} supported locale(s).`,
   );
   return { ...result, backupDigest };
 }

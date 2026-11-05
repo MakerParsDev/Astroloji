@@ -24,6 +24,7 @@ on:
           - backup
           - diff
           - publish
+          - copy
           - cleanup
           - readback
           - restore
@@ -48,12 +49,12 @@ on:
         default: ''
         type: string
       confirmation:
-        description: Exact digest-bound publication, cleanup, or restore confirmation
+        description: Exact digest-bound publication, copy, cleanup, or restore confirmation
         required: false
         default: ''
         type: string
       authorization_correlation:
-        description: Unique immutable UUID correlation for publish, cleanup, or restore authorization
+        description: Unique immutable UUID correlation for publish, copy, cleanup, or restore authorization
         required: false
         default: ''
         type: string
@@ -220,7 +221,7 @@ jobs:
   reject-invalid-mutation:
     if: >-
       github.event_name == 'workflow_dispatch' &&
-      (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
+      (inputs.mode == 'publish' || inputs.mode == 'copy' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
       (github.ref != 'refs/heads/main' ||
        github.repository != 'MakerParsDev/Astroloji')
     runs-on: ubuntu-latest
@@ -233,7 +234,7 @@ jobs:
   authorize-mutation:
     if: >-
       github.event_name == 'workflow_dispatch' &&
-      (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
+      (inputs.mode == 'publish' || inputs.mode == 'copy' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
       github.ref == 'refs/heads/main' &&
       github.repository == 'MakerParsDev/Astroloji' &&
       vars.ENABLE_METADATA_PUBLISH == 'false'
@@ -310,7 +311,7 @@ jobs:
   play-mutation:
     if: >-
       github.event_name == 'workflow_dispatch' &&
-      (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
+      (inputs.mode == 'publish' || inputs.mode == 'copy' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
       github.ref == 'refs/heads/main' &&
       github.repository == 'MakerParsDev/Astroloji' &&
       vars.ENABLE_METADATA_PUBLISH == 'false' &&
@@ -355,7 +356,7 @@ jobs:
           actual_sha="$(sha256sum "$RUNNER_TEMP/play-input/play-backup.json" | awk '{print $1}')"
           test "$actual_sha" = "$BACKUP_SHA256"
       - name: Re-run dry-run diff before mutation
-        if: inputs.mode == 'publish'
+        if: inputs.mode == 'publish' || inputs.mode == 'copy'
         run: |
           node scripts/diff-play-metadata.mjs \
             --backup "$RUNNER_TEMP/play-input/play-backup.json" \
@@ -398,7 +399,7 @@ jobs:
           node -e "const fs=require('fs'); const p=process.env.DOPPLER_SECRETS_JSON_PATH; let s=''; if (p && fs.existsSync(p)) { const parsed=JSON.parse(fs.readFileSync(p,'utf8')); const pick=(key)=> typeof parsed[key]==='string' ? parsed[key] : parsed[key]?.computed || ''; s = pick('PLAY_SERVICE_ACCOUNT_JSON') || pick('GOOGLE_SERVICE_ACCOUNT_JSON'); } s = process.env.PLAY_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON || s; if (!s) { console.error('Missing Play service account JSON from GitHub secrets or Doppler.'); process.exit(1); } fs.writeFileSync(process.env.RUNNER_TEMP + '/play-service-account.json', s, {mode:0o600});"
           chmod 600 "$RUNNER_TEMP/play-service-account.json"
       - name: Verify approved backup still matches live Play state
-        if: inputs.mode == 'publish'
+        if: inputs.mode == 'publish' || inputs.mode == 'copy'
         env:
           PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
         run: |
@@ -414,6 +415,16 @@ jobs:
           node scripts/publish-play-metadata.mjs \
             --backup "$RUNNER_TEMP/play-input/play-backup.json" \
             --image-scope phoneScreenshots \
+            --confirmation "$CONFIRMATION"
+      - name: Publish only localized listing copy without changing images or releases
+        if: inputs.mode == 'copy'
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ runner.temp }}/play-service-account.json
+        run: |
+          export PLAY_PACKAGE_NAME="${PLAY_PACKAGE_NAME:-com.parsfilo.astrology}"
+          node scripts/publish-play-metadata.mjs \
+            --backup "$RUNNER_TEMP/play-input/play-backup.json" \
+            --image-scope listingCopy \
             --confirmation "$CONFIRMATION"
       - name: Remove unsupported live locales
         if: inputs.mode == 'cleanup'
@@ -458,7 +469,7 @@ jobs:
   verify-metadata-authorization-closed:
     if: >-
       always() && github.event_name == 'workflow_dispatch' &&
-      (inputs.mode == 'publish' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
+      (inputs.mode == 'publish' || inputs.mode == 'copy' || inputs.mode == 'cleanup' || inputs.mode == 'restore') &&
       (needs.authorize-mutation.result != 'skipped' || needs.play-mutation.result != 'skipped')
     needs:
       - authorize-mutation

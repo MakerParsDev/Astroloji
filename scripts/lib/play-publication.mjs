@@ -12,10 +12,12 @@ const DEFAULT_MAX_BACKUP_AGE_MINUTES = 30;
 const DEFAULT_IMAGE_DOWNLOAD_TIMEOUT_MS = 60_000;
 
 function normalizePublicationImageTypes(imageTypes = new Set(IMAGE_TYPES)) {
-  if (!(imageTypes instanceof Set) || imageTypes.size === 0) {
-    throw new Error('Publication imageTypes must be a non-empty Set.');
+  if (!(imageTypes instanceof Set)) {
+    throw new Error('Publication imageTypes must be an explicit Set.');
   }
   const normalized = new Set(imageTypes);
+  // The empty set is reserved for the explicitly selected listingCopy CLI scope.
+  if (normalized.size === 0) return normalized;
   const invalid = [...normalized].filter((imageType) => !IMAGE_TYPES.includes(imageType));
   if (invalid.length > 0) {
     throw new Error(`Unsupported publication image type(s): ${invalid.join(', ')}`);
@@ -33,6 +35,10 @@ function isPhoneOnlyImageScope(imageTypes) {
   return imageTypes.size === 1 && imageTypes.has('phoneScreenshots');
 }
 
+function isListingCopyScope(imageTypes) {
+  return imageTypes.size === 0;
+}
+
 function normalizeText(value) {
   return String(value ?? '').replace(/\r\n/g, '\n').trim();
 }
@@ -46,6 +52,10 @@ function expectedConfirmation(prefix, backupDigest) {
 
 export function backupConfirmation(backupDigest) {
   return expectedConfirmation('PUBLISH_TR_EN_METADATA', backupDigest);
+}
+
+export function listingCopyConfirmation(backupDigest) {
+  return expectedConfirmation('PUBLISH_LISTING_COPY', backupDigest);
 }
 
 export function restoreConfirmation(backupDigest) {
@@ -143,6 +153,7 @@ export function assertBackupRestorable(backup) {
 async function verifyEditLocalState(client, editId, proposed, imageTypes = new Set(IMAGE_TYPES), backup) {
   const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
   const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
+  const copyOnly = isListingCopyScope(normalizedImageTypes);
   const existingLocales = new Set((backup?.listings ?? []).map((listing) => listing.locale));
   for (const locale of proposed.locales) {
     const expectedListing = proposed.listings[locale];
@@ -154,6 +165,26 @@ async function verifyEditLocalState(client, editId, proposed, imageTypes = new S
           throw new Error(`Edit-local listing verification failed for ${locale}/${field}.`);
         }
       }
+      if (copyOnly) {
+        const oldVideo = backup?.listings?.find((listing) => listing.locale === locale)?.video;
+        if (normalizeText(actualListing.video) !== normalizeText(oldVideo)) {
+          throw new Error(`Edit-local listing video drift for ${locale}.`);
+        }
+      }
+    }
+
+    if (copyOnly) {
+      // Verify every existing media slot in the edit; no image write APIs.
+      const oldListing = backup?.listings?.find((listing) => listing.locale === locale);
+      for (const imageType of IMAGE_TYPES) {
+        const actual = await client.listImages(editId, locale, imageType);
+        const previous = oldListing?.images?.[imageType] ?? [];
+        if (JSON.stringify(sortedHashes(actual, `${locale}/${imageType}`)) !==
+            JSON.stringify(sortedHashes(previous, `backup ${locale}/${imageType}`))) {
+          throw new Error(`Edit-local image drift in listingCopy for ${locale}/${imageType}.`);
+        }
+      }
+      continue;
     }
 
     // Newly created locales also require their feature graphics; existing
@@ -183,18 +214,22 @@ async function verifyEditLocalState(client, editId, proposed, imageTypes = new S
 async function applyProposedState(client, editId, proposed, imageTypes = new Set(IMAGE_TYPES), backup) {
   const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
   const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
-  const existingLocales = new Set((backup?.listings ?? []).map((listing) => listing.locale));
+  const copyOnly = isListingCopyScope(normalizedImageTypes);
+  const previousListings = new Map((backup?.listings ?? []).map((listing) => [listing.locale, listing]));
   for (const locale of proposed.locales) {
     const listing = proposed.listings[locale];
-    const isNewLocale = phoneOnly && !existingLocales.has(locale);
+    const previous = previousListings.get(locale);
+    const isNewLocale = phoneOnly && !previous;
     if (!phoneOnly || isNewLocale) {
       await client.updateListing(editId, locale, {
         language: locale,
         title: listing.title,
         shortDescription: listing.shortDescription,
         fullDescription: listing.fullDescription,
+        ...(copyOnly && previous?.video ? { video: previous.video } : {}),
       });
     }
+    if (copyOnly) continue;
 
     const publishedTypes = isNewLocale
       ? new Set([...normalizedImageTypes, 'featureGraphic'])
@@ -224,7 +259,11 @@ export async function publishPreparedMetadata({
   assertPackageAgreement(client, backup, proposed);
   const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
   const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
+  const copyOnly = isListingCopyScope(normalizedImageTypes);
   assertProposedImageHashes(proposed, normalizedImageTypes);
+  if (copyOnly && (proposed.locales?.length ?? 0) === 0) {
+    throw new Error('listingCopy publication requires at least one supported locale.');
+  }
   if (phoneOnly) {
     const existingLocales = new Set((backup.listings ?? []).map((listing) => listing.locale));
     for (const locale of proposed.locales) {
@@ -240,7 +279,10 @@ export async function publishPreparedMetadata({
     }
   }
   assertFreshBackup(backup, { now, maxAgeMinutes });
-  assertConfirmation(confirmation, backupConfirmation(backupDigest));
+  assertConfirmation(
+    confirmation,
+    copyOnly ? listingCopyConfirmation(backupDigest) : backupConfirmation(backupDigest),
+  );
   const diff = buildPlayDiff(backup, proposed);
   if (diff.blockingErrors.length > 0) {
     throw new Error(`Publication blocked: ${diff.blockingErrors.join(' | ')}`);
@@ -253,7 +295,7 @@ export async function publishPreparedMetadata({
   let committed = false;
   try {
     await applyProposedState(client, edit.id, proposed, normalizedImageTypes, backup);
-    if (!phoneOnly) {
+    if (!phoneOnly && !copyOnly) {
       await additionalEditMutation(client, edit.id);
     }
     await verifyEditLocalState(client, edit.id, proposed, normalizedImageTypes, backup);
@@ -475,19 +517,34 @@ function supportedContentErrors(diff) {
 
 function scopedExpectedPublishedState(proposed, baseline, imageTypes) {
   const normalizedImageTypes = normalizePublicationImageTypes(imageTypes);
-  if (!isPhoneOnlyImageScope(normalizedImageTypes)) return proposed;
+  const phoneOnly = isPhoneOnlyImageScope(normalizedImageTypes);
+  const copyOnly = isListingCopyScope(normalizedImageTypes);
+  if (!phoneOnly && !copyOnly) return proposed;
   if (!baseline) {
-    throw new Error('Phone screenshot read-back requires the approved backup baseline.');
+    throw new Error('Scoped publication read-back requires the approved backup baseline.');
   }
   const expected = backupAsProposed(baseline);
   for (const locale of proposed.locales) {
-    if (!expected.listings[locale]) {
-      // New locales are created with their canonical text and feature graphic.
-      expected.listings[locale] = structuredClone(proposed.listings[locale]);
-      continue;
+    const listing = proposed.listings[locale];
+    if (copyOnly) {
+      if (expected.listings[locale]) {
+        // Copy-only edits must preserve all approved media and release state.
+        for (const field of ['title', 'shortDescription', 'fullDescription']) {
+          expected.listings[locale][field] = listing[field];
+        }
+      } else {
+        expected.listings[locale] = {
+          title: listing.title,
+          shortDescription: listing.shortDescription,
+          fullDescription: listing.fullDescription,
+          images: Object.fromEntries(IMAGE_TYPES.map((type) => [type, []])),
+        };
+      }
+    } else if (!expected.listings[locale]) {
+      expected.listings[locale] = structuredClone(listing);
+    } else {
+      expected.listings[locale].images.phoneScreenshots = listing.images.phoneScreenshots;
     }
-    expected.listings[locale].images.phoneScreenshots =
-      proposed.listings[locale].images.phoneScreenshots;
   }
   return expected;
 }
