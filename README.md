@@ -1,5 +1,7 @@
 # Astroloji Repo
 
+[![GitGem](https://gitgem.org/api/badge/github/MakerParsDev/Astroloji.svg)](https://gitgem.org/github/MakerParsDev/Astroloji)
+
 Android istemcisi ve Cloudflare Worker backend'inden olusan bu repo, gunluk/haftalik/aylik astroloji icerigi, premium abonelik, bildirim ve analytics akislarini birlikte tasir.
 
 ## Kapsam
