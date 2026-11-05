@@ -13,7 +13,7 @@ function jobBlock(name, nextName) {
 }
 
 test('workflow exposes explicit validate, backup, diff, publish, cleanup, readback, and restore modes', () => {
-  for (const mode of ['validate', 'backup', 'diff', 'publish', 'cleanup', 'readback', 'restore']) {
+  for (const mode of ['validate', 'backup', 'diff', 'publish', 'copy', 'cleanup', 'readback', 'restore']) {
     assert.match(workflow, new RegExp(`- ${mode}(?:\\n|\\r\\n)`));
   }
   assert.match(workflow, /run-name:[^\n]*authorization_correlation/);
@@ -70,6 +70,21 @@ test('mutating modes require main, production environment, and exact expiring co
   assert.match(block, /environment:\s*production/);
 });
 
+test('listing copy publication retains the exact mutation authorization and never requests image uploads', () => {
+  const reject = jobBlock('reject-invalid-mutation', 'authorize-mutation');
+  const auth = jobBlock('authorize-mutation', 'play-mutation');
+  const mutation = jobBlock('play-mutation', 'verify-metadata-authorization-closed');
+  const closure = jobBlock('verify-metadata-authorization-closed');
+  for (const block of [reject, auth, mutation, closure]) {
+    assert.match(block, /inputs\.mode == 'copy'/);
+  }
+  assert.match(mutation, /--image-scope listingCopy/);
+  assert.match(mutation, /if: inputs\.mode == 'copy'/);
+  assert.match(mutation, /needs\.authorize-mutation\.result == 'success'/);
+  assert.match(mutation, /environment: production/);
+  assert.match(mutation, /verify-play-backup-current\.mjs/);
+  assert.match(mutation, /--confirmation "\$CONFIRMATION"/);
+});
 test('workflow backs up and downloads private operation artifacts with bounded retention', () => {
   assert.match(
     workflow,

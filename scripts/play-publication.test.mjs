@@ -8,6 +8,7 @@ import {
   assertBackupMatchesLiveState,
   assertFreshBackup,
   backupConfirmation,
+  listingCopyConfirmation,
   publishPreparedMetadata,
   restoreConfirmation,
   restorePreparedMetadata,
@@ -198,6 +199,130 @@ test('backup confirmation is digest-bound and stale backups are rejected', () =>
         maxAgeMinutes: 30,
       }),
     /backup is stale/i,
+  );
+});
+
+test('listingCopy creates text translations without touching any image API or release', async () => {
+  const proposed = proposedFixture();
+  proposed.locales.splice(1, 0, 'fr-FR');
+  proposed.listings['fr-FR'] = {
+    ...proposed.listings['en-US'],
+    title: 'Astrologie quotidienne',
+    fullDescription: 'Description française.',
+  };
+  const backup = backupFixture();
+  backup.listings[0].video = 'https://youtube.com/watch?v=example';
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  const originalListImages = client.listImages;
+  client.listImages = async (editId, locale, imageType) => {
+    const old = backup.listings.find((listing) => listing.locale === locale);
+    return old?.images?.[imageType] ?? originalListImages(editId, locale, imageType);
+  };
+  let unexpectedMutation = 0;
+  const result = await publishPreparedMetadata({
+    client,
+    backup,
+    backupDigest,
+    confirmation: listingCopyConfirmation(backupDigest),
+    proposed,
+    imageTypes: new Set(),
+    now: new Date('2026-08-06T15:10:00.000Z'),
+    additionalEditMutation: async () => { unexpectedMutation += 1; },
+    independentReadback: async () => [],
+  });
+  assert.equal(result.editId, 'edit-publish');
+  assert.deepEqual(
+    client.calls.filter((call) => call[0] === 'updateListing').map((call) => call[2]),
+    ['en-US', 'fr-FR', 'tr-TR'],
+  );
+  assert.equal(
+    client.calls.find((call) => call[0] === 'updateListing' && call[2] === 'en-US')[3].video,
+    backup.listings[0].video,
+  );
+  assert.equal(unexpectedMutation, 0);
+  assert.equal(client.calls.filter((call) => call[0] === 'deleteAllImages').length, 0);
+  assert.equal(client.calls.filter((call) => call[0] === 'uploadImage').length, 0);
+  assert.equal(client.calls.filter((call) => call[0] === 'commitEdit').length, 1);
+});
+
+test('listingCopy rejects cross-scope confirmation before opening any Play edit', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  await assert.rejects(
+    publishPreparedMetadata({
+      client, backup, backupDigest, proposed,
+      confirmation: backupConfirmation(backupDigest),
+      imageTypes: new Set(),
+      now: new Date('2026-08-06T15:10:00.000Z'),
+      independentReadback: async () => [],
+    }),
+    /Confirmation mismatch/i,
+  );
+  assert.equal(client.calls.length, 0);
+});
+
+test('listingCopy aborts when existing media changes inside the edit', async () => {
+  const proposed = proposedFixture();
+  const backup = backupFixture();
+  const backupDigest = digest(backup);
+  const client = fakeClient();
+  client.listImages = async (_editId, locale, imageType) => {
+    const old = backup.listings.find((entry) => entry.locale === locale);
+    if (locale === 'tr-TR' && imageType === 'phoneScreenshots') return [];
+    return old?.images?.[imageType] ?? [];
+  };
+  await assert.rejects(
+    publishPreparedMetadata({
+      client, backup, backupDigest, proposed,
+      confirmation: listingCopyConfirmation(backupDigest),
+      imageTypes: new Set(),
+      now: new Date('2026-08-06T15:10:00.000Z'),
+      independentReadback: async () => [],
+    }),
+    /image drift in listingCopy/i,
+  );
+  assert.equal(client.calls.filter((call) => call[0] === 'commitEdit').length, 0);
+  assert.equal(client.calls.filter((call) => call[0] === 'deleteEdit').length, 1);
+});
+
+test('listingCopy read-back verifies new locale text and preserves all earlier media', async () => {
+  const proposed = proposedFixture();
+  proposed.locales.splice(1, 0, 'fr-FR');
+  proposed.listings['fr-FR'] = {
+    ...proposed.listings['en-US'],
+    title: 'Astrologie',
+    fullDescription: 'Description française.',
+  };
+  const backup = backupFixture();
+  const live = structuredClone(backup);
+  for (const listing of live.listings) {
+    const updated = proposed.listings[listing.locale];
+    listing.title = updated.title;
+    listing.shortDescription = updated.shortDescription;
+    listing.fullDescription = updated.fullDescription;
+  }
+  live.listings.push({
+    locale: 'fr-FR',
+    title: proposed.listings['fr-FR'].title,
+    shortDescription: proposed.listings['fr-FR'].shortDescription,
+    fullDescription: proposed.listings['fr-FR'].fullDescription,
+    images: { icon: [], featureGraphic: [], phoneScreenshots: [] },
+  });
+  assert.deepEqual(
+    await verifySupportedPublishedState(clientFrom(live), proposed, {
+      imageTypes: new Set(), baseline: backup,
+    }),
+    [],
+  );
+  const changed = structuredClone(live);
+  changed.listings.find((entry) => entry.locale === 'tr-TR').images.phoneScreenshots = [];
+  assert.ok(
+    (await verifySupportedPublishedState(clientFrom(changed), proposed, {
+      imageTypes: new Set(), baseline: backup,
+    })).some((error) => /Image drift.*tr-TR.*phoneScreenshots/.test(error)),
   );
 });
 
