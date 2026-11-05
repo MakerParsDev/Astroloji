@@ -5,6 +5,7 @@ compatibility_date = "2026-04-05"
 [observability]
 enabled = true
 head_sampling_rate = 1
+redact_query_string = true
 
 [[routes]]
 pattern = "astrology.parsfilo.com"
