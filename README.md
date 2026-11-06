@@ -29,7 +29,7 @@ Bu repo yeni bir web/admin paneli icermiyor. Public API path'leri korunur:
 ### Gereksinimler
 
 - JDK 21
-- Node.js 24+
+- Node.js 26 LTS (Node 26.13.0 tested)
 - npm 10+
 - Wrangler CLI
 - Doppler CLI (secret sync kullaniyorsaniz)

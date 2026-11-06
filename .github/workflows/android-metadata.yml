@@ -74,7 +74,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 24
+          node-version: 26
       - name: Validate Play metadata and assets
         run: |
           node scripts/validate-play-metadata.mjs
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 24
+          node-version: 26
       - name: Install pinned Doppler CLI
         if: inputs.mode == 'backup' || inputs.mode == 'readback'
         env:
@@ -336,7 +336,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: 24
+          node-version: 26
       - name: Require immutable backup inputs
         run: |
           test -n "$BACKUP_RUN_ID"
