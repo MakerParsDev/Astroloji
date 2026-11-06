@@ -24,8 +24,11 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.ResponseBody.Companion.toResponseBody
@@ -43,7 +46,71 @@ class SessionRepositoryDeletionTest {
     private val database = mockk<AstrologyDatabase>()
     private val stringsProvider = mockk<StringsProvider>()
     private val tokenStore = SessionTokenStore()
+    private val syncGate = MoodAnalyticsSyncGate()
     private val pushRegistrationManager = mockk<PushRegistrationManager>()
+
+    @Test
+    fun `account deletion waits for in flight analytics before deleting the account`() =
+        runTest {
+            coEvery { api.deleteUser() } returns
+                Response.success(DeleteUserResponse(ok = true, userId = "user-1", firebaseAccountDeleted = true))
+            every { firebaseAuth.signOut() } just runs
+            every { database.clearAllTables() } just runs
+            coJustRun { preferencesRepository.clearAll() }
+            coJustRun { pushRegistrationManager.unregister() }
+            val repository = createRepository()
+            val entered = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            val inFlight =
+                async {
+                    syncGate.withLock {
+                        entered.complete(Unit)
+                        release.await()
+                    }
+                }
+            entered.await()
+            val deletion = async { repository.deleteAccount() }
+            runCurrent()
+
+            // A previously authorized network event could otherwise write to
+            // user_events after the backend removed the account and its rows.
+            coVerify(exactly = 0) { api.deleteUser() }
+            release.complete(Unit)
+            inFlight.await()
+            assertThat(deletion.await()).isEqualTo(AppResult.Success(Unit))
+            coVerify(exactly = 1) { api.deleteUser() }
+        }
+
+    @Test
+    fun `account deletion blocks new analytics until local identity is cleared`() =
+        runTest {
+            val deletionEntered = CompletableDeferred<Unit>()
+            val finishDeletion = CompletableDeferred<Unit>()
+            coEvery { api.deleteUser() } coAnswers {
+                deletionEntered.complete(Unit)
+                finishDeletion.await()
+                Response.success(DeleteUserResponse(ok = true, userId = "user-1", firebaseAccountDeleted = true))
+            }
+            every { firebaseAuth.signOut() } just runs
+            every { database.clearAllTables() } just runs
+            coJustRun { preferencesRepository.clearAll() }
+            coJustRun { pushRegistrationManager.unregister() }
+            val repository = createRepository()
+            val deletion = async { repository.deleteAccount() }
+            deletionEntered.await()
+            var analyticsStarted = false
+            val analytics =
+                async {
+                    syncGate.withLock { analyticsStarted = true }
+                }
+            runCurrent()
+            assertThat(analyticsStarted).isFalse()
+
+            finishDeletion.complete(Unit)
+            assertThat(deletion.await()).isEqualTo(AppResult.Success(Unit))
+            analytics.await()
+            assertThat(analyticsStarted).isTrue()
+        }
 
     @Test
     fun `deleteAccount clears local state only after backend deletion succeeds`() =
@@ -160,6 +227,7 @@ class SessionRepositoryDeletionTest {
             refreshCoordinator = SessionRefreshCoordinator(),
             requestExecutor = AuthenticatedRequestExecutor(),
             pushRegistrationManager = pushRegistrationManager,
+            syncGate = syncGate,
         )
     }
 }

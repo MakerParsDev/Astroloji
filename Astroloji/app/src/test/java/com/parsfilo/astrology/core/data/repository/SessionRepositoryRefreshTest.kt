@@ -508,6 +508,7 @@ class SessionRepositoryRefreshTest {
             refreshCoordinator = SessionRefreshCoordinator(),
             requestExecutor = AuthenticatedRequestExecutor(),
             pushRegistrationManager = pushRegistrationManager,
+            syncGate = MoodAnalyticsSyncGate(),
         )
 
     private fun jwt(exp: Long): String {

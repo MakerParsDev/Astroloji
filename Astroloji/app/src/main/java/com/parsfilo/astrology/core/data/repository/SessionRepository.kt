@@ -48,6 +48,7 @@ class SessionRepository
         private val refreshCoordinator: SessionRefreshCoordinator,
         private val requestExecutor: AuthenticatedRequestExecutor,
         private val pushRegistrationManager: PushRegistrationManager,
+        private val syncGate: MoodAnalyticsSyncGate,
     ) {
         private val userProfileDao = database.userProfileDao()
 
@@ -230,52 +231,54 @@ class SessionRepository
 
         suspend fun deleteAccount(): AppResult<Unit> =
             withContext(dispatchers.io) {
-                try {
-                    val response =
-                        requestExecutor.execute(
-                            api::deleteUser,
-                            ::refreshAfterUnauthorized,
-                            ::clearInvalidSession,
-                        )
-                    if (!response.isSuccessful) {
-                        return@withContext AppResult.Error(
-                            if (response.code() == 401) {
-                                AppException.UnauthorizedException()
-                            } else {
-                                AppException.NetworkException(
-                                    stringsProvider.get(R.string.session_error_account_delete_failed),
-                                )
-                            },
+                syncGate.withLock {
+                    try {
+                        val response =
+                            requestExecutor.execute(
+                                api::deleteUser,
+                                ::refreshAfterUnauthorized,
+                                ::clearInvalidSession,
+                            )
+                        if (!response.isSuccessful) {
+                            return@withLock AppResult.Error(
+                                if (response.code() == 401) {
+                                    AppException.UnauthorizedException()
+                                } else {
+                                    AppException.NetworkException(
+                                        stringsProvider.get(R.string.session_error_account_delete_failed),
+                                    )
+                                },
+                            )
+                        }
+
+                        runCatching { pushRegistrationManager.unregister() }
+                            .onFailure {
+                                if (it is CancellationException) throw it
+                                Timber.w(it, "Firebase installation could not be removed during account deletion.")
+                            }
+                        firebaseAuth.signOut()
+                        database.clearAllTables()
+                        preferencesRepository.clearAll()
+                        tokenStore.update(null)
+                        // Erase local Analytics SDK data and rotate its app-instance ID only
+                        // after the server has confirmed account deletion. This cannot
+                        // delete analytics events already sent to Google's servers.
+                        runCatching { firebaseAnalytics.resetAnalyticsData() }
+                            .onFailure {
+                                if (it is CancellationException) throw it
+                                Timber.w("Local Firebase Analytics reset unavailable after account deletion.")
+                            }
+                        AppResult.Success(Unit)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        AppResult.Error(
+                            AppException.UnknownException(
+                                stringsProvider.get(R.string.session_error_account_delete_failed),
+                                exception,
+                            ),
                         )
                     }
-
-                    runCatching { pushRegistrationManager.unregister() }
-                        .onFailure {
-                            if (it is CancellationException) throw it
-                            Timber.w(it, "Firebase installation could not be removed during account deletion.")
-                        }
-                    firebaseAuth.signOut()
-                    database.clearAllTables()
-                    preferencesRepository.clearAll()
-                    tokenStore.update(null)
-                    // Erase local Analytics SDK data and rotate its app-instance ID only
-                    // after the server has confirmed account deletion. This cannot
-                    // delete analytics events already sent to Google's servers.
-                    runCatching { firebaseAnalytics.resetAnalyticsData() }
-                        .onFailure {
-                            if (it is CancellationException) throw it
-                            Timber.w("Local Firebase Analytics reset unavailable after account deletion.")
-                        }
-                    AppResult.Success(Unit)
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (exception: Exception) {
-                    AppResult.Error(
-                        AppException.UnknownException(
-                            stringsProvider.get(R.string.session_error_account_delete_failed),
-                            exception,
-                        ),
-                    )
                 }
             }
 
