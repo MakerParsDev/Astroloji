@@ -1,9 +1,11 @@
 package com.parsfilo.astrology.feature.settings
 
 import android.app.Activity
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -40,6 +42,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.parsfilo.astrology.BuildConfig
@@ -353,7 +356,10 @@ fun SettingsScreen(
                     stringResource(R.string.settings_version),
                     stringResource(R.string.settings_version_value, BuildConfig.VERSION_NAME),
                 )
-                SettingsAboutRow(stringResource(R.string.settings_privacy), "↗")
+                SettingsExternalLinkRow(
+                    label = stringResource(R.string.settings_privacy),
+                    onClick = { context.startActivity(privacyPolicyIntent()) },
+                )
                 if (privacyOptionsRequired && activity != null) {
                     PrivacyOptionsButton(
                         onShowForm = { consentManager.showPrivacyOptionsForm(activity) == null },
@@ -367,7 +373,17 @@ fun SettingsScreen(
                         },
                     )
                 }
-                SettingsAboutRow(stringResource(R.string.settings_contact), "↗")
+                SettingsExternalLinkRow(
+                    label = stringResource(R.string.settings_contact),
+                    onClick = {
+                        context.startActivity(
+                            Intent.createChooser(
+                                supportContactIntent(),
+                                context.getString(R.string.settings_contact),
+                            ),
+                        )
+                    },
+                )
                 OutlinedButton(onClick = { viewModel.onEvent(SettingsUiEvent.RestorePurchase) }) {
                     Text(stringResource(R.string.settings_restore))
                 }
@@ -729,6 +745,30 @@ private fun SettingsAboutRow(
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyLarge)
         Text(text = trailing, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+internal fun privacyPolicyIntent(): Intent = Intent(Intent.ACTION_VIEW, "https://astrology.parsfilo.com/privacy".toUri())
+
+internal fun supportContactIntent(): Intent = Intent(Intent.ACTION_SENDTO, "mailto:info@parsfilo.com".toUri())
+
+@Composable
+@Suppress("FunctionNaming")
+internal fun SettingsExternalLinkRow(
+    label: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 48.dp)
+                .clickable(role = Role.Button, onClick = onClick),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyLarge)
+        Text(text = "↗", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
