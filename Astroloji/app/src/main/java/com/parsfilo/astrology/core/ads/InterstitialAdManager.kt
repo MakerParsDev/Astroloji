@@ -37,13 +37,21 @@ class InterstitialAdManager
         private var interstitialAd: InterstitialAd? = null
         private var loadedConsentRevision = Long.MIN_VALUE
 
-        private fun discardAdFromEarlierConsentRevision() {
-            if (loadedConsentRevision == consentManager.consentRevision) return
+        // The SDK load callback replaces this baseline before retaining a creative.
+        private var loadedAtNanos = System.nanoTime()
+
+        private fun discardStaleAd() {
+            if (loadedConsentRevision == consentManager.consentRevision &&
+                isFreshFullScreenAd(loadedAtNanos, System.nanoTime())
+            ) {
+                return
+            }
             interstitialAd = null
+            loadedAtNanos = 0L
         }
 
         fun preload() {
-            discardAdFromEarlierConsentRevision()
+            discardStaleAd()
             val loadRevision = consentManager.consentRevision
             // A load failure from an older consent decision must not throttle
             // the newly authorized request. Same-decision failures still back off.
@@ -69,6 +77,7 @@ class InterstitialAdManager
                         }
                         interstitialAd = ad
                         loadedConsentRevision = loadRevision
+                        loadedAtNanos = System.nanoTime()
                         loadRetryGate.recordSuccess()
                         Timber.d("Interstitial ad loaded")
                     }
@@ -92,7 +101,7 @@ class InterstitialAdManager
             placement: String,
             onDismissed: () -> Unit = {},
         ): Boolean {
-            discardAdFromEarlierConsentRevision()
+            discardStaleAd()
             // Consent may change after the interstitial was preloaded.
             val consentAllowed = consentManager.canRequestAds
             val ad =
@@ -102,6 +111,7 @@ class InterstitialAdManager
                     return false
                 }
             interstitialAd = null
+            loadedAtNanos = 0L
             val finished = AtomicBoolean(false)
             val impressionRecorded = AtomicBoolean(false)
             val dismissOnce = {
