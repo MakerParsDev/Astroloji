@@ -36,13 +36,21 @@ class RewardedInterstitialAdManager
         private var rewardedInterstitialAd: RewardedInterstitialAd? = null
         private var loadedConsentRevision = Long.MIN_VALUE
 
-        private fun discardAdFromEarlierConsentRevision() {
-            if (loadedConsentRevision == consentManager.consentRevision) return
+        // The SDK load callback replaces this baseline before retaining a creative.
+        private var loadedAtNanos = System.nanoTime()
+
+        private fun discardStaleAd() {
+            if (loadedConsentRevision == consentManager.consentRevision &&
+                isFreshFullScreenAd(loadedAtNanos, System.nanoTime())
+            ) {
+                return
+            }
             rewardedInterstitialAd = null
+            loadedAtNanos = 0L
         }
 
         fun preload() {
-            discardAdFromEarlierConsentRevision()
+            discardStaleAd()
             val loadRevision = consentManager.consentRevision
             // A real failure under an older permission revision must not block
             // the next authorized load; preserve same-revision backoff.
@@ -69,6 +77,7 @@ class RewardedInterstitialAdManager
                         }
                         rewardedInterstitialAd = ad
                         loadedConsentRevision = loadRevision
+                        loadedAtNanos = System.nanoTime()
                         loadRetryGate.recordSuccess()
                         Timber.d("Rewarded interstitial ad loaded")
                     }
@@ -93,7 +102,7 @@ class RewardedInterstitialAdManager
             placement: String,
             onDismissed: () -> Unit = {},
         ): Boolean {
-            discardAdFromEarlierConsentRevision()
+            discardStaleAd()
             // Consent may be revoked while a previously loaded ad is cached.
             val consentAllowed = consentManager.canRequestAds
             val ad =
@@ -103,6 +112,7 @@ class RewardedInterstitialAdManager
                     return false
                 }
             rewardedInterstitialAd = null
+            loadedAtNanos = 0L
             val session =
                 RewardedInterstitialSession(
                     placement = placement,

@@ -45,13 +45,21 @@ class RewardedAdManager
         private var rewardedAd: RewardedAd? = null
         private var loadedConsentRevision = Long.MIN_VALUE
 
-        private fun discardAdFromEarlierConsentRevision() {
-            if (loadedConsentRevision == consentManager.consentRevision) return
+        // The SDK load callback replaces this baseline before retaining a creative.
+        private var loadedAtNanos = System.nanoTime()
+
+        private fun discardStaleAd() {
+            if (loadedConsentRevision == consentManager.consentRevision &&
+                isFreshFullScreenAd(loadedAtNanos, System.nanoTime())
+            ) {
+                return
+            }
             rewardedAd = null
+            loadedAtNanos = 0L
         }
 
         fun preload() {
-            discardAdFromEarlierConsentRevision()
+            discardStaleAd()
             val loadRevision = consentManager.consentRevision
             // A load failure from an older consent decision must not throttle
             // the newly authorized request. Same-decision failures still back off.
@@ -77,6 +85,7 @@ class RewardedAdManager
                         }
                         rewardedAd = ad
                         loadedConsentRevision = loadRevision
+                        loadedAtNanos = System.nanoTime()
                         loadRetryGate.recordSuccess()
                         Timber.d("Rewarded ad loaded")
                     }
@@ -109,7 +118,7 @@ class RewardedAdManager
             // A valid prepare response may expire before the Compose effect is
             // collected. Avoid showing an ad the backend can no longer verify.
             if (request.expiresAtMillis < System.currentTimeMillis() + MIN_REWARD_LIFETIME_MS) return false
-            discardAdFromEarlierConsentRevision()
+            discardStaleAd()
             // Consent can change after preload. Never show an old ad if revoked.
             val consentAllowed = consentManager.canRequestAds
             val ad =
@@ -119,6 +128,7 @@ class RewardedAdManager
                     return false
                 }
             rewardedAd = null
+            loadedAtNanos = 0L
             val attempt = RewardedAdAttemptState()
             val telemetry = RewardedAdLifecycleTelemetry(scope, analyticsRepository, request.placement)
             val ssvConfigured =
