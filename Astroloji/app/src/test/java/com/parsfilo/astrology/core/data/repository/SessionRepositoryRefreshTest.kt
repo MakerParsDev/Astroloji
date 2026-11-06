@@ -40,6 +40,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
@@ -163,6 +164,33 @@ class SessionRepositoryRefreshTest {
                 .isInstanceOf(AppException.NetworkException::class.java)
             assertThat(tokenStore.current()).isNull()
             coVerify(exactly = 1) { api.registerUser(any(), any()) }
+        }
+
+    @Test
+    fun `registration HTTP authorization failures stay distinct from retryable server failures`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences()
+            every { firebaseAuth.currentUser } returns firebaseUser
+            every { tokenResult.token } returns "firebase-token"
+            every { firebaseUser.getIdToken(true) } returns Tasks.forResult(tokenResult)
+            val repository = createRepository()
+
+            for (code in listOf(401, 403, 429, 503)) {
+                coEvery { api.registerUser(any(), any()) } returns
+                    retrofit2.Response.error(code, "synthetic error".toResponseBody())
+
+                val result = repository.refreshSessionToken(forceRefreshFirebaseToken = true)
+
+                assertThat(result).isInstanceOf(AppResult.Error::class.java)
+                val exception = (result as AppResult.Error).exception
+                if (code == 401 || code == 403) {
+                    assertThat(exception).isInstanceOf(AppException.UnauthorizedException::class.java)
+                } else {
+                    assertThat(exception).isInstanceOf(AppException.NetworkException::class.java)
+                }
+                assertThat(tokenStore.current()).isNull()
+            }
+            coVerify(exactly = 4) { api.registerUser(any(), any()) }
         }
 
     @Test
