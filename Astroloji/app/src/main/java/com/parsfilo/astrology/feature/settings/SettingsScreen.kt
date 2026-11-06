@@ -748,7 +748,10 @@ private fun SettingsAboutRow(
     }
 }
 
-internal fun privacyPolicyIntent(): Intent = Intent(Intent.ACTION_VIEW, "https://astrology.parsfilo.com/privacy".toUri())
+internal fun privacyPolicyIntent(): Intent {
+    val uri = "https://astrology.parsfilo.com/privacy".toUri()
+    return Intent(Intent.ACTION_VIEW, uri)
+}
 
 internal fun supportContactIntent(): Intent = Intent(Intent.ACTION_SENDTO, "mailto:info@parsfilo.com".toUri())
 
