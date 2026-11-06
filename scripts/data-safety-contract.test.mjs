@@ -28,6 +28,13 @@ test('data safety matrix does not claim birth date stays on device', () => {
   assert.match(matrix, /transmitted[^\n]*personal guidance/i);
 });
 
+test('mood deletion matrix distinguishes UI controls from backend-only date deletion', () => {
+  assert.match(matrix, /Android Settings supports whole-history mood deletion/i);
+  assert.ok(
+    matrix.includes('date-scoped `DELETE /mood/logs/:date` is available through the authenticated backend API only, not the Android UI'),
+  );
+});
+
 test('data safety source links to the canonical Play policy answer set', () => {
   assert.match(matrix, /PLAY_POLICY_ANSWER_SET_2026\.md/);
   assert.match(matrix, /Account deletion[^\n]*Supported/i);
