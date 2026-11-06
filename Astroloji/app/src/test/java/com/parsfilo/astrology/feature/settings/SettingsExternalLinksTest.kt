@@ -41,10 +41,10 @@ class SettingsExternalLinksTest {
             }
         }
 
-        composeRule.onNode(
+        val linkMatcher =
             hasText("Privacy Policy") and
-                SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button),
-        ).performClick()
+                SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)
+        composeRule.onNode(linkMatcher).performClick()
         assertThat(clicks).isEqualTo(1)
     }
 }
