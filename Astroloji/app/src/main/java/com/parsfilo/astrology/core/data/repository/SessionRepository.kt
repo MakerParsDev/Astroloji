@@ -407,7 +407,15 @@ class SessionRepository
             forceRefreshFirebaseToken: Boolean,
         ): AppResult<String> =
             runCatching {
-                val firebaseToken = ensureFirebaseIdToken(forceRefreshFirebaseToken)
+                val firebaseToken =
+                    try {
+                        ensureFirebaseIdToken(forceRefreshFirebaseToken)
+                    } catch (exception: IOException) {
+                        throw AppException.NetworkException(
+                            stringsProvider.get(R.string.session_error_refresh_failed),
+                            exception,
+                        )
+                    }
                 val firebaseInstallationId =
                     try {
                         pushRegistrationManager.register()
@@ -421,17 +429,24 @@ class SessionRepository
                         null
                     }
                 val response =
-                    api.registerUser(
-                        authorization = "Bearer $firebaseToken",
-                        RegisterUserRequest(
-                            sign = preferences.selectedSign,
-                            language = preferences.language,
-                            firebaseInstallationId = firebaseInstallationId,
-                            notificationHour = preferences.notificationHour,
-                            utcOffset = preferences.utcOffset,
-                            platform = "android",
-                        ),
-                    )
+                    try {
+                        api.registerUser(
+                            authorization = "Bearer $firebaseToken",
+                            RegisterUserRequest(
+                                sign = preferences.selectedSign,
+                                language = preferences.language,
+                                firebaseInstallationId = firebaseInstallationId,
+                                notificationHour = preferences.notificationHour,
+                                utcOffset = preferences.utcOffset,
+                                platform = "android",
+                            ),
+                        )
+                    } catch (exception: IOException) {
+                        throw AppException.NetworkException(
+                            stringsProvider.get(R.string.session_error_refresh_failed),
+                            exception,
+                        )
+                    }
                 if (!response.isSuccessful) {
                     val errorBody = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
                     throw AppException.NetworkException(
