@@ -373,13 +373,14 @@ fun SettingsScreen(
                         },
                     )
                 }
+                val contactLabel = stringResource(R.string.settings_contact)
                 SettingsExternalLinkRow(
-                    label = stringResource(R.string.settings_contact),
+                    label = contactLabel,
                     onClick = {
                         context.startActivity(
                             Intent.createChooser(
                                 supportContactIntent(),
-                                context.getString(R.string.settings_contact),
+                                contactLabel,
                             ),
                         )
                     },
