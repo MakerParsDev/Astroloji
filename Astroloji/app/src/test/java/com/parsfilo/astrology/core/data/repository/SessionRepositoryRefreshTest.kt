@@ -134,6 +134,41 @@ class SessionRepositoryRefreshTest {
         }
 
     @Test
+    fun `registration transport outage is a network failure without publishing a session`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences()
+            every { firebaseAuth.currentUser } returns firebaseUser
+            every { tokenResult.token } returns "firebase-token"
+            every { firebaseUser.getIdToken(true) } returns Tasks.forResult(tokenResult)
+            coEvery { api.registerUser(any(), any()) } throws IOException("synthetic offline")
+
+            val result = createRepository().refreshSessionToken(forceRefreshFirebaseToken = true)
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception)
+                .isInstanceOf(AppException.NetworkException::class.java)
+            assertThat(tokenStore.current()).isNull()
+            coVerify(exactly = 1) { api.registerUser(any(), any()) }
+        }
+
+    @Test
+    fun `Firebase token transport outage is a network failure without registering`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences()
+            every { firebaseAuth.currentUser } returns firebaseUser
+            every { firebaseUser.getIdToken(true) } returns
+                Tasks.forException(IOException("synthetic token connection failure"))
+
+            val result = createRepository().refreshSessionToken(forceRefreshFirebaseToken = true)
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception)
+                .isInstanceOf(AppException.NetworkException::class.java)
+            assertThat(tokenStore.current()).isNull()
+            coVerify(exactly = 0) { api.registerUser(any(), any()) }
+        }
+
+    @Test
     fun `missing FID does not generate a placeholder during registration`() =
         runTest {
             val fresh = jwt(exp = 4_000_000_100)
