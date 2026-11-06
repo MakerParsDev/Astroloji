@@ -28,6 +28,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.IOException
+import java.net.HttpURLConnection
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -454,6 +455,14 @@ class SessionRepository
                         )
                     }
                 if (!response.isSuccessful) {
+                    if (
+                        response.code() == HttpURLConnection.HTTP_UNAUTHORIZED ||
+                        response.code() == HttpURLConnection.HTTP_FORBIDDEN
+                    ) {
+                        // Keep authentication rejections out of the transient-network
+                        // retry category used by the onboarding failure funnel.
+                        throw AppException.UnauthorizedException()
+                    }
                     val errorBody = response.errorBody()?.string()?.takeIf { it.isNotBlank() }
                     throw AppException.NetworkException(
                         errorBody ?: stringsProvider.get(R.string.session_error_register_failed_code, response.code()),
