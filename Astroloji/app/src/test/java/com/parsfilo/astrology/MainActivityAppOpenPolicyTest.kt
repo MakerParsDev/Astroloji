@@ -126,9 +126,24 @@ class MainActivityAppOpenPolicyTest {
         val plan =
             resolveAdPreloadPlan(
                 AdPreloadPolicy(
+                    onboardingCompleted = true,
                     isPremium = true,
                     canShowRewarded = true,
                 ),
+            )
+
+        assertFalse(plan.preloadAppOpen)
+        assertFalse(plan.preloadInterstitial)
+        assertFalse(plan.preloadRewarded)
+        assertFalse(plan.preloadRewardedInterstitial)
+        assertFalse(plan.preloadNative)
+    }
+
+    @Test
+    fun `onboarding screens never preload any ad format`() {
+        val plan =
+            resolveAdPreloadPlan(
+                AdPreloadPolicy(onboardingCompleted = false, isPremium = false, canShowRewarded = true),
             )
 
         assertFalse(plan.preloadAppOpen)
@@ -143,6 +158,7 @@ class MainActivityAppOpenPolicyTest {
         val plan =
             resolveAdPreloadPlan(
                 AdPreloadPolicy(
+                    onboardingCompleted = true,
                     isPremium = false,
                     canShowRewarded = true,
                 ),
@@ -170,7 +186,10 @@ class MainActivityAppOpenPolicyTest {
 
     @Test
     fun disabledAppOpenPreloadLeavesOtherFreeAdFormatsAvailable() {
-        val plan = resolveAdPreloadPlan(AdPreloadPolicy(isPremium = false, canShowRewarded = true))
+        val plan =
+            resolveAdPreloadPlan(
+                AdPreloadPolicy(onboardingCompleted = true, isPremium = false, canShowRewarded = true),
+            )
         assertFalse(plan.preloadAppOpen)
         assertTrue(plan.preloadInterstitial)
         assertTrue(plan.preloadRewarded)

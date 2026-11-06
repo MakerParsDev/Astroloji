@@ -27,15 +27,18 @@ import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.repository.BillingManager
 import com.parsfilo.astrology.core.data.repository.RemoteConfigDefaults
 import com.parsfilo.astrology.core.data.repository.RemoteConfigRepository
+import com.parsfilo.astrology.core.domain.model.UserPreferences
 import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.navigation.AppDeepLink
 import com.parsfilo.astrology.navigation.AstrologyAppRoot
 import com.parsfilo.astrology.navigation.parseAppDeepLink
 import com.parsfilo.astrology.ui.theme.AstrolojiTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -141,6 +144,16 @@ class MainActivity : AppCompatActivity() {
                     fetchRemoteConfig = { remoteConfigRepository.fetchFlags() },
                 )
             appOpenMinBackgroundDurationMs = flags.appOpenMinBackgroundMs
+            if (!preferencesRepository.current().onboardingCompleted) {
+                // Do not request ads for onboarding screens. The first completed
+                // onboarding in this Activity should preload for Home immediately;
+                // a second consent refresh or Activity restart is not required.
+                launch {
+                    awaitOnboardingCompletionForAds(preferencesRepository.preferences) {
+                        preloadAdStack()
+                    }
+                }
+            }
             // Consent may be granted later in Settings without recreating this
             // activity. Reinitialize/preload only after startup config is ready.
             observeConsentChangesAfterStartup(
@@ -206,6 +219,7 @@ class MainActivity : AppCompatActivity() {
         val preloadPlan =
             resolveAdPreloadPlan(
                 AdPreloadPolicy(
+                    onboardingCompleted = preferences.onboardingCompleted,
                     isPremium = preferences.isPremium,
                     canShowRewarded = adEligibilityChecker.canShowRewarded(),
                 ),
@@ -286,6 +300,7 @@ private fun Intent?.toAppDeepLink(): AppDeepLink? {
 private const val APP_OPEN_DELIVERY_ENABLED = false
 
 internal data class AdPreloadPolicy(
+    val onboardingCompleted: Boolean,
     val isPremium: Boolean,
     val canShowRewarded: Boolean,
 )
@@ -300,12 +315,21 @@ internal data class AdPreloadPlan(
 
 internal fun resolveAdPreloadPlan(policy: AdPreloadPolicy): AdPreloadPlan =
     AdPreloadPlan(
-        preloadAppOpen = !policy.isPremium && APP_OPEN_DELIVERY_ENABLED,
-        preloadInterstitial = !policy.isPremium,
-        preloadRewarded = !policy.isPremium && policy.canShowRewarded,
+        preloadAppOpen = policy.onboardingCompleted && !policy.isPremium && APP_OPEN_DELIVERY_ENABLED,
+        preloadInterstitial = policy.onboardingCompleted && !policy.isPremium,
+        preloadRewarded = policy.onboardingCompleted && !policy.isPremium && policy.canShowRewarded,
         preloadRewardedInterstitial = false,
         preloadNative = false, // No screen currently consumes a NativeAd.
     )
+
+/** Await one completed onboarding after the startup UMP/config sequence. */
+internal suspend fun awaitOnboardingCompletionForAds(
+    preferences: Flow<UserPreferences>,
+    preloadAds: suspend () -> Unit,
+) {
+    preferences.first { it.onboardingCompleted }
+    preloadAds()
+}
 
 internal fun resolveNextAppOpenCount(
     onboardingCompleted: Boolean,
