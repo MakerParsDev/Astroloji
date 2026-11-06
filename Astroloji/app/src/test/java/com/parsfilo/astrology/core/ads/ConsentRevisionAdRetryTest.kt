@@ -26,6 +26,27 @@ class ConsentRevisionAdRetryTest {
     private var now = 10_000L
     private var revision = 1L
 
+    private fun withInterstitialLoad(
+        allowed: () -> Boolean = { true },
+        test: (InterstitialAdManager, MutableList<InterstitialAdLoadCallback>) -> Unit,
+    ) {
+        val callbacks = mutableListOf<InterstitialAdLoadCallback>()
+        mockkStatic(SystemClock::class)
+        mockkStatic(InterstitialAd::class)
+        try {
+            every { SystemClock.elapsedRealtime() } answers { now }
+            every { consent.canRequestAds } answers { allowed() }
+            every { consent.consentRevision } answers { revision }
+            every {
+                InterstitialAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks))
+            } just Runs
+            test(InterstitialAdManager(context, consent, analytics, mockk(relaxed = true)), callbacks)
+        } finally {
+            unmockkStatic(InterstitialAd::class)
+            unmockkStatic(SystemClock::class)
+        }
+    }
+
     @Test
     fun rewardedFailureFromPriorConsentCannotDelayAuthorizedPreload() {
         val callbacks = mutableListOf<RewardedAdLoadCallback>()
@@ -56,18 +77,8 @@ class ConsentRevisionAdRetryTest {
     }
 
     @Test
-    fun interstitialFailureFromPriorConsentCannotDelayAuthorizedPreload() {
-        val callbacks = mutableListOf<InterstitialAdLoadCallback>()
-        mockkStatic(SystemClock::class)
-        mockkStatic(InterstitialAd::class)
-        try {
-            every { SystemClock.elapsedRealtime() } answers { now }
-            every { consent.canRequestAds } returns true
-            every { consent.consentRevision } answers { revision }
-            every {
-                InterstitialAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks))
-            } just Runs
-            val manager = InterstitialAdManager(context, consent, analytics, mockk(relaxed = true))
+    fun interstitialFailureFromPriorConsentCannotDelayAuthorizedPreload() =
+        withInterstitialLoad { manager, callbacks ->
             manager.preload()
             callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
             manager.preload()
@@ -78,11 +89,7 @@ class ConsentRevisionAdRetryTest {
             callbacks[1].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
             manager.preload()
             assertThat(callbacks).hasSize(2)
-        } finally {
-            unmockkStatic(InterstitialAd::class)
-            unmockkStatic(SystemClock::class)
         }
-    }
 
     @Test
     fun rewardedStaleFailureDoesNotReloadWhenConsentIsRevoked() {
@@ -117,18 +124,8 @@ class ConsentRevisionAdRetryTest {
 
     @Test
     fun interstitialStaleFailureDoesNotReloadWhenConsentIsRevoked() {
-        val callbacks = mutableListOf<InterstitialAdLoadCallback>()
         var allowed = true
-        mockkStatic(SystemClock::class)
-        mockkStatic(InterstitialAd::class)
-        try {
-            every { SystemClock.elapsedRealtime() } answers { now }
-            every { consent.canRequestAds } answers { allowed }
-            every { consent.consentRevision } answers { revision }
-            every {
-                InterstitialAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks))
-            } just Runs
-            val manager = InterstitialAdManager(context, consent, analytics, mockk(relaxed = true))
+        withInterstitialLoad(allowed = { allowed }) { manager, callbacks ->
             manager.preload()
             revision = 2L
             allowed = false
@@ -140,9 +137,76 @@ class ConsentRevisionAdRetryTest {
             allowed = true
             manager.preload()
             assertThat(callbacks).hasSize(2)
+        }
+    }
+
+    @Test
+    fun rewardedLateCreativeAutomaticallyReloadsAfterConsentRevision() {
+        val callbacks = mutableListOf<RewardedAdLoadCallback>()
+        mockkStatic(RewardedAd::class)
+        try {
+            every { consent.canRequestAds } returns true
+            every { consent.consentRevision } answers { revision }
+            every { RewardedAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
+
+            val manager = RewardedAdManager(context, consent, analytics)
+            manager.preload()
+            assertThat(callbacks).hasSize(1)
+
+            revision = 2L
+            callbacks[0].onAdLoaded(mockk<RewardedAd>(relaxed = true))
+            assertThat(callbacks).hasSize(2) // The callback itself must retry with current permission.
+
+            val loaded = RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply { isAccessible = true }
+            assertThat(loaded.get(manager)).isNull()
+            val fresh = mockk<RewardedAd>(relaxed = true)
+            callbacks[1].onAdLoaded(fresh)
+            assertThat(loaded.get(manager)).isSameInstanceAs(fresh)
         } finally {
-            unmockkStatic(InterstitialAd::class)
+            unmockkStatic(RewardedAd::class)
+        }
+    }
+
+    @Test
+    fun obsoleteRewardedFailureAutomaticallyRetriesWithoutBackingOffNewConsent() {
+        val callbacks = mutableListOf<RewardedAdLoadCallback>()
+        mockkStatic(SystemClock::class)
+        mockkStatic(RewardedAd::class)
+        try {
+            every { SystemClock.elapsedRealtime() } answers { now }
+            every { consent.canRequestAds } returns true
+            every { consent.consentRevision } answers { revision }
+            every { RewardedAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
+
+            val manager = RewardedAdManager(context, consent, analytics)
+            manager.preload()
+            revision = 2L
+            callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
+            assertThat(callbacks).hasSize(2) // An old failure cannot delay the current revision.
+
+            callbacks[1].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
+            manager.preload()
+            assertThat(callbacks).hasSize(2) // A real current-revision failure still backs off.
+        } finally {
+            unmockkStatic(RewardedAd::class)
             unmockkStatic(SystemClock::class)
         }
     }
+
+    @Test
+    fun obsoleteInterstitialFailureAutomaticallyRetriesWithoutBackingOffNewConsent() =
+        withInterstitialLoad { manager, callbacks ->
+            manager.preload()
+            revision = 2L
+            callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
+            assertThat(callbacks).hasSize(2) // Obsolete failure must not impose backoff.
+
+            val fresh = mockk<InterstitialAd>(relaxed = true)
+            callbacks[1].onAdLoaded(fresh)
+            val loaded =
+                InterstitialAdManager::class.java.getDeclaredField("interstitialAd").apply {
+                    isAccessible = true
+                }
+            assertThat(loaded.get(manager)).isSameInstanceAs(fresh)
+        }
 }
