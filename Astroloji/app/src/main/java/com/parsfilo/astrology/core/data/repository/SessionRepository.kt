@@ -1,5 +1,6 @@
 package com.parsfilo.astrology.core.data.repository
 
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.FirebaseAuth
 import com.parsfilo.astrology.R
@@ -411,6 +412,11 @@ class SessionRepository
                     try {
                         ensureFirebaseIdToken(forceRefreshFirebaseToken)
                     } catch (exception: IOException) {
+                        throw AppException.NetworkException(
+                            stringsProvider.get(R.string.session_error_refresh_failed),
+                            exception,
+                        )
+                    } catch (exception: FirebaseNetworkException) {
                         throw AppException.NetworkException(
                             stringsProvider.get(R.string.session_error_refresh_failed),
                             exception,

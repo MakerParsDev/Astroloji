@@ -1,7 +1,9 @@
 package com.parsfilo.astrology.core.data.repository
 
+import android.text.TextUtils
 import com.google.android.gms.tasks.Tasks
 import com.google.common.truth.Truth.assertThat
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.auth.AuthResult
 import com.google.firebase.auth.FirebaseAuth
@@ -29,8 +31,10 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.slot
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -53,6 +57,16 @@ class SessionRepositoryRefreshTest {
     private val database = mockk<AstrologyDatabase>()
     private val stringsProvider = mockk<StringsProvider>(relaxed = true)
     private val tokenStore = SessionTokenStore()
+
+    private fun firebaseNetworkException(message: String): FirebaseNetworkException {
+        mockkStatic(TextUtils::class)
+        return try {
+            every { TextUtils.isEmpty(any()) } returns false
+            FirebaseNetworkException(message)
+        } finally {
+            unmockkStatic(TextUtils::class)
+        }
+    }
 
     @Before
     fun setUp() {
@@ -166,6 +180,41 @@ class SessionRepositoryRefreshTest {
                 .isInstanceOf(AppException.NetworkException::class.java)
             assertThat(tokenStore.current()).isNull()
             coVerify(exactly = 0) { api.registerUser(any(), any()) }
+        }
+
+    @Test
+    fun `Firebase SDK network failure refreshing an ID token is classified as network`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences()
+            every { firebaseAuth.currentUser } returns firebaseUser
+            every { firebaseUser.getIdToken(true) } returns
+                Tasks.forException(firebaseNetworkException("synthetic Firebase offline"))
+
+            val result = createRepository().refreshSessionToken(forceRefreshFirebaseToken = true)
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception)
+                .isInstanceOf(AppException.NetworkException::class.java)
+            assertThat(tokenStore.current()).isNull()
+            coVerify(exactly = 0) { api.registerUser(any(), any()) }
+        }
+
+    @Test
+    fun `Firebase SDK network failure during anonymous sign in is classified as network`() =
+        runTest {
+            coEvery { preferencesRepository.current() } returns UserPreferences()
+            every { firebaseAuth.currentUser } returns null
+            every { firebaseAuth.signInAnonymously() } returns
+                Tasks.forException(firebaseNetworkException("synthetic anonymous sign-in offline"))
+
+            val result = createRepository().refreshSessionToken(forceRefreshFirebaseToken = true)
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception)
+                .isInstanceOf(AppException.NetworkException::class.java)
+            assertThat(tokenStore.current()).isNull()
+            coVerify(exactly = 0) { api.registerUser(any(), any()) }
+            verify(exactly = 0) { firebaseAuth.signInWithEmailAndPassword(any(), any()) }
         }
 
     @Test
