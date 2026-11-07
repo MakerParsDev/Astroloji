@@ -205,28 +205,7 @@ class OnboardingViewModelTest {
     @Test
     fun `post registration preferences failure returns retry instead of trapping onboarding`() =
         runTest {
-            val preferences =
-                UserPreferences(
-                    onboardingCompleted = false,
-                    selectedSign = ZodiacSign.ARIES.key,
-                    language = "tr",
-                    jwt = "jwt",
-                    userId = "user-1",
-                    isPremium = false,
-                )
-            val profile =
-                UserProfile(
-                    userId = "user-1",
-                    sign = ZodiacSign.ARIES.key,
-                    language = "tr",
-                    isPremium = false,
-                    premiumExpiresAt = null,
-                    jwt = "jwt",
-                    utcOffset = 3,
-                    notificationEnabled = true,
-                    notificationHour = 9,
-                )
-            stubSuccessfulRegistration(preferences, profile)
+            stubOnboardingRegistrationSuccess()
             coJustRun { analyticsRepository.track(any(), any()) }
             coEvery { stringsProvider.get(any()) } returns "Registration unavailable, please retry."
             coEvery { preferencesRepository.updateOnboarding(any(), any(), any()) } coAnswers {
@@ -261,28 +240,7 @@ class OnboardingViewModelTest {
     @Test
     fun `analytics queue failure after successful registration does not block navigation`() =
         runTest {
-            val preferences =
-                UserPreferences(
-                    onboardingCompleted = false,
-                    selectedSign = ZodiacSign.ARIES.key,
-                    language = "tr",
-                    jwt = "jwt",
-                    userId = "user-1",
-                    isPremium = false,
-                )
-            val profile =
-                UserProfile(
-                    userId = "user-1",
-                    sign = ZodiacSign.ARIES.key,
-                    language = "tr",
-                    isPremium = false,
-                    premiumExpiresAt = null,
-                    jwt = "jwt",
-                    utcOffset = 3,
-                    notificationEnabled = true,
-                    notificationHour = 9,
-                )
-            stubSuccessfulRegistration(preferences, profile)
+            stubOnboardingRegistrationSuccess()
             coJustRun { analyticsRepository.track(any(), any()) }
             coEvery {
                 analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any())
@@ -493,6 +451,30 @@ class OnboardingViewModelTest {
             stringsProvider = stringsProvider,
             analyticsRepository = analyticsRepository,
         )
+
+    private fun stubOnboardingRegistrationSuccess() {
+        val preferences =
+            UserPreferences(
+                onboardingCompleted = false,
+                selectedSign = ZodiacSign.ARIES.key,
+                language = "tr",
+                jwt = "jwt",
+                userId = "user-1",
+            )
+        val profile =
+            UserProfile(
+                userId = preferences.userId.orEmpty(),
+                sign = preferences.selectedSign,
+                language = preferences.language,
+                isPremium = false,
+                premiumExpiresAt = null,
+                jwt = preferences.jwt.orEmpty(),
+                utcOffset = 3,
+                notificationEnabled = true,
+                notificationHour = 9,
+            )
+        stubSuccessfulRegistration(preferences, profile)
+    }
 
     private fun stubSuccessfulRegistration(
         preferences: UserPreferences,
