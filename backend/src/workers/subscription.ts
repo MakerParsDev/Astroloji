@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 
 import { enforceStrictRateLimit, mapStrictRateLimitResult } from '@/services/rateLimit';
+import { createPremiumProjectionStatement } from '@/services/subscriptionProjection';
 import { verifyPlayRtdnIdentity } from '@/services/playRtdnAuth';
 import {
   claimPlayRtdnMessage,
@@ -80,13 +81,14 @@ function createPremiumStateStatement(
   subscription: GooglePlaySubscription,
   now: string
 ): D1PreparedStatement {
-  return db.prepare(
-    `UPDATE users SET is_premium = ?, subscription_state = ?, premium_expires_at = ?, last_seen_at = ?
-     WHERE id = ? AND EXISTS (SELECT 1 FROM subscriptions WHERE purchase_token = ? AND user_id = ?)`
-  ).bind(
-    hasPremiumEntitlement(subscription) ? 1 : 0, subscription.status,
-    subscription.expiresAt, now, userId, subscription.purchaseToken, userId
-  );
+  return createPremiumProjectionStatement(db, {
+    userId,
+    now,
+    fallbackStatus: subscription.status,
+    fallbackExpiresAt: subscription.expiresAt,
+    guardSql: 'EXISTS (SELECT 1 FROM subscriptions WHERE purchase_token = ? AND user_id = ?)',
+    guardBindings: [subscription.purchaseToken, userId]
+  });
 }
 
 function createSubscriptionEventStatement(
@@ -164,18 +166,14 @@ function createRtdnPremiumStateStatement(
   now: string,
   guard: PlayRtdnLeaseGuard
 ): D1PreparedStatement {
-  return db.prepare(
-    `UPDATE users
-     SET is_premium = ?, subscription_state = ?, premium_expires_at = ?, last_seen_at = ?
-     WHERE id = ? AND ${RTDN_LEASE_EXISTS_SQL}`
-  ).bind(
-    hasPremiumEntitlement(subscription) ? 1 : 0,
-    subscription.status,
-    subscription.expiresAt,
-    now,
+  return createPremiumProjectionStatement(db, {
     userId,
-    guard.messageId, guard.fingerprint, guard.leaseToken, guard.checkedAt
-  );
+    now,
+    fallbackStatus: subscription.status,
+    fallbackExpiresAt: subscription.expiresAt,
+    guardSql: RTDN_LEASE_EXISTS_SQL,
+    guardBindings: [guard.messageId, guard.fingerprint, guard.leaseToken, guard.checkedAt]
+  });
 }
 
 function createRtdnSubscriptionEventStatement(

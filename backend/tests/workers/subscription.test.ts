@@ -337,6 +337,65 @@ async function authenticatedSubscriptionRequest(
 }
 
 describe('subscription worker', () => {
+  it('does not revoke a second active subscription when an older purchase token expires', async () => {
+    const runtime = new Miniflare(convertV4MiniflareOptions({
+      modules: true,
+      script: 'export default {fetch(){return new Response("local-qa")}}',
+      compatibilityDate: '2026-04-05',
+      d1Databases: { DB: 'astrology-subscription-token-replacement' }
+    }));
+    try {
+      const db = await runtime.getD1Database('DB');
+      await db.exec([
+        'CREATE TABLE users (id TEXT PRIMARY KEY, is_premium INTEGER NOT NULL DEFAULT 0, subscription_state TEXT, premium_expires_at TEXT, last_seen_at TEXT);',
+        'CREATE TABLE subscriptions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, purchase_token TEXT NOT NULL UNIQUE, product_id TEXT NOT NULL, status TEXT NOT NULL, starts_at TEXT NOT NULL, expires_at TEXT NOT NULL, auto_renewing INTEGER NOT NULL, cancel_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);',
+        'CREATE TABLE subscription_events (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, purchase_token TEXT NOT NULL, event_type TEXT NOT NULL, payload TEXT, created_at TEXT NOT NULL);'
+      ].join('\n'));
+      const future = new Date(Date.now() + 7 * 86400_000).toISOString();
+      const past = new Date(Date.now() - 86400_000).toISOString();
+      await db.prepare(
+        'INSERT INTO users (id, is_premium, subscription_state, premium_expires_at) VALUES (?, 1, ?, ?)'
+      ).bind('user-1', 'active', future).run();
+      const insert = db.prepare(
+        'INSERT INTO subscriptions (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      );
+      await insert.bind('old-id', 'user-1', 'old-token', 'premium_weekly', 'active', past, past, 0, past, past).run();
+      await insert.bind('new-id', 'user-1', 'new-token', 'premium_weekly', 'active', past, future, 1, past, past).run();
+
+      const env = createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' });
+      const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: true });
+      verifySubscriptionPurchaseMock.mockResolvedValue({
+        ...activeWeeklySubscription('old-token'),
+        status: 'expired',
+        expiresAt: past
+      });
+      const response = await createApp().request(
+        '/api/v1/subscriptions/restore',
+        {
+          method: 'POST',
+          headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+          body: JSON.stringify({ purchase_token: 'old-token', product_id: 'premium_weekly' })
+        },
+        env
+      );
+      expect(response.status).toBe(200);
+      const stored = await db.prepare(
+        'SELECT is_premium, subscription_state, premium_expires_at FROM users WHERE id = ?'
+      ).bind('user-1').first<{ is_premium: number; subscription_state: string; premium_expires_at: string }>();
+      expect(stored).toMatchObject({
+        is_premium: 1,
+        subscription_state: 'active',
+        premium_expires_at: future
+      });
+      const oldStatus = await db.prepare(
+        'SELECT status FROM subscriptions WHERE purchase_token = ?'
+      ).bind('old-token').first<{ status: string }>();
+      expect(oldStatus?.status).toBe('expired');
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('rolls back a failed renewal event against real local D1', async () => {
     const runtime = new Miniflare(convertV4MiniflareOptions({
       modules: true,
