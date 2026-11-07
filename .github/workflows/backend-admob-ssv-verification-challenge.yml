@@ -191,6 +191,7 @@ jobs:
             CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" \
             SSV_WORKER_NAME="$SSV_WORKER_NAME" \
             SSV_LOOKBACK_MINUTES="$SSV_LOOKBACK_MINUTES" \
+            SSV_ENABLE_DIAGNOSTICS="$SSV_ENABLE_DIAGNOSTICS" \
             SSV_RESULT_LIMIT="$SSV_RESULT_LIMIT" \
             npm run --silent transition:callback:inspect > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
 

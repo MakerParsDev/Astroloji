@@ -125,7 +125,9 @@ test('callback inspection publishes only bounded redacted telemetry fields', () 
   assert.ok(callbackStart >= 0 && callbackEnd > callbackStart);
   const callbackBlock = workflow.slice(callbackStart, callbackEnd);
 
-  assert.match(callbackBlock, /SSV_LOOKBACK_MINUTES: '360'/);
+  assert.match(callbackBlock, /SSV_LOOKBACK_MINUTES: '30'/);
+  assert.match(callbackBlock, /SSV_ENABLE_DIAGNOSTICS: 'false'/);
+  assert.match(callbackBlock, /SSV_ENABLE_DIAGNOSTICS="\$SSV_ENABLE_DIAGNOSTICS"/);
   assert.match(callbackBlock, /SSV_RESULT_LIMIT: '20'/);
   assert.match(callbackBlock, /transition:callback:inspect/);
   assert.match(workflow, /callback: \['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'verifierCode', 'verifierReason', 'verifierField', 'scriptVersion', 'telemetryCount', 'returnedCount', 'workerServiceSeen', 'queryStatus', 'rowsRead', 'scriptFilterReturnedCount', 'scriptFilterQueryStatus', 'scriptFilterRowsRead', 'scriptFilterRequestStatus', 'unfilteredReturnedCount', 'unfilteredQueryStatus', 'unfilteredRowsRead', 'unfilteredRequestStatus'\]/);
