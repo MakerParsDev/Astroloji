@@ -207,6 +207,22 @@ export function runRemoteSql(sql: string): D1CommandResult {
   return JSON.parse(output) as D1CommandResult;
 }
 
+function requireSuccessfulD1Result(
+  result: D1CommandResult,
+  operation: 'mutation' | 'query'
+): D1CommandResult {
+  // Wrangler can return a JSON response with per-statement success=false.
+  // Never report a created or deleted challenge when its D1 command failed.
+  if (
+    !Array.isArray(result) ||
+    result.length === 0 ||
+    result.some((item) => item.success !== true)
+  ) {
+    throw new Error(`AdMob verification D1 ${operation} failed.`);
+  }
+  return result;
+}
+
 function firstRow<T>(result: D1CommandResult): T | null {
   const row = result.flatMap((item) => item.results ?? [])[0];
   return row ? (row as T) : null;
@@ -223,7 +239,7 @@ export function executeVerificationChallengeCommand({
     const userId = requireEnv(env, 'ADMOB_SSV_TEST_USER_ID');
     const challengeId = requireEnv(env, 'ADMOB_SSV_TEST_CUSTOM_DATA');
     const values = createSuppliedVerificationChallengeValues({ userId, challengeId, now });
-    runSql(buildInsertVerificationChallengeSql(values));
+    requireSuccessfulD1Result(runSql(buildInsertVerificationChallengeSql(values)), 'mutation');
     const evidence: VerificationChallengeEvidence = {
       operation: 'create',
       ...formatVerificationEvidence({
@@ -245,7 +261,10 @@ export function executeVerificationChallengeCommand({
 
   if (command === 'inspect') {
     const row = firstRow<VerificationChallengeRow>(
-      runSql(buildSelectVerificationChallengeSql(challengeId))
+      requireSuccessfulD1Result(
+        runSql(buildSelectVerificationChallengeSql(challengeId)),
+        'query'
+      )
     );
     if (!row || !row.user_id.startsWith(VERIFICATION_USER_PREFIX)) {
       throw new Error('AdMob verification challenge was not found.');
@@ -259,9 +278,15 @@ export function executeVerificationChallengeCommand({
   }
 
   const userId = requireEnv(env, 'ADMOB_SSV_TEST_USER_ID');
-  runSql(buildDeleteVerificationChallengeSql(challengeId, userId));
+  requireSuccessfulD1Result(
+    runSql(buildDeleteVerificationChallengeSql(challengeId, userId)),
+    'mutation'
+  );
   const cleanup = firstRow<VerificationCleanupRow>(
-    runSql(buildVerifyDeletionSql(challengeId, userId))
+    requireSuccessfulD1Result(
+      runSql(buildVerifyDeletionSql(challengeId, userId)),
+      'query'
+    )
   );
   if (!cleanup || cleanup.challenge_count !== 0 || cleanup.user_count !== 0) {
     throw new Error('AdMob verification challenge cleanup verification failed.');

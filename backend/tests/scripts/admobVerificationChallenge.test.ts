@@ -41,6 +41,69 @@ describe('supplied AdMob verification values', () => {
 });
 
 describe('verification challenge command execution', () => {
+  it('fails closed instead of claiming a challenge was created when D1 rejects the insert', () => {
+    const runSql = vi.fn().mockReturnValue([{ success: false, results: [] }]);
+    const log = vi.fn();
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'create',
+        env: { ADMOB_SSV_TEST_USER_ID: userId, ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+        runSql,
+        log
+      })
+    ).toThrow(/D1 mutation failed/i);
+    expect(runSql).toHaveBeenCalledOnce();
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty D1 response instead of claiming challenge creation', () => {
+    const runSql = vi.fn().mockReturnValue([]);
+    const log = vi.fn();
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'create',
+        env: { ADMOB_SSV_TEST_USER_ID: userId, ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+        runSql,
+        log
+      })
+    ).toThrow(/D1 mutation failed/i);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('never accepts verification status from a failed D1 read', () => {
+    const runSql = vi.fn().mockReturnValue([{
+      success: false,
+      results: [{ id: challengeId, user_id: userId, status: 'verified',
+        transaction_id: null, expires_at: '2026-07-27T10:15:00Z' }]
+    }]);
+    const log = vi.fn();
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'inspect',
+        env: { ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+        runSql,
+        log
+      })
+    ).toThrow(/D1 query failed/i);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('does not claim verified cleanup after a failed D1 delete, even when a read reports zero rows', () => {
+    const runSql = vi.fn()
+      .mockReturnValueOnce([{ success: false, results: [] }])
+      .mockReturnValueOnce([{ success: true, results: [{ challenge_count: 0, user_count: 0 }] }]);
+    const log = vi.fn();
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'delete',
+        env: { ADMOB_SSV_TEST_USER_ID: userId, ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+        runSql,
+        log
+      })
+    ).toThrow(/D1 mutation failed/i);
+    expect(log).not.toHaveBeenCalled();
+  });
+
   it('creates the supplied challenge and logs only redacted evidence', () => {
     const runSql = vi.fn().mockReturnValue([{ success: true, meta: { changes: 1 } }]);
     const log = vi.fn();
