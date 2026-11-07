@@ -284,7 +284,10 @@ class OnboardingViewModel
                         viewModelScope.launch {
                             analyticsRepository.enqueue(
                                 AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
-                                mapOf("reason" to registrationFailureReason(result.exception)),
+                                mapOf(
+                                    AnalyticsEvents.ONBOARDING_FAILURE_CATEGORY_PARAM to
+                                        registrationFailureReason(result.exception),
+                                ),
                             )
                         }
                     }

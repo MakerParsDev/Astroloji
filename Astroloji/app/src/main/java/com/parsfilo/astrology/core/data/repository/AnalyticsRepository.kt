@@ -40,6 +40,7 @@ object AnalyticsEvents {
     const val ONBOARDING_STEP_VIEWED = "onboarding_step_viewed"
     const val ONBOARDING_COMPLETED = "onboarding_completed"
     const val ONBOARDING_REGISTRATION_FAILED = "onboarding_registration_failed"
+    const val ONBOARDING_FAILURE_CATEGORY_PARAM = "astro_onboarding_failure_category"
     const val NOTIFICATION_PERMISSION_RESULT = "notification_permission_result"
     const val PAYWALL_VIEWED = "paywall_viewed"
     const val PAYWALL_PLAN_SELECTED = "paywall_plan_selected"
@@ -82,6 +83,11 @@ private val ALLOWED_ANALYTICS_META_KEYS =
         "milestone",
     )
 
+// Fixed, low-cardinality failure categories for the Astroloji event only.
+// Do not register the generic "reason" key as a property-wide GA4 dimension:
+// the shared property also handles unrelated apps and event types.
+private val SAFE_ONBOARDING_FAILURE_CATEGORIES = setOf("network", "authorization", "other")
+
 // Mood is personal wellbeing data. Preserve the event count, never its details in analytics.
 internal fun sanitizeAnalyticsMeta(
     eventType: String,
@@ -90,7 +96,15 @@ internal fun sanitizeAnalyticsMeta(
     if (eventType == AnalyticsEvents.MOOD_LOGGED) {
         emptyMap()
     } else {
-        meta.filterKeys(ALLOWED_ANALYTICS_META_KEYS::contains)
+        val safeMeta = meta.filterKeys(ALLOWED_ANALYTICS_META_KEYS::contains)
+        val category =
+            if (eventType == AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED) {
+                meta[AnalyticsEvents.ONBOARDING_FAILURE_CATEGORY_PARAM]
+                    ?.takeIf(SAFE_ONBOARDING_FAILURE_CATEGORIES::contains)
+            } else {
+                null
+            }
+        if (category == null) safeMeta else safeMeta + (AnalyticsEvents.ONBOARDING_FAILURE_CATEGORY_PARAM to category)
     }
 
 // One retention policy for both insertion-time bounded queues and offline replay.

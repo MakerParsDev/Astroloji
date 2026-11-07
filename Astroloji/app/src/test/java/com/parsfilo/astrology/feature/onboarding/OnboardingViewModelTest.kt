@@ -128,7 +128,7 @@ class OnboardingViewModelTest {
             coVerify(exactly = 1) {
                 analyticsRepository.enqueue(
                     AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
-                    mapOf("reason" to "network"),
+                    mapOf(AnalyticsEvents.ONBOARDING_FAILURE_CATEGORY_PARAM to "network"),
                 )
             }
 
@@ -186,7 +186,7 @@ class OnboardingViewModelTest {
             coVerify(exactly = 1) {
                 analyticsRepository.enqueue(
                     AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
-                    mapOf("reason" to "other"),
+                    mapOf(AnalyticsEvents.ONBOARDING_FAILURE_CATEGORY_PARAM to "other"),
                 )
             }
 
