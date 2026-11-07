@@ -28,7 +28,8 @@ import type {
   AppContext,
   GooglePlaySubscription,
   GooglePlaySubscriptionResponse,
-  SubscriptionEventType
+  SubscriptionEventType,
+  UserRow
 } from '@/types';
 import { validateSubscriptionBody } from '@/utils/validators';
 
@@ -366,10 +367,22 @@ async function verifyAndPersistSubscription(c: AppContext, eventType: 'purchased
   if (!(await processSubscription(c.env.DB, userId, subscription, eventType, body))) {
     return jsonError(409, 'PURCHASE_TOKEN_CONFLICT', 'Purchase token belongs to another user.');
   }
+  // An old Play token can be expired while a replacement is still active.
+  // Return the account's effective state written by the transactional
+  // projection, not the status of only the submitted purchase token.
+  const current = await c.env.DB.prepare(
+    'SELECT is_premium, subscription_state, premium_expires_at FROM users WHERE id = ?'
+  ).bind(userId).first<Pick<UserRow, 'is_premium' | 'subscription_state' | 'premium_expires_at'>>();
+  if (!current) {
+    throw new Error('Subscription projection is missing after verification.');
+  }
   return c.json({
-    is_premium: hasPremiumEntitlement(subscription),
-    subscription_state: subscription.status,
-    premium_expires_at: subscription.expiresAt,
+    is_premium: current.is_premium === 1 && hasPremiumEntitlement({
+      status: current.subscription_state,
+      expiresAt: current.premium_expires_at ?? ''
+    }),
+    subscription_state: current.subscription_state,
+    premium_expires_at: current.premium_expires_at,
     product_id: subscription.productId
   });
 }
