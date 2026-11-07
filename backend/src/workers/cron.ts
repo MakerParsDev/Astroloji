@@ -1,6 +1,7 @@
 import { createPersonalGuidance } from '@/chart-engine/personalGuidance';
 import { sendBatchNotifications } from '@/services/fcm';
 import { getSubscriptionStatus, hasPremiumEntitlement } from '@/services/playBilling';
+import { createPremiumProjectionStatement } from '@/services/subscriptionProjection';
 import type {
   CronNotificationJob,
   DailyContentDocument,
@@ -180,14 +181,12 @@ async function expireAndRefreshSubscriptions(env: Env) {
           subscription.id
         )
         .run();
-      await env.DB
-        .prepare('UPDATE users SET is_premium = 1, premium_expires_at = ? WHERE id = ?')
-        .bind(current.expiresAt, subscription.user_id)
-        .run();
-      await env.DB
-        .prepare('UPDATE users SET subscription_state = ?, last_seen_at = ? WHERE id = ?')
-        .bind(current.status, now, subscription.user_id)
-        .run();
+      await createPremiumProjectionStatement(env.DB, {
+        userId: subscription.user_id,
+        now,
+        fallbackStatus: current.status,
+        fallbackExpiresAt: current.expiresAt
+      }).run();
       continue;
     }
 
@@ -195,10 +194,12 @@ async function expireAndRefreshSubscriptions(env: Env) {
       .prepare(`UPDATE subscriptions SET status = 'expired', updated_at = ? WHERE id = ?`)
       .bind(now, subscription.id)
       .run();
-    await env.DB
-      .prepare('UPDATE users SET is_premium = 0, subscription_state = ?, premium_expires_at = ?, last_seen_at = ? WHERE id = ?')
-      .bind('expired', subscription.expires_at, now, subscription.user_id)
-      .run();
+    await createPremiumProjectionStatement(env.DB, {
+      userId: subscription.user_id,
+      now,
+      fallbackStatus: 'expired',
+      fallbackExpiresAt: subscription.expires_at
+    }).run();
     await env.DB
       .prepare(
         `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
