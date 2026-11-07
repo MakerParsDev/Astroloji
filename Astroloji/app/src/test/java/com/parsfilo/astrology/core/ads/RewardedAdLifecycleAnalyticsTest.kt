@@ -27,7 +27,13 @@ class RewardedAdLifecycleAnalyticsTest {
         val ad = mockk<RewardedAd>(relaxed = true)
         val callback = slot<FullScreenContentCallback>()
         val earnedCallback = slot<OnUserEarnedRewardListener>()
-        val manager = RewardedAdManager(mockk<Context>(relaxed = true), consent, analytics)
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                analytics,
+                mockk<AdEligibilityChecker>(relaxed = true),
+            )
         val request =
             RewardedAdRequest(
                 placement = "unlock_daily_full",

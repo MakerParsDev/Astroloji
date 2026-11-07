@@ -46,6 +46,7 @@ class FullScreenAdCacheManagerExpiryTest {
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
                 mockk<AdFrequencyManager>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val ad = mockk<InterstitialAd>(relaxed = true)
         setCachedAd(manager, "interstitialAd", ad, consent.consentRevision)
@@ -63,6 +64,7 @@ class FullScreenAdCacheManagerExpiryTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val ad = mockk<RewardedAd>(relaxed = true)
         setCachedAd(manager, "rewardedAd", ad, consent.consentRevision)

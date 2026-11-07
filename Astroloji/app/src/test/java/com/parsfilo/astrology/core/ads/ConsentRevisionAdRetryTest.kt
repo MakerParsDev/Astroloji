@@ -11,15 +11,50 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import io.mockk.Runs
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 
 /** One consent decision must not inherit a load backoff from a previous decision. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ConsentRevisionAdRetryTest {
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(Dispatchers.Unconfined)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    private fun eligibleChecker() =
+        mockk<AdEligibilityChecker> {
+            coEvery { canShowInterstitial() } returns true
+            coEvery { canShowRewarded() } returns true
+        }
+
+    private fun awaitCallbackCount(
+        callbacks: List<*>,
+        count: Int,
+    ) {
+        repeat(300) {
+            if (callbacks.size >= count) return
+            Thread.sleep(10)
+        }
+        assertThat(callbacks).hasSize(count)
+    }
+
     private val context = mockk<Context>(relaxed = true)
     private val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
     private val analytics = mockk<AnalyticsRepository>(relaxed = true)
@@ -40,7 +75,16 @@ class ConsentRevisionAdRetryTest {
             every {
                 InterstitialAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks))
             } just Runs
-            test(InterstitialAdManager(context, consent, analytics, mockk(relaxed = true)), callbacks)
+            test(
+                InterstitialAdManager(
+                    context,
+                    consent,
+                    analytics,
+                    mockk(relaxed = true),
+                    eligibleChecker(),
+                ),
+                callbacks,
+            )
         } finally {
             unmockkStatic(InterstitialAd::class)
             unmockkStatic(SystemClock::class)
@@ -59,7 +103,7 @@ class ConsentRevisionAdRetryTest {
             every {
                 RewardedAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks))
             } just Runs
-            val manager = RewardedAdManager(context, consent, analytics)
+            val manager = RewardedAdManager(context, consent, analytics, eligibleChecker())
             manager.preload()
             callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
             manager.preload()
@@ -104,7 +148,7 @@ class ConsentRevisionAdRetryTest {
             every {
                 RewardedAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks))
             } just Runs
-            val manager = RewardedAdManager(context, consent, analytics)
+            val manager = RewardedAdManager(context, consent, analytics, eligibleChecker())
             manager.preload()
             revision = 2L
             allowed = false
@@ -149,13 +193,13 @@ class ConsentRevisionAdRetryTest {
             every { consent.consentRevision } answers { revision }
             every { RewardedAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
 
-            val manager = RewardedAdManager(context, consent, analytics)
+            val manager = RewardedAdManager(context, consent, analytics, eligibleChecker())
             manager.preload()
             assertThat(callbacks).hasSize(1)
 
             revision = 2L
             callbacks[0].onAdLoaded(mockk<RewardedAd>(relaxed = true))
-            assertThat(callbacks).hasSize(2) // The callback itself must retry with current permission.
+            awaitCallbackCount(callbacks, 2) // The callback itself must retry with current permission.
 
             val loaded = RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply { isAccessible = true }
             assertThat(loaded.get(manager)).isNull()
@@ -178,11 +222,11 @@ class ConsentRevisionAdRetryTest {
             every { consent.consentRevision } answers { revision }
             every { RewardedAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
 
-            val manager = RewardedAdManager(context, consent, analytics)
+            val manager = RewardedAdManager(context, consent, analytics, eligibleChecker())
             manager.preload()
             revision = 2L
             callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
-            assertThat(callbacks).hasSize(2) // An old failure cannot delay the current revision.
+            awaitCallbackCount(callbacks, 2) // An old failure cannot delay the current revision.
 
             callbacks[1].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
             manager.preload()
@@ -199,7 +243,7 @@ class ConsentRevisionAdRetryTest {
             manager.preload()
             revision = 2L
             callbacks[0].onAdFailedToLoad(mockk<LoadAdError>(relaxed = true))
-            assertThat(callbacks).hasSize(2) // Obsolete failure must not impose backoff.
+            awaitCallbackCount(callbacks, 2) // Obsolete failure must not impose backoff.
 
             val fresh = mockk<InterstitialAd>(relaxed = true)
             callbacks[1].onAdLoaded(fresh)

@@ -16,7 +16,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,6 +39,7 @@ class RewardedAdManager
         @param:ApplicationContext private val context: Context,
         private val consentManager: GoogleMobileAdsConsentManager,
         private val analyticsRepository: AnalyticsRepository,
+        private val adEligibilityChecker: AdEligibilityChecker,
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
@@ -56,6 +59,24 @@ class RewardedAdManager
             }
             rewardedAd = null
             loadedAtNanos = 0L
+        }
+
+        /**
+         * SDK callbacks must not bypass a Premium change while an ad was showing.
+         * Check current app entitlements off the UI thread; issue SDK loads on Main.
+         * Returning from the full-screen callback must never await DataStore.
+         */
+        private fun reloadIfEligible() {
+            scope.launch {
+                try {
+                    if (adEligibilityChecker.canShowRewarded()) {
+                        withContext(Dispatchers.Main.immediate) { preload() }
+                    }
+                } catch (e: IOException) {
+                    // Fail closed if preferences cannot be read; do not start a new ad.
+                    Timber.w(e, "Unable to check Premium eligibility before ad reload")
+                }
+            }
         }
 
         fun preload() {
@@ -80,7 +101,7 @@ class RewardedAdManager
                         // Consent can be revoked while the SDK is loading this creative.
                         if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             rewardedAd = null
-                            if (consentManager.canRequestAds) preload()
+                            if (consentManager.canRequestAds) reloadIfEligible()
                             return
                         }
                         rewardedAd = ad
@@ -94,7 +115,7 @@ class RewardedAdManager
                         rewardedAd = null
                         isLoading = false
                         if (consentManager.consentRevision != loadRevision) {
-                            if (consentManager.canRequestAds) preload()
+                            if (consentManager.canRequestAds) reloadIfEligible()
                             return
                         }
                         loadRetryGate.recordFailure()
@@ -124,7 +145,7 @@ class RewardedAdManager
             val ad =
                 rewardedAd.takeIf { consentAllowed } ?: run {
                     if (!consentAllowed) rewardedAd = null
-                    preload()
+                    reloadIfEligible()
                     return false
                 }
             rewardedAd = null
@@ -152,7 +173,7 @@ class RewardedAdManager
             return if (ssvConfigured) {
                 showPreparedRewardedAd(ad, activity, attempt, telemetry, onRewardEarned)
             } else {
-                preload()
+                reloadIfEligible()
                 false
             }
         }
@@ -180,7 +201,7 @@ class RewardedAdManager
                 val callbackAlreadyHandled = !attempt.finished.compareAndSet(false, true)
                 if (!callbackAlreadyHandled) {
                     if (!attempt.rewardDelivered.get()) telemetry.failed("show_exception")
-                    preload()
+                    reloadIfEligible()
                 }
                 callbackAlreadyHandled || attempt.rewardDelivered.get()
             }
@@ -198,7 +219,7 @@ class RewardedAdManager
                         telemetry.failed(reason)
                         onDismissedWithoutReward()
                     }
-                    preload()
+                    reloadIfEligible()
                     onDismissed()
                 }
             }

@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -29,6 +30,7 @@ class InterstitialAdManager
         private val consentManager: GoogleMobileAdsConsentManager,
         private val analyticsRepository: AnalyticsRepository,
         private val adFrequencyManager: AdFrequencyManager,
+        private val adEligibilityChecker: AdEligibilityChecker,
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
@@ -48,6 +50,24 @@ class InterstitialAdManager
             }
             interstitialAd = null
             loadedAtNanos = 0L
+        }
+
+        /**
+         * SDK callbacks must not bypass a Premium change while an ad was showing.
+         * Check current app entitlements off the UI thread; issue SDK loads on Main.
+         * Returning from the full-screen callback must never await DataStore.
+         */
+        private fun reloadIfEligible() {
+            scope.launch {
+                try {
+                    if (adEligibilityChecker.canShowInterstitial()) {
+                        withContext(Dispatchers.Main.immediate) { preload() }
+                    }
+                } catch (e: IOException) {
+                    // Fail closed if preferences cannot be read; do not start a new ad.
+                    Timber.w(e, "Unable to check Premium eligibility before ad reload")
+                }
+            }
         }
 
         fun preload() {
@@ -72,7 +92,7 @@ class InterstitialAdManager
                         // Discard an in-flight load if the consent state changed.
                         if (!consentManager.canRequestAds || consentManager.consentRevision != loadRevision) {
                             interstitialAd = null
-                            if (consentManager.canRequestAds) preload()
+                            if (consentManager.canRequestAds) reloadIfEligible()
                             return
                         }
                         interstitialAd = ad
@@ -86,7 +106,7 @@ class InterstitialAdManager
                         interstitialAd = null
                         isLoading = false
                         if (consentManager.consentRevision != loadRevision) {
-                            if (consentManager.canRequestAds) preload()
+                            if (consentManager.canRequestAds) reloadIfEligible()
                             return
                         }
                         loadRetryGate.recordFailure()
@@ -107,7 +127,7 @@ class InterstitialAdManager
             val ad =
                 interstitialAd.takeIf { consentAllowed } ?: run {
                     if (!consentAllowed) interstitialAd = null
-                    preload()
+                    reloadIfEligible()
                     return false
                 }
             interstitialAd = null
@@ -116,7 +136,7 @@ class InterstitialAdManager
             val impressionRecorded = AtomicBoolean(false)
             val dismissOnce = {
                 if (finished.compareAndSet(false, true)) {
-                    preload()
+                    reloadIfEligible()
                     onDismissed()
                 }
             }
@@ -162,7 +182,7 @@ class InterstitialAdManager
                 // the callback owns navigation; report handled (true) instead.
                 Timber.w(e, "Interstitial SDK show threw")
                 val callbackAlreadyHandled = !finished.compareAndSet(false, true)
-                if (!callbackAlreadyHandled) preload()
+                if (!callbackAlreadyHandled) reloadIfEligible()
                 callbackAlreadyHandled
             }
         }

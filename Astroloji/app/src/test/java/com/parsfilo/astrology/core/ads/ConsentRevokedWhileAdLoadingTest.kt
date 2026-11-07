@@ -73,7 +73,14 @@ class ConsentRevokedWhileAdLoadingTest {
     @Test
     fun `interstitial ignores late load callback after consent revoked`() {
         val callback = slot<InterstitialAdLoadCallback>()
-        val manager = InterstitialAdManager(context, consent, analytics, mockk(relaxed = true))
+        val manager =
+            InterstitialAdManager(
+                context,
+                consent,
+                analytics,
+                mockk(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
+            )
         mockkStatic(InterstitialAd::class)
         try {
             every { consent.canRequestAds } returns true
@@ -103,7 +110,7 @@ class ConsentRevokedWhileAdLoadingTest {
     @Test
     fun `rewarded ignores late load callback after consent revoked`() {
         val callback = slot<RewardedAdLoadCallback>()
-        val manager = RewardedAdManager(context, consent, analytics)
+        val manager = RewardedAdManager(context, consent, analytics, mockk<AdEligibilityChecker>(relaxed = true))
         mockkStatic(RewardedAd::class)
         try {
             every { consent.canRequestAds } returns true
