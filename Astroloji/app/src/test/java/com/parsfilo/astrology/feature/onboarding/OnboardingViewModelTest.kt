@@ -203,6 +203,108 @@ class OnboardingViewModelTest {
         }
 
     @Test
+    fun `post registration preferences failure returns retry instead of trapping onboarding`() =
+        runTest {
+            val preferences =
+                UserPreferences(
+                    onboardingCompleted = false,
+                    selectedSign = ZodiacSign.ARIES.key,
+                    language = "tr",
+                    jwt = "jwt",
+                    userId = "user-1",
+                    isPremium = false,
+                )
+            val profile =
+                UserProfile(
+                    userId = "user-1",
+                    sign = ZodiacSign.ARIES.key,
+                    language = "tr",
+                    isPremium = false,
+                    premiumExpiresAt = null,
+                    jwt = "jwt",
+                    utcOffset = 3,
+                    notificationEnabled = true,
+                    notificationHour = 9,
+                )
+            stubSuccessfulRegistration(preferences, profile)
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { stringsProvider.get(any()) } returns "Registration unavailable, please retry."
+            coEvery { preferencesRepository.updateOnboarding(any(), any(), any()) } coAnswers {
+                if (firstArg<Boolean>()) throw IOException("DataStore update failed")
+            }
+            val viewModel = createViewModel()
+            viewModel.selectSign(ZodiacSign.ARIES)
+            var navigations = 0
+
+            viewModel.complete { navigations++ }
+            advanceUntilIdle()
+
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            assertThat(viewModel.uiState.value.error).isEqualTo("Registration unavailable, please retry.")
+            assertThat(navigations).isEqualTo(0)
+            coVerify(exactly = 0) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
+            coVerify(exactly = 0) {
+                analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED, any())
+            }
+
+            coJustRun { preferencesRepository.updateOnboarding(any(), any(), any()) }
+            viewModel.retryLastSubmission { navigations++ }
+            advanceUntilIdle()
+
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            assertThat(viewModel.uiState.value.error).isNull()
+            assertThat(navigations).isEqualTo(1)
+            coVerify(exactly = 2) { sessionRepository.registerFromPreferences() }
+            coVerify(exactly = 1) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
+        }
+
+    @Test
+    fun `analytics queue failure after successful registration does not block navigation`() =
+        runTest {
+            val preferences =
+                UserPreferences(
+                    onboardingCompleted = false,
+                    selectedSign = ZodiacSign.ARIES.key,
+                    language = "tr",
+                    jwt = "jwt",
+                    userId = "user-1",
+                    isPremium = false,
+                )
+            val profile =
+                UserProfile(
+                    userId = "user-1",
+                    sign = ZodiacSign.ARIES.key,
+                    language = "tr",
+                    isPremium = false,
+                    premiumExpiresAt = null,
+                    jwt = "jwt",
+                    utcOffset = 3,
+                    notificationEnabled = true,
+                    notificationHour = 9,
+                )
+            stubSuccessfulRegistration(preferences, profile)
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery {
+                analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any())
+            } throws IOException("Analytics queue unavailable")
+            val viewModel = createViewModel()
+            viewModel.selectSign(ZodiacSign.ARIES)
+            var navigations = 0
+
+            viewModel.complete { navigations++ }
+            advanceUntilIdle()
+
+            assertThat(navigations).isEqualTo(1)
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            assertThat(viewModel.uiState.value.error).isNull()
+            coVerify(exactly = 1) { sessionRepository.registerFromPreferences() }
+            coVerify(exactly = 1) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
+            coVerify(exactly = 0) {
+                analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED, any())
+            }
+        }
+
+    @Test
     fun `initialization and step changes emit bounded onboarding funnel events`() =
         runTest {
             coJustRun { analyticsRepository.track(any(), any()) }
