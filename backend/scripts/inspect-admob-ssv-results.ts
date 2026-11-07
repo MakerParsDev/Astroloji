@@ -2,7 +2,7 @@ import { pathToFileURL } from 'node:url';
 
 const SSV_EVENT = 'reward_ssv_result';
 const DEFAULT_WORKER = 'astrology-ssv-transition';
-const DEFAULT_LOOKBACK_MINUTES = 360;
+const DEFAULT_LOOKBACK_MINUTES = 30;
 const DEFAULT_LIMIT = 20;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DIAGNOSTIC_LOOKBACK_MINUTES = 15;
@@ -482,7 +482,9 @@ export async function executeWorkerSsvInspection({
     requestStatus: null
   };
 
-  if (parsedEvidence.status === 'no_events') {
+  // Diagnostic fallback performs additional telemetry queries, including an unfiltered
+  // scan. Keep it explicitly opt-in to avoid extra provider cost on empty windows.
+  if (parsedEvidence.status === 'no_events' && env.SSV_ENABLE_DIAGNOSTICS?.trim() === 'true') {
     try {
       const valuesResponse = await postTelemetryRequest(
         fetchImpl,
