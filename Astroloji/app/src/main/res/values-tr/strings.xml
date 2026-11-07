@@ -380,11 +380,11 @@
     <string name="settings_birth_data_delete_confirm">Doğum profilini sil</string>
     <string name="settings_birth_data_delete_progress">Doğum profili siliniyor…</string>
     <string name="settings_mood_delete_title">Ruh hâli kayıtlarını sil</string>
-    <string name="settings_mood_delete_description">Hesabınızı veya doğum profilinizi silmeden sunucumuzdaki tüm ruh hâli kayıtlarınızı ve bunlarla ilişkili olay kayıtlarını kaldırın. Firebase Analytics tarafından daha önce toplanan olaylar silinemez.</string>
+    <string name="settings_mood_delete_description">Hesabınızı veya doğum profilinizi silmeden sunucumuzdaki tüm ruh hâli kayıtlarınızı ve bunlarla ilişkili olay kayıtlarını kaldırın. Bu işlem, daha önce toplanan Firebase Analytics olaylarını silmez. Ayrı silme talepleri için Gizlilik Politikası bölümüne bakın.</string>
     <string name="settings_mood_delete_button">Ruh hâli geçmişini sil</string>
     <string name="settings_mood_delete_success">Ruh hâli geçmişiniz silindi. Hesabınız etkin kalıyor.</string>
     <string name="settings_mood_delete_dialog_title">Tüm ruh hâli kayıtları silinsin mi?</string>
-    <string name="settings_mood_delete_dialog_body">Sunucumuzdaki tüm ruh hâli kayıtlarınız ve bunlarla ilişkili olay kayıtları silinecek. Hesabınız ve doğum profiliniz korunacak. Daha önce toplanan Firebase Analytics olayları silinmez.</string>
+    <string name="settings_mood_delete_dialog_body">Sunucumuzdaki tüm ruh hâli kayıtlarınız ve bunlarla ilişkili olay kayıtları silinecek. Hesabınız ve doğum profiliniz korunacak. Bu işlem, daha önce toplanan Firebase Analytics olaylarını silmez.</string>
     <string name="settings_mood_delete_confirm">Ruh hâli geçmişini sil</string>
     <string name="settings_mood_delete_progress">Ruh hâli geçmişi siliniyor…</string>
     <string name="premium_insights_title">Burcun için daha fazlası</string>
