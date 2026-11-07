@@ -12,7 +12,9 @@ const ANDROID_ANALYTICS_SOURCE = resolve(
 
 function readAndroidAnalyticsEvents(): string[] {
   const source = readFileSync(ANDROID_ANALYTICS_SOURCE, 'utf8');
-  return [...source.matchAll(/const val [A-Z0-9_]+ = "([a-z0-9_]+)"/g)].map(
+  const block = source.match(/object AnalyticsEvents\s*\{([\s\S]*?)^\}/m)?.[1];
+  if (!block) throw new Error('Android AnalyticsEvents object not found');
+  return [...block.matchAll(/const val [A-Z0-9_]+ = "([a-z0-9_]+)"/g)].map(
     (match) => match[1]
   );
 }
@@ -23,6 +25,10 @@ describe('analytics event contract', () => {
 
     expect(mobileEvents.length).toBeGreaterThan(0);
     expect(USER_EVENT_TYPES).toEqual(expect.arrayContaining(mobileEvents));
+  });
+
+  it('does not classify custom event parameter names as event types', () => {
+    expect(readAndroidAnalyticsEvents()).not.toContain('astro_onboarding_failure_category');
   });
 
   it('supports the complete activation and monetization funnel taxonomy', () => {

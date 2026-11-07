@@ -61,6 +61,10 @@ object AnalyticsEvents {
     const val DAILY_FEEDBACK_SUBMITTED = "daily_feedback_submitted"
 }
 
+// Not a named Analytics event: this is a custom *parameter* on one event.
+// Keep distinct from AnalyticsEvents to preserve Android/backend event contracts.
+internal const val ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM = "astro_onboarding_failure_category"
+
 private val ALLOWED_ANALYTICS_META_KEYS =
     setOf(
         "source",
@@ -82,6 +86,11 @@ private val ALLOWED_ANALYTICS_META_KEYS =
         "milestone",
     )
 
+// Fixed, low-cardinality failure categories for the Astroloji event only.
+// Do not register the generic "reason" key as a property-wide GA4 dimension:
+// the shared property also handles unrelated apps and event types.
+private val SAFE_ONBOARDING_FAILURE_CATEGORIES = setOf("network", "authorization", "other")
+
 // Mood is personal wellbeing data. Preserve the event count, never its details in analytics.
 internal fun sanitizeAnalyticsMeta(
     eventType: String,
@@ -90,7 +99,15 @@ internal fun sanitizeAnalyticsMeta(
     if (eventType == AnalyticsEvents.MOOD_LOGGED) {
         emptyMap()
     } else {
-        meta.filterKeys(ALLOWED_ANALYTICS_META_KEYS::contains)
+        val safeMeta = meta.filterKeys(ALLOWED_ANALYTICS_META_KEYS::contains)
+        val category =
+            if (eventType == AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED) {
+                meta[ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM]
+                    ?.takeIf(SAFE_ONBOARDING_FAILURE_CATEGORIES::contains)
+            } else {
+                null
+            }
+        if (category == null) safeMeta else safeMeta + (ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM to category)
     }
 
 // One retention policy for both insertion-time bounded queues and offline replay.

@@ -270,6 +270,31 @@ class AnalyticsRepositoryTest {
         }
 
     @Test
+    fun `Astroloji onboarding category is bounded and event scoped`() {
+        val category = ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM
+        for (value in listOf("network", "authorization", "other")) {
+            assertThat(
+                sanitizeAnalyticsMeta(
+                    AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
+                    mapOf(category to value, "email" to "private@example.com"),
+                ),
+            ).containsExactly(category, value)
+        }
+        assertThat(
+            sanitizeAnalyticsMeta(
+                AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
+                mapOf(category to "private raw exception text"),
+            ),
+        ).isEmpty()
+        assertThat(
+            sanitizeAnalyticsMeta(AnalyticsEvents.DAILY_VIEWED, mapOf(category to "network")),
+        ).isEmpty()
+        assertThat(
+            sanitizeAnalyticsMeta(AnalyticsEvents.MOOD_LOGGED, mapOf(category to "network")),
+        ).isEmpty()
+    }
+
+    @Test
     fun `other analytics events retain allowed metadata`() {
         assertThat(
             sanitizeAnalyticsMeta(

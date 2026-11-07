@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.parsfilo.astrology.R
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
 import com.parsfilo.astrology.core.data.remote.CityResponse
+import com.parsfilo.astrology.core.data.repository.ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.BirthDataRepository
@@ -284,7 +285,10 @@ class OnboardingViewModel
                         viewModelScope.launch {
                             analyticsRepository.enqueue(
                                 AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
-                                mapOf("reason" to registrationFailureReason(result.exception)),
+                                mapOf(
+                                    ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM to
+                                        registrationFailureReason(result.exception),
+                                ),
                             )
                         }
                     }
