@@ -271,7 +271,7 @@ class AnalyticsRepositoryTest {
 
     @Test
     fun `Astroloji onboarding category is bounded and event scoped`() {
-        val category = AnalyticsEvents.ONBOARDING_FAILURE_CATEGORY_PARAM
+        val category = ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM
         for (value in listOf("network", "authorization", "other")) {
             assertThat(
                 sanitizeAnalyticsMeta(

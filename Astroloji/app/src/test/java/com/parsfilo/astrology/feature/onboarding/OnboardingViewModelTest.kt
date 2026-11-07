@@ -3,6 +3,7 @@ package com.parsfilo.astrology.feature.onboarding
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.repository.ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
 import com.parsfilo.astrology.core.data.repository.BirthDataRepository
@@ -128,7 +129,7 @@ class OnboardingViewModelTest {
             coVerify(exactly = 1) {
                 analyticsRepository.enqueue(
                     AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
-                    mapOf(AnalyticsEvents.ONBOARDING_FAILURE_CATEGORY_PARAM to "network"),
+                    mapOf(ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM to "network"),
                 )
             }
 
@@ -186,7 +187,7 @@ class OnboardingViewModelTest {
             coVerify(exactly = 1) {
                 analyticsRepository.enqueue(
                     AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
-                    mapOf(AnalyticsEvents.ONBOARDING_FAILURE_CATEGORY_PARAM to "other"),
+                    mapOf(ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM to "other"),
                 )
             }
 
