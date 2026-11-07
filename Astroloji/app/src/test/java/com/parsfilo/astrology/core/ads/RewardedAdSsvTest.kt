@@ -26,7 +26,13 @@ class RewardedAdSsvTest {
         val consent = mockk<GoogleMobileAdsConsentManager>(relaxed = true)
         every { consent.canRequestAds } returns true
         val analytics = mockk<AnalyticsRepository>(relaxed = true)
-        val manager = RewardedAdManager(mockk<Context>(relaxed = true), consent, analytics)
+        val manager =
+            RewardedAdManager(
+                mockk<Context>(relaxed = true),
+                consent,
+                analytics,
+                mockk<AdEligibilityChecker>(relaxed = true),
+            )
         val callback = slot<FullScreenContentCallback>()
         val rewardListener = slot<OnUserEarnedRewardListener>()
         every { ad.fullScreenContentCallback = capture(callback) } just Runs
@@ -76,6 +82,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val callback = slot<FullScreenContentCallback>()
         every { ad.fullScreenContentCallback = capture(callback) } just Runs
@@ -127,6 +134,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val callback = slot<FullScreenContentCallback>()
         val rewardListener = slot<OnUserEarnedRewardListener>()
@@ -181,6 +189,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val callback = slot<FullScreenContentCallback>()
         every { ad.fullScreenContentCallback = capture(callback) } just Runs
@@ -228,6 +237,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val listener = slot<OnUserEarnedRewardListener>()
         val callback = slot<FullScreenContentCallback>()
@@ -279,6 +289,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val callback = slot<FullScreenContentCallback>()
         val rewardListener = slot<OnUserEarnedRewardListener>()
@@ -330,6 +341,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val callback = slot<FullScreenContentCallback>()
         val rewardListener = slot<OnUserEarnedRewardListener>()
@@ -375,6 +387,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
@@ -413,6 +426,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         RewardedAdManager::class.java.getDeclaredField("rewardedAd").apply {
             isAccessible = true
@@ -455,6 +469,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val ad = mockk<RewardedAd>(relaxed = true)
         val cached = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
@@ -496,6 +511,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val ad = mockk<RewardedAd>(relaxed = true)
         val cached = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
@@ -560,6 +576,7 @@ class RewardedAdSsvTest {
                     mockk<Context>(relaxed = true),
                     consent,
                     mockk<AnalyticsRepository>(relaxed = true),
+                    mockk<AdEligibilityChecker>(relaxed = true),
                 )
             val cachedAd = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
             cachedAd.isAccessible = true
@@ -586,6 +603,7 @@ class RewardedAdSsvTest {
                 mockk<Context>(relaxed = true),
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         val cachedAd = RewardedAdManager::class.java.getDeclaredField("rewardedAd")
         cachedAd.isAccessible = true

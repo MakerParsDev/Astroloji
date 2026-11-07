@@ -31,6 +31,7 @@ class InterstitialImpressionAccountingTest {
             consent,
             analytics,
             frequency,
+            mockk<AdEligibilityChecker>(relaxed = true),
         )
 
     private fun preloadedAd(manager: InterstitialAdManager): InterstitialAd {

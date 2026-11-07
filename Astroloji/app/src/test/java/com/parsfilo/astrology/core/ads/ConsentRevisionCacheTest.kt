@@ -88,7 +88,14 @@ class ConsentRevisionCacheTest {
     @Test
     fun `interstitial ignores load results from an earlier consent revision`() {
         val callback = slot<InterstitialAdLoadCallback>()
-        val manager = InterstitialAdManager(context, consent, analytics, mockk(relaxed = true))
+        val manager =
+            InterstitialAdManager(
+                context,
+                consent,
+                analytics,
+                mockk(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
+            )
         mockkStatic(InterstitialAd::class)
         try {
             every { consent.canRequestAds } returns true
@@ -132,7 +139,7 @@ class ConsentRevisionCacheTest {
     @Test
     fun `rewarded ignores load results from an earlier consent revision`() {
         val callback = slot<RewardedAdLoadCallback>()
-        val manager = RewardedAdManager(context, consent, analytics)
+        val manager = RewardedAdManager(context, consent, analytics, mockk<AdEligibilityChecker>(relaxed = true))
         mockkStatic(RewardedAd::class)
         try {
             every { consent.canRequestAds } returns true
