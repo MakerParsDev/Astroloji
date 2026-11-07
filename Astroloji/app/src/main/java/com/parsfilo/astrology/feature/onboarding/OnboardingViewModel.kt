@@ -1,5 +1,6 @@
 package com.parsfilo.astrology.feature.onboarding
 
+import android.database.sqlite.SQLiteException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.parsfilo.astrology.R
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneId
@@ -267,20 +269,7 @@ class OnboardingViewModel
                     }
 
                 when (val result = registrationResult) {
-                    is AppResult.Success -> {
-                        preferencesRepository.updateOnboarding(true, sign.key, _uiState.value.language)
-                        analyticsRepository.enqueue(
-                            AnalyticsEvents.ONBOARDING_COMPLETED,
-                            mapOf("sign" to sign.key, "locale" to _uiState.value.language),
-                        )
-                        saveBirthDataAndReveal()
-                        _uiState.update { it.copy(isSubmitting = false) }
-                        // When a real Ascendant was revealed, the screen shows it and its own
-                        // "Continue" button calls onSuccess — don't navigate away underneath it.
-                        if (_uiState.value.chartReveal == null) {
-                            onSuccess()
-                        }
-                    }
+                    is AppResult.Success -> finishSuccessfulRegistration(sign, onSuccess)
                     is AppResult.Error -> {
                         _uiState.update {
                             it.copy(
@@ -301,6 +290,45 @@ class OnboardingViewModel
                     }
                     AppResult.Loading -> Unit
                 }
+            }
+        }
+
+        private suspend fun finishSuccessfulRegistration(
+            sign: ZodiacSign,
+            onSuccess: () -> Unit,
+        ) {
+            try {
+                preferencesRepository.updateOnboarding(true, sign.key, _uiState.value.language)
+            } catch (exception: IOException) {
+                Timber.w(exception, "Local onboarding completion marker could not be persisted.")
+                // The backend registration succeeded, so show retry without
+                // misclassifying it as an authorization or network failure.
+                _uiState.update {
+                    it.copy(
+                        isSubmitting = false,
+                        error = stringsProvider.get(R.string.session_error_open_failed_after_register),
+                    )
+                }
+                return
+            }
+
+            try {
+                analyticsRepository.enqueue(
+                    AnalyticsEvents.ONBOARDING_COMPLETED,
+                    mapOf("sign" to sign.key, "locale" to _uiState.value.language),
+                )
+            } catch (exception: IOException) {
+                Timber.w(exception, "Onboarding completion analytics could not be queued.")
+            } catch (exception: SQLiteException) {
+                Timber.w(exception, "Onboarding completion analytics could not be queued.")
+            }
+
+            saveBirthDataAndReveal()
+            _uiState.update { it.copy(isSubmitting = false) }
+            // A revealed Ascendant has its own Continue action, so don't
+            // navigate out from underneath it.
+            if (_uiState.value.chartReveal == null) {
+                onSuccess()
             }
         }
 
