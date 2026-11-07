@@ -14,6 +14,44 @@ function telemetry(events: unknown[], count = events.length) {
 }
 
 describe('AdMob SSV observability inspection', () => {
+  it('does not trigger costly unfiltered diagnostic queries by default when there are no SSV events', async () => {
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        success: true,
+        result: {
+          ...telemetry([], 0),
+          run: { status: 'COMPLETED' },
+          statistics: { rows_read: 3 }
+        }
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    );
+    const evidence = await executeWorkerSsvInspection({
+      env: {
+        CLOUDFLARE_API_TOKEN: 'dummy-token',
+        CLOUDFLARE_ACCOUNT_ID: 'dummy-account',
+        SSV_WORKER_NAME: workerName
+      },
+      fetchImpl,
+      nowMs: 1_800_000_000_000,
+      log: vi.fn()
+    });
+    expect(evidence.status).toBe('no_events');
+    expect(evidence.rowsRead).toBe(3);
+    expect(evidence.scriptFilterRequestStatus).toBeNull();
+    expect(evidence.unfilteredRequestStatus).toBeNull();
+    expect(fetchImpl).toHaveBeenCalledExactlyOnceWith(
+      'https://api.cloudflare.com/client/v4/accounts/dummy-account/workers/observability/telemetry/query',
+      expect.objectContaining({ method: 'POST' })
+    );
+    const [, request] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      timeframe: { from: 1_799_998_200_000, to: 1_800_000_000_000 },
+      parameters: {
+        filters: [{ key: '$metadata.service', operation: 'eq', value: workerName }]
+      }
+    });
+  });
+
   it('builds bounded alternate filter and unfiltered diagnostic queries', () => {
     expect(buildWorkerSsvDiagnosticQueries(workerName, 15, 1, 1_800_000_000_000)).toEqual({
       scriptFilter: {
@@ -259,7 +297,8 @@ describe('AdMob SSV observability inspection', () => {
       env: {
         CLOUDFLARE_API_TOKEN: 'cf-secret-token',
         CLOUDFLARE_ACCOUNT_ID: 'account-id',
-        SSV_WORKER_NAME: workerName
+        SSV_WORKER_NAME: workerName,
+        SSV_ENABLE_DIAGNOSTICS: 'true'
       },
       fetchImpl,
       nowMs: 1_800_000_000_000,
@@ -319,7 +358,7 @@ describe('AdMob SSV observability inspection', () => {
     expect(JSON.parse(String(valuesInit.body))).toEqual({
       datasets: ['cloudflare-workers'],
       key: '$metadata.service',
-      timeframe: { from: 1_799_978_400_000, to: 1_800_000_000_000 },
+      timeframe: { from: 1_799_998_200_000, to: 1_800_000_000_000 },
       type: 'string'
     });
     expect(valuesInit.signal).toBeInstanceOf(AbortSignal);
@@ -394,7 +433,8 @@ describe('AdMob SSV observability inspection', () => {
         env: {
           CLOUDFLARE_API_TOKEN: 'token',
           CLOUDFLARE_ACCOUNT_ID: 'account-id',
-          SSV_WORKER_NAME: workerName
+          SSV_WORKER_NAME: workerName,
+          SSV_ENABLE_DIAGNOSTICS: 'true'
         },
         fetchImpl,
         nowMs: 1_800_000_000_000,
@@ -458,7 +498,8 @@ describe('AdMob SSV observability inspection', () => {
       env: {
         CLOUDFLARE_API_TOKEN: 'token',
         CLOUDFLARE_ACCOUNT_ID: 'account-id',
-        SSV_WORKER_NAME: workerName
+        SSV_WORKER_NAME: workerName,
+        SSV_ENABLE_DIAGNOSTICS: 'true'
       },
       fetchImpl,
       nowMs: 1_800_000_000_000,
@@ -502,7 +543,8 @@ describe('AdMob SSV observability inspection', () => {
       env: {
         CLOUDFLARE_API_TOKEN: 'token',
         CLOUDFLARE_ACCOUNT_ID: 'account-id',
-        SSV_WORKER_NAME: workerName
+        SSV_WORKER_NAME: workerName,
+        SSV_ENABLE_DIAGNOSTICS: 'true'
       },
       fetchImpl,
       nowMs: 1_800_000_000_000,

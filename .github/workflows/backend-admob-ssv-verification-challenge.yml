@@ -178,7 +178,8 @@ jobs:
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           SSV_WORKER_NAME: astrology-ssv-transition
-          SSV_LOOKBACK_MINUTES: '360'
+          SSV_LOOKBACK_MINUTES: '30'
+          SSV_ENABLE_DIAGNOSTICS: 'false'
           SSV_RESULT_LIMIT: '20'
         run: |
           set -euo pipefail
