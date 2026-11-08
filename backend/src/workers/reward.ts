@@ -174,8 +174,8 @@ export function registerRewardRoutes<E extends RewardEnv>(
     const challengeId = randomUUID();
     const expiresAtMs = createdAtMs + CHALLENGE_TTL_MS;
 
-    await runRewardPrepareDbOperation('challenge_insert', () =>
-      c.env.DB
+    await runRewardPrepareDbOperation('challenge_insert', async () => {
+      const result = await c.env.DB
         .prepare(
           `INSERT INTO reward_challenges
          (id, user_id, reward_type, identifier, status, transaction_id, ad_unit,
@@ -191,8 +191,11 @@ export function registerRewardRoutes<E extends RewardEnv>(
           iso(createdAtMs),
           iso(expiresAtMs)
         )
-        .run()
-    );
+        .run();
+      if (result.success !== true || result.meta?.changes !== 1) {
+        throw new Error('Reward challenge insert did not confirm persistence.');
+      }
+    });
 
     return c.json(
       {
@@ -293,7 +296,11 @@ export function registerRewardRoutes<E extends RewardEnv>(
       return jsonError(409, 'REWARD_VERIFICATION_CONFLICT', 'Reward challenge could not be verified.');
     }
 
-    if ((result.meta.changes ?? 0) !== 1) {
+    if (result.success !== true) {
+      logRewardResult('verification_conflict');
+      return jsonError(409, 'REWARD_VERIFICATION_CONFLICT', 'Reward challenge could not be verified.');
+    }
+    if ((result.meta?.changes ?? 0) !== 1) {
       const current = await getChallenge(c.env.DB, challengeId);
       if (current && callbackMatchesExisting(current, callback)) {
         logRewardResult('duplicate_callback');
@@ -353,7 +360,10 @@ export function registerRewardRoutes<E extends RewardEnv>(
       .bind(currentIso, entitlementExpiresAt, challenge.id, auth.userId, currentIso)
       .run();
 
-    if ((result.meta.changes ?? 0) !== 1) {
+    if (result.success !== true) {
+      return jsonError(409, 'REWARD_CLAIM_CONFLICT', 'Reward challenge could not be consumed.');
+    }
+    if ((result.meta?.changes ?? 0) !== 1) {
       const current = await getChallenge(c.env.DB, challenge.id);
       if (
         current?.status === 'consumed' &&
@@ -424,7 +434,10 @@ export async function cleanupRewardChallenges(
       )
       .bind(auditCutoff, auditCutoff, REWARD_CLEANUP_BATCH_SIZE)
       .run();
-    if ((result.meta.changes ?? 0) === 0) {
+    if (result.success !== true) {
+      throw new Error('Reward challenge cleanup database operation failed.');
+    }
+    if ((result.meta?.changes ?? 0) === 0) {
       break;
     }
   }
