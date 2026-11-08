@@ -125,7 +125,7 @@ export function createSuppliedVerificationChallengeValues(options: {
 }
 
 export function buildInsertVerificationChallengeSql(values: VerificationChallengeValues): string {
-  return `INSERT OR IGNORE INTO users
+  return `INSERT INTO users
 (id, firebase_uid, sign, language, utc_offset, is_premium, subscription_state,
  premium_expires_at, created_at, last_seen_at)
 VALUES (${sqlString(values.userId)}, NULL, 'aries', 'tr', 0, 0, 'none', NULL,
