@@ -24,7 +24,20 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
-function createRewardDb(options: { failVerifyUpdate?: boolean; failVerifyUpdateMessage?: string; failEntitlementLookup?: boolean; failEntitlementLookupMessage?: string; failPrepareInsert?: boolean } = {}) {
+interface RewardDbFailureOptions {
+  failVerifyUpdate?: boolean;
+  failVerifyUpdateMessage?: string;
+  failEntitlementLookup?: boolean;
+  failEntitlementLookupMessage?: string;
+  failPrepareInsert?: boolean;
+  failPrepareResult?: boolean;
+  failPrepareZeroChanges?: boolean;
+  failVerifyResult?: boolean;
+  failConsumeResult?: boolean;
+  failCleanupResult?: boolean;
+}
+
+function createRewardDb(options: RewardDbFailureOptions = {}) {
   const rows = new Map<string, RewardChallengeRow>();
 
   const db = {
@@ -73,6 +86,8 @@ function createRewardDb(options: { failVerifyUpdate?: boolean; failVerifyUpdateM
           const query = normalize(sql);
           if (query.startsWith('INSERT INTO reward_challenges')) {
             if (options.failPrepareInsert) throw new Error('database unavailable secret-forbidden-123');
+            if (options.failPrepareResult) return { success: false, meta: { changes: 1 } };
+            if (options.failPrepareZeroChanges) return { success: true, meta: { changes: 0 } };
             const [id, userId, rewardType, identifier, createdAt, expiresAt] = statement.bindings.map(String);
             rows.set(id, {
               id,
@@ -93,6 +108,7 @@ function createRewardDb(options: { failVerifyUpdate?: boolean; failVerifyUpdateM
           }
           if (query.startsWith('UPDATE reward_challenges SET status = \'verified\'')) {
             if (options.failVerifyUpdate || options.failVerifyUpdateMessage) throw new Error(options.failVerifyUpdateMessage ?? 'database unavailable');
+            if (options.failVerifyResult) return { success: false, meta: { changes: 1 } };
             const [transactionId, adUnit, callbackTimestampMs, verifiedAt, id, nowIso] = statement.bindings;
             const row = rows.get(String(id));
             const transactionUsed = [...rows.values()].some(
@@ -118,6 +134,7 @@ function createRewardDb(options: { failVerifyUpdate?: boolean; failVerifyUpdateM
             return { success: true, meta: { changes: 1 } };
           }
           if (query.startsWith('UPDATE reward_challenges SET status = \'consumed\'')) {
+            if (options.failConsumeResult) return { success: false, meta: { changes: 1 } };
             const [consumedAt, entitlementExpiresAt, id, userId, nowIso] = statement.bindings;
             const row = rows.get(String(id));
             if (
@@ -137,6 +154,7 @@ function createRewardDb(options: { failVerifyUpdate?: boolean; failVerifyUpdateM
             return { success: true, meta: { changes: 1 } };
           }
           if (query.startsWith('DELETE FROM reward_challenges')) {
+            if (options.failCleanupResult) return { success: false, meta: { changes: 0 } };
             return { success: true, meta: { changes: 0 } };
           }
           return { success: true, meta: { changes: 0 } };
@@ -200,6 +218,58 @@ function testApp(args: {
 }
 
 describe('rewarded access SSV routes', () => {
+  it.each([
+    ['prepare', 'failPrepareResult', 500],
+    ['prepare-empty', 'failPrepareZeroChanges', 500],
+    ['verify', 'failVerifyResult', 409],
+    ['claim', 'failConsumeResult', 409]
+  ] as const)('does not claim success when D1 reports a failed %s write', async (stage, failure, expectedStatus) => {
+    const { db, rows } = createRewardDb({ [failure]: true });
+    const env = createTestEnv({ DB: db, ADMOB_REWARDED_ID: AD_UNIT });
+    const { jwt } = await createAuthenticatedRequestContext(env);
+    const app = testApp();
+    const prepared = await app.request(
+      '/api/v1/rewards/prepare',
+      {
+        method: 'POST',
+        headers: { authorization: 'Bearer ' + jwt, 'content-type': 'application/json' },
+        body: JSON.stringify({ reward_type: 'daily', identifier: '2026-07-26' })
+      },
+      env
+    );
+    if (stage.startsWith('prepare')) {
+      expect(prepared.status).toBe(expectedStatus);
+      expect(rows.size).toBe(0);
+      return;
+    }
+    expect(prepared.status).toBe(201);
+    const callback = await app.request('/api/v1/rewards/ssv?injected-test-verifier', {}, env);
+    if (stage === 'verify') {
+      expect(callback.status).toBe(expectedStatus);
+      expect(rows.get(CHALLENGE_ID)?.status).toBe('pending');
+      return;
+    }
+    expect(callback.status).toBe(200);
+    const claim = await app.request(
+      '/api/v1/rewards/claim',
+      {
+        method: 'POST',
+        headers: { authorization: 'Bearer ' + jwt, 'content-type': 'application/json' },
+        body: JSON.stringify({ challenge_id: CHALLENGE_ID })
+      },
+      env
+    );
+    expect(claim.status).toBe(expectedStatus);
+    expect(rows.get(CHALLENGE_ID)?.status).toBe('verified');
+    expect(rows.get(CHALLENGE_ID)?.entitlement_expires_at).toBeNull();
+  });
+
+  it('does not silently accept failed D1 reward cleanup', async () => {
+    const { db } = createRewardDb({ failCleanupResult: true });
+    await expect(cleanupRewardChallenges(db, NOW_MS)).rejects.toThrow(
+      'Reward challenge cleanup database operation failed.'
+    );
+  });
   it('calls native crypto.randomUUID with its Crypto receiver when preparing a challenge', async () => {
     const uuid = vi.spyOn(globalThis.crypto, 'randomUUID').mockImplementation(function (this: Crypto) {
       if (this !== globalThis.crypto) throw new TypeError('Illegal invocation');
