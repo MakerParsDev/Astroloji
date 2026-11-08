@@ -39,6 +39,7 @@ function pendingDeletionDb(count: number, shouldFail: (userId: string, attempt: 
           if (!sql.includes('FROM account_deletion_jobs')) throw new Error(`Unexpected query: ${sql}`);
           const [due, limit] = statement.bindings as [string, number];
           return {
+            success: true,
             results: queued.filter((job) => job.next_attempt_at <= due)
               .sort((left, right) => left.next_attempt_at.localeCompare(right.next_attempt_at)
                 || left.created_at.localeCompare(right.created_at))
@@ -54,6 +55,7 @@ function pendingDeletionDb(count: number, shouldFail: (userId: string, attempt: 
           if (!job) throw new Error('Missing pending job');
           job.attempts += 1;
           job.next_attempt_at = nextAttemptAt;
+          return { success: true };
         }
       };
       return statement;
@@ -90,6 +92,46 @@ afterEach(() => {
 });
 
 describe('durable account deletion reconciliation', () => {
+  it('rejects an unsuccessful D1 job listing instead of treating it as an empty queue', async () => {
+    const { db } = pendingDeletionDb(1);
+    const failingDb = {
+      ...db,
+      prepare(sql: string) {
+        if (sql.includes('FROM account_deletion_jobs')) {
+          return { bind() { return { async all() {
+            return { success: false, results: [] };
+          } }; } };
+        }
+        return db.prepare(sql);
+      }
+    } as unknown as D1Database;
+    const env = createTestEnv({ DB: failingDb });
+    await expect(reconcileAccountDeletions(env)).rejects.toThrow(
+      'Account deletion queue query was not confirmed.'
+    );
+    expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed D1 retry-schedule write instead of silently accepting it', async () => {
+    const { db, queued } = pendingDeletionDb(1, () => true);
+    const failingDb = {
+      ...db,
+      prepare(sql: string) {
+        if (sql.startsWith('UPDATE account_deletion_jobs SET attempts')) {
+          return { bind() { return { async run() { return { success: false }; } }; } };
+        }
+        return db.prepare(sql);
+      }
+    } as unknown as D1Database;
+    const env = createTestEnv({ DB: failingDb });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await reconcileAccountDeletions(env);
+    expect(log).toHaveBeenCalledWith('Account deletion retry scheduling unavailable.');
+    expect(queued).toHaveLength(1);
+    expect(queued[0]?.attempts).toBe(0);
+    expect(JSON.stringify(log.mock.calls)).not.toContain('user-1');
+  });
+
   it('retries a pending deletion without an application JWT and clears intent atomically', async () => {
     const { db, queued, completed } = pendingDeletionDb(1);
     const env = createTestEnv({ DB: db });

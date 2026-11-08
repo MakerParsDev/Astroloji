@@ -215,6 +215,9 @@ export async function reconcileAccountDeletions(env: AppBindings['Bindings']): P
      WHERE next_attempt_at <= ? ORDER BY next_attempt_at, created_at LIMIT ?`
   ).bind(new Date().toISOString(), 25)
     .all<{ user_id: string; firebase_uid: string; attempts: number }>();
+  if (pending.success !== true) {
+    throw new Error('Account deletion queue query was not confirmed.');
+  }
 
   for (const job of pending.results ?? []) {
     try {
@@ -229,9 +232,12 @@ export async function reconcileAccountDeletions(env: AppBindings['Bindings']): P
       const hours = Math.min(2 ** Math.min(job.attempts, 4), 12);
       const nextAttemptAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
       try {
-        await env.DB.prepare(
+        const retryUpdate = await env.DB.prepare(
           'UPDATE account_deletion_jobs SET attempts = attempts + 1, next_attempt_at = ? WHERE user_id = ?'
         ).bind(nextAttemptAt, job.user_id).run();
+        if (retryUpdate.success !== true) {
+          throw new Error('Account deletion retry scheduling was not confirmed.');
+        }
       } catch {
         console.error('Account deletion retry scheduling unavailable.');
       }
