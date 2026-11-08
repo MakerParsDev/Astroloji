@@ -116,12 +116,15 @@ async function processSubscription(
 ) {
   const now = new Date().toISOString();
   // A failed event write must not leave a subscription or premium state partially updated.
-  const [upsert] = await db.batch([
+  const results = await db.batch([
     createSubscriptionUpsertStatement(db, userId, subscription, now),
     createPremiumStateStatement(db, userId, subscription, now),
     createSubscriptionEventStatement(db, userId, subscription.purchaseToken, eventType, payload, now)
   ]);
-  return (upsert.meta.changes ?? 0) === 1;
+  if (results.length !== 3 || results.some((result) => result.success !== true)) {
+    throw new Error('Subscription D1 batch was not confirmed.');
+  }
+  return (results[0].meta.changes ?? 0) === 1;
 }
 
 interface PlayRtdnLeaseGuard {
@@ -205,6 +208,9 @@ async function runRtdnBatch(
   statements: D1PreparedStatement[]
 ): Promise<boolean> {
   const results = await db.batch(statements);
+  if (results.length !== statements.length || results.some((result) => result.success !== true)) {
+    throw new Error('Play RTDN D1 batch was not confirmed.');
+  }
   return Number(results.at(-1)?.meta?.changes ?? 0) === 1;
 }
 
