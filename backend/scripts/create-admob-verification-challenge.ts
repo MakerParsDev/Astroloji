@@ -137,10 +137,15 @@ INSERT INTO reward_challenges
 VALUES (${sqlString(values.challengeId)}, ${sqlString(values.userId)}, 'daily', ${sqlString(values.identifier)}, 'pending', NULL, NULL, NULL, ${sqlString(values.createdAt)}, ${sqlString(values.expiresAt)}, NULL, NULL, NULL);`;
 }
 
-export function buildSelectVerificationChallengeSql(challengeId: string): string {
+export function buildSelectVerificationChallengeSql(
+  challengeId: string,
+  userId: string
+): string {
+  const supplied = validateSuppliedVerificationValues(userId, challengeId);
   return `SELECT id, user_id, status, transaction_id, expires_at
 FROM reward_challenges
-WHERE id = ${sqlString(requireUuid(challengeId))}
+WHERE id = ${sqlString(supplied.challengeId)}
+  AND user_id = ${sqlString(supplied.userId)}
   AND user_id LIKE 'admob-verify-%'
 LIMIT 1;`;
 }
@@ -260,13 +265,14 @@ export function executeVerificationChallengeCommand({
   );
 
   if (command === 'inspect') {
+    const userId = requireEnv(env, 'ADMOB_SSV_TEST_USER_ID');
     const row = firstRow<VerificationChallengeRow>(
       requireSuccessfulD1Result(
-        runSql(buildSelectVerificationChallengeSql(challengeId)),
+        runSql(buildSelectVerificationChallengeSql(challengeId, userId)),
         'query'
       )
     );
-    if (!row || !row.user_id.startsWith(VERIFICATION_USER_PREFIX)) {
+    if (!row || row.id !== challengeId || row.user_id !== userId) {
       throw new Error('AdMob verification challenge was not found.');
     }
     const evidence: VerificationChallengeEvidence = {
