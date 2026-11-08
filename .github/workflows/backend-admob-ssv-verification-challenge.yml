@@ -178,7 +178,8 @@ jobs:
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           SSV_WORKER_NAME: astrology-ssv-transition
-          SSV_LOOKBACK_MINUTES: '30'
+          # Inspect promptly after the provider test; a 30-minute query scanned 2.7M rows.
+          SSV_LOOKBACK_MINUTES: '5'
           SSV_ENABLE_DIAGNOSTICS: 'false'
           SSV_RESULT_LIMIT: '20'
         run: |
@@ -205,7 +206,7 @@ jobs:
             create: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
             inspect: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
             delete: ['operation', 'deletedChallengePrefix', 'cleanupVerified'],
-            callback: ['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'verifierCode', 'verifierReason', 'verifierField', 'scriptVersion', 'telemetryCount', 'returnedCount', 'workerServiceSeen', 'queryStatus', 'rowsRead', 'scriptFilterReturnedCount', 'scriptFilterQueryStatus', 'scriptFilterRowsRead', 'scriptFilterRequestStatus', 'unfilteredReturnedCount', 'unfilteredQueryStatus', 'unfilteredRowsRead', 'unfilteredRequestStatus']
+            callback: ['operation', 'status', 'timestamp', 'scriptName', 'outcome', 'sampledOutcomes', 'verifierCode', 'verifierReason', 'verifierField', 'scriptVersion', 'telemetryCount', 'returnedCount', 'workerServiceSeen', 'queryStatus', 'rowsRead', 'scriptFilterReturnedCount', 'scriptFilterQueryStatus', 'scriptFilterRowsRead', 'scriptFilterRequestStatus', 'unfilteredReturnedCount', 'unfilteredQueryStatus', 'unfilteredRowsRead', 'unfilteredRequestStatus']
           };
           const allowed = allowedByOperation[evidence.operation];
           if (!allowed) throw new Error('Unexpected redacted evidence operation.');

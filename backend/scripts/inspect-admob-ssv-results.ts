@@ -2,7 +2,7 @@ import { pathToFileURL } from 'node:url';
 
 const SSV_EVENT = 'reward_ssv_result';
 const DEFAULT_WORKER = 'astrology-ssv-transition';
-const DEFAULT_LOOKBACK_MINUTES = 30;
+const DEFAULT_LOOKBACK_MINUTES = 5;
 const DEFAULT_LIMIT = 20;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const DIAGNOSTIC_LOOKBACK_MINUTES = 15;
@@ -91,6 +91,8 @@ export interface WorkerSsvEvidence {
 export interface WorkerSsvInspectionEvidence extends WorkerSsvEvidence {
   telemetryCount: number | null;
   returnedCount: number;
+  /** Distinct allowlisted outcomes in the returned sample, not a full-window event count. */
+  sampledOutcomes: SsvOutcome[];
   workerServiceSeen: boolean | null;
   queryStatus: 'STARTED' | 'COMPLETED' | null;
   rowsRead: number | null;
@@ -283,12 +285,11 @@ function workerEnvelope(event: UnknownRecord, source: UnknownRecord): UnknownRec
   return Object.keys(direct).length ? direct : record(source.$workers);
 }
 
-/** Converts raw telemetry into one latest allowlisted callback evidence record. */
-export function parseWorkerSsvTelemetry(
+function parseWorkerSsvCandidates(
   value: unknown,
   expectedWorkerName: string,
   limit: number
-): WorkerSsvEvidence {
+): Array<Omit<WorkerSsvEvidence, 'operation' | 'status'>> {
   const root = record(value);
   const container = record(root.events);
   const candidates = records(container.events)
@@ -327,8 +328,16 @@ export function parseWorkerSsvTelemetry(
     .filter((event): event is NonNullable<typeof event> => event !== null)
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
     .slice(0, limit);
+  return candidates;
+}
 
-  const latest = candidates[0];
+/** Converts raw telemetry into one latest allowlisted callback evidence record. */
+export function parseWorkerSsvTelemetry(
+  value: unknown,
+  expectedWorkerName: string,
+  limit: number
+): WorkerSsvEvidence {
+  const latest = parseWorkerSsvCandidates(value, expectedWorkerName, limit)[0];
   return latest
     ? { operation: 'callback', status: 'found', ...latest }
     : {
@@ -466,6 +475,12 @@ export async function executeWorkerSsvInspection({
     );
   }
   const parsedEvidence = parseWorkerSsvTelemetry(payload.result, workerName, limit);
+  // Reuse this bounded response to retain outcome diversity without another provider scan.
+  // An observed "verified" is not attributable to this test without a matching D1 challenge.
+  const observedOutcomes = new Set(
+    parseWorkerSsvCandidates(payload.result, workerName, limit).map((event) => event.outcome)
+  );
+  const sampledOutcomes = OUTCOMES.filter((outcome) => observedOutcomes.has(outcome));
   const stats = telemetryStats(payload.result);
   const diagnostics = queryDiagnostics(payload.result);
   let workerServiceSeen: boolean | null = null;
@@ -525,6 +540,7 @@ export async function executeWorkerSsvInspection({
   const evidence: WorkerSsvInspectionEvidence = {
     ...parsedEvidence,
     ...stats,
+    sampledOutcomes,
     workerServiceSeen,
     ...diagnostics,
     scriptFilterReturnedCount: scriptFilterDiagnostic.returnedCount,
