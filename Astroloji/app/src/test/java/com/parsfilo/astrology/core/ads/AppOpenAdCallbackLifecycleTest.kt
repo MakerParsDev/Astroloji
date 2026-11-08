@@ -28,7 +28,7 @@ class AppOpenAdCallbackLifecycleTest {
         val analytics = mockk<AnalyticsRepository>(relaxed = true)
         val ad = mockk<AppOpenAd>(relaxed = true)
         val callback = slot<FullScreenContentCallback>()
-        val manager = AppOpenAdManager(mockk<Context>(relaxed = true), consent, analytics)
+        val manager = AppOpenAdManager(mockk<Context>(relaxed = true), consent, analytics, mockk(relaxed = true))
 
         init {
             every { activity.isFinishing } returns false

@@ -41,7 +41,7 @@ class ConsentRevisionCacheTest {
     @Test
     fun `app open ignores load results from an earlier consent revision`() {
         val callback = slot<AppOpenAd.AppOpenAdLoadCallback>()
-        val manager = AppOpenAdManager(context, consent, analytics)
+        val manager = AppOpenAdManager(context, consent, analytics, mockk<AdEligibilityChecker>(relaxed = true))
         mockkStatic(AppOpenAd::class)
         mockkStatic(SystemClock::class)
         try {

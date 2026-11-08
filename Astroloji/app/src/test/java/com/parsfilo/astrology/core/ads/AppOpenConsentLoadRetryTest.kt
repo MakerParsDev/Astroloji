@@ -33,7 +33,7 @@ class AppOpenConsentLoadRetryTest {
             every { consent.consentRevision } answers { revision }
             every { consent.canRequestAds } answers { allowed }
             every { AppOpenAd.load(any<Context>(), any<String>(), any<AdRequest>(), capture(callbacks)) } just Runs
-            block(AppOpenAdManager(context, consent, analytics), callbacks)
+            block(AppOpenAdManager(context, consent, analytics, mockk(relaxed = true)), callbacks)
         } finally {
             unmockkStatic(AppOpenAd::class)
             unmockkStatic(SystemClock::class)
