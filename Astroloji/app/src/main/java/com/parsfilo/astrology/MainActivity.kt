@@ -37,7 +37,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -135,10 +134,17 @@ class MainActivity : AppCompatActivity() {
             }
             // A slow Remote Config network fetch must not delay UMP consent.
             // Consent and ad eligibility are checked before preloading anything.
+            var persistedConsentRevision = consentManager.consentRevision
             val flags =
                 prepareStartupWithConsentFirst(
                     gatherConsent = { consentManager.gatherConsent(this@MainActivity) },
-                    persistConsent = { preferencesRepository.updateConsentStatus(consentManager.consentStatus) },
+                    persistConsent = {
+                        // Snapshot the revision before DataStore suspends. If Settings
+                        // changes consent during startup, the observer must catch it.
+                        val revision = consentManager.consentRevision
+                        preferencesRepository.updateConsentStatus(consentManager.consentStatus)
+                        persistedConsentRevision = revision
+                    },
                     initializeAds = { adsInitializer.initializeIfNeeded() },
                     preloadAds = { preloadAdStack() },
                     fetchRemoteConfig = { remoteConfigRepository.fetchFlags() },
@@ -158,6 +164,7 @@ class MainActivity : AppCompatActivity() {
             // activity. Reinitialize/preload only after startup config is ready.
             observeConsentChangesAfterStartup(
                 snapshots = consentManager.consentSnapshotFlow,
+                persistedRevision = persistedConsentRevision,
                 onConsentChanged = { preferencesRepository.updateConsentStatus(consentManager.consentStatus) },
                 reloadAllowedAds = {
                     adsInitializer.initializeIfNeeded()
@@ -248,10 +255,16 @@ class MainActivity : AppCompatActivity() {
  */
 internal suspend fun observeConsentChangesAfterStartup(
     snapshots: StateFlow<AdConsentSnapshot>,
+    persistedRevision: Long,
     onConsentChanged: suspend () -> Unit,
     reloadAllowedAds: suspend () -> Unit,
 ) {
-    snapshots.drop(1).collect { snapshot ->
+    // drop(1) loses a UMP form result published while Remote Config is
+    // loading, before collection starts. Compare the persisted revision
+    // instead: an already-handled snapshot is skipped, but a newer snapshot
+    // is persisted and allowed ad preloads can refresh without a restart.
+    snapshots.collect { snapshot ->
+        if (snapshot.revision <= persistedRevision) return@collect
         onConsentChanged()
         if (snapshot.canRequestAds) reloadAllowedAds()
     }
