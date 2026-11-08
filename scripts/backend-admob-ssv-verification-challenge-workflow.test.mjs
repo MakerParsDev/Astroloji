@@ -15,7 +15,7 @@ function ordered(content, tokens) {
 test('challenge workflow is main-only, production-gated, and minimally permissioned', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
 
-  assert.match(workflow, /command:[\s\S]*options:[\s\S]*- create[\s\S]*- inspect[\s\S]*- delete[\s\S]*- callback/);
+  assert.match(workflow, /command:[\s\S]*options:[\s\S]*- validate[\s\S]*- create[\s\S]*- inspect[\s\S]*- delete[\s\S]*- callback/);
   assert.match(workflow, /MANAGE_ADMOB_SSV_CHALLENGE/);
   assert.match(workflow, /github\.repository == 'MakerParsDev\/Astroloji'/);
   assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
@@ -27,25 +27,26 @@ test('challenge workflow is main-only, production-gated, and minimally permissio
   assert.match(workflow, /persist-credentials: false/);
 });
 
-test('challenge values are masked, validated, and never persisted or summarized in full', () => {
+test('challenge values use only Doppler and do not require GitHub repository challenge secrets', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
-
-  assert.match(workflow, /ADMOB_SSV_TEST_USER_ID: \$\{\{ secrets\.ADMOB_SSV_TEST_USER_ID \}\}/);
-  assert.match(workflow, /ADMOB_SSV_TEST_CUSTOM_DATA: \$\{\{ secrets\.ADMOB_SSV_TEST_CUSTOM_DATA \}\}/);
-  assert.match(workflow, /::add-mask::\$ADMOB_SSV_TEST_USER_ID/);
-  assert.match(workflow, /::add-mask::\$ADMOB_SSV_TEST_CUSTOM_DATA/);
-  assert.doesNotMatch(workflow, /GITHUB_ENV[^\n]*(ADMOB_SSV_TEST_USER_ID|ADMOB_SSV_TEST_CUSTOM_DATA)/);
-  assert.doesNotMatch(workflow, /echo\s+"?\$ADMOB_SSV_TEST_(USER_ID|CUSTOM_DATA)"?/);
-  assert.doesNotMatch(workflow, /echo[^\n]*(User ID|Custom data)[^\n]*\$ADMOB_SSV_TEST_/i);
+  const runner = fs.readFileSync('backend/scripts/run-admob-verification-challenge.sh','utf8');
+  assert.doesNotMatch(workflow, /secrets\.ADMOB_SSV_TEST_(USER_ID|CUSTOM_DATA)/);
+  assert.match(workflow, /DOPPLER_TOKEN: \$\{\{ secrets\.DOPPLER_TOKEN \}\}/);
+  assert.match(workflow, /bash scripts\/run-admob-verification-challenge\.sh/);
+  assert.match(runner, /doppler secrets get ADMOB_SSV_TEST_USER_ID --plain/);
+  assert.match(runner, /doppler secrets get ADMOB_SSV_TEST_CUSTOM_DATA --plain/);
+  assert.match(runner, /::add-mask::/);
+  assert.doesNotMatch(workflow, /GITHUB_ENV[^\n]*ADMOB_SSV_TEST/);
   assert.match(workflow, /redacted evidence/i);
 });
 
+
 test('challenge and callback operations expose only hardened backend commands', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
+  const runner = fs.readFileSync('backend/scripts/run-admob-verification-challenge.sh','utf8');
 
-  assert.match(workflow, /npm run(?: --silent)? transition:challenge:create/);
-  assert.match(workflow, /npm run(?: --silent)? transition:challenge:inspect/);
-  assert.match(workflow, /npm run(?: --silent)? transition:challenge:delete/);
+  assert.match(runner, /npm run --silent "transition:challenge:\$operation"/);
+  assert.match(runner, /validate\|create\|inspect\|delete/);
   assert.match(workflow, /npm run(?: --silent)? transition:callback:inspect/);
   assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID/);
   assert.match(
@@ -57,28 +58,25 @@ test('challenge and callback operations expose only hardened backend commands', 
   assert.match(workflow, /::add-mask::\$CLOUDFLARE_API_TOKEN/);
 
   ordered(workflow, [
-    'Validate and mask challenge secrets',
     'Install backend dependencies',
     'Install pinned Doppler CLI',
+    'Validate Doppler challenge credentials',
     'Create verification challenge',
     'Publish redacted evidence'
   ]);
 });
 
-test('delete receives both supplied identifiers for challenge and temporary-user cleanup', () => {
+test('all write operations run the same isolated Doppler-backed helper', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
-  const deleteStart = workflow.indexOf('Delete verification challenge from D1');
-  const deleteEnd = workflow.indexOf('Publish redacted evidence');
-  assert.ok(deleteStart >= 0 && deleteEnd > deleteStart);
-  const deleteBlock = workflow.slice(deleteStart, deleteEnd);
-
-  assert.match(
-    workflow,
-    /\[ "\$INPUT_COMMAND" = "create" \] \|\| \[ "\$INPUT_COMMAND" = "delete" \]/
-  );
-  assert.match(deleteBlock, /ADMOB_SSV_TEST_USER_ID: \$\{\{ secrets\.ADMOB_SSV_TEST_USER_ID \}\}/);
-  assert.match(deleteBlock, /ADMOB_SSV_TEST_CUSTOM_DATA: \$\{\{ secrets\.ADMOB_SSV_TEST_CUSTOM_DATA \}\}/);
+  for (const operation of ['validate', 'create', 'inspect', 'delete']) {
+    assert.match(workflow, new RegExp("run-admob-verification-challenge\\.sh " + operation));
+  }
+  const runner = fs.readFileSync('backend/scripts/run-admob-verification-challenge.sh','utf8');
+  assert.match(runner, /ADMOB_SSV_TEST_USER_ID/);
+  assert.match(runner, /ADMOB_SSV_TEST_CUSTOM_DATA/);
+  assert.match(runner, /transition:challenge:\$operation/);
 });
+
 
 test('delete removes only the D1 challenge and requires manual temporary-secret cleanup', () => {
   const workflow = fs.readFileSync(workflowPath, 'utf8');
@@ -86,7 +84,7 @@ test('delete removes only the D1 challenge and requires manual temporary-secret 
   assert.doesNotMatch(workflow, /ADMOB_SSV_SECRET_ADMIN_TOKEN/);
   assert.doesNotMatch(workflow, /gh secret delete/);
   assert.doesNotMatch(workflow, /GH_TOKEN:/);
-  assert.match(workflow, /Delete these temporary repository secrets manually/);
+  assert.match(workflow, /Remove these two temporary values from Doppler/);
   assert.match(workflow, /ADMOB_SSV_TEST_USER_ID/);
   assert.match(workflow, /ADMOB_SSV_TEST_CUSTOM_DATA/);
   assert.match(
@@ -113,8 +111,8 @@ test('workflow pins external tooling and scopes deployment credentials to execut
   assert.doesNotMatch(workflow, /cli\.doppler\.com\/install\.sh/);
   assert.doesNotMatch(workflow, /^\s{6}DOPPLER_TOKEN:/m);
   assert.doesNotMatch(workflow, /CLOUDFLARE_API_TOKEN[\s\S]*GITHUB_ENV/);
-  assert.equal((workflow.match(/DOPPLER_TOKEN: \$\{\{ secrets\.DOPPLER_TOKEN \}\}/g) ?? []).length, 4);
-  assert.equal((workflow.match(/env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN=/g) ?? []).length, 4);
+  assert.equal((workflow.match(/DOPPLER_TOKEN: \$\{\{ secrets\.DOPPLER_TOKEN \}\}/g) ?? []).length, 5);
+  assert.equal((workflow.match(/env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN=/g) ?? []).length, 1);
 });
 
 
@@ -161,6 +159,7 @@ test('operator docs describe one offline-secret workflow without positional iden
     assert.doesNotMatch(content, /<challenge-uuid>|<uuid>/);
     assert.match(content, /create -> AdMob -> inspect verified -> delete/);
     assert.doesNotMatch(content, /ADMOB_SSV_SECRET_ADMIN_TOKEN/);
+    assert.match(content, /Doppler/i);
     assert.match(content, /manuel/i);
     assert.match(content, /gecici D1 kullanic/i);
   }
