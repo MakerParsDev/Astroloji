@@ -153,9 +153,10 @@ describe('verification challenge command execution', () => {
     expect(runSql.mock.calls[1]?.[0]).toContain(`id = '${challengeId}'`);
     expect(runSql.mock.calls[1]?.[0]).toContain(`user_id = '${userId}'`);
     const sql = runSql.mock.calls[0]?.[0] as string;
-    expect(sql).toContain('INSERT OR IGNORE INTO users');
+    expect(sql).toContain('INSERT INTO users');
+    expect(sql).not.toContain('INSERT OR IGNORE INTO users');
     expect(sql).toContain('INSERT INTO reward_challenges');
-    expect(sql.indexOf('INSERT OR IGNORE INTO users')).toBeLessThan(sql.indexOf('INSERT INTO reward_challenges'));
+    expect(sql.indexOf('INSERT INTO users')).toBeLessThan(sql.indexOf('INSERT INTO reward_challenges'));
     expect(sql).toContain(`'${challengeId}'`);
     expect(sql).toContain(`'${userId}'`);
     expect(sql).toContain("'aries'");

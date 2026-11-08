@@ -241,8 +241,9 @@ describe('AdMob verification challenge helpers', () => {
       expiresAt: '2026-07-26T20:15:00.000Z'
     });
 
-    expect(sql).toContain('INSERT OR IGNORE INTO users');
-    expect(sql.indexOf('INSERT OR IGNORE INTO users')).toBeLessThan(
+    expect(sql).toContain('INSERT INTO users');
+    expect(sql).not.toContain('INSERT OR IGNORE INTO users');
+    expect(sql.indexOf('INSERT INTO users')).toBeLessThan(
       sql.indexOf('INSERT INTO reward_challenges')
     );
     expect(sql).toContain("'daily', 'admob-ssv-verification', 'pending'");
