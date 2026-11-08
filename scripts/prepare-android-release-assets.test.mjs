@@ -31,6 +31,7 @@ function runScript(cwd, overrides = {}) {
     },
     encoding: 'utf8',
   });
+  fs.rmSync(tempRoot, { recursive: true, force: true });
 
   return {
     result,
@@ -112,3 +113,60 @@ test('fails fast when rollout fraction is outside the valid range', () => {
     /PLAY_USER_FRACTION must be greater than 0 and less than 1/i,
   );
 });
+
+const signedAdMobIds = {
+  ADMOB_APP_ID: 'ca-app-pub-1234567890123456~1000000000',
+  ADMOB_BANNER_ID: 'ca-app-pub-1234567890123456/2000000000',
+  ADMOB_INTERSTITIAL_ID: 'ca-app-pub-1234567890123456/2000000001',
+  ADMOB_REWARDED_ID: 'ca-app-pub-1234567890123456/2000000002',
+  ADMOB_REWARDED_INTERSTITIAL_ID: 'ca-app-pub-1234567890123456/2000000003',
+  ADMOB_APP_OPEN_ID: 'ca-app-pub-1234567890123456/2000000004',
+  ADMOB_NATIVE_ADVANCED_ID: 'ca-app-pub-1234567890123456/2000000005',
+};
+
+function runSignedAdMobCase(t, overrides = {}) {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'astro-signed-admob-'));
+  t.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));
+  createAndroidProject(projectRoot);
+  return {
+    projectRoot,
+    ...runScript(projectRoot, { REQUIRE_ANDROID_SIGNING: 'true', ...signedAdMobIds, ...overrides }),
+  };
+}
+
+test('signed release accepts six distinct IDs under one production publisher', (t) => {
+  const { result, gradlePropertiesPath } = runSignedAdMobCase(t);
+  assert.equal(result.status, 0, result.stderr);
+  const props = fs.readFileSync(gradlePropertiesPath, 'utf8');
+  assert.match(props, /ADMOB_NATIVE_ADVANCED_ID=ca-app-pub-1234567890123456\/2000000005/);
+});
+
+test('signed release accepts the legacy native unit alias', (t) => {
+  const { result } = runSignedAdMobCase(t, {
+    ADMOB_NATIVE_ADVANCED_ID: '',
+    ADMOB_NATIVE_ID: signedAdMobIds.ADMOB_NATIVE_ADVANCED_ID,
+  });
+  assert.equal(result.status, 0, result.stderr);
+});
+
+const rejectedSignedReleaseCases = [
+  ['missing app ID', { ADMOB_APP_ID: '' }, 'ADMOB_APP_ID'],
+  ['Google demo publisher', { ADMOB_APP_ID: 'ca-app-pub-3940256099942544~3347511713' }, 'ADMOB_APP_ID'],
+  ['malformed app ID', { ADMOB_APP_ID: 'not-an-admob-app' }, 'ADMOB_APP_ID'],
+  ['missing ad unit', { ADMOB_REWARDED_ID: '' }, 'ADMOB_REWARDED_ID'],
+  ['wrong unit type', { ADMOB_REWARDED_ID: signedAdMobIds.ADMOB_APP_ID }, 'ADMOB_REWARDED_ID'],
+  ['cross-publisher ad unit', { ADMOB_REWARDED_ID: 'ca-app-pub-9999999999999999/2000000002' }, 'ADMOB_REWARDED_ID'],
+  ['duplicate ad units', { ADMOB_REWARDED_ID: signedAdMobIds.ADMOB_BANNER_ID }, 'ADMOB_REWARDED_ID'],
+  ['malformed unit ID', { ADMOB_BANNER_ID: 'ca-app-pub-1234567890123456/abc' }, 'ADMOB_BANNER_ID'],
+];
+
+for (const [reason, overrides, expectedName] of rejectedSignedReleaseCases) {
+  test('signed release rejects ' + reason + ' before writing assets', (t) => {
+    const { projectRoot, result } = runSignedAdMobCase(t, overrides);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, new RegExp(expectedName));
+    assert.equal(fs.existsSync(path.join(projectRoot, 'gradle.properties')), false);
+    assert.equal(fs.existsSync(path.join(projectRoot, 'app', 'google-services.json')), false);
+    assert.doesNotMatch(result.stderr, /ca-app-pub-\d{16}[~/]\d{10}/);
+  });
+}
