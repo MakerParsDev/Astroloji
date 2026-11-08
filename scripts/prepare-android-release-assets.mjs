@@ -121,6 +121,38 @@ if (requireSigning) {
 
 validateRolloutFraction(process.env.PLAY_USER_FRACTION);
 
+// Guard signed Play builds against Google's demo IDs, mismatched publishers,
+// duplicate unit IDs, and malformed values. Never log the configured IDs.
+function validateReleaseAdMobIds() {
+  const publisher = /^ca-app-pub-(\d{16})~\d{10}$/.exec(resolveSecret('ADMOB_APP_ID'))?.[1];
+  if (!publisher || publisher === '3940256099942544') {
+    throw new Error('ADMOB_APP_ID must be a real production AdMob app ID.');
+  }
+
+  const units = [
+    ['ADMOB_BANNER_ID'],
+    ['ADMOB_INTERSTITIAL_ID'],
+    ['ADMOB_REWARDED_ID'],
+    ['ADMOB_REWARDED_INTERSTITIAL_ID'],
+    ['ADMOB_APP_OPEN_ID'],
+    ['ADMOB_NATIVE_ADVANCED_ID', ['ADMOB_NATIVE_ID']],
+  ];
+  const seen = new Set();
+  for (const [name, aliases = []] of units) {
+    const id = resolveSecret(name, aliases);
+    const unitPublisher = /^ca-app-pub-(\d{16})\/\d{10}$/.exec(id)?.[1];
+    if (unitPublisher !== publisher || seen.has(id)) {
+      throw new Error(name + ' must be a distinct production ad unit from ADMOB_APP_ID publisher.');
+    }
+    seen.add(id);
+  }
+}
+
+if (requireSigning) {
+  validateReleaseAdMobIds();
+}
+
+
 if (googleServicesJson) {
   writeTextFile(path.join(projectRoot, 'app', 'google-services.json'), googleServicesJson);
 }
