@@ -11,6 +11,23 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class BannerAdPolicyTest {
     @Test
+    fun compactAdSlotsDoNotRequestBannerWiderThanAvailableWidth() {
+        assertThat(adaptiveBannerWidthDp(0f)).isNull()
+        assertThat(adaptiveBannerWidthDp(280f)).isNull()
+        assertThat(adaptiveBannerWidthDp(319.9f)).isNull()
+        assertThat(adaptiveBannerWidthDp(320f)).isEqualTo(320)
+        assertThat(adaptiveBannerWidthDp(360f)).isEqualTo(360)
+        assertThat(adaptiveBannerWidthDp(360.9f)).isEqualTo(360)
+    }
+
+    @Test
+    fun unboundedOrInvalidSlotDimensionsNeverIssueOversizedAdRequests() {
+        assertThat(adaptiveBannerWidthDp(Float.POSITIVE_INFINITY)).isNull()
+        assertThat(adaptiveBannerWidthDp(Float.NEGATIVE_INFINITY)).isNull()
+        assertThat(adaptiveBannerWidthDp(Float.NaN)).isNull()
+    }
+
+    @Test
     fun `banner stays hidden for premium even when consent state changes`() =
         runTest {
             val premium = MutableStateFlow(true)
