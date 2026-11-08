@@ -80,7 +80,7 @@ describe('verification challenge command execution', () => {
     expect(() =>
       executeVerificationChallengeCommand({
         command: 'inspect',
-        env: { ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+        env: { ADMOB_SSV_TEST_USER_ID: userId, ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
         runSql,
         log
       })
@@ -160,11 +160,12 @@ describe('verification challenge command execution', () => {
 
     const evidence = executeVerificationChallengeCommand({
       command: 'inspect',
-      env: { ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+      env: { ADMOB_SSV_TEST_USER_ID: userId, ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
       runSql,
       log
     });
 
+    expect(runSql.mock.calls[0]?.[0]).toContain(`user_id = '${userId}'`);
     expect(runSql.mock.calls[0]?.[0]).toContain("user_id LIKE 'admob-verify-%'");
     expect(evidence).toEqual({
       operation: 'inspect',
@@ -176,6 +177,34 @@ describe('verification challenge command execution', () => {
     });
     expect(JSON.stringify(log.mock.calls)).not.toContain(challengeId);
     expect(JSON.stringify(log.mock.calls)).not.toContain(userId);
+  });
+
+  it('rejects a verified challenge belonging to a different synthetic test user', () => {
+    const otherUserId = 'admob-verify-33333333-3333-4333-8333-333333333333';
+    const runSql = vi.fn().mockReturnValue([{
+      success: true,
+      results: [{
+        id: challengeId,
+        user_id: otherUserId,
+        status: 'verified',
+        transaction_id: '18fa792de1bca816048293fc71035638',
+        expires_at: '2026-07-27T10:15:00.000Z'
+      }]
+    }]);
+    const log = vi.fn();
+
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'inspect',
+        env: {
+          ADMOB_SSV_TEST_USER_ID: userId,
+          ADMOB_SSV_TEST_CUSTOM_DATA: challengeId
+        },
+        runSql,
+        log
+      })
+    ).toThrow(/not found|user mismatch/i);
+    expect(log).not.toHaveBeenCalled();
   });
 
   it('deletes only the exact namespaced challenge and verifies cleanup before success', () => {
@@ -254,6 +283,13 @@ describe('verification challenge command execution', () => {
     expect(() =>
       executeVerificationChallengeCommand({ command: 'inspect', env: {}, runSql })
     ).toThrow(/ADMOB_SSV_TEST_CUSTOM_DATA/);
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'inspect',
+        env: { ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+        runSql
+      })
+    ).toThrow(/ADMOB_SSV_TEST_USER_ID/);
     expect(() =>
       executeVerificationChallengeCommand({
         command: 'delete',
