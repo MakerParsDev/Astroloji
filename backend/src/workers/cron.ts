@@ -139,6 +139,9 @@ async function expireAndRefreshSubscriptions(env: Env) {
   )
     .bind(now)
     .all<SubscriptionRow>();
+  if (expiring.success !== true) {
+    throw new Error('Subscription expiry query was not confirmed.');
+  }
 
   for (const subscription of expiring.results ?? []) {
     const current = await getSubscriptionStatus(
@@ -166,53 +169,53 @@ async function expireAndRefreshSubscriptions(env: Env) {
     }
 
     if (hasPremiumEntitlement(current, now)) {
-      await env.DB
-        .prepare(
+      const statements = [
+        env.DB.prepare(
           `UPDATE subscriptions
            SET expires_at = ?, status = ?, auto_renewing = ?, cancel_reason = ?, updated_at = ?
            WHERE id = ?`
-        )
-        .bind(
-          current.expiresAt,
-          current.status,
-          Number(current.autoRenewing),
-          current.cancelReason,
+        ).bind(
+          current.expiresAt, current.status, Number(current.autoRenewing),
+          current.cancelReason, now, subscription.id
+        ),
+        createPremiumProjectionStatement(env.DB, {
+          userId: subscription.user_id,
           now,
-          subscription.id
-        )
-        .run();
-      await createPremiumProjectionStatement(env.DB, {
-        userId: subscription.user_id,
-        now,
-        fallbackStatus: current.status,
-        fallbackExpiresAt: current.expiresAt
-      }).run();
+          fallbackStatus: current.status,
+          fallbackExpiresAt: current.expiresAt
+        })
+      ];
+      const results = await env.DB.batch(statements);
+      if (results.length !== statements.length || results.some((result) => result.success !== true)) {
+        throw new Error('Subscription renewal batch was not confirmed.');
+      }
       continue;
     }
 
-    await env.DB
-      .prepare(`UPDATE subscriptions SET status = 'expired', updated_at = ? WHERE id = ?`)
-      .bind(now, subscription.id)
-      .run();
-    await createPremiumProjectionStatement(env.DB, {
-      userId: subscription.user_id,
-      now,
-      fallbackStatus: 'expired',
-      fallbackExpiresAt: subscription.expires_at
-    }).run();
-    await env.DB
-      .prepare(
+    const statements = [
+      env.DB.prepare(`UPDATE subscriptions SET status = 'expired', updated_at = ? WHERE id = ?`)
+        .bind(now, subscription.id),
+      createPremiumProjectionStatement(env.DB, {
+        userId: subscription.user_id,
+        now,
+        fallbackStatus: 'expired',
+        fallbackExpiresAt: subscription.expires_at
+      }),
+      env.DB.prepare(
         `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
          VALUES (?, ?, ?, 'expired', ?, ?)`
-      )
-      .bind(
+      ).bind(
         crypto.randomUUID(),
         subscription.user_id,
         subscription.purchase_token,
         JSON.stringify({ source: 'cron' }),
         now
       )
-      .run();
+    ];
+    const results = await env.DB.batch(statements);
+    if (results.length !== statements.length || results.some((result) => result.success !== true)) {
+      throw new Error('Subscription expiry batch was not confirmed.');
+    }
   }
 }
 

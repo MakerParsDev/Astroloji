@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { sendBatchNotifications, createPersonalGuidance, getDecryptedBirthData } = vi.hoisted(() => ({
@@ -23,6 +24,9 @@ vi.mock('@/workers/birthData', () => ({
   getDecryptedBirthData
 }));
 
+const { Miniflare, convertV4MiniflareOptions } = createRequire(import.meta.url)('miniflare') as typeof import('miniflare');
+
+import { getSubscriptionStatus, hasPremiumEntitlement } from '@/services/playBilling';
 import { handleCron, buildDailyNotificationTitle } from '@/workers/cron';
 import { createTestEnv } from '../helpers/env';
 
@@ -64,7 +68,7 @@ describe('cron worker', () => {
             async all() {
               if (sql.includes("FROM subscriptions WHERE status IN ('active', 'cancelled', 'grace_period')")) {
                 operations.push('subscriptions');
-                return { results: [] };
+                return { success: true, results: [] };
               }
 
               if (sql.includes('FROM users u') && sql.includes('LIMIT ? OFFSET ?')) {
@@ -101,10 +105,10 @@ describe('cron worker', () => {
                   };
                 }
 
-                return { results: [] };
+                return { success: true, results: [] };
               }
 
-              return { results: [] };
+              return { success: true, results: [] };
             },
             async run() {
               const normalized = sql.replace(/\s+/g, ' ').trim();
@@ -188,6 +192,93 @@ describe('cron worker', () => {
     );
   });
 
+  it('rejects an unsuccessful expiry queue read rather than claiming no subscriptions are due', async () => {
+    const base = createTestEnv();
+    const failingDb = {
+      prepare(sql: string) {
+        if (sql.includes('FROM subscriptions WHERE status IN')) {
+          const statement = {
+            bind() { return statement; },
+            async all() { return { success: false, results: [] }; }
+          };
+          return statement as unknown as D1PreparedStatement;
+        }
+        return base.DB.prepare(sql);
+      }
+    } as D1Database;
+    const env = createTestEnv({ DB: failingDb });
+    await expect(handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext))
+      .rejects.toThrow('Subscription expiry query was not confirmed.');
+    expect(sendBatchNotifications).not.toHaveBeenCalled();
+  });
+
+  it('rolls back expired subscription and Premium writes if the final event insert fails in real D1', async () => {
+    // Miniflare startup uses timers; the other Cron tests intentionally use fake time.
+    vi.useRealTimers();
+    const runtime = new Miniflare(convertV4MiniflareOptions({
+      modules: true,
+      script: 'export default {fetch(){return new Response("cron-local")}}',
+      compatibilityDate: '2026-04-05',
+      d1Databases: { DB: 'astrology-cron-atomic-expiry' }
+    }));
+    try {
+      const db = await runtime.getD1Database('DB');
+      await db.exec([
+        'CREATE TABLE users (id TEXT PRIMARY KEY, is_premium INTEGER NOT NULL, subscription_state TEXT, premium_expires_at TEXT, last_seen_at TEXT);',
+        'CREATE TABLE subscriptions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, purchase_token TEXT NOT NULL, product_id TEXT NOT NULL, status TEXT NOT NULL, starts_at TEXT, expires_at TEXT NOT NULL, auto_renewing INTEGER NOT NULL, cancel_reason TEXT, created_at TEXT, updated_at TEXT);',
+        'CREATE TABLE subscription_events (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, purchase_token TEXT NOT NULL, event_type TEXT NOT NULL, payload TEXT, created_at TEXT NOT NULL);',
+        "INSERT INTO users (id, is_premium, subscription_state, premium_expires_at) VALUES ('user-1', 1, 'active', '2026-04-09T00:00:00.000Z');",
+        "INSERT INTO subscriptions (id, user_id, purchase_token, product_id, status, expires_at, auto_renewing) VALUES ('sub-1', 'user-1', 'token-1', 'premium_weekly', 'active', '2026-04-09T00:00:00.000Z', 0);",
+        "CREATE TRIGGER reject_event BEFORE INSERT ON subscription_events BEGIN SELECT RAISE(ABORT, 'injected event write failure'); END;"
+      ].join('\n'));
+      const env = createTestEnv({
+        DB: {
+          prepare(sql: string) {
+            if (sql.includes('FROM account_deletion_jobs') || sql.includes('FROM users u')) {
+              const stmt = { bind() { return stmt; }, async all() { return { success: true, results: [] }; } };
+              return stmt as unknown as D1PreparedStatement;
+            }
+            if (sql.startsWith('DELETE FROM reward_challenges')) {
+              const stmt = { bind() { return stmt; }, async run() { return { success: true, meta: { changes: 0 } }; } };
+              return stmt as unknown as D1PreparedStatement;
+            }
+            return db.prepare(sql);
+          },
+          batch: (statements: D1PreparedStatement[]) => db.batch(statements)
+        } as D1Database
+      });
+      vi.mocked(getSubscriptionStatus).mockResolvedValue({
+        purchaseToken: 'token-1', productId: 'premium_weekly',
+        status: 'expired', startsAt: '2026-04-01T00:00:00.000Z',
+        expiresAt: '2026-04-09T00:00:00.000Z', autoRenewing: false, cancelReason: null,
+        raw: {} as never
+      });
+      vi.mocked(hasPremiumEntitlement).mockReturnValue(false);
+      await expect(handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext))
+        .rejects.toThrow('injected event write failure');
+      const state = await db.prepare('SELECT status FROM subscriptions WHERE id = ?').bind('sub-1')
+        .first<{ status: string }>();
+      const user = await db.prepare('SELECT is_premium FROM users WHERE id = ?').bind('user-1')
+        .first<{ is_premium: number }>();
+      expect(state?.status).toBe('active');
+      expect(user?.is_premium).toBe(1);
+      expect((await db.prepare('SELECT COUNT(*) AS n FROM subscription_events').first<{ n: number }>())?.n).toBe(0);
+
+      // A subsequent hourly retry after the transient failure succeeds as one unit.
+      await db.exec('DROP TRIGGER reject_event;');
+      await handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext);
+      const recovered = await db.prepare('SELECT status FROM subscriptions WHERE id = ?')
+        .bind('sub-1').first<{ status: string }>();
+      const premium = await db.prepare('SELECT is_premium FROM users WHERE id = ?')
+        .bind('user-1').first<{ is_premium: number }>();
+      expect(recovered?.status).toBe('expired');
+      expect(premium?.is_premium).toBe(0);
+      expect((await db.prepare('SELECT COUNT(*) AS n FROM subscription_events').first<{ n: number }>())?.n).toBe(1);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   function createSingleUserEnv() {
     return createTestEnv({
       DB: {
@@ -215,7 +306,7 @@ describe('cron worker', () => {
                   ]
                 };
               }
-              return { results: [] };
+              return { success: true, results: [] };
             },
             async run() {
               return { success: true, meta: { changes: 0 } };
@@ -373,7 +464,7 @@ describe('cron worker', () => {
               return null;
             },
             async all() {
-              return { results: [] };
+              return { success: true, results: [] };
             },
             async run() {
               if (sql.includes('DELETE FROM reward_challenges')) {

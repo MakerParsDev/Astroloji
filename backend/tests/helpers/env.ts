@@ -52,7 +52,7 @@ export function createTestEnv(overrides: Partial<Env> = {}): Env {
             return normalized.startsWith('SELECT 1') ? { ok: 1 } : null;
           },
           async all() {
-            return { results: [] };
+            return { success: true, results: [] };
           },
           async run() {
             return { success: true, meta: {} };
