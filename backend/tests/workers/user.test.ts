@@ -41,6 +41,9 @@ function createDeletionDb() {
           return statement;
         },
         async first() {
+          if (sql === 'SELECT firebase_uid FROM account_deletion_jobs WHERE user_id = ?') {
+            return { firebase_uid: 'firebase-1' };
+          }
           return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null;
         },
         async all() {
@@ -647,6 +650,67 @@ describe('user routes', () => {
     expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
   });
 
+  it('does not delete the Firebase identity when D1 reports a failed intent insert', async () => {
+    const { db, batched } = createDeletionDb();
+    const guardedDb = {
+      ...db,
+      prepare(sql: string) {
+        if (sql.startsWith('INSERT OR IGNORE INTO account_deletion_jobs')) {
+          return {
+            bind() {
+              return { async run() { return { success: false, meta: { changes: 0 } }; } };
+            }
+          };
+        }
+        return db.prepare(sql);
+      }
+    } as unknown as D1Database;
+    const env = createTestEnv({ DB: guardedDb });
+    const token = await signAppJwt(env, {
+      userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
+    });
+    const response = await createApp().request('/api/v1/users/me', {
+      method: 'DELETE', headers: { authorization: `Bearer ${token}` }
+    }, env);
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'ACCOUNT_DELETION_FAILED' }
+    });
+    expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
+    expect(batched).toEqual([]);
+  });
+
+  it.each([
+    ['missing', null],
+    ['wrong Firebase identity', { firebase_uid: 'firebase-other' }]
+  ])('does not delete Firebase when persisted intent readback is %s', async (_case, row) => {
+    const { db, batched } = createDeletionDb();
+    const guardedDb = {
+      ...db,
+      prepare(sql: string) {
+        if (sql === 'SELECT firebase_uid FROM account_deletion_jobs WHERE user_id = ?') {
+          return {
+            bind() { return { async first() { return row; } }; }
+          };
+        }
+        return db.prepare(sql);
+      }
+    } as unknown as D1Database;
+    const env = createTestEnv({ DB: guardedDb });
+    const token = await signAppJwt(env, {
+      userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
+    });
+    const response = await createApp().request('/api/v1/users/me', {
+      method: 'DELETE', headers: { authorization: `Bearer ${token}` }
+    }, env);
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'ACCOUNT_DELETION_FAILED' }
+    });
+    expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
+    expect(batched).toEqual([]);
+  });
+
   it('returns a safe 502 response when Firebase account deletion fails', async () => {
     const { db, batched } = createDeletionDb();
     const cache = {
@@ -688,6 +752,33 @@ describe('user routes', () => {
         message: 'Firebase account deletion failed. Retry the request.'
       }
     });
+  });
+
+  it('never claims deletion success if the final D1 batch reports an unsuccessful result', async () => {
+    const { db } = createDeletionDb();
+    const guardedDb = {
+      ...db,
+      async batch(statements: D1PreparedStatement[]) {
+        return statements.map((_statement, index) => ({
+          success: index !== 0,
+          meta: { changes: index === 0 ? 0 : 1 }
+        }));
+      }
+    } as unknown as D1Database;
+    const env = createTestEnv({ DB: guardedDb });
+    const jwt = await signAppJwt(env, {
+      userId: 'user-1', isPremium: false, firebaseUid: 'firebase-1'
+    });
+    const response = await createApp().request('/api/v1/users/me', {
+      method: 'DELETE', headers: { authorization: `Bearer ${jwt}` }
+    }, env);
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'ACCOUNT_DELETION_FAILED' }
+    });
+    // Firebase was removed only after a durable intent. Cron must retain
+    // that intent instead of declaring the incomplete D1 cleanup successful.
+    expect(deleteFirebaseUserMock).toHaveBeenCalledWith(env, 'firebase-1');
   });
 
   it('returns a safe 500 response when user data deletion fails', async () => {
@@ -851,7 +942,7 @@ describe('user routes', () => {
         if (sql.includes('INSERT OR IGNORE INTO account_deletion_jobs')) {
           return {
             bind() {
-              return { async run() { order.push('intent'); } };
+              return { async run() { order.push('intent'); return { success: true, meta: { changes: 1 } }; } };
             }
           };
         }
