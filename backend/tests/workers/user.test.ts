@@ -41,6 +41,9 @@ function createDeletionDb() {
           return statement;
         },
         async first() {
+          if (sql === 'SELECT firebase_uid FROM account_deletion_jobs WHERE user_id = ?') {
+            return { firebase_uid: 'firebase-1' };
+          }
           return sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users') ? { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null } : null;
         },
         async all() {
@@ -620,15 +623,33 @@ describe('user routes', () => {
     expect(deleteFirebaseUserMock).not.toHaveBeenCalled();
   });
 
-  it('never deletes Firebase identity if the durable intent cannot be persisted', async () => {
+  it.each([
+    'throws', 'reports failure', 'missing readback', 'wrong Firebase identity'
+  ] as const)('never deletes Firebase without a confirmed durable intent: %s', async (failure) => {
     const { db, batched } = createDeletionDb();
     const guardedDb = {
       ...db,
       prepare(sql: string) {
-        if (sql.includes('INSERT OR IGNORE INTO account_deletion_jobs')) {
+        if (sql.includes('INSERT OR IGNORE INTO account_deletion_jobs') &&
+            (failure === 'throws' || failure === 'reports failure')) {
           return {
             bind() {
-              return { async run() { throw new Error('D1 unavailable'); } };
+              return {
+                async run() {
+                  if (failure === 'throws') throw new Error('D1 unavailable');
+                  return { success: false, meta: { changes: 0 } };
+                }
+              };
+            }
+          };
+        }
+        if (sql === 'SELECT firebase_uid FROM account_deletion_jobs WHERE user_id = ?' &&
+            (failure === 'missing readback' || failure === 'wrong Firebase identity')) {
+          return {
+            bind() {
+              return { async first() {
+                return failure === 'missing readback' ? null : { firebase_uid: 'firebase-other' };
+              } };
             }
           };
         }
@@ -690,44 +711,49 @@ describe('user routes', () => {
     });
   });
 
-  it('returns a safe 500 response when user data deletion fails', async () => {
-    const { db } = createDeletionDb();
-    const failingDb = {
-      ...db,
-      async batch() {
-        throw new Error('sensitive database details');
-      }
-    } as unknown as D1Database;
-    const env = createTestEnv({ DB: failingDb });
-    const jwt = await signAppJwt(env, {
-      userId: 'user-1',
-      isPremium: false,
-      firebaseUid: 'firebase-1'
-    });
+  it.each(['throws', 'reports unsuccessful result'] as const)(
+    'returns a safe 500 response when user data deletion %s',
+    async (failure) => {
+      const { db } = createDeletionDb();
+      const failingDb = {
+        ...db,
+        async batch(statements: D1PreparedStatement[]) {
+          if (failure === 'throws') throw new Error('sensitive database details');
+          return statements.map((_statement, index) => ({
+            success: index !== 0,
+            meta: { changes: 0 }
+          }));
+        }
+      } as unknown as D1Database;
+      const env = createTestEnv({ DB: failingDb });
+      const jwt = await signAppJwt(env, {
+        userId: 'user-1',
+        isPremium: false,
+        firebaseUid: 'firebase-1'
+      });
 
-    const response = await createApp().request(
-      '/api/v1/users/me',
-      {
-        method: 'DELETE',
-        headers: { authorization: `Bearer ${jwt}` }
-      },
-      env
-    );
+      const response = await createApp().request(
+        '/api/v1/users/me',
+        {
+          method: 'DELETE',
+          headers: { authorization: `Bearer ${jwt}` }
+        },
+        env
+      );
 
-    expect(response.status).toBe(500);
-    const body = await response.json();
-    expect(body).toEqual({
-      error: {
-        code: 'ACCOUNT_DELETION_FAILED',
-        message: 'Account data could not be deleted. Retry the request.'
-      }
-    });
-    expect(JSON.stringify(body)).not.toContain('sensitive database details');
-    // On database failure the user row remains for a JWT-based retry;
-    // Firebase USER_NOT_FOUND is explicitly treated as idempotent.
-    expect(deleteFirebaseUserMock).toHaveBeenCalledWith(env, 'firebase-1');
-  });
-
+      expect(response.status).toBe(500);
+      const body = await response.json();
+      expect(body).toEqual({
+        error: {
+          code: 'ACCOUNT_DELETION_FAILED',
+          message: 'Account data could not be deleted. Retry the request.'
+        }
+      });
+      expect(JSON.stringify(body)).not.toContain('sensitive database details');
+      // Firebase removal is idempotent; the durable D1 job enables Cron retries.
+      expect(deleteFirebaseUserMock).toHaveBeenCalledWith(env, 'firebase-1');
+    }
+  );
 
   it.each(['KV', 'R2'] as const)(
     'does not delete identity when %s pagination cannot be completed',
@@ -851,7 +877,7 @@ describe('user routes', () => {
         if (sql.includes('INSERT OR IGNORE INTO account_deletion_jobs')) {
           return {
             bind() {
-              return { async run() { order.push('intent'); } };
+              return { async run() { order.push('intent'); return { success: true, meta: { changes: 1 } }; } };
             }
           };
         }

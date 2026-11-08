@@ -161,7 +161,7 @@ async function deleteR2KeysByPrefix(bucket: R2Bucket, prefix: string): Promise<v
 }
 
 async function deleteUserData(env: AppBindings['Bindings'], userId: string): Promise<void> {
-  await env.DB.batch([
+  const statements = [
     env.DB.prepare('DELETE FROM subscription_events WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM user_events WHERE user_id = ?').bind(userId),
     env.DB.prepare('DELETE FROM reward_challenges WHERE user_id = ?').bind(userId),
@@ -177,7 +177,11 @@ async function deleteUserData(env: AppBindings['Bindings'], userId: string): Pro
       .bind(userId),
     env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId),
     env.DB.prepare('DELETE FROM account_deletion_jobs WHERE user_id = ?').bind(userId)
-  ]);
+  ];
+  const results = await env.DB.batch(statements);
+  if (results.length !== statements.length || results.some((result) => result.success !== true)) {
+    throw new Error('Account deletion D1 batch was not confirmed.');
+  }
 }
 
 /**
@@ -187,10 +191,21 @@ async function deleteUserData(env: AppBindings['Bindings'], userId: string): Pro
  */
 async function persistDeletionIntent(db: D1Database, userId: string, firebaseUid: string) {
   const now = new Date().toISOString();
-  await db.prepare(
+  const result = await db.prepare(
     `INSERT OR IGNORE INTO account_deletion_jobs (user_id, firebase_uid, created_at, next_attempt_at)
      VALUES (?, ?, ?, ?)`
   ).bind(userId, firebaseUid, now, now).run();
+  if (result.success !== true) {
+    throw new Error('Account deletion intent could not be persisted.');
+  }
+  // The insert is intentionally idempotent. Verify the durable row, including
+  // its Firebase identity, before any irreversible external deletion occurs.
+  const intent = await db.prepare(
+    'SELECT firebase_uid FROM account_deletion_jobs WHERE user_id = ?'
+  ).bind(userId).first<{ firebase_uid: string }>();
+  if (intent?.firebase_uid !== firebaseUid) {
+    throw new Error('Account deletion intent readback was not confirmed.');
+  }
 }
 
 /** A bounded, idempotent reconciliation of durable deletion intents. */
