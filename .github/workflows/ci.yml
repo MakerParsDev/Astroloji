@@ -80,6 +80,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+          cache: gradle
       - name: Prepare CI Gradle settings
         run: |
           cat > gradle.properties <<'EOF'
