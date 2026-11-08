@@ -240,7 +240,8 @@ private fun OnboardingIntroPage() {
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(top = 14.dp),
+                .padding(top = 14.dp)
+                .verticalScroll(rememberScrollState()),
     ) {
         Box(
             modifier =
