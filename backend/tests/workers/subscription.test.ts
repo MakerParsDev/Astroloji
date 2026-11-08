@@ -547,6 +547,29 @@ describe('subscription worker', () => {
     }
   );
 
+  it.each(['/api/v1/subscriptions/verify', '/api/v1/subscriptions/restore'] as const)(
+    '%s rejects a failed D1 batch response even if it reports one changed row',
+    async (path) => {
+      const { db } = createRecordingDb();
+      const failedDb = {
+        ...db,
+        async batch(_statements: D1PreparedStatement[]) {
+          return Array.from({ length: 3 }, () => ({ success: false, meta: { changes: 1 } }));
+        }
+      } as unknown as D1Database;
+      const env = createTestEnv({ DB: failedDb, PACKAGE_NAME: 'com.parsfilo.astrology' });
+      const jwt = await signAppJwt(env, { userId: 'user-1', isPremium: false });
+      verifySubscriptionPurchaseMock.mockResolvedValue(activeWeeklySubscription());
+      const response = await createApp().request(path, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ purchase_token: 'weekly-purchase-token', product_id: 'premium_weekly' })
+      }, env);
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'INTERNAL_ERROR' } });
+    }
+  );
+
   it.each([
     ['denied', async () => ({ allowed: false, remaining: 0, retryAfterSeconds: 6 }), 429, 'RATE_LIMITED'],
     ['unavailable', async () => { throw new Error('rate limiter unavailable'); }, 503, 'RATE_LIMIT_UNAVAILABLE']
@@ -647,6 +670,32 @@ describe('subscription worker', () => {
       expect.stringContaining('UPDATE play_rtdn_messages')
     ]);
     expect(claims.get('subscription-message-1')).toMatchObject({ status: 'processed', outcome: 'processed' });
+  });
+
+  it('returns retryable failure when the RTDN finalize batch reports unsuccessful D1 results', async () => {
+    const { db, claims } = createRtdnDb();
+    const failedDb = {
+      ...db,
+      async batch(statements: D1PreparedStatement[]) {
+        return statements.map((_, index) => ({
+          success: index !== statements.length - 1,
+          meta: { changes: 1 }
+        }));
+      }
+    } as unknown as D1Database;
+    const env = createTestEnv({ DB: failedDb, PACKAGE_NAME: 'com.parsfilo.astrology' });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    getSubscriptionStatusMock.mockResolvedValue(activeWeeklySubscription());
+    const response = await createApp({ subscription: { verifyPlayRtdnIdentity: acceptingVerifier() } }).request(
+      '/api/v1/webhooks/play-rtdn', {
+        method: 'POST',
+        headers: { authorization: 'Bearer oidc-test-token', 'content-type': 'application/json' },
+        body: JSON.stringify(playPushEnvelope('failed-batch-message', playSubscriptionNotification()))
+      }, env
+    );
+    expect(response.status).toBe(500);
+    expect(claims.has('failed-batch-message')).toBe(false);
+    expect(JSON.stringify(log.mock.calls)).toContain('retryable_failure');
   });
 
   it('reclaims an expired processing lease and completes the delivery under a new owner token', async () => {
