@@ -38,6 +38,8 @@ describe('cron worker', () => {
     createPersonalGuidance.mockReset();
     getDecryptedBirthData.mockReset();
     getDecryptedBirthData.mockResolvedValue(null);
+    vi.mocked(getSubscriptionStatus).mockReset();
+    vi.mocked(hasPremiumEntitlement).mockReset();
   });
 
   it('uses localized Turkish sign labels with proper diacritics', () => {
@@ -192,6 +194,53 @@ describe('cron worker', () => {
     );
   });
 
+  it('preserves notifications and cleanup when Play billing reconciliation fails', async () => {
+    const base = createSingleUserEnv();
+    const cleanupRuns: string[] = [];
+    const env = createTestEnv({
+      ...base,
+      DB: {
+        prepare(sql: string) {
+          if (sql.includes('FROM subscriptions WHERE status IN')) {
+            const statement = {
+              bind() { return statement; },
+              async all() {
+                return {
+                  success: true,
+                  results: [{
+                    id: 'subscription-1', user_id: 'user-1',
+                    purchase_token: 'provider-test-token',
+                    product_id: 'premium_weekly', status: 'active',
+                    expires_at: '2026-04-09T00:00:00.000Z'
+                  }]
+                };
+              }
+            };
+            return statement as unknown as D1PreparedStatement;
+          }
+          if (sql.startsWith('DELETE FROM reward_challenges')) {
+            const statement = {
+              bind() { return statement; },
+              async run() { cleanupRuns.push('reward-cleanup'); return { success: true, meta: { changes: 0 } }; }
+            };
+            return statement as unknown as D1PreparedStatement;
+          }
+          return base.DB.prepare(sql);
+        }
+      } as D1Database
+    });
+    vi.mocked(getSubscriptionStatus).mockRejectedValue(
+      new Error('simulated provider account detail; do not log')
+    );
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext))
+      .resolves.toBeUndefined();
+    expect(sendBatchNotifications).toHaveBeenCalledTimes(1);
+    expect(cleanupRuns).toEqual(['reward-cleanup']);
+    expect(errors).toHaveBeenCalledWith('Subscription expiry reconciliation failed; retry scheduled.');
+    expect(JSON.stringify(errors.mock.calls)).not.toContain('simulated provider account detail');
+  });
+
   it('rejects an unsuccessful expiry queue read rather than claiming no subscriptions are due', async () => {
     const base = createTestEnv();
     const failingDb = {
@@ -207,8 +256,10 @@ describe('cron worker', () => {
       }
     } as D1Database;
     const env = createTestEnv({ DB: failingDb });
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await expect(handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext))
-      .rejects.toThrow('Subscription expiry query was not confirmed.');
+      .resolves.toBeUndefined();
+    expect(errors).toHaveBeenCalledWith('Subscription expiry reconciliation failed; retry scheduled.');
     expect(sendBatchNotifications).not.toHaveBeenCalled();
   });
 
@@ -254,8 +305,11 @@ describe('cron worker', () => {
         raw: {} as never
       });
       vi.mocked(hasPremiumEntitlement).mockReturnValue(false);
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       await expect(handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext))
-        .rejects.toThrow('injected event write failure');
+        .resolves.toBeUndefined();
+      expect(errors).toHaveBeenCalledWith('Subscription expiry reconciliation failed; retry scheduled.');
+      expect(JSON.stringify(errors.mock.calls)).not.toContain('injected event write failure');
       const state = await db.prepare('SELECT status FROM subscriptions WHERE id = ?').bind('sub-1')
         .first<{ status: string }>();
       const user = await db.prepare('SELECT is_premium FROM users WHERE id = ?').bind('user-1')
