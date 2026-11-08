@@ -20,6 +20,7 @@ class MainActivityConsentRefreshTest {
             backgroundScope.launch {
                 observeConsentChangesAfterStartup(
                     snapshots = updates,
+                    persistedRevision = 1L,
                     onConsentChanged = { persisted += updates.value.revision },
                     reloadAllowedAds = { refreshes += updates.value.revision },
                 )
@@ -45,6 +46,52 @@ class MainActivityConsentRefreshTest {
         }
 
     @Test
+    fun consentChangedDuringSlowStartupIsPersistedWhenObservationBegins() =
+        runTest {
+            val updates = MutableStateFlow(AdConsentSnapshot(false, 1L))
+            val persisted = mutableListOf<Long>()
+            val refreshes = mutableListOf<Long>()
+
+            // Revision 1 was persisted before Remote Config started loading.
+            // Revision 2 arrived during that suspend point, before collection.
+            updates.value = AdConsentSnapshot(true, 2L)
+            backgroundScope.launch {
+                observeConsentChangesAfterStartup(
+                    snapshots = updates,
+                    persistedRevision = 1L,
+                    onConsentChanged = { persisted += updates.value.revision },
+                    reloadAllowedAds = { refreshes += updates.value.revision },
+                )
+            }
+            runCurrent()
+
+            assertThat(persisted).containsExactly(2L)
+            assertThat(refreshes).containsExactly(2L)
+        }
+
+    @Test
+    fun consentRevokedDuringSlowStartupIsPersistedWithoutLoadingAds() =
+        runTest {
+            val updates = MutableStateFlow(AdConsentSnapshot(true, 6L))
+            val persisted = mutableListOf<Long>()
+            val refreshes = mutableListOf<Long>()
+
+            updates.value = AdConsentSnapshot(false, 7L)
+            backgroundScope.launch {
+                observeConsentChangesAfterStartup(
+                    snapshots = updates,
+                    persistedRevision = 6L,
+                    onConsentChanged = { persisted += updates.value.revision },
+                    reloadAllowedAds = { refreshes += updates.value.revision },
+                )
+            }
+            runCurrent()
+
+            assertThat(persisted).containsExactly(7L)
+            assertThat(refreshes).isEmpty()
+        }
+
+    @Test
     fun alreadyAllowedStartupDoesNotPreloadTwiceButNewRevisionRefreshes() =
         runTest {
             val updates = MutableStateFlow(AdConsentSnapshot(true, 6L))
@@ -53,6 +100,7 @@ class MainActivityConsentRefreshTest {
             backgroundScope.launch {
                 observeConsentChangesAfterStartup(
                     snapshots = updates,
+                    persistedRevision = 6L,
                     onConsentChanged = { persisted++ },
                     reloadAllowedAds = { refreshes++ },
                 )
