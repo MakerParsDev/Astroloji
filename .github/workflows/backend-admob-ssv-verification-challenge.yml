@@ -8,6 +8,7 @@ on:
         required: true
         type: choice
         options:
+          - validate
           - create
           - inspect
           - delete
@@ -30,7 +31,7 @@ jobs:
       github.repository == 'MakerParsDev/Astroloji' &&
       github.ref == 'refs/heads/main' &&
       inputs.confirm == 'MANAGE_ADMOB_SSV_CHALLENGE' &&
-      contains(fromJSON('["create","inspect","delete","callback"]'), inputs.command)
+      contains(fromJSON('["validate","create","inspect","delete","callback"]'), inputs.command)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
@@ -75,38 +76,6 @@ jobs:
           fi
           exit "$missing"
 
-      - name: Validate and mask challenge secrets
-        if: inputs.command != 'callback'
-        env:
-          ADMOB_SSV_TEST_USER_ID: ${{ secrets.ADMOB_SSV_TEST_USER_ID }}
-          ADMOB_SSV_TEST_CUSTOM_DATA: ${{ secrets.ADMOB_SSV_TEST_CUSTOM_DATA }}
-          INPUT_COMMAND: ${{ inputs.command }}
-        run: |
-          if [ -z "${ADMOB_SSV_TEST_CUSTOM_DATA:-}" ]; then
-            echo 'ADMOB_SSV_TEST_CUSTOM_DATA is required.'
-            exit 1
-          fi
-          if { [ "$INPUT_COMMAND" = "create" ] || [ "$INPUT_COMMAND" = "delete" ]; } && [ -z "${ADMOB_SSV_TEST_USER_ID:-}" ]; then
-            echo 'ADMOB_SSV_TEST_USER_ID is required for create and delete.'
-            exit 1
-          fi
-          echo "::add-mask::$ADMOB_SSV_TEST_CUSTOM_DATA"
-          if [ -n "${ADMOB_SSV_TEST_USER_ID:-}" ]; then
-            echo "::add-mask::$ADMOB_SSV_TEST_USER_ID"
-          fi
-          node <<'NODE'
-          const challenge = process.env.ADMOB_SSV_TEST_CUSTOM_DATA ?? '';
-          const userId = process.env.ADMOB_SSV_TEST_USER_ID ?? '';
-          const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-          if (!uuid.test(challenge)) throw new Error('Custom data must be a UUID.');
-          if (['create', 'delete'].includes(process.env.INPUT_COMMAND ?? '')) {
-            if (!userId.startsWith('admob-verify-') || !uuid.test(userId.slice('admob-verify-'.length))) {
-              throw new Error('User ID must use the admob-verify-<uuid> namespace.');
-            }
-          }
-          console.log('Validated and masked short-lived challenge secrets.');
-          NODE
-
       - name: Install backend dependencies
         working-directory: backend
         run: npm ci
@@ -125,52 +94,39 @@ jobs:
           sudo install -m 0755 "$RUNNER_TEMP/doppler" /usr/local/bin/doppler
           doppler --version
 
+      # Read two short-lived synthetic values directly from Doppler in each
+      # isolated operation. Never persist their plaintext in GITHUB_ENV or logs.
+      - name: Validate Doppler challenge credentials
+        if: inputs.command == 'validate'
+        working-directory: backend
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+        run: |
+          bash scripts/run-admob-verification-challenge.sh validate > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
+
       - name: Create verification challenge
         if: inputs.command == 'create'
         working-directory: backend
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-          ADMOB_SSV_TEST_USER_ID: ${{ secrets.ADMOB_SSV_TEST_USER_ID }}
-          ADMOB_SSV_TEST_CUSTOM_DATA: ${{ secrets.ADMOB_SSV_TEST_CUSTOM_DATA }}
         run: |
-          set -euo pipefail
-          if [ -z "${DOPPLER_TOKEN:-}" ]; then echo 'DOPPLER_TOKEN is required.'; exit 1; fi
-          CLOUDFLARE_API_TOKEN="$(doppler secrets get CLOUDFLARE_API_TOKEN --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo 'CLOUDFLARE_API_TOKEN is required.'; exit 1; fi
-          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
-          env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
-            npm run --silent transition:challenge:create > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
+          bash scripts/run-admob-verification-challenge.sh create > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
 
       - name: Inspect verification challenge
         if: inputs.command == 'inspect'
         working-directory: backend
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-          ADMOB_SSV_TEST_CUSTOM_DATA: ${{ secrets.ADMOB_SSV_TEST_CUSTOM_DATA }}
         run: |
-          set -euo pipefail
-          if [ -z "${DOPPLER_TOKEN:-}" ]; then echo 'DOPPLER_TOKEN is required.'; exit 1; fi
-          CLOUDFLARE_API_TOKEN="$(doppler secrets get CLOUDFLARE_API_TOKEN --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo 'CLOUDFLARE_API_TOKEN is required.'; exit 1; fi
-          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
-          env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
-            npm run --silent transition:challenge:inspect > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
+          bash scripts/run-admob-verification-challenge.sh inspect > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
 
       - name: Delete verification challenge from D1
         if: inputs.command == 'delete'
         working-directory: backend
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
-          ADMOB_SSV_TEST_USER_ID: ${{ secrets.ADMOB_SSV_TEST_USER_ID }}
-          ADMOB_SSV_TEST_CUSTOM_DATA: ${{ secrets.ADMOB_SSV_TEST_CUSTOM_DATA }}
         run: |
-          set -euo pipefail
-          if [ -z "${DOPPLER_TOKEN:-}" ]; then echo 'DOPPLER_TOKEN is required.'; exit 1; fi
-          CLOUDFLARE_API_TOKEN="$(doppler secrets get CLOUDFLARE_API_TOKEN --plain --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG")"
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo 'CLOUDFLARE_API_TOKEN is required.'; exit 1; fi
-          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
-          env -u DOPPLER_TOKEN CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" \
-            npm run --silent transition:challenge:delete > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
+          bash scripts/run-admob-verification-challenge.sh delete > "$RUNNER_TEMP/admob-ssv-redacted-evidence.json"
 
       - name: Inspect redacted SSV callback results
         if: inputs.command == 'callback'
@@ -203,6 +159,7 @@ jobs:
           const path = process.env.RUNNER_TEMP + '/admob-ssv-redacted-evidence.json';
           const evidence = JSON.parse(fs.readFileSync(path, 'utf8'));
           const allowedByOperation = {
+            validate: ['operation', 'secretsReady'],
             create: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
             inspect: ['operation', 'challengePrefix', 'userPrefix', 'status', 'transactionPrefix', 'expiresAt'],
             delete: ['operation', 'deletedChallengePrefix', 'cleanupVerified'],
@@ -218,7 +175,7 @@ jobs:
           }
           if (evidence.operation === 'delete') {
             lines.push('');
-            lines.push('- Manual cleanup required: Delete these temporary repository secrets manually: ADMOB_SSV_TEST_USER_ID and ADMOB_SSV_TEST_CUSTOM_DATA.');
+            lines.push('- Manual cleanup required: Remove these two temporary values from Doppler after verified D1 cleanup: ADMOB_SSV_TEST_USER_ID and ADMOB_SSV_TEST_CUSTOM_DATA.');
           }
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
           console.log(lines.join('\n'));

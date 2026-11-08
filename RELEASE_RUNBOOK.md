@@ -88,10 +88,11 @@ Guvenli operator sirasi: `create -> AdMob -> inspect verified -> delete`.
 1. `main` uzerinde `backend-ssv-transition-deploy` workflow'unu gerekiyorsa `DEPLOY_TRANSITION` onayi ve gelecekte UTC deadline ile calistir.
 2. Workflow ozetinde deployment ID, route ID/pattern, D1 migration, deadline ve `MALFORMED_CALLBACK` sonucunu kaydet.
 3. Repo kokundeki `tools/admob-ssv-verification-values.html` dosyasini yerel tarayicida ac, yeni degerler uret ve sayfayi acik tut.
-4. Degerleri gecici repository Actions secrets olarak kaydet:
+4. Yeni rastgele test kimliklerini yetkili operator yalniz Doppler `mobil-apps/astrology` icinde gecici olarak saklasin; GitHub Actions tarafinda yalniz `DOPPLER_TOKEN` kalir:
    - `ADMOB_SSV_TEST_USER_ID`
    - `ADMOB_SSV_TEST_CUSTOM_DATA`
-5. `backend-admob-ssv-verification-challenge` workflow'unu command `create`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir. Workflow exact `admob-verify-*` gecici D1 kullanicisini otomatik olusturur; ozet yalnızca redakte prefix, `pending` status ve expiry icermelidir.
+   Eski test kimliklerini tekrar kullanma; D1 silme kaniti gelmeden bunlari temizleme.
+5. `backend-admob-ssv-verification-challenge` workflow icin once `validate` (yalniz secret erisimi ve UUID bicimi; D1/Cloudflare cagrisi yok), sonra `create` ve confirm `MANAGE_ADMOB_SSV_CHALLENGE` calistir. Workflow exact admob-verify-* gecici D1 kullanicisini otomatik olusturur; redakte ozette sadece pending/expiry bulunmalidir.
 6. AdMob SSV ekraninda su alanlari kullan:
 
 ```text
@@ -103,7 +104,7 @@ Custom data: acik yerel generator sayfasindaki Custom data
 7. **URL'yi doğrula** basarisizsa kaydetme. Basariliysa **Doğrulanan URL'yi kullan**, ardindan **Kaydet**.
    AdMob URL dogrulama cagrisindan hemen sonra ayni workflow'un salt-okunur callback komutuyla son 5 dakikalik redakte sonucu denetle. Bu kisa pencere Cloudflare satir taramasini sinirlar; no_events, signature_rejected veya orneklemdeki verified tek basina test challenge kabulunu kanitlamaz. Kesin kabul icin sonraki D1 inspect adimini kullan; pahali genis sorguyu otomatik tekrarlama.
 8. Workflow'u command `inspect`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; redakte evidence status `verified` ve transaction prefix gostermelidir.
-9. Workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; exact D1 challenge satiri ve artik kullanilmayan gecici D1 kullanicisi otomatik silinmelidir. Ardindan repository Actions settings ekranindan `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel sil.
+9. Workflow'u command `delete`, confirm `MANAGE_ADMOB_SSV_CHALLENGE` ile calistir; exact D1 challenge satiri ve artik kullanilmayan gecici D1 kullanicisi otomatik silinmelidir. D1 cleanup kaniti sonrasi yetkili operator yalniz Doppler `mobil-apps/astrology` icindeki gecici `ADMOB_SSV_TEST_USER_ID` ve `ADMOB_SSV_TEST_CUSTOM_DATA` secret'larini manuel silsin. GitHub `DOPPLER_TOKEN` kalsin.
 10. `android-internal-preflight` calistir ve workflow URL/sonucunu kaydet. `ENABLE_PRODUCTION_RELEASE=false` kalmalidir.
 
 ### Gecis rollback
