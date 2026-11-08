@@ -70,6 +70,25 @@ describe('verification challenge command execution', () => {
     expect(log).not.toHaveBeenCalled();
   });
 
+  it('does not claim successful creation without a matching D1 challenge readback', () => {
+    const runSql = vi.fn()
+      .mockReturnValueOnce([{ success: true, meta: { changes: 2 } }])
+      .mockReturnValueOnce([{ success: true, results: [] }]);
+    const log = vi.fn();
+
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'create',
+        env: { ADMOB_SSV_TEST_USER_ID: userId, ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+        now: new Date('2026-07-27T10:00:00.000Z'),
+        runSql,
+        log
+      })
+    ).toThrow(/readback|not confirmed/i);
+    expect(runSql).toHaveBeenCalledTimes(2);
+    expect(log).not.toHaveBeenCalled();
+  });
+
   it('never accepts verification status from a failed D1 read', () => {
     const runSql = vi.fn().mockReturnValue([{
       success: false,
@@ -105,7 +124,18 @@ describe('verification challenge command execution', () => {
   });
 
   it('creates the supplied challenge and logs only redacted evidence', () => {
-    const runSql = vi.fn().mockReturnValue([{ success: true, meta: { changes: 1 } }]);
+    const runSql = vi.fn()
+      .mockReturnValueOnce([{ success: true, meta: { changes: 1 } }])
+      .mockReturnValueOnce([{
+        success: true,
+        results: [{
+          id: challengeId,
+          user_id: userId,
+          status: 'pending',
+          transaction_id: null,
+          expires_at: '2026-07-27T10:15:00.000Z'
+        }]
+      }]);
     const log = vi.fn();
 
     const evidence = executeVerificationChallengeCommand({
@@ -119,7 +149,9 @@ describe('verification challenge command execution', () => {
       log
     });
 
-    expect(runSql).toHaveBeenCalledOnce();
+    expect(runSql).toHaveBeenCalledTimes(2);
+    expect(runSql.mock.calls[1]?.[0]).toContain(`id = '${challengeId}'`);
+    expect(runSql.mock.calls[1]?.[0]).toContain(`user_id = '${userId}'`);
     const sql = runSql.mock.calls[0]?.[0] as string;
     expect(sql).toContain('INSERT OR IGNORE INTO users');
     expect(sql).toContain('INSERT INTO reward_challenges');
@@ -139,6 +171,33 @@ describe('verification challenge command execution', () => {
     const serializedLogs = JSON.stringify(log.mock.calls);
     expect(serializedLogs).not.toContain(challengeId);
     expect(serializedLogs).not.toContain(userId);
+  });
+
+  it('rejects a mismatched or already-verified row after creation', () => {
+    const runSql = vi.fn()
+      .mockReturnValueOnce([{ success: true, meta: { changes: 1 } }])
+      .mockReturnValueOnce([{
+        success: true,
+        results: [{
+          id: challengeId,
+          user_id: userId,
+          status: 'verified',
+          transaction_id: 'unexpected-transaction',
+          expires_at: '2026-07-27T10:15:00.000Z'
+        }]
+      }]);
+    const log = vi.fn();
+
+    expect(() =>
+      executeVerificationChallengeCommand({
+        command: 'create',
+        env: { ADMOB_SSV_TEST_USER_ID: userId, ADMOB_SSV_TEST_CUSTOM_DATA: challengeId },
+        now: new Date('2026-07-27T10:00:00.000Z'),
+        runSql,
+        log
+      })
+    ).toThrow(/readback was not confirmed/);
+    expect(log).not.toHaveBeenCalled();
   });
 
   it('inspects a namespaced row and emits only prefixes', () => {

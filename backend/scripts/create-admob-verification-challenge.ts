@@ -245,15 +245,25 @@ export function executeVerificationChallengeCommand({
     const challengeId = requireEnv(env, 'ADMOB_SSV_TEST_CUSTOM_DATA');
     const values = createSuppliedVerificationChallengeValues({ userId, challengeId, now });
     requireSuccessfulD1Result(runSql(buildInsertVerificationChallengeSql(values)), 'mutation');
+    const row = firstRow<VerificationChallengeRow>(
+      requireSuccessfulD1Result(
+        runSql(buildSelectVerificationChallengeSql(values.challengeId, values.userId)),
+        'query'
+      )
+    );
+    if (
+      !row ||
+      row.id !== values.challengeId ||
+      row.user_id !== values.userId ||
+      row.status !== 'pending' ||
+      row.transaction_id !== null ||
+      row.expires_at !== values.expiresAt
+    ) {
+      throw new Error('AdMob verification challenge create readback was not confirmed. Run delete before retrying.');
+    }
     const evidence: VerificationChallengeEvidence = {
       operation: 'create',
-      ...formatVerificationEvidence({
-        id: values.challengeId,
-        user_id: values.userId,
-        status: 'pending',
-        transaction_id: null,
-        expires_at: values.expiresAt
-      })
+      ...formatVerificationEvidence(row)
     };
     log(JSON.stringify(evidence));
     return evidence;
