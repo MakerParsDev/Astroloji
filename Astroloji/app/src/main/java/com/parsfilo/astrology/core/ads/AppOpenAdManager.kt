@@ -14,7 +14,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -26,6 +28,7 @@ class AppOpenAdManager
         @param:ApplicationContext private val context: Context,
         private val consentManager: GoogleMobileAdsConsentManager,
         private val analyticsRepository: AnalyticsRepository,
+        private val adEligibilityChecker: AdEligibilityChecker,
     ) {
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var isLoading = false
@@ -40,6 +43,20 @@ class AppOpenAdManager
             if (loadedConsentRevision == consentManager.consentRevision) return
             appOpenAd = null
             loadElapsedRealtimeMs = 0L
+        }
+
+        /** Do not reload an app-open ad if the user became Premium during display. */
+        private fun reloadIfEligible() {
+            scope.launch {
+                try {
+                    if (adEligibilityChecker.canShowAds()) {
+                        withContext(Dispatchers.Main.immediate) { preload() }
+                    }
+                } catch (e: IOException) {
+                    // A failed entitlement read must not create another ad request.
+                    Timber.w(e, "Unable to check Premium eligibility before app-open ad reload")
+                }
+            }
         }
 
         fun preload() {
@@ -123,7 +140,7 @@ class AppOpenAdManager
             val dismissOnce = {
                 if (finished.compareAndSet(false, true)) {
                     isShowing = false
-                    preload()
+                    reloadIfEligible()
                     onDismissed()
                 }
             }

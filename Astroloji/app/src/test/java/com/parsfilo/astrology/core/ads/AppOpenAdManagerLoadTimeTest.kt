@@ -28,6 +28,7 @@ class AppOpenAdManagerLoadTimeTest {
                 context,
                 consent,
                 mockk<AnalyticsRepository>(relaxed = true),
+                mockk<AdEligibilityChecker>(relaxed = true),
             )
         mockkStatic(AppOpenAd::class)
         mockkStatic(SystemClock::class)

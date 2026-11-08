@@ -40,7 +40,7 @@ fun AdaptiveBannerAd(modifier: Modifier = Modifier) {
     val revision = displayRevision ?: return
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val adWidth = maxWidth.value.toInt().coerceAtLeast(320)
+        val adWidth = adaptiveBannerWidthDp(maxWidth.value) ?: return@BoxWithConstraints
         val adSize =
             remember(adWidth) {
                 AdSize.getLargeAnchoredAdaptiveBannerAdSize(activity, adWidth)

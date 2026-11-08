@@ -40,7 +40,7 @@ class ConsentRevokedWhileAdLoadingTest {
     @Test
     fun `app open ignores late load callback after consent revoked`() {
         val callback = slot<AppOpenAd.AppOpenAdLoadCallback>()
-        val manager = AppOpenAdManager(context, consent, analytics)
+        val manager = AppOpenAdManager(context, consent, analytics, mockk<AdEligibilityChecker>(relaxed = true))
         mockkStatic(AppOpenAd::class)
         mockkStatic(SystemClock::class)
         try {
