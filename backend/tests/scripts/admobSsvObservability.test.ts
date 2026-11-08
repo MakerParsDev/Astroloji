@@ -45,11 +45,67 @@ describe('AdMob SSV observability inspection', () => {
     );
     const [, request] = fetchImpl.mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(String(request.body))).toMatchObject({
-      timeframe: { from: 1_799_998_200_000, to: 1_800_000_000_000 },
+      timeframe: { from: 1_799_999_700_000, to: 1_800_000_000_000 },
       parameters: {
         filters: [{ key: '$metadata.service', operation: 'eq', value: workerName }]
       }
     });
+  });
+
+  it('reports all sampled allowlisted outcomes from one bounded query without raw identities', async () => {
+    const events = [
+      {
+        timestamp: Date.parse('2026-11-08T04:00:00Z'),
+        $metadata: { service: workerName },
+        source: {
+          event: 'reward_ssv_result', outcome: 'signature_rejected',
+          verifierCode: 'MALFORMED_CALLBACK', userId: 'secret-user'
+        }
+      },
+      {
+        timestamp: Date.parse('2026-11-08T03:59:00Z'),
+        $metadata: { service: workerName },
+        source: { event: 'reward_ssv_result', outcome: 'unknown_challenge', customData: 'secret-custom' }
+      },
+      {
+        timestamp: Date.parse('2026-11-08T03:58:00Z'),
+        $metadata: { service: workerName },
+        source: { event: 'reward_ssv_result', outcome: 'verified', transactionId: 'secret-transaction' }
+      },
+      {
+        timestamp: Date.parse('2026-11-08T03:57:00Z'),
+        $metadata: { service: 'other-worker' },
+        source: { event: 'reward_ssv_result', outcome: 'verified' }
+      },
+      {
+        timestamp: Date.parse('2026-11-08T03:56:00Z'),
+        $metadata: { service: workerName },
+        source: { event: 'other_event', outcome: 'verified' }
+      }
+    ];
+    const fetchImpl = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ success: true, result: telemetry(events, 5) }), {
+        status: 200, headers: { 'content-type': 'application/json' }
+      })
+    );
+    const log = vi.fn();
+    const evidence = await executeWorkerSsvInspection({
+      env: {
+        CLOUDFLARE_API_TOKEN: 'dummy-token',
+        CLOUDFLARE_ACCOUNT_ID: 'dummy-account',
+        SSV_WORKER_NAME: workerName,
+        SSV_ENABLE_DIAGNOSTICS: 'false'
+      },
+      fetchImpl,
+      nowMs: 1_800_000_000_000,
+      log
+    });
+    expect(evidence.outcome).toBe('signature_rejected');
+    expect(evidence.sampledOutcomes).toEqual([
+      'signature_rejected', 'verified', 'unknown_challenge'
+    ]);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/secret-user|secret-custom|secret-transaction/);
   });
 
   it('builds bounded alternate filter and unfiltered diagnostic queries', () => {
@@ -315,6 +371,7 @@ describe('AdMob SSV observability inspection', () => {
       scriptVersion: null,
       telemetryCount: 0,
       returnedCount: 0,
+      sampledOutcomes: [],
       workerServiceSeen: true,
       queryStatus: 'COMPLETED',
       rowsRead: 42,
@@ -358,7 +415,7 @@ describe('AdMob SSV observability inspection', () => {
     expect(JSON.parse(String(valuesInit.body))).toEqual({
       datasets: ['cloudflare-workers'],
       key: '$metadata.service',
-      timeframe: { from: 1_799_998_200_000, to: 1_800_000_000_000 },
+      timeframe: { from: 1_799_999_700_000, to: 1_800_000_000_000 },
       type: 'string'
     });
     expect(valuesInit.signal).toBeInstanceOf(AbortSignal);
@@ -450,6 +507,7 @@ describe('AdMob SSV observability inspection', () => {
       scriptVersion: null,
       telemetryCount: 0,
       returnedCount: 0,
+      sampledOutcomes: [],
       workerServiceSeen: null,
       queryStatus: null,
       rowsRead: null,
