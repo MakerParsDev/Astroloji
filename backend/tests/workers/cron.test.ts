@@ -104,6 +104,7 @@ describe('cron worker', () => {
                 seenOffsets.push(offset);
                 if (offset === 0) {
                   return {
+                    success: true,
                     results: Array.from({ length: 500 }, (_, index) => ({
                       user_id: `user-${index + 1}`,
                       sign: 'aries',
@@ -118,6 +119,7 @@ describe('cron worker', () => {
 
                 if (offset === 500) {
                   return {
+                    success: true,
                     results: [
                       {
                         user_id: 'user-3',
@@ -394,6 +396,7 @@ describe('cron worker', () => {
             async all() {
               if (sql.includes('FROM users u') && sql.includes('LIMIT ? OFFSET ?')) {
                 return {
+                  success: true,
                   results: [
                     {
                       user_id: 'user-1',
@@ -550,6 +553,68 @@ describe('cron worker', () => {
       'Bugün enerjin yüksek.',
       { type: 'daily', sign: 'aries', date: '2026-04-10' }
     );
+  });
+
+  function trackRewardCleanup(env: ReturnType<typeof createTestEnv>) {
+    const previousDb = env.DB;
+    const completed: string[] = [];
+    env.DB = {
+      ...previousDb,
+      prepare(sql: string) {
+        if (sql.startsWith('DELETE FROM reward_challenges')) {
+          const statement = {
+            bind() { return statement; },
+            async run() {
+              completed.push('reward-cleanup');
+              return { success: true, meta: { changes: 0 } };
+            }
+          };
+          return statement as unknown as D1PreparedStatement;
+        }
+        return previousDb.prepare(sql);
+      }
+    } as D1Database;
+    return completed;
+  }
+
+  it('logs a failed D1 notification listing instead of treating it as zero recipients', async () => {
+    const env = createSingleUserEnv();
+    const completed = trackRewardCleanup(env);
+    const previousDb = env.DB;
+    env.DB = {
+      ...previousDb,
+      prepare(sql: string) {
+        if (sql.includes('FROM users u') && sql.includes('LIMIT ? OFFSET ?')) {
+          const stmt = {
+            bind() { return stmt; },
+            async all() { return { success: false, results: [] }; }
+          };
+          return stmt as unknown as D1PreparedStatement;
+        }
+        return previousDb.prepare(sql);
+      }
+    } as D1Database;
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(handleCron(
+      { cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext
+    )).resolves.toBeUndefined();
+    expect(sendBatchNotifications).not.toHaveBeenCalled();
+    expect(errors).toHaveBeenCalledWith('Daily notification dispatch failed; reward cleanup will continue.');
+    expect(completed).toEqual(['reward-cleanup']);
+  });
+
+  it('still cleans up rewards if FCM rejects daily notification delivery', async () => {
+    const env = createSingleUserEnv();
+    const completed = trackRewardCleanup(env);
+    sendBatchNotifications.mockRejectedValue(new Error('private provider error token-example'));
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(handleCron(
+      { cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext
+    )).resolves.toBeUndefined();
+    expect(sendBatchNotifications).toHaveBeenCalledTimes(1);
+    expect(errors).toHaveBeenCalledWith('Daily notification dispatch failed; reward cleanup will continue.');
+    expect(JSON.stringify(errors.mock.calls)).not.toContain('private provider error');
+    expect(completed).toEqual(['reward-cleanup']);
   });
 
   it('isolates cleanup failures after the main cron work', async () => {

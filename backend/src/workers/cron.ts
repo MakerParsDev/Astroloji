@@ -310,6 +310,9 @@ async function dispatchScheduledNotifications(env: Env, currentUtcHour: number) 
     )
       .bind(PAGE_SIZE, offset)
       .all<NotificationTargetRow>();
+    if (targets.success !== true) {
+      throw new Error('Daily notification recipients query was not confirmed.');
+    }
 
     const rows = targets.results ?? [];
     if (rows.length === 0) {
@@ -362,7 +365,12 @@ export async function handleCron(
     // Billing provider/D1 outages must not stop daily notifications or reward cleanup.
     console.error('Subscription expiry reconciliation failed; retry scheduled.');
   }
-  await dispatchScheduledNotifications(env, getCurrentUtcHour());
+  try {
+    await dispatchScheduledNotifications(env, getCurrentUtcHour());
+  } catch {
+    // A failed notification query or FCM outage must not prevent reward cleanup.
+    console.error('Daily notification dispatch failed; reward cleanup will continue.');
+  }
   try {
     await cleanupRewardChallenges(env.DB);
   } catch (error) {
