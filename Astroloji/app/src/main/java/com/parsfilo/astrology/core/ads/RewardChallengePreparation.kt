@@ -10,6 +10,7 @@ import kotlinx.coroutines.CancellationException
  * Rechecks ads eligibility after the network request because consent may
  * change before a challenge is returned. Null means the ad is not eligible.
  */
+@Suppress("TooGenericExceptionCaught")
 internal suspend fun prepareEligibleRewardChallenge(
     repository: ContentRepository,
     eligibility: AdEligibilityChecker,
@@ -22,10 +23,9 @@ internal suspend fun prepareEligibleRewardChallenge(
             repository.prepareRewardUnlock(rewardType, identifier)
         } catch (e: CancellationException) {
             throw e
-        } catch (e: IllegalStateException) {
-            // A failed converter or SDK state check must not start an unverified ad.
-            AppResult.Error(AppException.NetworkException("Reward preparation is temporarily unavailable.", e))
-        } catch (e: IllegalArgumentException) {
+        } catch (e: Exception) {
+            // A failed SDK/converter/network dependency must never start an unverified ad.
+            // Preserve cancellation semantics; no raw upstream message reaches the user.
             AppResult.Error(AppException.NetworkException("Reward preparation is temporarily unavailable.", e))
         }
     return if (result is AppResult.Success && !eligibility.canShowRewarded()) null else result
