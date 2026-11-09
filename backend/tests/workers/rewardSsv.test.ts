@@ -931,6 +931,37 @@ describe('rewarded access SSV routes', () => {
     expect(rows.get(CHALLENGE_ID)?.status).toBe('verified');
   });
 
+  it('caps cleanup D1 queries per cron pass and resumes the backlog on the next pass', async () => {
+    let remaining = 5_002;
+    let calls = 0;
+    const db = {
+      prepare(sql: string) {
+        expect(sql).toContain('LIMIT ?');
+        const statement = {
+          bind(...args: unknown[]) {
+            expect(args[2]).toBe(500);
+            return statement;
+          },
+          async run() {
+            calls += 1;
+            const changes = Math.min(remaining, 500);
+            remaining -= changes;
+            return { success: true, meta: { changes } };
+          }
+        };
+        return statement;
+      }
+    } as unknown as D1Database;
+
+    await cleanupRewardChallenges(db, NOW_MS);
+    expect(calls).toBe(10);
+    expect(remaining).toBe(2);
+
+    await cleanupRewardChallenges(db, NOW_MS + 60 * 60 * 1_000);
+    expect(remaining).toBe(0);
+    expect(calls).toBe(12);
+  });
+
   it('cleans old reward rows in bounded batches until no rows remain', async () => {
     const changes = [500, 2, 0];
     const bindings: unknown[][] = [];
