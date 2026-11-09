@@ -163,7 +163,9 @@ interface ClaimRow {
   outcome: string | null;
 }
 
-function createClaimDb(initial: ClaimRow[] = []) {
+type FailedD1Write = 'insert' | 'reclaim' | 'release' | 'finalize';
+
+function createClaimDb(initial: ClaimRow[] = [], failedWrite?: FailedD1Write) {
   const rows = new Map(initial.map((row) => [row.message_id, { ...row }]));
   const db = {
     prepare(sql: string) {
@@ -179,6 +181,13 @@ function createClaimDb(initial: ClaimRow[] = []) {
           return rows.get(String(bindings[0])) ?? null;
         },
         async run() {
+          const failingWrite = (
+            (failedWrite === 'insert' && normalized.startsWith('INSERT INTO play_rtdn_messages')) ||
+            (failedWrite === 'reclaim' && normalized.startsWith('UPDATE play_rtdn_messages SET lease_token')) ||
+            (failedWrite === 'release' && normalized.startsWith('DELETE FROM play_rtdn_messages')) ||
+            (failedWrite === 'finalize' && normalized.startsWith('UPDATE play_rtdn_messages SET status'))
+          );
+          if (failingWrite) return { success: false, meta: { changes: 1 } };
           if (normalized.startsWith('INSERT INTO play_rtdn_messages')) {
             const [messageId, packageName, fingerprint, notificationType, leaseToken, receivedAt, leaseExpiresAt] = bindings.map(String);
             if (rows.has(messageId)) return { success: true, meta: { changes: 0 } };
@@ -273,6 +282,32 @@ describe('Play RTDN D1 delivery claims', () => {
       expect(block).not.toMatch(/purchase_token/i);
       expect(block).not.toMatch(/raw_payload|payload\s+TEXT/i);
     }
+  });
+
+  it('refuses a new Play notification claim when D1 flags insert failure', async () => {
+    const { db } = createClaimDb([], 'insert');
+    await expect(claimPlayRtdnMessage(db, claimInput())).rejects.toThrow();
+  });
+
+  it('refuses an expired Play notification reclaim when D1 flags update failure', async () => {
+    const { db } = createClaimDb([processingRow()], 'reclaim');
+    await expect(claimPlayRtdnMessage(db, claimInput({
+      receivedAt: '2026-08-08T00:01:01.000Z'
+    }))).rejects.toThrow();
+  });
+
+  it('does not acknowledge failed notification lease release as successful', async () => {
+    const { db } = createClaimDb([processingRow()], 'release');
+    await expect(releasePlayRtdnClaim(
+      db, 'message-1', 'fingerprint-1', 'lease-1'
+    )).rejects.toThrow();
+  });
+
+  it('does not acknowledge failed notification finalization as processed', async () => {
+    const { db } = createClaimDb([processingRow()], 'finalize');
+    await expect(finalizePlayRtdnMessage(
+      db, 'message-1', 'fingerprint-1', 'lease-1', 'processed', '2026-08-08T00:00:30.000Z'
+    )).rejects.toThrow();
   });
 
   it('atomically claims a first message with a bounded lease', async () => {
