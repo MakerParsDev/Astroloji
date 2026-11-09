@@ -152,19 +152,29 @@ async function expireAndRefreshSubscriptions(env: Env) {
     );
 
     if (!current) {
-      await env.DB
-        .prepare(
-          `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
-           VALUES (?, ?, ?, 'sync_pending', ?, ?)`
-        )
-        .bind(
-          crypto.randomUUID(),
-          subscription.user_id,
-          subscription.purchase_token,
-          JSON.stringify({ source: 'cron', reconciliation: 'pending' }),
-          now
-        )
-        .run();
+      // The provider is temporarily unable to confirm a purchase. Keep retrying
+      // hourly, but record only one unresolved-state audit event per UTC day.
+      const pendingEvent = await env.DB.prepare(
+        `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
+         SELECT ?, ?, ?, 'sync_pending', ?, ?
+         WHERE NOT EXISTS (
+           SELECT 1 FROM subscription_events
+           WHERE user_id = ? AND purchase_token = ? AND event_type = 'sync_pending'
+             AND created_at >= ?
+         )`
+      ).bind(
+        crypto.randomUUID(),
+        subscription.user_id,
+        subscription.purchase_token,
+        JSON.stringify({ source: 'cron', reconciliation: 'pending' }),
+        now,
+        subscription.user_id,
+        subscription.purchase_token,
+        `${now.slice(0, 10)}T00:00:00.000Z`
+      ).run();
+      if (pendingEvent.success !== true) {
+        throw new Error('Subscription reconciliation audit write was not confirmed.');
+      }
       continue;
     }
 

@@ -30,6 +30,31 @@ import { getSubscriptionStatus, hasPremiumEntitlement } from '@/services/playBil
 import { handleCron, buildDailyNotificationTitle } from '@/workers/cron';
 import { createTestEnv } from '../helpers/env';
 
+function localCronEnv(db: D1Database) {
+  return createTestEnv({
+    DB: {
+      prepare(sql: string) {
+        if (sql.includes('FROM account_deletion_jobs') || sql.includes('FROM users u')) {
+          const stmt = {
+            bind() { return stmt; },
+            async all() { return { success: true, results: [] }; }
+          };
+          return stmt as unknown as D1PreparedStatement;
+        }
+        if (sql.startsWith('DELETE FROM reward_challenges')) {
+          const stmt = {
+            bind() { return stmt; },
+            async run() { return { success: true, meta: { changes: 0 } }; }
+          };
+          return stmt as unknown as D1PreparedStatement;
+        }
+        return db.prepare(sql);
+      },
+      batch(statements: D1PreparedStatement[]) { return db.batch(statements); }
+    } as D1Database
+  });
+}
+
 describe('cron worker', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -263,6 +288,43 @@ describe('cron worker', () => {
     expect(sendBatchNotifications).not.toHaveBeenCalled();
   });
 
+  it('records at most one sync_pending event per UTC day while retrying every hour in real D1', async () => {
+    vi.useRealTimers();
+    const runtime = new Miniflare(convertV4MiniflareOptions({
+      modules: true,
+      script: 'export default {fetch(){return new Response("local")}}',
+      compatibilityDate: '2026-04-05',
+      d1Databases: { DB: 'astrology-cron-pending-dedupe' }
+    }));
+    try {
+      const db = await runtime.getD1Database('DB');
+      const now = new Date();
+      const previousDay = new Date(now.getTime() - 86400_000).toISOString();
+      await db.exec([
+        'CREATE TABLE subscriptions (id TEXT PRIMARY KEY, user_id TEXT, purchase_token TEXT, product_id TEXT, status TEXT, expires_at TEXT);',
+        'CREATE TABLE subscription_events (id TEXT PRIMARY KEY, user_id TEXT, purchase_token TEXT, event_type TEXT, payload TEXT, created_at TEXT);',
+        "INSERT INTO subscriptions VALUES ('sub-1', 'user-1', 'token-1', 'premium_weekly', 'active', '2020-01-01T00:00:00.000Z');"
+      ].join('\n'));
+      await db.prepare('INSERT INTO subscription_events VALUES (?, ?, ?, ?, ?, ?)').bind(
+        'historic-pending', 'user-1', 'token-1', 'sync_pending', '{}', previousDay
+      ).run();
+      const env = localCronEnv(db);
+      vi.mocked(getSubscriptionStatus).mockResolvedValue(null);
+      for (let i = 0; i < 2; i++) {
+        await handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext);
+      }
+      expect(getSubscriptionStatus).toHaveBeenCalledTimes(2);
+      const rows = await db.prepare(
+        "SELECT created_at FROM subscription_events WHERE purchase_token = 'token-1' AND event_type = 'sync_pending' ORDER BY created_at"
+      ).all<{ created_at: string }>();
+      expect(rows.results).toHaveLength(2);
+      expect(rows.results[0]?.created_at).toBe(previousDay);
+      expect(rows.results[1]?.created_at.slice(0, 10)).toBe(now.toISOString().slice(0, 10));
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('rolls back expired subscription and Premium writes if the final event insert fails in real D1', async () => {
     // Miniflare startup uses timers; the other Cron tests intentionally use fake time.
     vi.useRealTimers();
@@ -282,22 +344,7 @@ describe('cron worker', () => {
         "INSERT INTO subscriptions (id, user_id, purchase_token, product_id, status, expires_at, auto_renewing) VALUES ('sub-1', 'user-1', 'token-1', 'premium_weekly', 'active', '2026-04-09T00:00:00.000Z', 0);",
         "CREATE TRIGGER reject_event BEFORE INSERT ON subscription_events BEGIN SELECT RAISE(ABORT, 'injected event write failure'); END;"
       ].join('\n'));
-      const env = createTestEnv({
-        DB: {
-          prepare(sql: string) {
-            if (sql.includes('FROM account_deletion_jobs') || sql.includes('FROM users u')) {
-              const stmt = { bind() { return stmt; }, async all() { return { success: true, results: [] }; } };
-              return stmt as unknown as D1PreparedStatement;
-            }
-            if (sql.startsWith('DELETE FROM reward_challenges')) {
-              const stmt = { bind() { return stmt; }, async run() { return { success: true, meta: { changes: 0 } }; } };
-              return stmt as unknown as D1PreparedStatement;
-            }
-            return db.prepare(sql);
-          },
-          batch: (statements: D1PreparedStatement[]) => db.batch(statements)
-        } as D1Database
-      });
+      const env = localCronEnv(db);
       vi.mocked(getSubscriptionStatus).mockResolvedValue({
         purchaseToken: 'token-1', productId: 'premium_weekly',
         status: 'expired', startsAt: '2026-04-01T00:00:00.000Z',
