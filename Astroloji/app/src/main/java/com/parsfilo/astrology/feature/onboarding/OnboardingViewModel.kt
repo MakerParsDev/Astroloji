@@ -82,6 +82,7 @@ data class OnboardingUiState(
     val manualSelectionEnabled: Boolean = false,
     val language: String = TimeUtils.defaultLanguageTag(),
     val notificationHour: Int = 9,
+    val notificationEnabled: Boolean = false,
     val isSubmitting: Boolean = false,
     val error: String? = null,
     val cityQuery: String = "",
@@ -126,6 +127,7 @@ class OnboardingViewModel
         }
 
         fun recordNotificationPermission(granted: Boolean) {
+            _uiState.update { it.copy(notificationEnabled = granted) }
             viewModelScope.launch {
                 analyticsRepository.track(
                     AnalyticsEvents.NOTIFICATION_PERMISSION_RESULT,
@@ -134,7 +136,8 @@ class OnboardingViewModel
             }
         }
 
-        fun recordNotificationPermissionNotRequested() {
+        fun recordNotificationPermissionNotRequested(enabled: Boolean = false) {
+            _uiState.update { it.copy(notificationEnabled = enabled) }
             viewModelScope.launch {
                 analyticsRepository.track(
                     AnalyticsEvents.NOTIFICATION_PERMISSION_RESULT,
@@ -363,7 +366,10 @@ class OnboardingViewModel
                 sign = sign.key,
                 language = _uiState.value.language,
             )
-            preferencesRepository.updateNotification(enabled = true, hour = _uiState.value.notificationHour)
+            preferencesRepository.updateNotification(
+                enabled = _uiState.value.notificationEnabled,
+                hour = _uiState.value.notificationHour,
+            )
             preferencesRepository.updateSession(
                 userId = preferencesRepository.current().userId ?: "",
                 jwt = preferencesRepository.current().jwt.orEmpty(),
@@ -372,7 +378,7 @@ class OnboardingViewModel
                 sign = sign.key,
                 language = _uiState.value.language,
                 utcOffset = TimeUtils.utcOffsetHours(),
-                notificationEnabled = true,
+                notificationEnabled = _uiState.value.notificationEnabled,
                 notificationHour = _uiState.value.notificationHour,
             )
         }
