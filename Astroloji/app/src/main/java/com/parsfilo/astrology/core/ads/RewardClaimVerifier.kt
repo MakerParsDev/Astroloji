@@ -27,6 +27,8 @@ internal class RewardClaimVerifier(
     private val claiming = AtomicBoolean(false)
     private var grantedChallengeId: String? = null
 
+    // SDK/repository failures must preserve the earned challenge for a safe retry.
+    @Suppress("TooGenericExceptionCaught")
     fun claim(
         challengeId: String,
         pendingId: String?,
@@ -49,13 +51,9 @@ internal class RewardClaimVerifier(
                         repository.claimRewardUnlock(challengeId)
                     } catch (e: CancellationException) {
                         throw e
-                    } catch (e: IllegalStateException) {
-                        callbacks.onFailed(
-                            AppException.NetworkException("Reward verification is temporarily unavailable.", e).message,
-                            false,
-                        )
-                        return@launch
-                    } catch (e: IllegalArgumentException) {
+                    } catch (e: Exception) {
+                        // Preserve an earned challenge for retry after unexpected dependency
+                        // errors without granting unverified content or exposing provider data.
                         callbacks.onFailed(
                             AppException.NetworkException("Reward verification is temporarily unavailable.", e).message,
                             false,
