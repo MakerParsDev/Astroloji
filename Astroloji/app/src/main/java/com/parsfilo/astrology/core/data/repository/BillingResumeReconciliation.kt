@@ -4,9 +4,9 @@ import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.QueryPurchasesParams
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
-import java.io.IOException
 import kotlin.coroutines.resume
 
 /**
@@ -14,6 +14,7 @@ import kotlin.coroutines.resume
  * Never start checkout here or publish a user-facing purchase result.
  * A competing checkout or manual restore owns the same gate and wins.
  */
+@Suppress("TooGenericExceptionCaught")
 internal suspend fun reconcileVerifiedSubscriptions(
     gate: BillingCheckoutGate,
     isBillingReady: suspend () -> Boolean,
@@ -23,9 +24,12 @@ internal suspend fun reconcileVerifiedSubscriptions(
     if (!gate.tryStart(PendingBillingFlow.RESTORE)) return
     try {
         findPurchasedSubscription(isBillingReady, queryPurchases)?.let { verify(it) }
-    } catch (e: IOException) {
-        Timber.w("Play subscription recovery unavailable: %s", e.javaClass.simpleName)
-    } catch (e: IllegalStateException) {
+    } catch (e: CancellationException) {
+        // Activity lifecycle cancellation must not be mistaken for a recoverable Play failure.
+        throw e
+    } catch (e: Exception) {
+        // Resume reconciliation is best-effort. An unexpected SDK error must not crash
+        // the Activity or grant Premium; a later resume can retry the existing purchase.
         Timber.w("Play subscription recovery unavailable: %s", e.javaClass.simpleName)
     } finally {
         gate.finish(PendingBillingFlow.RESTORE)
