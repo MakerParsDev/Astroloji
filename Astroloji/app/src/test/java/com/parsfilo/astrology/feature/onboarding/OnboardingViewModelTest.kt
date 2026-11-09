@@ -3,6 +3,7 @@ package com.parsfilo.astrology.feature.onboarding
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.remote.BirthDataResponse
 import com.parsfilo.astrology.core.data.repository.ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
@@ -21,6 +22,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -264,6 +266,30 @@ class OnboardingViewModelTest {
         }
 
     @Test
+    fun optionalBirthDataNetworkFailureDoesNotTrapCompletedOnboarding() =
+        runTest {
+            stubOnboardingRegistrationSuccess()
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery {
+                birthDataRepository.saveBirthData(any(), any(), any(), any())
+            } throws IOException("Synthetic optional birth save failure")
+
+            assertOptionalBirthEnrichmentFailureStillNavigates("UTC")
+        }
+
+    @Test
+    fun invalidOptionalCityTimezoneDoesNotTrapCompletedOnboarding() =
+        runTest {
+            stubOnboardingRegistrationSuccess()
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery {
+                birthDataRepository.saveBirthData(any(), any(), any(), any())
+            } returns AppResult.Success(BirthDataResponse(timeCertainty = "exact", hasBirthData = true))
+
+            assertOptionalBirthEnrichmentFailureStillNavigates("Mars/Phobos")
+        }
+
+    @Test
     fun `initialization and step changes emit bounded onboarding funnel events`() =
         runTest {
             coJustRun { analyticsRepository.track(any(), any()) }
@@ -442,6 +468,22 @@ class OnboardingViewModelTest {
             assertThat(completed).isTrue()
             assertThat(viewModel.uiState.value.isSubmitting).isFalse()
         }
+
+    private suspend fun TestScope.assertOptionalBirthEnrichmentFailureStillNavigates(timeZone: String) {
+        val viewModel = createViewModel()
+        viewModel.selectSign(ZodiacSign.ARIES)
+        viewModel.selectBirthDate(0L)
+        viewModel.selectCity(CitySuggestion("test-city", "Example", "Test", 37.0, -121.0, timeZone))
+        var navigations = 0
+
+        viewModel.complete { navigations++ }
+        advanceUntilIdle()
+
+        assertThat(navigations).isEqualTo(1)
+        assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+        assertThat(viewModel.uiState.value.error).isNull()
+        coVerify(exactly = 1) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
+    }
 
     private fun createViewModel(): OnboardingViewModel =
         OnboardingViewModel(

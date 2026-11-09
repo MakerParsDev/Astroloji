@@ -19,6 +19,7 @@ import com.parsfilo.astrology.core.util.TimeUtils
 import com.parsfilo.astrology.core.util.ZodiacSign
 import com.parsfilo.astrology.feature.chart.datePickerMillisToLocalDate
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -297,6 +298,7 @@ class OnboardingViewModel
             }
         }
 
+        @Suppress("TooGenericExceptionCaught")
         private suspend fun finishSuccessfulRegistration(
             sign: ZodiacSign,
             onSuccess: () -> Unit,
@@ -327,7 +329,15 @@ class OnboardingViewModel
                 Timber.w(exception, "Onboarding completion analytics could not be queued.")
             }
 
-            saveBirthDataAndReveal()
+            try {
+                saveBirthDataAndReveal()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                // Birth details and chart reveal are optional after successful registration.
+                // Do not strand the user on a finished onboarding screen if enrichment fails.
+                Timber.w("Optional birth-data enrichment unavailable: %s", exception.javaClass.simpleName)
+            }
             _uiState.update { it.copy(isSubmitting = false) }
             // A revealed Ascendant has its own Continue action, so don't
             // navigate out from underneath it.
