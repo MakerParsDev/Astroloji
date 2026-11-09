@@ -196,7 +196,8 @@ fun OnboardingScreen(
                                 permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
                             else -> {
-                                viewModel.recordNotificationPermissionNotRequested()
+                                // Older Android versions need no runtime prompt; Start is an opt-in.
+                                viewModel.recordNotificationPermissionNotRequested(enabled = true)
                                 viewModel.complete(onComplete)
                             }
                         }

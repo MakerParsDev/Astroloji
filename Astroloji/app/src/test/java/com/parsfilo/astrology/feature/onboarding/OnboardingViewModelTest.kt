@@ -515,6 +515,34 @@ class OnboardingViewModelTest {
     }
 
     @Test
+    fun skippingNotificationsDoesNotEnableThemDuringRegistration() {
+        runTest {
+            assertNotificationChoicePersisted(false) { recordNotificationPermissionNotRequested() }
+        }
+    }
+
+    @Test
+    fun deniedNotificationPermissionDoesNotEnableThemDuringRegistration() {
+        runTest {
+            assertNotificationChoicePersisted(false) { recordNotificationPermission(granted = false) }
+        }
+    }
+
+    @Test
+    fun grantedNotificationPermissionEnablesNotificationsDuringRegistration() {
+        runTest {
+            assertNotificationChoicePersisted(true) { recordNotificationPermission(granted = true) }
+        }
+    }
+
+    @Test
+    fun legacyStartWithoutRuntimePermissionKeepsExplicitOptIn() {
+        runTest {
+            assertNotificationChoicePersisted(true) { recordNotificationPermissionNotRequested(enabled = true) }
+        }
+    }
+
+    @Test
     fun birthTimeStartsUnknownUntilUserAffirmsIt() =
         runTest {
             coJustRun { analyticsRepository.track(any(), any()) }
@@ -555,6 +583,25 @@ class OnboardingViewModelTest {
             }
             coVerify(exactly = 0) { chartRepository.getNatalChart(any(), any(), any(), any()) }
         }
+
+    private suspend fun TestScope.assertNotificationChoicePersisted(
+        enabled: Boolean,
+        choose: OnboardingViewModel.() -> Unit,
+    ) {
+        stubOnboardingRegistrationSuccess()
+        coJustRun { analyticsRepository.track(any(), any()) }
+
+        val viewModel = createViewModel()
+        viewModel.selectSign(ZodiacSign.ARIES)
+        viewModel.choose()
+        viewModel.complete {}
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { preferencesRepository.updateNotification(enabled, 9) }
+        coVerify(exactly = 1) {
+            preferencesRepository.updateSession(any(), any(), any(), any(), any(), any(), any(), enabled, 9)
+        }
+    }
 
     private fun createViewModel(): OnboardingViewModel =
         OnboardingViewModel(
