@@ -17,12 +17,16 @@ export function registerMoodRoutes(app: Hono<AppBindings>): void {
   // already ingested by older clients cannot be retroactively removed here.
   app.delete('/mood/logs', async (c) => {
     const userId = c.get('auth').userId;
-    await c.env.DB.batch([
+    const statements = [
       c.env.DB.prepare('DELETE FROM mood_logs WHERE user_id = ?').bind(userId),
       c.env.DB.prepare(
         "DELETE FROM user_events WHERE user_id = ? AND event_type = 'mood_logged'"
       ).bind(userId)
-    ]);
+    ];
+    const results = await c.env.DB.batch(statements);
+    if (results.length !== statements.length || results.some((result) => result.success !== true)) {
+      throw new Error('Mood history deletion was not confirmed.');
+    }
     return c.json({ ok: true });
   });
 
@@ -38,9 +42,12 @@ export function registerMoodRoutes(app: Hono<AppBindings>): void {
     if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
       return c.json({ error: { code: 'INVALID_REQUEST', message: 'Expected a valid calendar date.' } }, 400);
     }
-    await c.env.DB.prepare(
+    const result = await c.env.DB.prepare(
       'DELETE FROM mood_logs WHERE user_id = ? AND date = ?'
     ).bind(c.get('auth').userId, date).run();
+    if (result.success !== true) {
+      throw new Error('Mood-date deletion was not confirmed.');
+    }
     return c.json({ ok: true });
   });
 
