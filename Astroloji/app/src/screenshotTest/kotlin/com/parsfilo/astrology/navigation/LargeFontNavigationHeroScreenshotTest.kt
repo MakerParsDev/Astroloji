@@ -50,10 +50,16 @@ fun LargeFontNavigationHeroScreenshot() {
             PremiumNavigationBar(
                 items =
                     listOf(
-                        PremiumNavigationItem("Home", Icons.Outlined.Home, selected = true, onClick = {}),
-                        PremiumNavigationItem("Compatibility", Icons.Outlined.AutoAwesome, selected = false, onClick = {}),
-                        PremiumNavigationItem("Profile", Icons.Outlined.Person, selected = false, onClick = {}),
-                        PremiumNavigationItem("Premium", Icons.Outlined.Star, selected = false, onClick = {}),
+                        PremiumNavigationItem("Home", Icons.Outlined.Home, selected = true, onClick = {}, compactLabel = "Home"),
+                        PremiumNavigationItem(
+                            "Compatibility",
+                            Icons.Outlined.AutoAwesome,
+                            selected = false,
+                            onClick = {},
+                            compactLabel = "Match",
+                        ),
+                        PremiumNavigationItem("Profile", Icons.Outlined.Person, selected = false, onClick = {}, compactLabel = "Me"),
+                        PremiumNavigationItem("Premium", Icons.Outlined.Star, selected = false, onClick = {}, compactLabel = "Pro"),
                     ),
             )
         }
