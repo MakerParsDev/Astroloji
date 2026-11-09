@@ -37,10 +37,16 @@ class PremiumNavigationLargeFontTest {
                     Box(Modifier.requiredWidth(widthDp.dp)) {
                         PremiumNavigationBar(
                             listOf(
-                                PremiumNavigationItem("Home", Icons.Outlined.Home, true, {}),
-                                PremiumNavigationItem("Compatibility", Icons.Outlined.AutoAwesome, false, {}),
-                                PremiumNavigationItem("Profile", Icons.Outlined.Person, false, {}),
-                                PremiumNavigationItem("Premium", Icons.Outlined.Star, false, {}),
+                                PremiumNavigationItem("Home", Icons.Outlined.Home, true, {}, compactLabel = "Home"),
+                                PremiumNavigationItem(
+                                    "Compatibility",
+                                    Icons.Outlined.AutoAwesome,
+                                    false,
+                                    {},
+                                    compactLabel = "Match",
+                                ),
+                                PremiumNavigationItem("Profile", Icons.Outlined.Person, false, {}, compactLabel = "Me"),
+                                PremiumNavigationItem("Premium", Icons.Outlined.Star, false, {}, compactLabel = "Pro"),
                             ),
                         )
                     }
@@ -49,11 +55,26 @@ class PremiumNavigationLargeFontTest {
         }
     }
 
-    @Test fun fullAccessibleLabelsRemainWhenVisualLabelsAreHiddenAt200Percent() {
-        render(2f)
-        for (name in listOf("Home", "Compatibility", "Profile", "Premium")) {
-            rule.onNodeWithContentDescription(name, useUnmergedTree = true).assertExists()
-            rule.onNodeWithText(name, useUnmergedTree = true).assertDoesNotExist()
+    @Test fun largeTextRetainsVisibleNavigationDestinationsAndFullAccessibilityNames() {
+        render(2f, widthDp = 320)
+        val labels =
+            mapOf(
+                "Home" to "Home",
+                "Compatibility" to "Match",
+                "Profile" to "Me",
+                "Premium" to "Pro",
+            )
+        for ((full, compact) in labels) {
+            rule.onNodeWithContentDescription(full, useUnmergedTree = true).assertExists()
+            rule.onNodeWithText(compact, useUnmergedTree = true).assertExists()
+        }
+        rule.onNodeWithText("Compatibility", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test fun compactLabelsStayVisibleAt180PercentTextScale() {
+        render(1.8f, widthDp = 320)
+        for (text in listOf("Home", "Match", "Me", "Pro")) {
+            rule.onNodeWithText(text, useUnmergedTree = true).assertExists()
         }
     }
 

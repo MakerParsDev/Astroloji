@@ -18,14 +18,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-// Preserve labels on narrow phones at normal font size; use icons only when text scales beyond the available height.
-private const val ICON_ONLY_FONT_SCALE = 1.5f
+// Keep short, readable labels at large font scales without increasing navigation-bar height.
+private const val COMPACT_LABEL_FONT_SCALE = 1.5f
 
 internal data class PremiumNavigationItem(
     val label: String,
     val icon: ImageVector,
     val selected: Boolean,
     val onClick: () -> Unit,
+    val compactLabel: String = label,
 )
 
 @Composable
@@ -39,7 +40,7 @@ internal fun PremiumNavigationBar(
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)),
     ) {
-        val iconOnly = LocalDensity.current.fontScale >= ICON_ONLY_FONT_SCALE
+        val useCompactLabels = LocalDensity.current.fontScale >= COMPACT_LABEL_FONT_SCALE
         NavigationBar(
             modifier = Modifier.fillMaxWidth(),
             containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
@@ -57,22 +58,18 @@ internal fun PremiumNavigationBar(
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
-                    // Preserve the full localized destination label for TalkBack in icon-only mode.
-                    icon = { Icon(item.icon, contentDescription = if (iconOnly) item.label else null) },
-                    label =
-                        if (iconOnly) {
-                            null
-                        } else {
-                            {
-                                Text(
-                                    text = item.label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    softWrap = false,
-                                )
-                            }
-                        },
+                    // Full localized destination remains available for TalkBack when the on-screen label is short.
+                    icon = { Icon(item.icon, contentDescription = if (useCompactLabels) item.label else null) },
+                    alwaysShowLabel = true,
+                    label = {
+                        Text(
+                            text = if (useCompactLabels) item.compactLabel else item.label,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false,
+                        )
+                    },
                 )
             }
         }

@@ -167,6 +167,10 @@
     <string name="nav_compatibility">Compatibilité</string>
     <string name="nav_profile">Profil</string>
     <string name="nav_premium">Premium</string>
+    <string name="nav_home_compact">D?but</string>
+    <string name="nav_compatibility_compact">Duo</string>
+    <string name="nav_profile_compact">Moi</string>
+    <string name="nav_premium_compact">Pro</string>
     <string name="common_open_premium">Ouvrir Premium</string>
     <string name="friends_title">Amis</string>
     <string name="friends_invite_section_title">Inviter un ami</string>

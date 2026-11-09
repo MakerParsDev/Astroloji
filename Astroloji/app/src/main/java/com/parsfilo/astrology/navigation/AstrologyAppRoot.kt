@@ -86,17 +86,29 @@ fun AstrologyAppRoot(
             if (isBottomBarVisible) {
                 val items =
                     listOf(
-                        BottomItem(HomeRoute, stringResource(com.parsfilo.astrology.R.string.nav_home), Icons.Outlined.Home),
+                        BottomItem(
+                            HomeRoute,
+                            stringResource(com.parsfilo.astrology.R.string.nav_home),
+                            Icons.Outlined.Home,
+                            compactLabel = stringResource(com.parsfilo.astrology.R.string.nav_home_compact),
+                        ),
                         BottomItem(
                             CompatibilityRoute,
                             stringResource(com.parsfilo.astrology.R.string.nav_compatibility),
                             Icons.Outlined.AutoAwesome,
+                            compactLabel = stringResource(com.parsfilo.astrology.R.string.nav_compatibility_compact),
                         ),
-                        BottomItem(SettingsRoute, stringResource(com.parsfilo.astrology.R.string.nav_profile), Icons.Outlined.Person),
+                        BottomItem(
+                            SettingsRoute,
+                            stringResource(com.parsfilo.astrology.R.string.nav_profile),
+                            Icons.Outlined.Person,
+                            compactLabel = stringResource(com.parsfilo.astrology.R.string.nav_profile_compact),
+                        ),
                         BottomItem(
                             PremiumRoute(PaywallSource.NAV),
                             stringResource(com.parsfilo.astrology.R.string.nav_premium),
                             Icons.Outlined.Star,
+                            compactLabel = stringResource(com.parsfilo.astrology.R.string.nav_premium_compact),
                         ),
                     )
                 PremiumNavigationBar(
@@ -104,6 +116,7 @@ fun AstrologyAppRoot(
                         items.map { item ->
                             PremiumNavigationItem(
                                 label = item.label,
+                                compactLabel = item.compactLabel,
                                 icon = item.icon,
                                 selected =
                                     if (item.route == HomeRoute) {
@@ -338,6 +351,7 @@ private data class BottomItem<T : Any>(
     val route: T,
     val label: String,
     val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val compactLabel: String = label,
 )
 
 @HiltViewModel
