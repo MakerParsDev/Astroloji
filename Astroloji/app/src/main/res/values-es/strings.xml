@@ -167,6 +167,10 @@
     <string name="nav_compatibility">Compatibilidad</string>
     <string name="nav_profile">Perfil</string>
     <string name="nav_premium">Premium</string>
+    <string name="nav_home_compact">Inicio</string>
+    <string name="nav_compatibility_compact">Pareja</string>
+    <string name="nav_profile_compact">Yo</string>
+    <string name="nav_premium_compact">Pro</string>
     <string name="common_open_premium">Abrir premium</string>
     <string name="friends_title">Amigos</string>
     <string name="friends_invite_section_title">Invita a un amigo</string>

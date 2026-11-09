@@ -163,6 +163,10 @@
     <string name="nav_compatibility">Uyum</string>
     <string name="nav_profile">Profil</string>
     <string name="nav_premium">Premium</string>
+    <string name="nav_home_compact">Ana</string>
+    <string name="nav_compatibility_compact">Uyum</string>
+    <string name="nav_profile_compact">Ben</string>
+    <string name="nav_premium_compact">Pro</string>
     <string name="common_open_premium">Premium aç</string>
     <string name="friends_title">Arkadaşlar</string>
     <string name="friends_invite_section_title">Bir arkadaşını davet et</string>
