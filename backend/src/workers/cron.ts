@@ -346,7 +346,12 @@ export async function handleCron(
     // Migration or transient D1 outage should not block notification delivery.
     console.error('Account deletion reconciliation query failed; retry scheduled.');
   }
-  await expireAndRefreshSubscriptions(env);
+  try {
+    await expireAndRefreshSubscriptions(env);
+  } catch {
+    // Billing provider/D1 outages must not stop daily notifications or reward cleanup.
+    console.error('Subscription expiry reconciliation failed; retry scheduled.');
+  }
   await dispatchScheduledNotifications(env, getCurrentUtcHour());
   try {
     await cleanupRewardChallenges(env.DB);
