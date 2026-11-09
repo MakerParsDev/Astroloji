@@ -192,6 +192,9 @@ export async function claimPlayRtdnMessage(
     input.receivedAt,
     leaseExpiresAt
   ).run();
+  if (insert.success !== true) {
+    throw new Error('Play RTDN claim insert was not confirmed.');
+  }
   if (Number(insert.meta?.changes ?? 0) === 1) {
     return 'claimed';
   }
@@ -232,6 +235,9 @@ export async function claimPlayRtdnMessage(
     input.fingerprint,
     input.receivedAt
   ).run();
+  if (reclaim.success !== true) {
+    throw new Error('Play RTDN lease reclaim was not confirmed.');
+  }
 
   return Number(reclaim.meta?.changes ?? 0) === 1 ? 'claimed' : 'duplicate_processing';
 }
@@ -242,13 +248,16 @@ export async function releasePlayRtdnClaim(
   fingerprint: string,
   leaseToken: string
 ): Promise<void> {
-  await db.prepare(
+  const result = await db.prepare(
     `DELETE FROM play_rtdn_messages
      WHERE message_id = ?
        AND message_fingerprint = ?
        AND lease_token = ?
        AND status = 'processing'`
   ).bind(messageId, fingerprint, leaseToken).run();
+  if (result.success !== true) {
+    throw new Error('Play RTDN lease release was not confirmed.');
+  }
 }
 
 export function createPlayRtdnFinalizeStatement(
@@ -286,7 +295,7 @@ export async function finalizePlayRtdnMessage(
     outcome,
     processedAt
   ).run();
-  if (Number(result.meta?.changes ?? 0) !== 1) {
+  if (result.success !== true || Number(result.meta?.changes ?? 0) !== 1) {
     throw new Error('Play RTDN delivery finalize guard did not match.');
   }
 }
