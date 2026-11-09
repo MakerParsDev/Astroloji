@@ -263,9 +263,14 @@ describe('user routes', () => {
   });
 
   it.each([
-    ['re-registration', 'POST', '/api/v1/users/register'],
-    ['profile update', 'PUT', '/api/v1/users/me']
-  ])('does not report success after an unsuccessful D1 user write during %s', async (_case, method, route) => {
+    ['re-registration user write', 'POST', 'UPDATE users', false, 'none'],
+    ['initial registration insert', 'POST', 'INSERT INTO users', true, 'none'],
+    ['profile user write', 'PUT', 'UPDATE users', false, 'none'],
+    ['obsolete notification cleanup', 'POST', 'DELETE FROM fcm_tokens', false, 'new'],
+    ['new notification target', 'POST', 'INSERT INTO fcm_tokens', false, 'new'],
+    ['existing notification target', 'POST', 'UPDATE fcm_tokens', false, 'existing'],
+    ['notification preferences', 'PUT', 'UPDATE fcm_tokens', false, 'none']
+  ])('rejects an unconfirmed D1 write for %s', async (_case, method, failingSql, newUser, targetMode) => {
     const user = {
       id: 'user-1',
       firebase_uid: 'firebase-1',
@@ -287,137 +292,43 @@ describe('user routes', () => {
               if (sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
                 return { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null };
               }
-              return sql.includes('SELECT * FROM users') ? user : null;
-            },
-            async run() {
-              if (/UPDATE users\s+SET sign/.test(sql)) {
-                return { success: false, meta: { changes: 1 } };
+              if (sql.includes('SELECT * FROM users WHERE firebase_uid = ?')) {
+                return newUser ? null : user;
               }
-              return { success: true, meta: {} };
-            }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
-    });
-    const auth = method === 'POST'
-      ? 'firebase-id-token'
-      : await signAppJwt(env, { userId: user.id, firebaseUid: user.firebase_uid, isPremium: false });
-    const response = await createApp().request(route, {
-      method,
-      headers: {
-        authorization: `Bearer ${auth}`,
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify({ sign: 'taurus', language: 'en', utc_offset: 0, platform: 'android' })
-    }, env);
-    expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toMatchObject({ error: { code: 'USER_SYNC_FAILED' } });
-  });
-
-  it.each([
-    ['obsolete-target cleanup', 'DELETE FROM fcm_tokens', false],
-    ['new target insertion', 'INSERT INTO fcm_tokens', false],
-    ['existing target update', 'UPDATE fcm_tokens', true]
-  ])('does not report successful re-registration after failed %s', async (_case, failingSql, hasExistingTarget) => {
-    const user = {
-      id: 'user-1', firebase_uid: 'firebase-1', sign: 'aries', language: 'tr', utc_offset: 3,
-      is_premium: 0, subscription_state: 'none', premium_expires_at: null,
-      created_at: '2026-07-26T00:00:00.000Z', last_seen_at: '2026-07-26T00:00:00.000Z'
-    };
-    const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          const statement = {
-            bind() { return statement; },
-            async first() {
-              if (sql.includes('SELECT * FROM users')) return user;
-              if (sql.includes('SELECT id FROM fcm_tokens')) return hasExistingTarget ? { id: 'target-1' } : null;
+              if (sql.includes('SELECT * FROM users WHERE id = ?')) return user;
+              if (sql.includes('SELECT id FROM fcm_tokens')) {
+                return targetMode === 'existing' ? { id: 'target-1' } : null;
+              }
               return null;
             },
             async run() {
-              if (sql.startsWith(failingSql)) return { success: false, meta: { changes: 1 } };
-              return { success: true, meta: {} };
+              return sql.includes(failingSql)
+                ? { success: false, meta: { changes: 1 } }
+                : { success: true, meta: {} };
             }
           };
           return statement;
         }
       } as unknown as D1Database
     });
-    const response = await createApp().request('/api/v1/users/register', {
-      method: 'POST',
-      headers: { authorization: 'Bearer firebase-id-token', 'content-type': 'application/json' },
-      body: JSON.stringify({ sign: 'aries', language: 'tr', utc_offset: 3, platform: 'android', firebase_installation_id: 'fid-123' })
-    }, env);
-    expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toMatchObject({ error: { code: 'USER_SYNC_FAILED' } });
-  });
-
-  it('does not report saved notification preferences after a failed D1 update', async () => {
-    const user = {
-      id: 'user-1', firebase_uid: 'firebase-1', sign: 'aries', language: 'tr', utc_offset: 3,
-      is_premium: 0, subscription_state: 'none', premium_expires_at: null,
-      created_at: '2026-07-26T00:00:00.000Z', last_seen_at: '2026-07-26T00:00:00.000Z'
+    const token = method === 'POST'
+      ? 'firebase-id-token'
+      : await signAppJwt(env, { userId: user.id, firebaseUid: user.firebase_uid, isPremium: false });
+    const payload: Record<string, unknown> = {
+      sign: 'taurus', language: 'en', utc_offset: 0, platform: 'android'
     };
-    const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          const statement = {
-            bind() { return statement; },
-            async first() {
-              if (sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
-                return { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null };
-              }
-              return sql.includes('SELECT * FROM users') ? user : null;
-            },
-            async run() {
-              if (sql.includes('UPDATE fcm_tokens')) return { success: false, meta: { changes: 1 } };
-              return { success: true, meta: {} };
-            }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
-    });
-    const jwt = await signAppJwt(env, { userId: user.id, firebaseUid: user.firebase_uid, isPremium: false });
-    const response = await createApp().request('/api/v1/users/me', {
-      method: 'PUT',
-      headers: { authorization: `Bearer ${jwt}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ sign: 'aries', language: 'tr', utc_offset: 3, notification_enabled: false })
-    }, env);
-    expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toMatchObject({ error: { code: 'USER_SYNC_FAILED' } });
-  });
+    if (targetMode !== 'none') payload.firebase_installation_id = 'fid-123';
+    if (method === 'PUT' && targetMode === 'none') payload.notification_enabled = false;
 
-  it('does not issue a new user JWT when D1 reports an unsuccessful insert', async () => {
-    const user = {
-      id: 'user-1', firebase_uid: 'firebase-1', sign: 'aries', language: 'tr', utc_offset: 3,
-      is_premium: 0, subscription_state: 'none', premium_expires_at: null,
-      created_at: '2026-07-26T00:00:00.000Z', last_seen_at: '2026-07-26T00:00:00.000Z'
-    };
-    const env = createTestEnv({
-      DB: {
-        prepare(sql: string) {
-          const statement = {
-            bind() { return statement; },
-            async first() {
-              if (sql.includes('SELECT * FROM users WHERE firebase_uid')) return null;
-              return sql.includes('SELECT * FROM users WHERE id') ? user : null;
-            },
-            async run() {
-              if (sql.includes('INSERT INTO users')) return { success: false, meta: { changes: 1 } };
-              return { success: true, meta: {} };
-            }
-          };
-          return statement;
-        }
-      } as unknown as D1Database
-    });
-    const response = await createApp().request('/api/v1/users/register', {
-      method: 'POST',
-      headers: { authorization: 'Bearer firebase-id-token', 'content-type': 'application/json' },
-      body: JSON.stringify({ sign: 'aries', language: 'tr', utc_offset: 3, platform: 'android' })
-    }, env);
+    const response = await createApp().request(
+      method === 'POST' ? '/api/v1/users/register' : '/api/v1/users/me',
+      {
+        method,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      },
+      env
+    );
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'USER_SYNC_FAILED' } });
   });
