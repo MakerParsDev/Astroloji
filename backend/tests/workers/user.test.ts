@@ -262,6 +262,77 @@ describe('user routes', () => {
     );
   });
 
+  it.each([
+    ['re-registration user write', 'POST', 'UPDATE users', false, 'none'],
+    ['initial registration insert', 'POST', 'INSERT INTO users', true, 'none'],
+    ['profile user write', 'PUT', 'UPDATE users', false, 'none'],
+    ['obsolete notification cleanup', 'POST', 'DELETE FROM fcm_tokens', false, 'new'],
+    ['new notification target', 'POST', 'INSERT INTO fcm_tokens', false, 'new'],
+    ['existing notification target', 'POST', 'UPDATE fcm_tokens', false, 'existing'],
+    ['notification preferences', 'PUT', 'UPDATE fcm_tokens', false, 'none']
+  ])('rejects an unconfirmed D1 write for %s', async (_case, method, failingSql, newUser, targetMode) => {
+    const user = {
+      id: 'user-1',
+      firebase_uid: 'firebase-1',
+      sign: 'aries',
+      language: 'tr',
+      utc_offset: 3,
+      is_premium: 0,
+      subscription_state: 'none',
+      premium_expires_at: null,
+      created_at: '2026-07-26T00:00:00.000Z',
+      last_seen_at: '2026-07-26T00:00:00.000Z'
+    };
+    const env = createTestEnv({
+      DB: {
+        prepare(sql: string) {
+          const statement = {
+            bind() { return statement; },
+            async first() {
+              if (sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
+                return { ok: 1, is_premium: 0, subscription_state: 'none', premium_expires_at: null };
+              }
+              if (sql.includes('SELECT * FROM users WHERE firebase_uid = ?')) {
+                return newUser ? null : user;
+              }
+              if (sql.includes('SELECT * FROM users WHERE id = ?')) return user;
+              if (sql.includes('SELECT id FROM fcm_tokens')) {
+                return targetMode === 'existing' ? { id: 'target-1' } : null;
+              }
+              return null;
+            },
+            async run() {
+              return sql.includes(failingSql)
+                ? { success: false, meta: { changes: 1 } }
+                : { success: true, meta: {} };
+            }
+          };
+          return statement;
+        }
+      } as unknown as D1Database
+    });
+    const token = method === 'POST'
+      ? 'firebase-id-token'
+      : await signAppJwt(env, { userId: user.id, firebaseUid: user.firebase_uid, isPremium: false });
+    const payload: Record<string, unknown> = {
+      sign: 'taurus', language: 'en', utc_offset: 0, platform: 'android'
+    };
+    if (targetMode !== 'none') payload.firebase_installation_id = 'fid-123';
+    if (method === 'PUT' && targetMode === 'none') payload.notification_enabled = false;
+
+    const response = await createApp().request(
+      method === 'POST' ? '/api/v1/users/register' : '/api/v1/users/me',
+      {
+        method,
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      },
+      env
+    );
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'USER_SYNC_FAILED' } });
+  });
+
   it('does not regrant expired Premium during a Firebase re-registration', async () => {
     const user = {
       id: 'user-1',
