@@ -501,6 +501,8 @@ class OnboardingViewModelTest {
         viewModel.selectSign(ZodiacSign.ARIES)
         viewModel.selectBirthDate(0L)
         viewModel.selectCity(CitySuggestion("test-city", "Example", "Test", 37.0, -121.0, timeZone))
+        // These error-path tests explicitly exercise a known birth time.
+        viewModel.setBirthTimeKnown(true)
         var navigations = 0
 
         viewModel.complete { navigations++ }
@@ -511,6 +513,48 @@ class OnboardingViewModelTest {
         assertThat(viewModel.uiState.value.error).isNull()
         coVerify(exactly = 1) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
     }
+
+    @Test
+    fun birthTimeStartsUnknownUntilUserAffirmsIt() =
+        runTest {
+            coJustRun { analyticsRepository.track(any(), any()) }
+
+            val viewModel = createViewModel()
+
+            assertThat(viewModel.uiState.value.birthTimeKnown).isFalse()
+
+            viewModel.setBirthTimeKnown(true)
+            assertThat(viewModel.uiState.value.birthTimeKnown).isTrue()
+
+            viewModel.setBirthTimeKnown(false)
+            assertThat(viewModel.uiState.value.birthTimeKnown).isFalse()
+        }
+
+    @Test
+    fun birthDateAndCityWithoutConfirmedTimeNeverSaveGuessedNoon() =
+        runTest {
+            stubOnboardingRegistrationSuccess()
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery {
+                birthDataRepository.saveBirthData("1970-01-01", null, "unknown", "test-city")
+            } returns AppResult.Success(BirthDataResponse(timeCertainty = "unknown", hasBirthData = true))
+
+            val viewModel = createViewModel()
+            viewModel.selectSign(ZodiacSign.ARIES)
+            viewModel.selectBirthDate(0L)
+            viewModel.selectCity(CitySuggestion("test-city", "Example", "Test", 37.0, -121.0, "UTC"))
+            var navigations = 0
+
+            viewModel.complete { navigations++ }
+            advanceUntilIdle()
+
+            assertThat(navigations).isEqualTo(1)
+            assertThat(viewModel.uiState.value.chartReveal).isNull()
+            coVerify(exactly = 1) {
+                birthDataRepository.saveBirthData("1970-01-01", null, "unknown", "test-city")
+            }
+            coVerify(exactly = 0) { chartRepository.getNatalChart(any(), any(), any(), any()) }
+        }
 
     private fun createViewModel(): OnboardingViewModel =
         OnboardingViewModel(
