@@ -28,7 +28,7 @@ export async function logMood(
   }
 
   const date = getLocalDateIdentifier(user.utc_offset, now);
-  await db
+  const result = await db
     .prepare(
       `INSERT INTO mood_logs (id, user_id, date, mood, domain, created_at)
        VALUES (?, ?, ?, ?, ?, ?)
@@ -36,6 +36,9 @@ export async function logMood(
     )
     .bind(crypto.randomUUID(), userId, date, mood, domain, now.toISOString())
     .run();
+  if (result.success !== true) {
+    throw new Error('Mood write was not confirmed.');
+  }
 
   return { date, mood, domain };
 }

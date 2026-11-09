@@ -23,7 +23,7 @@ interface MoodLogRow {
   domain: string | null;
 }
 
-function createFakeDb(rows: MoodLogRow[] = [], utcOffset = 0) {
+function createFakeDb(rows: MoodLogRow[] = [], utcOffset = 0, rejectWrite = false) {
   const db = {
     prepare(sql: string) {
       const normalized = sql.replace(/\s+/g, ' ').trim();
@@ -41,6 +41,9 @@ function createFakeDb(rows: MoodLogRow[] = [], utcOffset = 0) {
         },
         async run() {
           if (normalized.startsWith('INSERT INTO mood_logs')) {
+            if (rejectWrite) {
+              return { success: false, meta: { changes: 0 } };
+            }
             const [, userId, date, mood, domain] = statement.bindings as [string, string, string, string, string | null];
             const existing = rows.find((row) => row.user_id === userId && row.date === date);
             if (existing) {
@@ -77,6 +80,14 @@ describe('logMood', () => {
 
     expect(result).toEqual({ date: '2026-08-11', mood: 'stressed', domain: 'communication' });
     expect(rows).toHaveLength(1);
+  });
+
+  it('does not report a saved mood when D1 rejects the write', async () => {
+    const { db, rows } = createFakeDb([], 0, true);
+
+    await expect(logMood(db, 'user-1', 'stressed', 'communication', new Date('2026-08-11T12:00:00Z')))
+      .rejects.toThrow('Mood write was not confirmed.');
+    expect(rows).toHaveLength(0);
   });
 
   it('overwrites an existing log for the same day', async () => {
