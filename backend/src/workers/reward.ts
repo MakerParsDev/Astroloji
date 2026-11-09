@@ -415,13 +415,16 @@ export async function hasRewardEntitlement(
 
 
 const REWARD_CLEANUP_BATCH_SIZE = 500;
+const REWARD_CLEANUP_MAX_BATCHES = 10;
 
 export async function cleanupRewardChallenges(
   db: D1Database,
   nowMs: number = Date.now()
 ): Promise<void> {
   const auditCutoff = new Date(nowMs - 30 * 24 * 60 * 60 * 1_000).toISOString();
-  while (true) {
+  // Bound the total D1 queries in one scheduled invocation. Backlogs resume
+  // during the next hourly Cron run without changing retention eligibility.
+  for (let batch = 0; batch < REWARD_CLEANUP_MAX_BATCHES; batch += 1) {
     const result = await db
       .prepare(
         `DELETE FROM reward_challenges
