@@ -3,6 +3,7 @@ package com.parsfilo.astrology.feature.onboarding
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
+import com.parsfilo.astrology.core.data.remote.BirthDataResponse
 import com.parsfilo.astrology.core.data.repository.ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM
 import com.parsfilo.astrology.core.data.repository.AnalyticsEvents
 import com.parsfilo.astrology.core.data.repository.AnalyticsRepository
@@ -261,6 +262,56 @@ class OnboardingViewModelTest {
             coVerify(exactly = 0) {
                 analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED, any())
             }
+        }
+
+    @Test
+    fun optionalBirthDataNetworkFailureDoesNotTrapCompletedOnboarding() =
+        runTest {
+            stubOnboardingRegistrationSuccess()
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery {
+                birthDataRepository.saveBirthData(any(), any(), any(), any())
+            } throws IOException("Synthetic optional birth save failure")
+            val viewModel = createViewModel()
+            viewModel.selectSign(ZodiacSign.ARIES)
+            viewModel.selectBirthDate(0L)
+            viewModel.selectCity(
+                CitySuggestion("test-city", "Example", "Test", 37.0, -121.0, "UTC"),
+            )
+            var navigations = 0
+
+            viewModel.complete { navigations++ }
+            advanceUntilIdle()
+
+            assertThat(navigations).isEqualTo(1)
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            assertThat(viewModel.uiState.value.error).isNull()
+            coVerify(exactly = 1) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
+        }
+
+    @Test
+    fun invalidOptionalCityTimezoneDoesNotTrapCompletedOnboarding() =
+        runTest {
+            stubOnboardingRegistrationSuccess()
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery {
+                birthDataRepository.saveBirthData(any(), any(), any(), any())
+            } returns AppResult.Success(BirthDataResponse(timeCertainty = "exact", hasBirthData = true))
+            val viewModel = createViewModel()
+            viewModel.selectSign(ZodiacSign.ARIES)
+            viewModel.selectBirthDate(0L)
+            viewModel.selectCity(
+                CitySuggestion("test-city", "Example", "Test", 37.0, -121.0, "Mars/Phobos"),
+            )
+            var navigations = 0
+
+            viewModel.complete { navigations++ }
+            advanceUntilIdle()
+
+            assertThat(navigations).isEqualTo(1)
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            assertThat(viewModel.uiState.value.error).isNull()
+            coVerify(exactly = 1) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
         }
 
     @Test
