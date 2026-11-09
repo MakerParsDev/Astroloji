@@ -268,6 +268,45 @@ describe('cron worker', () => {
     expect(JSON.stringify(errors.mock.calls)).not.toContain('simulated provider account detail');
   });
 
+  it('continues with other subscriptions when one Play lookup fails in real D1', async () => {
+    vi.useRealTimers();
+    const runtime = new Miniflare(convertV4MiniflareOptions({
+      modules: true,
+      script: 'export default {fetch(){return new Response("cron-local")}}',
+      compatibilityDate: '2026-04-05',
+      d1Databases: { DB: 'astrology-cron-subscription-isolation' }
+    }));
+    try {
+      const db = await runtime.getD1Database('DB');
+      await db.exec([
+        'CREATE TABLE subscriptions (id TEXT PRIMARY KEY, user_id TEXT, purchase_token TEXT, product_id TEXT, status TEXT, expires_at TEXT);',
+        'CREATE TABLE subscription_events (id TEXT PRIMARY KEY, user_id TEXT, purchase_token TEXT, event_type TEXT, payload TEXT, created_at TEXT);',
+        "INSERT INTO subscriptions VALUES ('sub-1', 'user-1', 'token-failing', 'premium_weekly', 'active', '2020-01-01T00:00:00.000Z');",
+        "INSERT INTO subscriptions VALUES ('sub-2', 'user-2', 'token-healthy', 'premium_weekly', 'active', '2020-01-01T00:00:00.000Z');"
+      ].join('\n'));
+      const env = localCronEnv(db);
+      vi.mocked(getSubscriptionStatus).mockImplementation(async (_env, purchaseToken) => {
+        if (purchaseToken === 'token-failing') {
+          throw new Error('simulated provider secret; never log');
+        }
+        return null;
+      });
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      await handleCron({ cron: '0 * * * *' } as ScheduledController, env, {} as ExecutionContext);
+
+      expect(getSubscriptionStatus).toHaveBeenCalledTimes(2);
+      const events = await db.prepare(
+        "SELECT user_id, event_type FROM subscription_events ORDER BY user_id"
+      ).all<{ user_id: string; event_type: string }>();
+      expect(events.results).toEqual([{ user_id: 'user-2', event_type: 'sync_pending' }]);
+      expect(errors).toHaveBeenCalledWith('Subscription expiry reconciliation failed; retry scheduled.');
+      expect(JSON.stringify(errors.mock.calls)).not.toContain('simulated provider secret');
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it('rejects an unsuccessful expiry queue read rather than claiming no subscriptions are due', async () => {
     const base = createTestEnv();
     const failingDb = {

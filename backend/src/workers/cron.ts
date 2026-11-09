@@ -143,89 +143,99 @@ async function expireAndRefreshSubscriptions(env: Env) {
     throw new Error('Subscription expiry query was not confirmed.');
   }
 
+  let hadSubscriptionFailure = false;
   for (const subscription of expiring.results ?? []) {
-    const current = await getSubscriptionStatus(
-      env,
-      subscription.purchase_token,
-      subscription.product_id,
-      env.PACKAGE_NAME
-    );
-
-    if (!current) {
-      // The provider is temporarily unable to confirm a purchase. Keep retrying
-      // hourly, but record only one unresolved-state audit event per UTC day.
-      const pendingEvent = await env.DB.prepare(
-        `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
-         SELECT ?, ?, ?, 'sync_pending', ?, ?
-         WHERE NOT EXISTS (
-           SELECT 1 FROM subscription_events
-           WHERE user_id = ? AND purchase_token = ? AND event_type = 'sync_pending'
-             AND created_at >= ?
-         )`
-      ).bind(
-        crypto.randomUUID(),
-        subscription.user_id,
+    try {
+      const current = await getSubscriptionStatus(
+        env,
         subscription.purchase_token,
-        JSON.stringify({ source: 'cron', reconciliation: 'pending' }),
-        now,
-        subscription.user_id,
-        subscription.purchase_token,
-        `${now.slice(0, 10)}T00:00:00.000Z`
-      ).run();
-      if (pendingEvent.success !== true) {
-        throw new Error('Subscription reconciliation audit write was not confirmed.');
-      }
-      continue;
-    }
+        subscription.product_id,
+        env.PACKAGE_NAME
+      );
 
-    if (hasPremiumEntitlement(current, now)) {
-      const statements = [
-        env.DB.prepare(
-          `UPDATE subscriptions
-           SET expires_at = ?, status = ?, auto_renewing = ?, cancel_reason = ?, updated_at = ?
-           WHERE id = ?`
+      if (!current) {
+        // The provider is temporarily unable to confirm a purchase. Keep retrying
+        // hourly, but record only one unresolved-state audit event per UTC day.
+        const pendingEvent = await env.DB.prepare(
+          `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
+           SELECT ?, ?, ?, 'sync_pending', ?, ?
+           WHERE NOT EXISTS (
+             SELECT 1 FROM subscription_events
+             WHERE user_id = ? AND purchase_token = ? AND event_type = 'sync_pending'
+               AND created_at >= ?
+           )`
         ).bind(
-          current.expiresAt, current.status, Number(current.autoRenewing),
-          current.cancelReason, now, subscription.id
-        ),
+          crypto.randomUUID(),
+          subscription.user_id,
+          subscription.purchase_token,
+          JSON.stringify({ source: 'cron', reconciliation: 'pending' }),
+          now,
+          subscription.user_id,
+          subscription.purchase_token,
+          `${now.slice(0, 10)}T00:00:00.000Z`
+        ).run();
+        if (pendingEvent.success !== true) {
+          throw new Error('Subscription reconciliation audit write was not confirmed.');
+        }
+        continue;
+      }
+
+      if (hasPremiumEntitlement(current, now)) {
+        const statements = [
+          env.DB.prepare(
+            `UPDATE subscriptions
+             SET expires_at = ?, status = ?, auto_renewing = ?, cancel_reason = ?, updated_at = ?
+             WHERE id = ?`
+          ).bind(
+            current.expiresAt, current.status, Number(current.autoRenewing),
+            current.cancelReason, now, subscription.id
+          ),
+          createPremiumProjectionStatement(env.DB, {
+            userId: subscription.user_id,
+            now,
+            fallbackStatus: current.status,
+            fallbackExpiresAt: current.expiresAt
+          })
+        ];
+        const results = await env.DB.batch(statements);
+        if (results.length !== statements.length || results.some((result) => result.success !== true)) {
+          throw new Error('Subscription renewal batch was not confirmed.');
+        }
+        continue;
+      }
+
+      const statements = [
+        env.DB.prepare(`UPDATE subscriptions SET status = 'expired', updated_at = ? WHERE id = ?`)
+          .bind(now, subscription.id),
         createPremiumProjectionStatement(env.DB, {
           userId: subscription.user_id,
           now,
-          fallbackStatus: current.status,
-          fallbackExpiresAt: current.expiresAt
-        })
+          fallbackStatus: 'expired',
+          fallbackExpiresAt: subscription.expires_at
+        }),
+        env.DB.prepare(
+          `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
+           VALUES (?, ?, ?, 'expired', ?, ?)`
+        ).bind(
+          crypto.randomUUID(),
+          subscription.user_id,
+          subscription.purchase_token,
+          JSON.stringify({ source: 'cron' }),
+          now
+        )
       ];
       const results = await env.DB.batch(statements);
       if (results.length !== statements.length || results.some((result) => result.success !== true)) {
-        throw new Error('Subscription renewal batch was not confirmed.');
+        throw new Error('Subscription expiry batch was not confirmed.');
       }
-      continue;
+    } catch {
+      // One failing provider lookup or D1 write must not starve later subscriptions.
+      // Leave failed subscriptions untouched for the next hourly retry.
+      hadSubscriptionFailure = true;
     }
-
-    const statements = [
-      env.DB.prepare(`UPDATE subscriptions SET status = 'expired', updated_at = ? WHERE id = ?`)
-        .bind(now, subscription.id),
-      createPremiumProjectionStatement(env.DB, {
-        userId: subscription.user_id,
-        now,
-        fallbackStatus: 'expired',
-        fallbackExpiresAt: subscription.expires_at
-      }),
-      env.DB.prepare(
-        `INSERT INTO subscription_events (id, user_id, purchase_token, event_type, payload, created_at)
-         VALUES (?, ?, ?, 'expired', ?, ?)`
-      ).bind(
-        crypto.randomUUID(),
-        subscription.user_id,
-        subscription.purchase_token,
-        JSON.stringify({ source: 'cron' }),
-        now
-      )
-    ];
-    const results = await env.DB.batch(statements);
-    if (results.length !== statements.length || results.some((result) => result.success !== true)) {
-      throw new Error('Subscription expiry batch was not confirmed.');
-    }
+  }
+  if (hadSubscriptionFailure) {
+    throw new Error('Some subscription reconciliations failed; retry scheduled.');
   }
 }
 
