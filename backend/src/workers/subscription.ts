@@ -784,10 +784,14 @@ export function registerSubscriptionAdminRoutes(app: Hono<AppBindings>) {
 
       if (live) {
         const now = new Date().toISOString();
-        await c.env.DB.batch([
+        const statements = [
           createSubscriptionUpsertStatement(c.env.DB, row.user_id, live, now),
           createPremiumStateStatement(c.env.DB, row.user_id, live, now)
-        ]);
+        ];
+        const writeResults = await c.env.DB.batch(statements);
+        if (writeResults.length !== statements.length || writeResults.some((result) => result.success !== true)) {
+          throw new Error('Subscription audit D1 batch was not confirmed.');
+        }
       }
 
       results.push({

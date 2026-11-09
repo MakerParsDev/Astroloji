@@ -946,6 +946,37 @@ describe('subscription worker', () => {
     await authenticatedSubscriptionRequest('/api/v1/subscriptions/restore', 'renewed');
   });
 
+  it.each(['failed', 'incomplete'] as const)(
+    'does not report a reconciled subscription when audit D1 batch is %s',
+    async (outcome) => {
+      const { db } = createRecordingDb({
+        pendingRows: [{ purchase_token: 'synthetic-purchase-token', user_id: 'user-1' }]
+      });
+      const failedDb = {
+        ...db,
+        async batch(_statements: D1PreparedStatement[]) {
+          return outcome === 'incomplete'
+            ? [{ success: true, meta: { changes: 1 } }]
+            : [{ success: true, meta: { changes: 1 } }, { success: false, meta: { changes: 0 } }];
+        }
+      } as unknown as D1Database;
+      const env = createTestEnv({ DB: failedDb, PACKAGE_NAME: 'com.parsfilo.astrology' });
+      getSubscriptionStatusMock.mockResolvedValue(activeWeeklySubscription('synthetic-purchase-token'));
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const response = await createApp().request(
+          '/api/v1/admin/subscriptions/audit',
+          { headers: { 'x-admin-secret': 'play-write-secret' } },
+          env
+        );
+        expect(response.status).toBe(500);
+        await expect(response.json()).resolves.toMatchObject({ error: { code: 'INTERNAL_ERROR' } });
+      } finally {
+        errorLog.mockRestore();
+      }
+    }
+  );
+
   it('falls back from monthly to weekly during pending reconciliation audit', async () => {
     const { db, writes } = createRecordingDb({
       pendingRows: [{ purchase_token: 'weekly-purchase-token', user_id: 'user-1' }]
