@@ -242,6 +242,7 @@ class OnboardingViewModel
             complete(onSuccess)
         }
 
+        @Suppress("TooGenericExceptionCaught")
         fun complete(onSuccess: () -> Unit) {
             // A double tap (or a late permission callback) must not launch a
             // second registration before the first coroutine gets scheduled.
@@ -258,10 +259,13 @@ class OnboardingViewModel
                     try {
                         persistPendingRegistration(sign)
                         sessionRepository.registerFromPreferences()
-                    } catch (exception: IOException) {
-                        // Local DataStore writes can fail independently of the
-                        // backend. Show a retryable message instead of leaving the
-                        // submit button permanently disabled.
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        // Local preferences or the profile database may fail after the
+                        // registration request. Keep the screen retryable, but never
+                        // expose database or provider details in user-facing errors.
+                        Timber.w("Registration failed: %s", exception.javaClass.simpleName)
                         AppResult.Error(
                             AppException.UnknownException(
                                 stringsProvider.get(R.string.session_error_open_failed_after_register),

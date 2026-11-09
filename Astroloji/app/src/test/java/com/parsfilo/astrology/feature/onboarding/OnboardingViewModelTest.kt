@@ -1,5 +1,6 @@
 package com.parsfilo.astrology.feature.onboarding
 
+import android.database.sqlite.SQLiteException
 import com.google.common.truth.Truth.assertThat
 import com.parsfilo.astrology.MainDispatcherRule
 import com.parsfilo.astrology.core.data.preferences.UserPreferencesRepository
@@ -202,6 +203,32 @@ class OnboardingViewModelTest {
             coVerify(exactly = 1) { sessionRepository.registerFromPreferences() }
             coVerify(exactly = 1) {
                 analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any())
+            }
+        }
+
+    @Test
+    fun profileDatabaseFailureLeavesRegistrationScreenRetryable() =
+        runTest {
+            stubOnboardingRegistrationSuccess()
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery { stringsProvider.get(any()) } returns "Registration unavailable, please retry."
+            coEvery { sessionRepository.registerFromPreferences() } throws
+                SQLiteException("Synthetic profile cache write failure")
+            val viewModel = createViewModel()
+            viewModel.selectSign(ZodiacSign.ARIES)
+            var navigations = 0
+
+            viewModel.complete { navigations++ }
+            advanceUntilIdle()
+
+            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+            assertThat(viewModel.uiState.value.error).isEqualTo("Registration unavailable, please retry.")
+            assertThat(navigations).isEqualTo(0)
+            coVerify(exactly = 1) {
+                analyticsRepository.enqueue(
+                    AnalyticsEvents.ONBOARDING_REGISTRATION_FAILED,
+                    mapOf(ASTRO_ONBOARDING_FAILURE_CATEGORY_PARAM to "other"),
+                )
             }
         }
 
