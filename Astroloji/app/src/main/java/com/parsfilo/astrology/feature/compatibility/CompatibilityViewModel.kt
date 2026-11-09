@@ -14,6 +14,7 @@ import com.parsfilo.astrology.core.ui.MviViewModel
 import com.parsfilo.astrology.core.util.AppResult
 import com.parsfilo.astrology.core.util.ZodiacSign
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -50,6 +51,8 @@ class CompatibilityViewModel
         private val remoteConfigRepository: RemoteConfigRepository,
         private val adEligibilityChecker: AdEligibilityChecker,
     ) : MviViewModel<CompatibilityUiState, CompatibilityUiEvent, Unit>(CompatibilityUiState()) {
+        private var activeLoad: Job? = null
+
         init {
             viewModelScope.launch {
                 val prefs = preferencesRepository.current()
@@ -76,7 +79,7 @@ class CompatibilityViewModel
         }
 
         private fun selectSign(sign: String) {
-            setState { copy(selectedSign = sign) }
+            setState { copy(selectedSign = sign, report = null, error = null) }
             if (!BuildConfig.STORE_SCREENSHOT_QA) loadCompatibility()
         }
 
@@ -103,41 +106,41 @@ class CompatibilityViewModel
         }
 
         private fun loadCompatibility() {
-            viewModelScope.launch {
-                val prefs = preferencesRepository.current()
-                val flags = remoteConfigRepository.fetchFlags()
-                val canShowBannerAd = flags.showBannerAds && adEligibilityChecker.canShowBannerAds()
-                setState { copy(isLoading = true, error = null) }
-                analyticsRepository.track(
-                    AnalyticsEvents.COMPAT_CHECKED,
-                    mapOf("sign1" to state.value.mySign, "sign2" to state.value.selectedSign),
-                )
-                when (
-                    val result =
-                        contentRepository.getCompatibility(
-                            state.value.mySign,
-                            state.value.selectedSign,
-                            prefs.language,
-                        )
-                ) {
-                    is AppResult.Success ->
-                        setState {
-                            copy(
-                                isLoading = false,
-                                report = result.data,
-                                showBannerAd = canShowBannerAd,
-                            )
-                        }
-                    is AppResult.Error ->
-                        setState {
-                            copy(
-                                isLoading = false,
-                                showBannerAd = canShowBannerAd,
-                                error = result.exception.message,
-                            )
-                        }
-                    AppResult.Loading -> Unit
+            activeLoad?.cancel()
+            activeLoad =
+                viewModelScope.launch {
+                    val sign1 = state.value.mySign
+                    val sign2 = state.value.selectedSign
+                    setState { copy(isLoading = true, report = null, error = null) }
+                    val prefs = preferencesRepository.current()
+                    val flags = remoteConfigRepository.fetchFlags()
+                    val canShowBannerAd = flags.showBannerAds && adEligibilityChecker.canShowBannerAds()
+                    analyticsRepository.track(
+                        AnalyticsEvents.COMPAT_CHECKED,
+                        mapOf("sign1" to sign1, "sign2" to sign2),
+                    )
+                    val result = contentRepository.getCompatibility(sign1, sign2, prefs.language)
+                    // A delayed response must never replace the user's more recent choice.
+                    if (state.value.mySign != sign1 || state.value.selectedSign != sign2) return@launch
+                    when (result) {
+                        is AppResult.Success ->
+                            setState {
+                                copy(
+                                    isLoading = false,
+                                    report = result.data,
+                                    showBannerAd = canShowBannerAd,
+                                )
+                            }
+                        is AppResult.Error ->
+                            setState {
+                                copy(
+                                    isLoading = false,
+                                    showBannerAd = canShowBannerAd,
+                                    error = result.exception.message,
+                                )
+                            }
+                        AppResult.Loading -> Unit
+                    }
                 }
-            }
         }
     }
