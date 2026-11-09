@@ -16,6 +16,7 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Test
@@ -95,6 +96,45 @@ class BillingResumeReconciliationTest {
             coVerify(exactly = 0) { session.apiRestore(any()) }
             assertThat(manager.purchaseState.value).isNull()
         }
+    }
+
+    @Test
+    fun cancellationPropagatesAndFreesRestoreGate() {
+        val gate = BillingCheckoutGate()
+        val cancellation = CancellationException("synthetic lifecycle stop")
+
+        try {
+            runBlocking {
+                reconcileVerifiedSubscriptions(
+                    gate = gate,
+                    isBillingReady = { throw cancellation },
+                    queryPurchases = { error("query should not run after cancellation") },
+                    verify = { error("verification should not run after cancellation") },
+                )
+            }
+            throw AssertionError("Expected lifecycle cancellation to propagate")
+        } catch (actual: CancellationException) {
+            assertThat(actual).isSameInstanceAs(cancellation)
+        }
+        assertThat(gate.currentFlow()).isEqualTo(PendingBillingFlow.NONE)
+    }
+
+    @Test
+    fun unexpectedPlaySdkQueryFailureDoesNotCrashResume() {
+        val gate = BillingCheckoutGate()
+        var verified = false
+
+        runBlocking {
+            reconcileVerifiedSubscriptions(
+                gate = gate,
+                isBillingReady = { true },
+                queryPurchases = { throw UnsupportedOperationException("synthetic Play SDK failure") },
+                verify = { verified = true },
+            )
+        }
+
+        assertThat(verified).isFalse()
+        assertThat(gate.currentFlow()).isEqualTo(PendingBillingFlow.NONE)
     }
 
     private fun withReadyBillingClient(
