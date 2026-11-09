@@ -65,13 +65,14 @@ async function upsertNotificationTarget(
   }
 ) {
   const now = new Date().toISOString();
-  await db
+  const removed = await db
     .prepare(
       `DELETE FROM fcm_tokens
        WHERE user_id = ? AND platform = ? AND target_type <> ?`
     )
     .bind(args.userId, args.platform, args.targetType)
     .run();
+  if (removed.success !== true) return false;
 
   const existing = (await db
     .prepare('SELECT id FROM fcm_tokens WHERE token = ? AND target_type = ?')
@@ -79,7 +80,7 @@ async function upsertNotificationTarget(
     .first()) as { id: string } | null;
 
   if (existing) {
-    await db
+    const updated = await db
       .prepare(
         `UPDATE fcm_tokens
          SET user_id = ?, platform = ?, notification_enabled = COALESCE(?, notification_enabled), notification_hour = ?, updated_at = ?
@@ -94,10 +95,10 @@ async function upsertNotificationTarget(
         existing.id
       )
       .run();
-    return;
+    return updated.success === true;
   }
 
-  await db
+  const inserted = await db
     .prepare(
       `INSERT INTO fcm_tokens (id, user_id, token, target_type, platform, notification_enabled, notification_hour, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -114,6 +115,7 @@ async function upsertNotificationTarget(
       now
     )
     .run();
+  return inserted.success === true;
 }
 
 async function deleteKvKeysByPrefix(cache: KVNamespace, prefix: string): Promise<void> {
@@ -293,23 +295,29 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
 
     let user = await getUserByFirebaseUid(c.env.DB, firebaseUid);
     if (user) {
-      await c.env.DB
+      const updated = await c.env.DB
         .prepare(
-        `UPDATE users
+          `UPDATE users
            SET sign = ?, language = ?, utc_offset = ?, last_seen_at = ?
            WHERE id = ?`
         )
         .bind(body.sign, body.language, body.utc_offset, now, user.id)
         .run();
+      if (updated.success !== true) {
+        return jsonError(500, 'USER_SYNC_FAILED', 'Unable to save user.');
+      }
     } else {
       const userId = crypto.randomUUID();
-      await c.env.DB
+      const inserted = await c.env.DB
         .prepare(
           `INSERT INTO users (id, firebase_uid, sign, language, utc_offset, is_premium, subscription_state, premium_expires_at, created_at, last_seen_at)
            VALUES (?, ?, ?, ?, ?, 0, 'none', NULL, ?, ?)`
         )
         .bind(userId, firebaseUid, body.sign, body.language, body.utc_offset, now, now)
         .run();
+      if (inserted.success !== true) {
+        return jsonError(500, 'USER_SYNC_FAILED', 'Unable to save user.');
+      }
       user = await getUserById(c.env.DB, userId);
     }
 
@@ -319,13 +327,16 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
 
     const registrationTarget = resolveNotificationTarget(body);
     if (registrationTarget) {
-      await upsertNotificationTarget(c.env.DB, {
+      const savedTarget = await upsertNotificationTarget(c.env.DB, {
         userId: user.id,
         value: registrationTarget.value,
         targetType: registrationTarget.type,
         notificationHour: body.notification_hour ?? 9,
         platform: body.platform
       });
+      if (!savedTarget) {
+        return jsonError(500, 'USER_SYNC_FAILED', 'Unable to save notification target.');
+      }
     }
 
     const refreshedUser = await getUserById(c.env.DB, user.id);
@@ -387,7 +398,7 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
     }
 
     const now = new Date().toISOString();
-    await c.env.DB
+    const updated = await c.env.DB
       .prepare('UPDATE users SET sign = ?, language = ?, utc_offset = ?, last_seen_at = ? WHERE id = ?')
       .bind(
         body.sign ?? user.sign,
@@ -397,10 +408,13 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
         user.id
       )
       .run();
+    if (updated.success !== true) {
+      return jsonError(500, 'USER_SYNC_FAILED', 'Unable to save user.');
+    }
 
     const updateTarget = resolveNotificationTarget(body);
     if (updateTarget) {
-      await upsertNotificationTarget(c.env.DB, {
+      const savedTarget = await upsertNotificationTarget(c.env.DB, {
         userId: user.id,
         value: updateTarget.value,
         targetType: updateTarget.type,
@@ -408,12 +422,15 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
         notificationHour: body.notification_hour ?? 9,
         platform: body.platform ?? 'android'
       });
+      if (!savedTarget) {
+        return jsonError(500, 'USER_SYNC_FAILED', 'Unable to save notification target.');
+      }
     } else if (
       typeof body.notification_enabled === 'boolean' ||
       typeof body.notification_hour === 'number' ||
       body.platform
     ) {
-      await c.env.DB
+      const savedPreferences = await c.env.DB
         .prepare(
           `UPDATE fcm_tokens
            SET notification_enabled = COALESCE(?, notification_enabled),
@@ -430,6 +447,9 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
           user.id
         )
         .run();
+      if (savedPreferences.success !== true) {
+        return jsonError(500, 'USER_SYNC_FAILED', 'Unable to save notification preferences.');
+      }
     }
 
     const refreshedUser = await getUserById(c.env.DB, user.id);
