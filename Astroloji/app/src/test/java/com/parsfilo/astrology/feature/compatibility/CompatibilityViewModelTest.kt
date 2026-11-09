@@ -17,6 +17,7 @@ import io.mockk.coEvery
 import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -34,6 +35,75 @@ class CompatibilityViewModelTest {
     private val favoritesRepository = mockk<FavoritesRepository>()
     private val remoteConfigRepository = mockk<RemoteConfigRepository>()
     private val adEligibilityChecker = mockk<AdEligibilityChecker>()
+
+    @Test
+    fun `switching compatibility signs only displays the latest pair`() =
+        runTest {
+            val preferences = UserPreferences(selectedSign = "aries", language = "en", userId = "user")
+
+            fun report(sign2: String) =
+                CompatibilityReport(
+                    sign1 = "aries",
+                    sign2 = sign2,
+                    language = "en",
+                    overallScore = 78,
+                    loveScore = null,
+                    friendshipScore = null,
+                    workScore = null,
+                    summary = "Report for $sign2",
+                    strengths = emptyList(),
+                    challenges = emptyList(),
+                    advice = null,
+                    famousCouples = emptyList(),
+                )
+
+            val delayedVirgo = CompletableDeferred<AppResult<CompatibilityReport>>()
+            coEvery { preferencesRepository.current() } returns preferences
+            coEvery { favoritesRepository.getFavorites() } returns emptyList()
+            coEvery { remoteConfigRepository.fetchFlags() } returns RemoteFlags(showBannerAds = false)
+            coEvery { adEligibilityChecker.canShowBannerAds() } returns false
+            coJustRun { analyticsRepository.track(any(), any()) }
+            coEvery {
+                contentRepository.getCompatibility("aries", "leo", "en")
+            } returns AppResult.Success(report("leo"))
+            coEvery {
+                contentRepository.getCompatibility("aries", "virgo", "en")
+            } coAnswers { delayedVirgo.await() }
+            coEvery {
+                contentRepository.getCompatibility("aries", "scorpio", "en")
+            } returns AppResult.Success(report("scorpio"))
+
+            val viewModel =
+                CompatibilityViewModel(
+                    preferencesRepository = preferencesRepository,
+                    contentRepository = contentRepository,
+                    analyticsRepository = analyticsRepository,
+                    favoritesRepository = favoritesRepository,
+                    remoteConfigRepository = remoteConfigRepository,
+                    adEligibilityChecker = adEligibilityChecker,
+                )
+
+            advanceUntilIdle()
+            val firstReport = viewModel.state.value.report
+            assertThat(firstReport?.sign2).isEqualTo("leo")
+
+            viewModel.onEvent(CompatibilityUiEvent.SelectSign("virgo"))
+            advanceUntilIdle()
+            val showedOldReportWhileVirgoSelected = viewModel.state.value.report != null
+
+            viewModel.onEvent(CompatibilityUiEvent.SelectSign("scorpio"))
+            advanceUntilIdle()
+            val latestReport = viewModel.state.value.report
+            assertThat(latestReport?.sign2).isEqualTo("scorpio")
+
+            delayedVirgo.complete(AppResult.Success(report("virgo")))
+            advanceUntilIdle()
+            val eventualReport = viewModel.state.value.report
+            val staleVirgoResultOverwroteScorpio = eventualReport?.sign2 == "virgo"
+
+            assertThat(showedOldReportWhileVirgoSelected).isFalse()
+            assertThat(staleVirgoResultOverwroteScorpio).isFalse()
+        }
 
     @Test
     fun `toggle favorite updates selected sign membership`() =
