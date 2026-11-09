@@ -22,6 +22,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -272,21 +273,8 @@ class OnboardingViewModelTest {
             coEvery {
                 birthDataRepository.saveBirthData(any(), any(), any(), any())
             } throws IOException("Synthetic optional birth save failure")
-            val viewModel = createViewModel()
-            viewModel.selectSign(ZodiacSign.ARIES)
-            viewModel.selectBirthDate(0L)
-            viewModel.selectCity(
-                CitySuggestion("test-city", "Example", "Test", 37.0, -121.0, "UTC"),
-            )
-            var navigations = 0
 
-            viewModel.complete { navigations++ }
-            advanceUntilIdle()
-
-            assertThat(navigations).isEqualTo(1)
-            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
-            assertThat(viewModel.uiState.value.error).isNull()
-            coVerify(exactly = 1) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
+            assertOptionalBirthEnrichmentFailureStillNavigates("UTC")
         }
 
     @Test
@@ -297,21 +285,8 @@ class OnboardingViewModelTest {
             coEvery {
                 birthDataRepository.saveBirthData(any(), any(), any(), any())
             } returns AppResult.Success(BirthDataResponse(timeCertainty = "exact", hasBirthData = true))
-            val viewModel = createViewModel()
-            viewModel.selectSign(ZodiacSign.ARIES)
-            viewModel.selectBirthDate(0L)
-            viewModel.selectCity(
-                CitySuggestion("test-city", "Example", "Test", 37.0, -121.0, "Mars/Phobos"),
-            )
-            var navigations = 0
 
-            viewModel.complete { navigations++ }
-            advanceUntilIdle()
-
-            assertThat(navigations).isEqualTo(1)
-            assertThat(viewModel.uiState.value.isSubmitting).isFalse()
-            assertThat(viewModel.uiState.value.error).isNull()
-            coVerify(exactly = 1) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
+            assertOptionalBirthEnrichmentFailureStillNavigates("Mars/Phobos")
         }
 
     @Test
@@ -493,6 +468,22 @@ class OnboardingViewModelTest {
             assertThat(completed).isTrue()
             assertThat(viewModel.uiState.value.isSubmitting).isFalse()
         }
+
+    private suspend fun TestScope.assertOptionalBirthEnrichmentFailureStillNavigates(timeZone: String) {
+        val viewModel = createViewModel()
+        viewModel.selectSign(ZodiacSign.ARIES)
+        viewModel.selectBirthDate(0L)
+        viewModel.selectCity(CitySuggestion("test-city", "Example", "Test", 37.0, -121.0, timeZone))
+        var navigations = 0
+
+        viewModel.complete { navigations++ }
+        advanceUntilIdle()
+
+        assertThat(navigations).isEqualTo(1)
+        assertThat(viewModel.uiState.value.isSubmitting).isFalse()
+        assertThat(viewModel.uiState.value.error).isNull()
+        coVerify(exactly = 1) { analyticsRepository.enqueue(AnalyticsEvents.ONBOARDING_COMPLETED, any()) }
+    }
 
     private fun createViewModel(): OnboardingViewModel =
         OnboardingViewModel(
