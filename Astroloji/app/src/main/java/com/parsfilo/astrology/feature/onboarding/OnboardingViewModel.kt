@@ -88,7 +88,7 @@ data class OnboardingUiState(
     val citySuggestions: List<CitySuggestion> = emptyList(),
     val isSearchingCities: Boolean = false,
     val selectedCity: CitySuggestion? = null,
-    val birthTimeKnown: Boolean = true,
+    val birthTimeKnown: Boolean = false,
     val birthHour: Int = 12,
     val birthMinute: Int = 0,
     val chartReveal: ChartRevealUiState? = null,
