@@ -213,14 +213,20 @@ class SettingsViewModel
                 SettingsUiEvent.ConfirmMoodDeletion,
                 -> handleMoodAction(event)
                 SettingsUiEvent.RequestAccountDeletion -> {
-                    setState { copy(showDeleteConfirmation = true, error = null) }
+                    if (!state.value.isDeletingAccount) {
+                        setState { copy(showDeleteConfirmation = true, error = null) }
+                    }
                 }
                 SettingsUiEvent.DismissAccountDeletion -> {
                     if (!state.value.isDeletingAccount) {
                         setState { copy(showDeleteConfirmation = false, error = null) }
                     }
                 }
-                SettingsUiEvent.ConfirmAccountDeletion -> deleteAccount()
+                SettingsUiEvent.ConfirmAccountDeletion -> {
+                    if (state.value.showDeleteConfirmation && !state.value.isDeletingAccount) {
+                        deleteAccount()
+                    }
+                }
                 SettingsUiEvent.RestorePurchase -> restorePurchase()
                 else -> Unit
             }
