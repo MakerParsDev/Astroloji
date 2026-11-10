@@ -1,9 +1,10 @@
 import { createRequire } from 'node:module';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getSubscriptionStatusMock, verifySubscriptionPurchaseMock } = vi.hoisted(() => ({
+const { getSubscriptionStatusMock, verifySubscriptionPurchaseMock, acknowledgeSubscriptionPurchaseMock } = vi.hoisted(() => ({
   getSubscriptionStatusMock: vi.fn(),
-  verifySubscriptionPurchaseMock: vi.fn()
+  verifySubscriptionPurchaseMock: vi.fn(),
+  acknowledgeSubscriptionPurchaseMock: vi.fn()
 }));
 
 vi.mock('@/services/playBilling', async () => {
@@ -13,7 +14,8 @@ vi.mock('@/services/playBilling', async () => {
   return {
     ...actual,
     getSubscriptionStatus: getSubscriptionStatusMock,
-    verifySubscriptionPurchase: verifySubscriptionPurchaseMock
+    verifySubscriptionPurchase: verifySubscriptionPurchaseMock,
+    acknowledgeSubscriptionPurchase: acknowledgeSubscriptionPurchaseMock
   };
 });
 
@@ -151,6 +153,7 @@ interface RtdnClaimState {
 
 interface RtdnDbOptions {
   subscriptionOwner?: string | null;
+  subscriptionOwners?: Record<string, string | null>;
   initialClaim?: Omit<RtdnClaimState, 'lease_token' | 'lease_expires_at'> &
     Partial<Pick<RtdnClaimState, 'lease_token' | 'lease_expires_at'>>;
   stealLeaseBeforeBatch?: boolean;
@@ -162,6 +165,7 @@ function createRtdnDb(options: RtdnDbOptions = {}) {
   const appliedBatchWrites: Array<{ sql: string; bindings: unknown[] }> = [];
   const reads: Array<{ sql: string; bindings: unknown[] }> = [];
   const claims = new Map<string, RtdnClaimState>();
+  const owners = new Map(Object.entries(options.subscriptionOwners ?? {}));
   if (options.initialClaim) {
     claims.set(options.initialClaim.message_id, {
       lease_token: 'seed-lease',
@@ -193,11 +197,17 @@ function createRtdnDb(options: RtdnDbOptions = {}) {
       async first() {
         reads.push({ sql, bindings });
         if (normalized.includes('SELECT user_id FROM subscriptions')) {
-          const owner = options.subscriptionOwner === undefined ? 'user-1' : options.subscriptionOwner;
+          const token = String(bindings[0]);
+          const owner = owners.has(token) ? owners.get(token)
+            : options.subscriptionOwner === undefined ? 'user-1' : options.subscriptionOwner;
           return owner ? { user_id: owner } : null;
         }
         if (normalized.startsWith('SELECT package_name, message_fingerprint, status')) {
           return claims.get(String(bindings[0])) ?? null;
+        }
+        if (normalized.startsWith('SELECT outcome FROM play_rtdn_messages')) {
+          const row = claims.get(String(bindings[0]));
+          return row ? { outcome: row.outcome ?? null } : null;
         }
         return null;
       },
@@ -213,6 +223,14 @@ function createRtdnDb(options: RtdnDbOptions = {}) {
           });
           void receivedAt;
           return { success: true, meta: { changes: 1 } };
+        }
+        if (normalized.startsWith('UPDATE play_rtdn_messages SET outcome')) {
+          const [messageId, fingerprint] = bindings.map(String);
+          const row = claims.get(messageId);
+          const matches = row?.message_fingerprint === fingerprint &&
+            row.status === 'processed' && row.outcome === 'ack_pending';
+          if (matches && row) row.outcome = 'processed';
+          return { success: true, meta: { changes: matches ? 1 : 0 } };
         }
         if (normalized.startsWith('UPDATE play_rtdn_messages SET lease_token')) {
           const [leaseToken, leaseExpiresAt, _receivedAt, messageId, packageName, fingerprint, checkedAt] = bindings.map(String);
@@ -270,7 +288,12 @@ function createRtdnDb(options: RtdnDbOptions = {}) {
         }
         const guarded = /EXISTS \( ?SELECT 1 FROM play_rtdn_messages/.test(normalized);
         const changes = guarded ? Number(leaseMatches(raw._bindings)) : 1;
-        if (changes === 1) appliedBatchWrites.push({ sql: raw._sql, bindings: raw._bindings });
+        if (changes === 1) {
+          appliedBatchWrites.push({ sql: raw._sql, bindings: raw._bindings });
+          if (normalized.startsWith('INSERT INTO subscriptions')) {
+            owners.set(String(raw._bindings[2]), String(raw._bindings[1]));
+          }
+        }
         results.push({ success: true, meta: { changes } });
       }
       return results;
@@ -353,6 +376,22 @@ async function authenticatedSubscriptionRequest(
   );
   expect(writes.some((write) => write.bindings.includes('premium_weekly'))).toBe(true);
   expect(writes.some((write) => write.bindings.includes(event))).toBe(true);
+}
+
+async function sendSyntheticSubscriptionRtdn(
+  env: ReturnType<typeof createTestEnv>,
+  messageId: string,
+  purchaseToken: string,
+  productId = 'premium_weekly'
+) {
+  const notification = playSubscriptionNotification('com.parsfilo.astrology', purchaseToken);
+  notification.subscriptionNotification.subscriptionId = productId;
+  return createApp({ subscription: { verifyPlayRtdnIdentity: acceptingVerifier() } })
+    .request('/api/v1/webhooks/play-rtdn', {
+      method: 'POST',
+      headers: { authorization: 'Bearer oidc-test-token', 'content-type': 'application/json' },
+      body: JSON.stringify(playPushEnvelope(messageId, notification))
+    }, env);
 }
 
 describe('subscription worker', () => {
@@ -599,6 +638,8 @@ describe('subscription worker', () => {
     vi.restoreAllMocks();
     getSubscriptionStatusMock.mockReset();
     verifySubscriptionPurchaseMock.mockReset();
+    acknowledgeSubscriptionPurchaseMock.mockReset();
+    acknowledgeSubscriptionPurchaseMock.mockResolvedValue(undefined);
   });
 
   it('accepts a valid OIDC test notification without touching customer state', async () => {
@@ -910,6 +951,107 @@ describe('subscription worker', () => {
     );
     expect(response.status).toBe(503);
     expect(claims.has('owner-missing-message')).toBe(false);
+  });
+
+  it.each(['premium_weekly', 'premium_monthly'] as const)(
+    'resolves a new %s Play replacement token using the verified old token',
+    async (productId) => {
+      const { db, reads, batchWrites } = createRtdnDb({
+        subscriptionOwner: null,
+        subscriptionOwners: { 'old-token': 'user-1', 'new-token': null }
+      });
+      const subscription = activeWeeklySubscription('new-token');
+      subscription.productId = productId;
+      subscription.raw.lineItems = [{ productId, expiryTime: subscription.expiresAt }];
+      subscription.raw.linkedPurchaseToken = 'old-token';
+      getSubscriptionStatusMock.mockResolvedValue(subscription);
+      const env = createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' });
+      const response = await sendSyntheticSubscriptionRtdn(
+        env, 'replacement-' + productId, 'new-token', productId
+      );
+
+      expect(response.status).toBe(200);
+      expect(reads.some(({ bindings }) => bindings[0] === 'old-token')).toBe(true);
+      expect(batchWrites.some(({ bindings }) => bindings.includes('new-token') && bindings.includes(productId))).toBe(true);
+      expect(acknowledgeSubscriptionPurchaseMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it('acknowledges a Play-center monthly resubscribe only after persisted entitlement', async () => {
+    const { db, claims, batchWrites } = createRtdnDb({
+      subscriptionOwner: null,
+      subscriptionOwners: { 'expired-monthly': 'user-1', 'new-monthly': null }
+    });
+    const subscription = activeWeeklySubscription('new-monthly');
+    subscription.productId = 'premium_monthly';
+    subscription.raw.lineItems = [{ productId: 'premium_monthly', expiryTime: subscription.expiresAt }];
+    subscription.raw.acknowledgementState = 'ACKNOWLEDGEMENT_STATE_PENDING';
+    subscription.raw.outOfAppPurchaseContext = { expiredPurchaseToken: 'expired-monthly' };
+    getSubscriptionStatusMock.mockResolvedValue(subscription);
+    acknowledgeSubscriptionPurchaseMock.mockImplementation(async () => {
+      expect(claims.get('center-monthly')?.status).toBe('processed');
+      expect(batchWrites.some(({ bindings }) => bindings.includes('new-monthly'))).toBe(true);
+    });
+    const env = createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' });
+    const response = await sendSyntheticSubscriptionRtdn(env, 'center-monthly', 'new-monthly', 'premium_monthly');
+
+    expect(response.status).toBe(200);
+    expect(acknowledgeSubscriptionPurchaseMock).toHaveBeenCalledExactlyOnceWith(
+      env, 'new-monthly', 'premium_monthly', 'com.parsfilo.astrology'
+    );
+  });
+
+  it('retries pending Play-center ACK on an already persisted RTDN delivery', async () => {
+    const { db, claims } = createRtdnDb({
+      subscriptionOwner: null,
+      subscriptionOwners: { 'expired-weekly': 'user-1', 'new-weekly': null }
+    });
+    const subscription = activeWeeklySubscription('new-weekly');
+    subscription.raw.outOfAppPurchaseContext = { expiredPurchaseToken: 'expired-weekly' };
+    subscription.raw.acknowledgementState = 'ACKNOWLEDGEMENT_STATE_PENDING';
+    getSubscriptionStatusMock.mockResolvedValue(subscription);
+    acknowledgeSubscriptionPurchaseMock.mockRejectedValueOnce(new Error('Play temporarily unavailable'))
+      .mockResolvedValueOnce(undefined);
+    const env = createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' });
+    const request = () => sendSyntheticSubscriptionRtdn(env, 'center-retry', 'new-weekly');
+    const initial = await request();
+    expect(initial.status).toBe(500);
+    expect(claims.get('center-retry')?.status).toBe('processed');
+    const retry = await request();
+    expect(retry.status).toBe(200);
+    expect(acknowledgeSubscriptionPurchaseMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a replacement token whose Play-linked token belongs to another account', async () => {
+    const { db, batchWrites, claims } = createRtdnDb({
+      subscriptionOwner: null,
+      subscriptionOwners: { 'old-owner-token': 'user-1', 'new-owner-token': 'user-2' }
+    });
+    const subscription = activeWeeklySubscription('new-owner-token');
+    subscription.raw.linkedPurchaseToken = 'old-owner-token';
+    getSubscriptionStatusMock.mockResolvedValue(subscription);
+    const env = createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' });
+    const response = await sendSyntheticSubscriptionRtdn(env, 'conflicting-owners', 'new-owner-token');
+
+    expect(response.status).toBe(500);
+    expect(claims.has('conflicting-owners')).toBe(false);
+    expect(batchWrites).toHaveLength(0);
+    expect(acknowledgeSubscriptionPurchaseMock).not.toHaveBeenCalled();
+  });
+
+  it('does not ACK a paid Play token without verified current or historical ownership', async () => {
+    const { db, batchWrites } = createRtdnDb({ subscriptionOwner: null });
+    const subscription = activeWeeklySubscription('unowned-weekly');
+    subscription.raw.outOfAppPurchaseContext = { expiredPurchaseToken: 'unknown-old' };
+    subscription.raw.acknowledgementState = 'ACKNOWLEDGEMENT_STATE_PENDING';
+    getSubscriptionStatusMock.mockResolvedValue(subscription);
+    const response = await sendSyntheticSubscriptionRtdn(
+      createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' }), 'unknown-owner', 'unowned-weekly'
+    );
+
+    expect(response.status).toBe(503);
+    expect(batchWrites).toHaveLength(0);
+    expect(acknowledgeSubscriptionPurchaseMock).not.toHaveBeenCalled();
   });
 
   it('logs only bounded RTDN correlation fields', async () => {
