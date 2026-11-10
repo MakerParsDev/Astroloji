@@ -105,6 +105,51 @@ describe('user routes', () => {
   });
 
 
+  it.each([
+    ['no delivery target', null, false, 9],
+    ['explicitly disabled target', { notification_enabled: 0, notification_hour: 8 }, false, 8],
+    ['explicitly enabled target', { notification_enabled: 1, notification_hour: 10 }, true, 10]
+  ] as const)(
+    'returns truthful notification status for %s',
+    async (_description, target, expectedEnabled, expectedHour) => {
+      const user = {
+        id: 'user-1', firebase_uid: 'firebase-1',
+        sign: 'aries', language: 'tr', utc_offset: 3,
+        is_premium: 0, subscription_state: 'none', premium_expires_at: null
+      };
+      const db = {
+        prepare(sql: string) {
+          return {
+            bind() { return this; },
+            async first() {
+              if (sql.includes('SELECT * FROM users WHERE id = ?')) return user;
+              if (sql.includes('SELECT * FROM fcm_tokens WHERE user_id = ?')) return target;
+              if (sql.includes('SELECT is_premium, subscription_state, premium_expires_at FROM users')) {
+                return user;
+              }
+              return null;
+            }
+          };
+        }
+      } as unknown as D1Database;
+      const env = createTestEnv({ DB: db });
+      const jwt = await signAppJwt(env, {
+        userId: user.id, isPremium: false, firebaseUid: user.firebase_uid
+      });
+      const response = await createApp().request('/api/v1/users/me', {
+        method: 'GET',
+        headers: { authorization: `Bearer ${jwt}` }
+      }, env);
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        user_id: user.id,
+        notification_enabled: expectedEnabled,
+        notification_hour: expectedHour
+      });
+    }
+  );
+
   it('registers a user without creating an FCM token row when no token is available', async () => {
     const user = {
       id: 'user-1',
