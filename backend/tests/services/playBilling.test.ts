@@ -7,6 +7,7 @@ const { createGoogleAccessTokenMock } = vi.hoisted(() => ({
 vi.mock('@/utils/jwt', () => ({ createGoogleAccessToken: createGoogleAccessTokenMock }));
 
 import {
+  acknowledgeSubscriptionPurchase,
   consumeProductPurchase,
   getSubscriptionStatus,
   hasPremiumEntitlement,
@@ -20,6 +21,27 @@ describe('play billing subscription normalization', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     createGoogleAccessTokenMock.mockReset();
+  });
+
+  it('acknowledges a verified Play subscription through the official backend API', async () => {
+    createGoogleAccessTokenMock.mockResolvedValue('google-access-token');
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+
+    await acknowledgeSubscriptionPurchase(createTestEnv(), 'purchase-token', 'premium_weekly', 'com.parsfilo.astrology');
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://androidpublisher.googleapis.com/androidpublisher/v3/applications/com.parsfilo.astrology/purchases/subscriptions/premium_weekly/tokens/purchase-token:acknowledge',
+      expect.objectContaining({ method: 'POST', signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it('treats an ACK HTTP 404 as failure, never as acknowledged', async () => {
+    createGoogleAccessTokenMock.mockResolvedValue('google-access-token');
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 404 }));
+
+    await expect(acknowledgeSubscriptionPurchase(
+      createTestEnv(), 'unknown-token', 'premium_monthly', 'com.parsfilo.astrology'
+    )).rejects.toThrow('404');
   });
 
   it('maps grace period and on-hold subscriptions to dedicated states', () => {

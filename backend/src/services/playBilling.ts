@@ -93,7 +93,7 @@ async function playFetch<T>(env: Env, url: string, init?: RequestInit): Promise<
   });
 
   if (!response.ok) {
-    if (response.status === 404) {
+    if (response.status === 404 && (!init?.method || init.method.toUpperCase() === 'GET')) {
       return null as T;
     }
     throw new Error(`Google Play API request failed with ${response.status}.`);
@@ -204,6 +204,26 @@ export async function getSubscriptionStatus(
   }
 
   return normalizeSubscription(purchaseToken, productId, raw);
+}
+
+/**
+ * Out-of-app Play-center resubscriptions need server-side acknowledgement:
+ * the user might not launch the Android client within Google's ACK window.
+ * Call this only after the linked account's entitlement has been persisted.
+ */
+export async function acknowledgeSubscriptionPurchase(
+  env: Env,
+  purchaseToken: string,
+  productId: string,
+  packageName: string
+): Promise<void> {
+  await playFetch(
+    env,
+    `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${encodeURIComponent(
+      packageName
+    )}/purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}:acknowledge`,
+    { method: 'POST', body: '{}' }
+  );
 }
 
 export async function verifySubscriptionPurchase(

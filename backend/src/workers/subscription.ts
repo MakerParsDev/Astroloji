@@ -14,6 +14,7 @@ import {
   type ParsedPlayRtdnMessage
 } from '@/services/playRtdnDelivery';
 import {
+  acknowledgeSubscriptionPurchase,
   getSubscriptionStatus,
   hasPremiumEntitlement,
   listPlayReviews,
@@ -43,6 +44,61 @@ async function findSubscriptionOwner(db: D1Database, purchaseToken: string): Pro
     .bind(purchaseToken)
     .first()) as { user_id: string } | null;
   return row?.user_id ?? null;
+}
+
+/**
+ * Verified Play replacement / Play-center repurchase tokens refer to a prior
+ * token. Recover the owner solely from purchase tokens already linked in D1.
+ * Conflicting mappings fail closed rather than transferring entitlements.
+ */
+async function resolveVerifiedSubscriptionOwner(
+  db: D1Database,
+  purchaseToken: string,
+  subscription: GooglePlaySubscription | null,
+  directOwner: string | null
+): Promise<string | null> {
+  const previous = [
+    subscription?.raw.linkedPurchaseToken,
+    subscription?.raw.outOfAppPurchaseContext?.expiredPurchaseToken
+  ].filter((token): token is string => Boolean(token?.trim()) && token !== purchaseToken);
+  const owners = new Set(directOwner ? [directOwner] : []);
+  for (const token of new Set(previous)) {
+    const owner = await findSubscriptionOwner(db, token);
+    if (owner) owners.add(owner);
+  }
+  if (owners.size > 1) throw new Error('Play subscription replacement owners disagree.');
+  return owners.values().next().value ?? null;
+}
+
+function requiresPlayCenterAcknowledgement(subscription: GooglePlaySubscription): boolean {
+  return Boolean(
+    subscription.raw.outOfAppPurchaseContext &&
+    subscription.raw.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING' &&
+    hasPremiumEntitlement(subscription)
+  );
+}
+
+async function finishPendingPlayCenterAcknowledgement(
+  c: AppContext,
+  messageId: string,
+  fingerprint: string,
+  subscription: GooglePlaySubscription
+): Promise<void> {
+  if (requiresPlayCenterAcknowledgement(subscription)) {
+    await acknowledgeSubscriptionPurchase(
+      c.env, subscription.purchaseToken, subscription.productId, c.env.PACKAGE_NAME
+    );
+  }
+  // The provider ACK is an external operation: record completion after success.
+  // Failed ACK keeps ack_pending so redelivery can retry without replaying D1.
+  const complete = await c.env.DB.prepare(
+    `UPDATE play_rtdn_messages SET outcome = 'processed'
+     WHERE message_id = ? AND message_fingerprint = ?
+       AND status = 'processed' AND outcome = 'ack_pending'`
+  ).bind(messageId, fingerprint).run();
+  if (complete.success !== true || Number(complete.meta?.changes ?? 0) !== 1) {
+    throw new Error('Play out-of-app acknowledgement completion was not recorded.');
+  }
 }
 
 async function findUserByPurchaseToken(db: D1Database, purchaseToken: string): Promise<string | null> {
@@ -476,6 +532,23 @@ export function registerSubscriptionRoutes(
     });
 
     if (claimResult === 'duplicate_processed') {
+      // Ordinary redeliveries do not call Play again. Only a persisted
+      // acknowledgement debt from an out-of-app purchase warrants a retry.
+      const pending = parsed.kind === 'subscription'
+        ? await c.env.DB.prepare(
+          `SELECT outcome FROM play_rtdn_messages
+           WHERE message_id = ? AND message_fingerprint = ? AND status = 'processed'`
+        ).bind(parsed.messageId, fingerprint).first<{ outcome: string | null }>()
+        : null;
+      if (pending?.outcome === 'ack_pending' && parsed.kind === 'subscription') {
+        const owner = await findSubscriptionOwner(c.env.DB, parsed.purchaseToken);
+        if (!owner) throw new Error('Play out-of-app acknowledgement owner disappeared.');
+        const current = await getSubscriptionStatus(
+          c.env, parsed.purchaseToken, parsed.productId, c.env.PACKAGE_NAME
+        );
+        if (!current) throw new Error('Play out-of-app acknowledgement status unavailable.');
+        await finishPendingPlayCenterAcknowledgement(c, parsed.messageId, fingerprint, current);
+      }
       await logPlayRtdnOutcome({
         requestId,
         messageId: parsed.messageId,
@@ -527,12 +600,15 @@ export function registerSubscriptionRoutes(
       }
 
       const payload = decodedPlayRtdnPayload(parsed);
-      const userId = await findUserByPurchaseToken(c.env.DB, parsed.purchaseToken);
+      const directOwner = await findUserByPurchaseToken(c.env.DB, parsed.purchaseToken);
       const liveSubscription = await getSubscriptionStatus(
         c.env,
         parsed.purchaseToken,
         parsed.productId,
         c.env.PACKAGE_NAME
+      );
+      const userId = await resolveVerifiedSubscriptionOwner(
+        c.env.DB, parsed.purchaseToken, liveSubscription, directOwner
       );
 
       if (!userId && !liveSubscription) {
@@ -640,7 +716,7 @@ export function registerSubscriptionRoutes(
           parsed.messageId,
           fingerprint,
           leaseToken,
-          'processed',
+          requiresPlayCenterAcknowledgement(liveSubscription) ? 'ack_pending' : 'processed',
           now
         )
       ]);
@@ -659,6 +735,13 @@ export function registerSubscriptionRoutes(
         });
         retryableFailureLogged = true;
         throw new Error('Play RTDN transactional finalize guard did not match.');
+      }
+      // Provider ACK follows durable D1 persistence. Its debt is tracked in
+      // outcome so a retried Pub/Sub delivery does not reapply customer writes.
+      if (requiresPlayCenterAcknowledgement(liveSubscription)) {
+        await finishPendingPlayCenterAcknowledgement(
+          c, parsed.messageId, fingerprint, liveSubscription
+        );
       }
       await logPlayRtdnOutcome({
         requestId,

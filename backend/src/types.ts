@@ -274,6 +274,7 @@ export type PlayRtdnMessageStatus = 'processing' | 'processed';
 export type PlayRtdnOutcome =
   | 'test'
   | 'processed'
+  | 'ack_pending'
   | 'reconciliation_pending'
   | 'ignored_unknown_purchase';
 
@@ -655,6 +656,9 @@ export interface GooglePlaySubscriptionResponse {
     userInitiatedCancellation?: Record<string, unknown>;
   };
   linkedPurchaseToken?: string;
+  outOfAppPurchaseContext?: {
+    expiredPurchaseToken?: string;
+  };
   latestOrderId?: string;
   startTime?: string;
 }
