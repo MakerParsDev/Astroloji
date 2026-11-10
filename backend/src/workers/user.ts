@@ -265,7 +265,7 @@ function toUserProfile(user: UserRow, token: FcmTokenRow | null, isPremium: bool
     is_premium: isPremium,
     subscription_state: user.subscription_state ?? 'none',
     premium_expires_at: user.premium_expires_at,
-    notification_enabled: Boolean(token?.notification_enabled ?? 1),
+    notification_enabled: Boolean(token?.notification_enabled ?? 0),
     notification_hour: token?.notification_hour ?? 9
   };
 }
