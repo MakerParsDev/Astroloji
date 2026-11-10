@@ -586,7 +586,19 @@ fun SettingsScreen(
         )
     }
 
-    SettingsAccountDeletionDialog(uiState = uiState, onEvent = viewModel::onEvent)
+    SettingsAccountDeletionDialog(
+        uiState = uiState,
+        onEvent = viewModel::onEvent,
+        onOpenAppSettings = {
+            // An OEM may omit the per-app details activity. Keep the manual
+            // instruction above usable and try general Android settings.
+            val opened =
+                runCatching {
+                    context.startActivity(applicationDetailsSettingsIntent(context.packageName))
+                }.isSuccess
+            if (!opened) runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
+        },
+    )
 }
 
 private const val SETTINGS_MAX_SINGLE_ROW_OPTIONS = 3

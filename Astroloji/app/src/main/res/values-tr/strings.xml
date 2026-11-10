@@ -398,4 +398,5 @@
     <string name="session_error_account_delete_local_cleanup_incomplete">Hesabınız sunucudan silindi ancak bu cihazdaki bazı veriler temizlenemedi. İşlemi tamamlamak için Android ayarlarından Astroloji uygulamasının verilerini temizleyin.</string>
     <string name="settings_delete_local_cleanup_title">Hesap silindi</string>
     <string name="settings_delete_dialog_close">Kapat</string>
+    <string name="settings_delete_open_app_settings">Uygulama ayarlarını aç</string>
 </resources>

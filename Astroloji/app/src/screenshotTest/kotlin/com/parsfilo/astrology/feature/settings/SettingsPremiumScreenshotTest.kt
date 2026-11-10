@@ -107,6 +107,7 @@ fun SettingsIncompleteLocalCleanupTurkishScreenshot() {
                     error = stringResource(R.string.session_error_account_delete_local_cleanup_incomplete),
                 ),
             onEvent = {},
+            onOpenAppSettings = {},
         )
     }
 }

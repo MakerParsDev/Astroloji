@@ -78,6 +78,7 @@ class SettingsExternalLinksTest {
                             error = message,
                         ),
                     onEvent = events::add,
+                    onOpenAppSettings = {},
                 )
             }
         }
@@ -87,6 +88,44 @@ class SettingsExternalLinksTest {
         composeRule.onNodeWithText(confirm).assertDoesNotExist()
         composeRule.onNodeWithText(close).performClick()
         assertThat(events).containsExactly(SettingsUiEvent.DismissAccountDeletion)
+    }
+
+    @Test
+    fun partialLocalCleanupOffersOneTapAppSettingsWithoutRepeatingDeletion() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val label = context.getString(R.string.settings_delete_open_app_settings)
+        val destructive = context.getString(R.string.settings_delete_dialog_confirm)
+        val events = mutableListOf<SettingsUiEvent>()
+        var openedSettings = 0
+
+        composeRule.setContent {
+            AstrolojiTheme(darkTheme = true) {
+                SettingsAccountDeletionDialog(
+                    uiState =
+                        SettingsUiState(
+                            showDeleteConfirmation = true,
+                            accountDeletedOnServer = true,
+                            error = "Device cleanup incomplete",
+                        ),
+                    onEvent = events::add,
+                    onOpenAppSettings = { openedSettings++ },
+                )
+            }
+        }
+
+        val button = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)
+        composeRule.onNode(hasText(label) and button).performClick()
+        composeRule.onNodeWithText(destructive).assertDoesNotExist()
+        assertThat(openedSettings).isEqualTo(1)
+        assertThat(events).isEmpty()
+    }
+
+    @Test
+    fun appSettingsIntentTargetsTheCurrentApplicationOnly() {
+        val intent = applicationDetailsSettingsIntent("com.parsfilo.astrology")
+
+        assertThat(intent.action).isEqualTo("android.settings.APPLICATION_DETAILS_SETTINGS")
+        assertThat(intent.data.toString()).isEqualTo("package:com.parsfilo.astrology")
     }
 
     @Test

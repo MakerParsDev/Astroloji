@@ -406,4 +406,5 @@
     <string name="session_error_account_delete_local_cleanup_incomplete">Votre compte a été supprimé du serveur, mais certaines données de cet appareil n’ont pas pu être effacées. Pour terminer, effacez les données de l’application Astroloji dans les paramètres Android.</string>
     <string name="settings_delete_local_cleanup_title">Compte supprimé</string>
     <string name="settings_delete_dialog_close">Fermer</string>
+    <string name="settings_delete_open_app_settings">Ouvrir les paramètres Astroloji</string>
 </resources>
