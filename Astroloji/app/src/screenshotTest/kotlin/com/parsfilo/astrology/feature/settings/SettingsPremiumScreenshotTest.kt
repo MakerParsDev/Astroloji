@@ -38,7 +38,6 @@ fun SettingsPremiumTurkishScreenshot() {
     }
 }
 
-
 @PreviewTest
 @Preview(
     name = "Privacy and data shortcuts Turkish",
