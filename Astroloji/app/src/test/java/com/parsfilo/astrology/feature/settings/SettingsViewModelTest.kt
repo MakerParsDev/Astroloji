@@ -278,6 +278,56 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `account deletion requires an open confirmation dialog`() =
+        runTest {
+            coEvery { sessionRepository.deleteAccount() } returns AppResult.Success(Unit)
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(SettingsUiEvent.ConfirmAccountDeletion)
+            advanceUntilIdle()
+            coVerify(exactly = 0) { sessionRepository.deleteAccount() }
+
+            viewModel.onEvent(SettingsUiEvent.RequestAccountDeletion)
+            advanceUntilIdle()
+            viewModel.onEvent(SettingsUiEvent.DismissAccountDeletion)
+            advanceUntilIdle()
+            viewModel.onEvent(SettingsUiEvent.ConfirmAccountDeletion)
+            advanceUntilIdle()
+
+            coVerify(exactly = 0) { sessionRepository.deleteAccount() }
+            assertThat(viewModel.state.value.showDeleteConfirmation).isFalse()
+        }
+
+    @Test
+    fun `repeated account deletion confirmation invokes deletion at most once`() =
+        runTest {
+            val releaseDeletion = CompletableDeferred<Unit>()
+            coEvery { sessionRepository.deleteAccount() } coAnswers {
+                releaseDeletion.await()
+                AppResult.Success(Unit)
+            }
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(SettingsUiEvent.RequestAccountDeletion)
+            advanceUntilIdle()
+            viewModel.onEvent(SettingsUiEvent.ConfirmAccountDeletion)
+            runCurrent()
+            assertThat(viewModel.state.value.isDeletingAccount).isTrue()
+
+            viewModel.onEvent(SettingsUiEvent.ConfirmAccountDeletion)
+            runCurrent()
+            coVerify(exactly = 1) { sessionRepository.deleteAccount() }
+
+            releaseDeletion.complete(Unit)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { sessionRepository.deleteAccount() }
+            assertThat(viewModel.state.value.isDeletingAccount).isFalse()
+            assertThat(viewModel.state.value.showDeleteConfirmation).isFalse()
+        }
+
+    @Test
     fun `successful account deletion emits navigation effect`() =
         runTest {
             coEvery { sessionRepository.deleteAccount() } returns AppResult.Success(Unit)
