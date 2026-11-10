@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -393,6 +394,75 @@ async function sendSyntheticSubscriptionRtdn(
       body: JSON.stringify(playPushEnvelope(messageId, notification))
     }, env);
 }
+
+describe('subscription worker with real D1', () => {
+  it('persists Play Center monthly entitlement before ACK, then retries ACK without duplicate events', async () => {
+    const runtime = new Miniflare(convertV4MiniflareOptions({
+      modules: true,
+      script: 'export default {fetch(){return new Response("local-qa")}}',
+      compatibilityDate: '2026-04-05',
+      d1Databases: { DB: 'astrology-playcenter-real-ack' }
+    }));
+    try {
+      const db = await runtime.getD1Database('DB');
+      await db.exec([
+        'CREATE TABLE users (id TEXT PRIMARY KEY, is_premium INTEGER NOT NULL DEFAULT 0, subscription_state TEXT, premium_expires_at TEXT, last_seen_at TEXT);',
+        'CREATE TABLE subscriptions (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, purchase_token TEXT NOT NULL UNIQUE, product_id TEXT NOT NULL, status TEXT NOT NULL, starts_at TEXT NOT NULL, expires_at TEXT NOT NULL, auto_renewing INTEGER NOT NULL, cancel_reason TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);',
+        'CREATE TABLE subscription_events (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, purchase_token TEXT NOT NULL, event_type TEXT NOT NULL, payload TEXT, created_at TEXT NOT NULL);',
+        ...readFileSync(new URL('../../migrations/0002_play_rtdn_messages.sql', import.meta.url), 'utf8')
+          .split(';').map((part) => part.replace(/\s+/g, ' ').trim()).filter(Boolean)
+          .map((part) => `${part};`)
+      ].join('\n'));
+      const past = new Date(Date.now() - 86_400_000).toISOString();
+      const future = new Date(Date.now() + 7 * 86_400_000).toISOString();
+      await db.prepare(
+        'INSERT INTO users (id, is_premium, subscription_state, premium_expires_at) VALUES (?, 0, ?, ?)'
+      ).bind('user-1', 'expired', past).run();
+      await db.prepare(
+        'INSERT INTO subscriptions (id, user_id, purchase_token, product_id, status, starts_at, expires_at, auto_renewing, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind('old-id', 'user-1', 'expired-monthly', 'premium_monthly', 'expired', past, past, 0, past, past).run();
+
+      const subscription = activeWeeklySubscription('new-monthly');
+      subscription.productId = 'premium_monthly';
+      subscription.raw.lineItems = [{ productId: 'premium_monthly', expiryTime: subscription.expiresAt }];
+      subscription.raw.outOfAppPurchaseContext = { expiredPurchaseToken: 'expired-monthly' };
+      subscription.raw.acknowledgementState = 'ACKNOWLEDGEMENT_STATE_PENDING';
+      getSubscriptionStatusMock.mockResolvedValue(subscription);
+      acknowledgeSubscriptionPurchaseMock
+        .mockRejectedValueOnce(new Error('Synthetic Play ACK temporarily unavailable'))
+        .mockResolvedValueOnce(undefined);
+      const env = createTestEnv({ DB: db, PACKAGE_NAME: 'com.parsfilo.astrology' });
+      const attempt = () => sendSyntheticSubscriptionRtdn(env, 'real-d1-playcenter', 'new-monthly', 'premium_monthly');
+
+      const first = await attempt();
+      expect(first.status).toBe(500);
+      const active = await db.prepare('SELECT user_id, product_id, status FROM subscriptions WHERE purchase_token = ?')
+        .bind('new-monthly').first<{ user_id: string; product_id: string; status: string }>();
+      expect(active).toMatchObject({ user_id: 'user-1', product_id: 'premium_monthly', status: 'active' });
+      const premium = await db.prepare('SELECT is_premium, subscription_state FROM users WHERE id = ?')
+        .bind('user-1').first<{ is_premium: number; subscription_state: string }>();
+      expect(premium).toMatchObject({ is_premium: 1, subscription_state: 'active' });
+      const pending = await db.prepare('SELECT status, outcome FROM play_rtdn_messages WHERE message_id = ?')
+        .bind('real-d1-playcenter').first<{ status: string; outcome: string }>();
+      expect(pending).toMatchObject({ status: 'processed', outcome: 'ack_pending' });
+
+      const second = await attempt();
+      expect(second.status).toBe(200);
+      const processed = await db.prepare('SELECT status, outcome FROM play_rtdn_messages WHERE message_id = ?')
+        .bind('real-d1-playcenter').first<{ status: string; outcome: string }>();
+      expect(processed).toMatchObject({ status: 'processed', outcome: 'processed' });
+      const events = await db.prepare('SELECT COUNT(*) AS count FROM subscription_events WHERE purchase_token = ?')
+        .bind('new-monthly').first<{ count: number }>();
+      expect(events?.count).toBe(1);
+      const duplicate = await attempt();
+      expect(duplicate.status).toBe(200);
+      expect(getSubscriptionStatusMock).toHaveBeenCalledTimes(2);
+      expect(acknowledgeSubscriptionPurchaseMock).toHaveBeenCalledTimes(2);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+});
 
 describe('subscription worker', () => {
   it.each(['verify', 'restore'] as const)(
