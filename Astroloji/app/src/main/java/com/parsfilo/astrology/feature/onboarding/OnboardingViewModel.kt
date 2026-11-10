@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 import java.io.IOException
 import java.time.LocalDate
@@ -337,7 +338,16 @@ class OnboardingViewModel
             }
 
             try {
-                saveBirthDataAndReveal()
+                // Registration is already complete. Birth data and the chart are
+                // optional, so a stuck network call must not trap users on Start.
+                val enriched =
+                    withTimeoutOrNull(OPTIONAL_ENRICHMENT_TIMEOUT_MS) {
+                        saveBirthDataAndReveal()
+                        true
+                    }
+                if (enriched != true) {
+                    Timber.w("Optional birth-data enrichment timed out; continuing onboarding.")
+                }
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
@@ -451,6 +461,7 @@ class OnboardingViewModel
         }
 
         private companion object {
+            const val OPTIONAL_ENRICHMENT_TIMEOUT_MS = 5_000L
             const val MIN_HOUR = 0
             const val MAX_HOUR = 23
             const val MIN_MINUTE = 0
