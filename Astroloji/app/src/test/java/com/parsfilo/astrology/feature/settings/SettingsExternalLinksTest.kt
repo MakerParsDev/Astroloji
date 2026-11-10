@@ -1,13 +1,17 @@
 package com.parsfilo.astrology.feature.settings
 
+import android.content.Context
 import android.content.Intent
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.parsfilo.astrology.R
 import com.parsfilo.astrology.ui.theme.AstrolojiTheme
 import org.junit.Rule
 import org.junit.Test
@@ -53,6 +57,36 @@ class SettingsExternalLinksTest {
 
         assertThat(privacyClicks).isEqualTo(1)
         assertThat(dataClicks).isEqualTo(1)
+    }
+
+    @Test
+    fun completedServerDeletionHidesDestructiveButtonAndAllowsAcknowledgement() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val confirm = context.getString(R.string.settings_delete_dialog_confirm)
+        val close = context.getString(R.string.settings_delete_dialog_close)
+        val deletedTitle = context.getString(R.string.settings_delete_local_cleanup_title)
+        val events = mutableListOf<SettingsUiEvent>()
+        val message = "Account deleted online; clear local app storage."
+
+        composeRule.setContent {
+            AstrolojiTheme(darkTheme = true) {
+                SettingsAccountDeletionDialog(
+                    uiState =
+                        SettingsUiState(
+                            showDeleteConfirmation = true,
+                            accountDeletedOnServer = true,
+                            error = message,
+                        ),
+                    onEvent = events::add,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText(message).assertExists()
+        composeRule.onNodeWithText(deletedTitle).assertExists()
+        composeRule.onNodeWithText(confirm).assertDoesNotExist()
+        composeRule.onNodeWithText(close).performClick()
+        assertThat(events).containsExactly(SettingsUiEvent.DismissAccountDeletion)
     }
 
     @Test

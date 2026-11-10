@@ -586,57 +586,7 @@ fun SettingsScreen(
         )
     }
 
-    if (uiState.showDeleteConfirmation) {
-        AlertDialog(
-            onDismissRequest = {
-                if (!uiState.isDeletingAccount) {
-                    viewModel.onEvent(SettingsUiEvent.DismissAccountDeletion)
-                }
-            },
-            title = { Text(stringResource(R.string.settings_delete_dialog_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.settings_delete_dialog_body))
-                    uiState.error?.let { error ->
-                        Text(
-                            text = error,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { viewModel.onEvent(SettingsUiEvent.ConfirmAccountDeletion) },
-                    enabled = !uiState.isDeletingAccount,
-                    colors =
-                        ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError,
-                        ),
-                ) {
-                    Text(
-                        stringResource(
-                            if (uiState.isDeletingAccount) {
-                                R.string.settings_delete_account_progress
-                            } else {
-                                R.string.settings_delete_dialog_confirm
-                            },
-                        ),
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { viewModel.onEvent(SettingsUiEvent.DismissAccountDeletion) },
-                    enabled = !uiState.isDeletingAccount,
-                ) {
-                    Text(stringResource(R.string.settings_delete_dialog_cancel))
-                }
-            },
-        )
-    }
+    SettingsAccountDeletionDialog(uiState = uiState, onEvent = viewModel::onEvent)
 }
 
 private const val SETTINGS_MAX_SINGLE_ROW_OPTIONS = 3

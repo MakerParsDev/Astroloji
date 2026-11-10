@@ -345,6 +345,36 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `partial local cleanup reports remote deletion and prevents repeat submission`() =
+        runTest {
+            val message = "Account deleted online; clear local app storage."
+            coEvery { sessionRepository.deleteAccount() } returns
+                AppResult.Error(AppException.LocalCleanupException(message))
+            val viewModel = createViewModel()
+            advanceUntilIdle()
+
+            viewModel.onEvent(SettingsUiEvent.RequestAccountDeletion)
+            viewModel.onEvent(SettingsUiEvent.ConfirmAccountDeletion)
+            advanceUntilIdle()
+
+            assertThat(viewModel.state.value.showDeleteConfirmation).isTrue()
+            assertThat(viewModel.state.value.accountDeletedOnServer).isTrue()
+            assertThat(viewModel.state.value.error).isEqualTo(message)
+            viewModel.onEvent(SettingsUiEvent.ConfirmAccountDeletion)
+            advanceUntilIdle()
+            coVerify(exactly = 1) { sessionRepository.deleteAccount() }
+
+            viewModel.onEvent(SettingsUiEvent.DismissAccountDeletion)
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.showDeleteConfirmation).isFalse()
+            assertThat(viewModel.effects.receiveAsFlowForTest()).isEqualTo(SettingsEffect.AccountDeleted)
+            viewModel.onEvent(SettingsUiEvent.RequestAccountDeletion)
+            advanceUntilIdle()
+            assertThat(viewModel.state.value.showDeleteConfirmation).isFalse()
+            coVerify(exactly = 1) { sessionRepository.deleteAccount() }
+        }
+
+    @Test
     fun `failed account deletion keeps the user on settings and shows the error`() =
         runTest {
             coEvery { sessionRepository.deleteAccount() } returns

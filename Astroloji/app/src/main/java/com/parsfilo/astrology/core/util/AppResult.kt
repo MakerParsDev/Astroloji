@@ -57,6 +57,13 @@ sealed class AppException(
         message: String,
     ) : AppException(message)
 
+    // Remote account deletion succeeded, but cleanup on this device is incomplete.
+    // This is not retryable by sending DELETE /users/me again.
+    class LocalCleanupException(
+        message: String,
+        cause: Throwable? = null,
+    ) : AppException(message, cause)
+
     class UnknownException(
         message: String,
         cause: Throwable? = null,

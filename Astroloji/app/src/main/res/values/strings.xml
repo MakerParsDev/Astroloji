@@ -395,4 +395,7 @@
     <string name="premium_insights_description">Explore the deeper themes of love, work, and money when you are ready.</string>
     <string name="onboarding_step_progress">Step %1$d of %2$d</string>
     <string name="onboarding_skip_notifications">Not now — explore the app</string>
+    <string name="session_error_account_delete_local_cleanup_incomplete">Your account was deleted online, but some data on this device could not be cleared. To finish, clear Astroloji app storage in Android settings.</string>
+    <string name="settings_delete_local_cleanup_title">Account deleted</string>
+    <string name="settings_delete_dialog_close">Close</string>
 </resources>

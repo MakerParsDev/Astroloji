@@ -395,4 +395,7 @@
     <string name="premium_insights_description">Hazır olduğunda aşk, kariyer ve para konularını daha derin keşfet.</string>
     <string name="onboarding_step_progress">%1$d / %2$d. adım</string>
     <string name="onboarding_skip_notifications">Şimdilik geç, uygulamayı keşfet</string>
+    <string name="session_error_account_delete_local_cleanup_incomplete">Hesabınız sunucudan silindi ancak bu cihazdaki bazı veriler temizlenemedi. İşlemi tamamlamak için Android ayarlarından Astroloji uygulamasının verilerini temizleyin.</string>
+    <string name="settings_delete_local_cleanup_title">Hesap silindi</string>
+    <string name="settings_delete_dialog_close">Kapat</string>
 </resources>

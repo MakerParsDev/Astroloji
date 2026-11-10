@@ -395,4 +395,7 @@
     <string name="premium_insights_description">Erkunde Liebe, Beruf und Finanzen genauer, wenn du bereit bist.</string>
     <string name="onboarding_step_progress">Schritt %1$d von %2$d</string>
     <string name="onboarding_skip_notifications">Nicht jetzt, App entdecken</string>
+    <string name="session_error_account_delete_local_cleanup_incomplete">Dein Konto wurde online gelöscht, aber einige Daten auf diesem Gerät konnten nicht entfernt werden. Lösche zum Abschluss die App-Daten von Astroloji in den Android-Einstellungen.</string>
+    <string name="settings_delete_local_cleanup_title">Konto gelöscht</string>
+    <string name="settings_delete_dialog_close">Schließen</string>
 </resources>

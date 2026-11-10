@@ -256,19 +256,48 @@ class SessionRepository
                                 if (it is CancellationException) throw it
                                 Timber.w(it, "Firebase installation could not be removed during account deletion.")
                             }
-                        firebaseAuth.signOut()
-                        database.clearAllTables()
-                        preferencesRepository.clearAll()
-                        tokenStore.update(null)
-                        // Erase local Analytics SDK data and rotate its app-instance ID only
-                        // after the server has confirmed account deletion. This cannot
-                        // delete analytics events already sent to Google's servers.
+                        // The server has irreversibly deleted this account. A failure in
+                        // one local store must never prevent clearing the other stores.
+                        // Report partial local deletion truthfully instead of prompting
+                        // the user to retry an already completed remote deletion.
+                        var localCleanupFailure: Exception? = null
+
+                        suspend fun cleanupStep(
+                            label: String,
+                            action: suspend () -> Unit,
+                        ) {
+                            try {
+                                action()
+                            } catch (exception: CancellationException) {
+                                throw exception
+                            } catch (exception: Exception) {
+                                if (localCleanupFailure == null) localCleanupFailure = exception
+                                Timber.w(exception, "Account deletion local cleanup failed: %s", label)
+                            }
+                        }
+
+                        cleanupStep("Firebase sign-out") { firebaseAuth.signOut() }
+                        cleanupStep("local database") { database.clearAllTables() }
+                        cleanupStep("preferences") { preferencesRepository.clearAll() }
+                        cleanupStep("in-memory token") { tokenStore.update(null) }
+                        // This rotates only this device's Analytics app-instance ID;
+                        // historical GA4 events need a separate provider deletion request.
                         runCatching { firebaseAnalytics.resetAnalyticsData() }
                             .onFailure {
                                 if (it is CancellationException) throw it
-                                Timber.w("Local Firebase Analytics reset unavailable after account deletion.")
+                                Timber.w(it, "Local Firebase Analytics reset unavailable after account deletion.")
                             }
-                        AppResult.Success(Unit)
+                        val failedStep = localCleanupFailure
+                        if (failedStep != null) {
+                            AppResult.Error(
+                                AppException.LocalCleanupException(
+                                    stringsProvider.get(R.string.session_error_account_delete_local_cleanup_incomplete),
+                                    failedStep,
+                                ),
+                            )
+                        } else {
+                            AppResult.Success(Unit)
+                        }
                     } catch (exception: CancellationException) {
                         throw exception
                     } catch (exception: Exception) {
