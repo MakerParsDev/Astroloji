@@ -49,8 +49,8 @@ Scoped admin credential'lari generic `npm run doppler:cf-secrets` / `deploy:dopp
 - `npm run types:generate`
 - `npm run types:check`
 - `npm run doppler:devvars`
-- `npm run doppler:cf-secrets`
-- `npm run deploy:doppler`
+- `npm run deploy:doppler`: uploads the five required Worker secrets **with the code in one Wrangler deployment**; no intermediate `secret put` deployments. Use through the guarded production workflow.
+- `npm run doppler:cf-secrets`: **manual rotation only**; each `secret put` immediately publishes a Worker version. Do not run it before `deploy:doppler`.
 - `npm run schema:apply`
 - `npm run seed`
 
