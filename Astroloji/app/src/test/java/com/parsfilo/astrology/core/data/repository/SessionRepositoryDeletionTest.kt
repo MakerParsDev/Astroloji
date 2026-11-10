@@ -217,19 +217,7 @@ class SessionRepositoryDeletionTest {
             tokenStore.update("app-jwt")
             val repository = createRepository()
 
-            val result = repository.deleteAccount()
-
-            assertThat(result).isInstanceOf(AppResult.Error::class.java)
-            assertThat((result as AppResult.Error).exception).isInstanceOf(
-                com.parsfilo.astrology.core.util.AppException.LocalCleanupException::class.java,
-            )
-            assertThat(result.exception.message).isEqualTo("Account deleted online; clear local app storage.")
-            coVerify(exactly = 1) { api.deleteUser() }
-            verify(exactly = 1) { firebaseAuth.signOut() }
-            verify(exactly = 1) { database.clearAllTables() }
-            coVerify(exactly = 1) { preferencesRepository.clearAll() }
-            verify(exactly = 1) { firebaseAnalytics.resetAnalyticsData() }
-            assertThat(tokenStore.current()).isNull()
+            assertPartialLocalCleanup(repository.deleteAccount())
         }
 
     @Test
@@ -250,18 +238,7 @@ class SessionRepositoryDeletionTest {
             tokenStore.update("app-jwt")
             val repository = createRepository()
 
-            val result = repository.deleteAccount()
-
-            assertThat(result).isInstanceOf(AppResult.Error::class.java)
-            assertThat((result as AppResult.Error).exception).isInstanceOf(
-                com.parsfilo.astrology.core.util.AppException.LocalCleanupException::class.java,
-            )
-            assertThat(result.exception.message).isEqualTo("Account deleted online; clear local app storage.")
-            coVerify(exactly = 1) { api.deleteUser() }
-            verify(exactly = 1) { database.clearAllTables() }
-            coVerify(exactly = 1) { preferencesRepository.clearAll() }
-            verify(exactly = 1) { firebaseAnalytics.resetAnalyticsData() }
-            assertThat(tokenStore.current()).isNull()
+            assertPartialLocalCleanup(repository.deleteAccount())
         }
 
     @Test
@@ -279,17 +256,23 @@ class SessionRepositoryDeletionTest {
             tokenStore.update("app-jwt")
             val repository = createRepository()
 
-            val result = repository.deleteAccount()
-
-            assertThat(result).isInstanceOf(AppResult.Error::class.java)
-            assertThat((result as AppResult.Error).exception).isInstanceOf(
-                com.parsfilo.astrology.core.util.AppException.LocalCleanupException::class.java,
-            )
-            verify(exactly = 1) { database.clearAllTables() }
-            coVerify(exactly = 1) { preferencesRepository.clearAll() }
-            verify(exactly = 1) { firebaseAnalytics.resetAnalyticsData() }
-            assertThat(tokenStore.current()).isNull()
+            assertPartialLocalCleanup(repository.deleteAccount())
         }
+
+    private fun assertPartialLocalCleanup(result: AppResult<Unit>) {
+        assertThat(result).isInstanceOf(AppResult.Error::class.java)
+        val exception = (result as AppResult.Error).exception
+        assertThat(exception).isInstanceOf(
+            com.parsfilo.astrology.core.util.AppException.LocalCleanupException::class.java,
+        )
+        assertThat(exception.message).isEqualTo("Account deleted online; clear local app storage.")
+        coVerify(exactly = 1) { api.deleteUser() }
+        verify(exactly = 1) { firebaseAuth.signOut() }
+        verify(exactly = 1) { database.clearAllTables() }
+        coVerify(exactly = 1) { preferencesRepository.clearAll() }
+        verify(exactly = 1) { firebaseAnalytics.resetAnalyticsData() }
+        assertThat(tokenStore.current()).isNull()
+    }
 
     private fun assertFailedDeletionPreservesLocalState() {
         verify(exactly = 0) { firebaseAuth.signOut() }
