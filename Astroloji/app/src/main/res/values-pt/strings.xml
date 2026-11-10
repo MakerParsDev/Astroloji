@@ -403,4 +403,7 @@
     <string name="premium_insights_description">Explore amor, carreira e finanças com mais detalhes quando quiser.</string>
     <string name="onboarding_step_progress">Etapa %1$d de %2$d</string>
     <string name="onboarding_skip_notifications">Agora não, explorar o app</string>
+    <string name="session_error_account_delete_local_cleanup_incomplete">Sua conta foi excluída do servidor, mas alguns dados deste dispositivo não puderam ser apagados. Para concluir, limpe os dados do app Astroloji nas configurações do Android.</string>
+    <string name="settings_delete_local_cleanup_title">Conta excluída</string>
+    <string name="settings_delete_dialog_close">Fechar</string>
 </resources>

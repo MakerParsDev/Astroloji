@@ -403,4 +403,7 @@
     <string name="premium_insights_description">Descubre el amor, el trabajo y las finanzas con más detalle cuando quieras.</string>
     <string name="onboarding_step_progress">Paso %1$d de %2$d</string>
     <string name="onboarding_skip_notifications">Ahora no, explorar la aplicación</string>
+    <string name="session_error_account_delete_local_cleanup_incomplete">Tu cuenta se eliminó del servidor, pero algunos datos de este dispositivo no se pudieron borrar. Para completar el proceso, borra los datos de Astroloji en los ajustes de Android.</string>
+    <string name="settings_delete_local_cleanup_title">Cuenta eliminada</string>
+    <string name="settings_delete_dialog_close">Cerrar</string>
 </resources>

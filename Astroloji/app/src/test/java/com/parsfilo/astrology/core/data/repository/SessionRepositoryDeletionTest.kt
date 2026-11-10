@@ -199,6 +199,98 @@ class SessionRepositoryDeletionTest {
             assertThat(tokenStore.current()).isNull()
         }
 
+    @Test
+    fun `confirmed backend deletion still clears auth and preferences if local database fails`() =
+        runTest {
+            coEvery { api.deleteUser() } returns
+                Response.success(DeleteUserResponse(ok = true, userId = "user-1", firebaseAccountDeleted = true))
+            every {
+                stringsProvider.get(R.string.session_error_account_delete_failed)
+            } returns "Account deletion failed."
+            every {
+                stringsProvider.get(R.string.session_error_account_delete_local_cleanup_incomplete)
+            } returns "Account deleted online; clear local app storage."
+            every { firebaseAuth.signOut() } just runs
+            every { database.clearAllTables() } throws IllegalStateException("local DB unavailable")
+            coJustRun { preferencesRepository.clearAll() }
+            coJustRun { pushRegistrationManager.unregister() }
+            tokenStore.update("app-jwt")
+            val repository = createRepository()
+
+            val result = repository.deleteAccount()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception).isInstanceOf(
+                com.parsfilo.astrology.core.util.AppException.LocalCleanupException::class.java,
+            )
+            assertThat(result.exception.message).isEqualTo("Account deleted online; clear local app storage.")
+            coVerify(exactly = 1) { api.deleteUser() }
+            verify(exactly = 1) { firebaseAuth.signOut() }
+            verify(exactly = 1) { database.clearAllTables() }
+            coVerify(exactly = 1) { preferencesRepository.clearAll() }
+            verify(exactly = 1) { firebaseAnalytics.resetAnalyticsData() }
+            assertThat(tokenStore.current()).isNull()
+        }
+
+    @Test
+    fun `confirmed backend deletion still clears token and analytics if preferences fail`() =
+        runTest {
+            coEvery { api.deleteUser() } returns
+                Response.success(DeleteUserResponse(ok = true, userId = "user-1", firebaseAccountDeleted = true))
+            every {
+                stringsProvider.get(R.string.session_error_account_delete_failed)
+            } returns "Account deletion failed."
+            every {
+                stringsProvider.get(R.string.session_error_account_delete_local_cleanup_incomplete)
+            } returns "Account deleted online; clear local app storage."
+            every { firebaseAuth.signOut() } just runs
+            every { database.clearAllTables() } just runs
+            coEvery { preferencesRepository.clearAll() } throws IllegalStateException("preferences unavailable")
+            coJustRun { pushRegistrationManager.unregister() }
+            tokenStore.update("app-jwt")
+            val repository = createRepository()
+
+            val result = repository.deleteAccount()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception).isInstanceOf(
+                com.parsfilo.astrology.core.util.AppException.LocalCleanupException::class.java,
+            )
+            assertThat(result.exception.message).isEqualTo("Account deleted online; clear local app storage.")
+            coVerify(exactly = 1) { api.deleteUser() }
+            verify(exactly = 1) { database.clearAllTables() }
+            coVerify(exactly = 1) { preferencesRepository.clearAll() }
+            verify(exactly = 1) { firebaseAnalytics.resetAnalyticsData() }
+            assertThat(tokenStore.current()).isNull()
+        }
+
+    @Test
+    fun `confirmed backend deletion still clears local data when Firebase sign-out fails`() =
+        runTest {
+            coEvery { api.deleteUser() } returns
+                Response.success(DeleteUserResponse(ok = true, userId = "user-1", firebaseAccountDeleted = true))
+            every {
+                stringsProvider.get(R.string.session_error_account_delete_local_cleanup_incomplete)
+            } returns "Account deleted online; clear local app storage."
+            every { firebaseAuth.signOut() } throws IllegalStateException("Firebase sign-out unavailable")
+            every { database.clearAllTables() } just runs
+            coJustRun { preferencesRepository.clearAll() }
+            coJustRun { pushRegistrationManager.unregister() }
+            tokenStore.update("app-jwt")
+            val repository = createRepository()
+
+            val result = repository.deleteAccount()
+
+            assertThat(result).isInstanceOf(AppResult.Error::class.java)
+            assertThat((result as AppResult.Error).exception).isInstanceOf(
+                com.parsfilo.astrology.core.util.AppException.LocalCleanupException::class.java,
+            )
+            verify(exactly = 1) { database.clearAllTables() }
+            coVerify(exactly = 1) { preferencesRepository.clearAll() }
+            verify(exactly = 1) { firebaseAnalytics.resetAnalyticsData() }
+            assertThat(tokenStore.current()).isNull()
+        }
+
     private fun assertFailedDeletionPreservesLocalState() {
         verify(exactly = 0) { firebaseAuth.signOut() }
         verify(exactly = 0) { firebaseAnalytics.resetAnalyticsData() }

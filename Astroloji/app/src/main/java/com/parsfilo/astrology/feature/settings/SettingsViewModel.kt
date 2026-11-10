@@ -10,6 +10,7 @@ import com.parsfilo.astrology.core.data.repository.MoodRepository
 import com.parsfilo.astrology.core.data.repository.SessionRepository
 import com.parsfilo.astrology.core.domain.model.UserProfile
 import com.parsfilo.astrology.core.ui.MviViewModel
+import com.parsfilo.astrology.core.util.AppException
 import com.parsfilo.astrology.core.util.AppResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -35,6 +36,7 @@ data class SettingsUiState(
     val moodDeletionError: String? = null,
     val showDeleteConfirmation: Boolean = false,
     val isDeletingAccount: Boolean = false,
+    val accountDeletedOnServer: Boolean = false,
     val error: String? = null,
 )
 
@@ -213,17 +215,22 @@ class SettingsViewModel
                 SettingsUiEvent.ConfirmMoodDeletion,
                 -> handleMoodAction(event)
                 SettingsUiEvent.RequestAccountDeletion -> {
-                    if (!state.value.isDeletingAccount) {
+                    if (!state.value.accountDeletedOnServer) {
                         setState { copy(showDeleteConfirmation = true, error = null) }
                     }
                 }
                 SettingsUiEvent.DismissAccountDeletion -> {
                     if (!state.value.isDeletingAccount) {
+                        val remoteDeleted = state.value.accountDeletedOnServer
                         setState { copy(showDeleteConfirmation = false, error = null) }
+                        if (remoteDeleted) sendEffect { SettingsEffect.AccountDeleted }
                     }
                 }
                 SettingsUiEvent.ConfirmAccountDeletion -> {
-                    if (state.value.showDeleteConfirmation && !state.value.isDeletingAccount) {
+                    if (state.value.showDeleteConfirmation &&
+                        !state.value.isDeletingAccount &&
+                        !state.value.accountDeletedOnServer
+                    ) {
                         deleteAccount()
                     }
                 }
@@ -360,10 +367,12 @@ class SettingsViewModel
                     sendEffect { SettingsEffect.AccountDeleted }
                 }
                 is AppResult.Error -> {
+                    val remotelyDeleted = result.exception is AppException.LocalCleanupException
                     setState {
                         copy(
                             isDeletingAccount = false,
                             showDeleteConfirmation = true,
+                            accountDeletedOnServer = remotelyDeleted,
                             error = result.exception.message,
                         )
                     }

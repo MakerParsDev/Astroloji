@@ -86,3 +86,27 @@ fun SettingsPrivacyDataShortcutsLargeFontScreenshot() {
         }
     }
 }
+
+@PreviewTest
+@Preview(
+    name = "Account deleted online but local cleanup incomplete - Turkish large text",
+    widthDp = 320,
+    heightDp = 520,
+    fontScale = 1.4f,
+    locale = "tr-rTR",
+    showBackground = true,
+)
+@Composable
+fun SettingsIncompleteLocalCleanupTurkishScreenshot() {
+    AstrolojiTheme(darkTheme = true) {
+        SettingsAccountDeletionDialog(
+            uiState =
+                SettingsUiState(
+                    showDeleteConfirmation = true,
+                    accountDeletedOnServer = true,
+                    error = stringResource(R.string.session_error_account_delete_local_cleanup_incomplete),
+                ),
+            onEvent = {},
+        )
+    }
+}
