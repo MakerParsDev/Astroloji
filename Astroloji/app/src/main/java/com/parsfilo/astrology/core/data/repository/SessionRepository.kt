@@ -446,6 +446,7 @@ class SessionRepository
                                 sign = preferences.selectedSign,
                                 language = preferences.language,
                                 firebaseInstallationId = firebaseInstallationId,
+                                notificationEnabled = preferences.notificationEnabled,
                                 notificationHour = preferences.notificationHour,
                                 utcOffset = preferences.utcOffset,
                                 platform = "android",

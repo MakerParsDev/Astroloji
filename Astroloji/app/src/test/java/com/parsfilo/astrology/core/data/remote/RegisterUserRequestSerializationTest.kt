@@ -16,12 +16,14 @@ class RegisterUserRequestSerializationTest {
                     sign = "aries",
                     language = "tr",
                     firebaseInstallationId = null,
+                    notificationEnabled = false,
                     notificationHour = 9,
                     utcOffset = 3,
                 ),
             )
 
         assertThat(payload).doesNotContain("firebase_installation_id")
+        assertThat(payload).contains("\"notification_enabled\":false")
     }
 
     @Test
@@ -32,11 +34,13 @@ class RegisterUserRequestSerializationTest {
                     sign = "aries",
                     language = "tr",
                     firebaseInstallationId = "fid-123",
+                    notificationEnabled = true,
                     notificationHour = 9,
                     utcOffset = 3,
                 ),
             )
 
         assertThat(payload).contains("\"firebase_installation_id\":\"fid-123\"")
+        assertThat(payload).contains("\"notification_enabled\":true")
     }
 }

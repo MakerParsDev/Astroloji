@@ -64,6 +64,7 @@ export const registerSchema = z
     language: languageSchema.default('tr'),
     fcm_token: z.string().min(1).optional(),
     firebase_installation_id: z.string().min(1).optional(),
+    notification_enabled: z.boolean().optional(),
     notification_hour: notificationHourSchema.optional().default(9),
     utc_offset: utcOffsetSchema,
     platform: platformSchema.default('android')

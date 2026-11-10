@@ -250,7 +250,7 @@ class SessionRepositoryRefreshTest {
         runTest {
             val fresh = jwt(exp = 4_000_000_100)
             val registerRequest = slot<RegisterUserRequest>()
-            coEvery { preferencesRepository.current() } returns UserPreferences()
+            coEvery { preferencesRepository.current() } returns UserPreferences(notificationEnabled = false)
             every { firebaseAuth.currentUser } returns firebaseUser
             every { tokenResult.token } returns "firebase-token"
             every { firebaseUser.getIdToken(true) } returns Tasks.forResult(tokenResult)
@@ -284,6 +284,7 @@ class SessionRepositoryRefreshTest {
 
             assertThat(result).isEqualTo(AppResult.Success(fresh))
             assertThat(registerRequest.captured.firebaseInstallationId).isNull()
+            assertThat(registerRequest.captured.notificationEnabled).isFalse()
         }
 
     @Test
