@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -32,6 +34,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -55,6 +59,7 @@ import com.parsfilo.astrology.core.ui.components.ErrorState
 import com.parsfilo.astrology.core.ui.components.LoadingState
 import com.parsfilo.astrology.core.util.AppLanguageManager
 import com.parsfilo.astrology.core.util.ZodiacSign
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 @Suppress("LongMethod", "CyclomaticComplexMethod", "FunctionNaming", "LongParameterList")
@@ -91,6 +96,8 @@ fun SettingsScreen(
     val consentManager = adsEntryPoint(context).consentManager()
     val privacyOptionsRequired by consentManager.privacyOptionsRequired.collectAsStateWithLifecycle()
     val activity = context as? Activity
+    val dataTarget = remember { BringIntoViewRequester() }
+    val scrollScope = rememberCoroutineScope()
     val appLanguage =
         com.parsfilo.astrology.core.util.TimeUtils
             .normalizeLanguageTag(configuration.locales[0].language)
@@ -104,6 +111,13 @@ fun SettingsScreen(
                     .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            SettingsQuickAccessRow(
+                privacyLabel = stringResource(R.string.settings_privacy),
+                accountLabel = stringResource(R.string.settings_account_title),
+                onPrivacyClick = { context.startActivity(privacyPolicyIntent()) },
+                onAccountClick = { scrollScope.launch { dataTarget.bringIntoView() } },
+            )
+
             SettingsPremiumOverview(
                 currentSign = currentSign,
                 language = appLanguage,
@@ -390,7 +404,7 @@ fun SettingsScreen(
                 }
             }
 
-            AstrologyCard {
+            AstrologyCard(modifier = Modifier.bringIntoViewRequester(dataTarget)) {
                 Text(
                     text = stringResource(R.string.settings_birth_data_delete_title),
                     style = MaterialTheme.typography.titleLarge,
@@ -755,6 +769,28 @@ internal fun privacyPolicyIntent(): Intent {
 }
 
 internal fun supportContactIntent(): Intent = Intent(Intent.ACTION_SENDTO, "mailto:info@parsfilo.com".toUri())
+
+@Composable
+@Suppress("FunctionNaming")
+internal fun SettingsQuickAccessRow(
+    privacyLabel: String,
+    accountLabel: String,
+    onPrivacyClick: () -> Unit,
+    onAccountClick: () -> Unit,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedButton(onClick = onPrivacyClick) {
+            Text(privacyLabel)
+        }
+        OutlinedButton(onClick = onAccountClick) {
+            Text(accountLabel)
+        }
+    }
+}
 
 @Composable
 @Suppress("FunctionNaming")

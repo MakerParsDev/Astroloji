@@ -33,6 +33,29 @@ class SettingsExternalLinksTest {
     }
 
     @Test
+    fun quickAccessLinksAreDistinctOneTapButtons() {
+        var privacyClicks = 0
+        var dataClicks = 0
+        composeRule.setContent {
+            AstrolojiTheme(darkTheme = true) {
+                SettingsQuickAccessRow(
+                    privacyLabel = "Privacy Policy",
+                    accountLabel = "Account and data",
+                    onPrivacyClick = { privacyClicks++ },
+                    onAccountClick = { dataClicks++ },
+                )
+            }
+        }
+
+        val isButton = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)
+        composeRule.onNode(hasText("Privacy Policy") and isButton).performClick()
+        composeRule.onNode(hasText("Account and data") and isButton).performClick()
+
+        assertThat(privacyClicks).isEqualTo(1)
+        assertThat(dataClicks).isEqualTo(1)
+    }
+
+    @Test
     fun externalLinkRowExposesButtonSemanticsAndInvokesClick() {
         var clicks = 0
         composeRule.setContent {
