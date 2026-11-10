@@ -406,4 +406,5 @@
     <string name="session_error_account_delete_local_cleanup_incomplete">Sua conta foi excluída do servidor, mas alguns dados deste dispositivo não puderam ser apagados. Para concluir, limpe os dados do app Astroloji nas configurações do Android.</string>
     <string name="settings_delete_local_cleanup_title">Conta excluída</string>
     <string name="settings_delete_dialog_close">Fechar</string>
+    <string name="settings_delete_open_app_settings">Abrir configurações do app</string>
 </resources>

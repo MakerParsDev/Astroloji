@@ -398,4 +398,5 @@
     <string name="session_error_account_delete_local_cleanup_incomplete">Your account was deleted online, but some data on this device could not be cleared. To finish, clear Astroloji app storage in Android settings.</string>
     <string name="settings_delete_local_cleanup_title">Account deleted</string>
     <string name="settings_delete_dialog_close">Close</string>
+    <string name="settings_delete_open_app_settings">Open app settings</string>
 </resources>

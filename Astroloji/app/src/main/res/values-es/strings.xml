@@ -406,4 +406,5 @@
     <string name="session_error_account_delete_local_cleanup_incomplete">Tu cuenta se eliminó del servidor, pero algunos datos de este dispositivo no se pudieron borrar. Para completar el proceso, borra los datos de Astroloji en los ajustes de Android.</string>
     <string name="settings_delete_local_cleanup_title">Cuenta eliminada</string>
     <string name="settings_delete_dialog_close">Cerrar</string>
+    <string name="settings_delete_open_app_settings">Abrir ajustes de la aplicación</string>
 </resources>
