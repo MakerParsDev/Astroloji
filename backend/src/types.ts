@@ -491,6 +491,7 @@ export interface RegisterRequest {
   language: Language;
   fcm_token?: string;
   firebase_installation_id?: string;
+  notification_enabled?: boolean;
   notification_hour?: number;
   utc_offset: number;
   platform: Platform;

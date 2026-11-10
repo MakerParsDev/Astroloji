@@ -181,7 +181,7 @@ describe('user routes', () => {
     expect(executedSql.some((sql) => sql.includes('fcm_tokens'))).toBe(false);
   });
 
-  it('registers a Firebase installation ID and replaces the legacy target for the same platform', async () => {
+  it.each([false, true, undefined])('registers Firebase installation with notification preference %s', async (enabled) => {
     const user = {
       id: 'user-1',
       firebase_uid: 'firebase-1',
@@ -237,6 +237,7 @@ describe('user routes', () => {
           sign: 'aries',
           language: 'tr',
           firebase_installation_id: 'fid-123',
+          notification_enabled: enabled,
           notification_hour: 9,
           utc_offset: 3,
           platform: 'android'
@@ -250,6 +251,13 @@ describe('user routes', () => {
       sql: 'DELETE FROM fcm_tokens WHERE user_id = ? AND platform = ? AND target_type <> ?',
       bindings: ['user-1', 'android', 'fid']
     });
+    // An onboarding 'Not now' choice must not default a newly inserted
+    // delivery target to opt-in on the backend.
+    const insertedTarget = executed.find(({ sql }) =>
+      sql.startsWith('INSERT INTO fcm_tokens')
+    );
+    // Missing field is the legacy signed-client contract; keep it compatible.
+    expect(insertedTarget?.bindings[5]).toBe(Number(enabled ?? true));
     expect(executed).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

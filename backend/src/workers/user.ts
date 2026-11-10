@@ -331,6 +331,7 @@ export function registerUserRoutes(app: Hono<AppBindings>) {
         userId: user.id,
         value: registrationTarget.value,
         targetType: registrationTarget.type,
+        notificationEnabled: body.notification_enabled,
         notificationHour: body.notification_hour ?? 9,
         platform: body.platform
       });
